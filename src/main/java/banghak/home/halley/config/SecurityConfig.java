@@ -30,6 +30,7 @@ public class SecurityConfig {
                                                    JsonAuthenticationEntryPoint entryPoint) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
+                .securityContext(securityContext -> securityContext.requireExplicitSave(false))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")

@@ -35,8 +35,8 @@ class AuthServiceTest {
 
     @Test
     void bootstrapAdminExists() {
-        assertThat(userRepository.findByEmail("admin@halley.local")).isPresent();
-        assertThat(userRepository.findByEmail("admin@halley.local").get().role()).isEqualTo(UserRole.ADMIN);
+        assertThat(userRepository.findByEmail("admin")).isPresent();
+        assertThat(userRepository.findByEmail("admin").get().role()).isEqualTo(UserRole.ADMIN);
     }
 
     @Test

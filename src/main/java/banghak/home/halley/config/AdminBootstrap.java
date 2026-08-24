@@ -15,7 +15,7 @@ import java.security.SecureRandom;
 @Component
 public class AdminBootstrap implements ApplicationRunner {
 
-    private static final String ADMIN_EMAIL = "admin@halley.local";
+    private static final String ADMIN_LOGIN = "admin";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -27,17 +27,17 @@ public class AdminBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (userRepository.findByEmail(ADMIN_EMAIL).isPresent()) {
+        if (userRepository.findByEmail(ADMIN_LOGIN).isPresent()) {
             return;
         }
         String password = randomPassword();
         userRepository.save(new User(
-                null, "admin", ADMIN_EMAIL, passwordEncoder.encode(password), UserRole.ADMIN,
+                null, "admin", ADMIN_LOGIN, passwordEncoder.encode(password), UserRole.ADMIN,
                 null, null, null,
                 true, 0L, true,
                 null, null, null
         ));
-        log.info("★ 초기 관리자 계정 생성 ★ email={} / password={}", ADMIN_EMAIL, password);
+        log.info("★ 초기 관리자 계정 생성 ★ id={} / password={}", ADMIN_LOGIN, password);
     }
 
     private String randomPassword() {
