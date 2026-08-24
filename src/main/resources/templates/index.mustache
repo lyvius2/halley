@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Halley — 신혼집 매물 비교</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/app.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <script defer src="/js/app.js"></script>
+</head>
+<body x-data="halley()" x-init="init()" x-cloak>
+
+<div class="topbar">
+    <div class="wrap topbar-in">
+        <a class="wordmark" href="/">Halley <em>신혼집</em></a>
+        <template x-if="session.authenticated">
+            <nav class="nav">
+                <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
+                <button class="nav-btn" :class="{on: view==='users'}" x-show="session.role==='ADMIN'" @click="setView('users')">사용자</button>
+                <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
+                <button class="btn btn-ghost" @click="logout()">로그아웃</button>
+            </nav>
+        </template>
+    </div>
+</div>
+
+<main class="wrap main">
+    <template x-if="session.authenticated && !session.mustChangePassword">
+        <div>
+            <header class="head">
+                <div class="eyebrow">Property Comparison · 2인 전용</div>
+                <h1>신혼집 <em>매물 비교</em></h1>
+                <p class="lede">매매·전세를 나누어 비교하고, 가격·층수·역세권·학군 등 12개 기준으로 우선순위를 정합니다.</p>
+            </header>
+
+            <section x-show="view==='list'">
+                <div class="sec-head"><span class="sec-num">01</span><h2>매물 목록</h2></div>
+                <div class="empty">
+                    <div class="empty-ic">◌</div>
+                    <h4>아직 등록된 매물이 없습니다</h4>
+                    <p>네이버 매물 상세 텍스트를 붙여넣거나 직접 입력해 첫 매물을 등록해 보세요.</p>
+                    <button class="btn btn-primary" disabled>+ 매물 추가 (준비 중)</button>
+                </div>
+            </section>
+
+            <section x-show="view==='users'">
+                <div class="sec-head"><span class="sec-num">02</span><h2>사용자 관리</h2><span class="sec-sub" x-text="users.length + '명'"></span></div>
+                <div class="card table-wrap">
+                    <table>
+                        <thead>
+                        <tr><th>닉네임</th><th>이메일</th><th>역할</th><th>가용 예산</th><th>상태</th></tr>
+                        </thead>
+                        <tbody>
+                        <template x-for="u in users" :key="u.id">
+                            <tr>
+                                <td class="strong" x-text="u.nickname"></td>
+                                <td x-text="u.email"></td>
+                                <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
+                                <td class="num" x-text="fmtWon(u.availableBudget)"></td>
+                                <td><span class="badge" :class="u.enabled ? 'b-on' : 'b-off'" x-text="u.enabled ? '활성' : '비활성'"></span></td>
+                            </tr>
+                        </template>
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    </template>
+</main>
+
+<!-- D1 로그인 모달 -->
+<div class="modal" x-show="showLogin" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">Halley · 로그인</span>
+            <h3>신혼집 매물 비교</h3>
+            <p>계정 정보를 입력해 들어오세요.</p>
+        </div>
+        <form class="form" @submit.prevent="login()">
+            <label>이메일
+                <input type="email" x-model="loginForm.email" autocomplete="username" placeholder="you@example.com" required>
+            </label>
+            <label>비밀번호
+                <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
+            </label>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="loading ? '로그인 중…' : '로그인'"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- D2 비밀번호 강제 변경 모달 -->
+<div class="modal" x-show="showPassword" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">보안</span>
+            <h3>비밀번호 변경</h3>
+            <p>최초 로그인 또는 임시 비밀번호로 접속하셨습니다. 새 비밀번호를 설정해야 계속할 수 있습니다.</p>
+        </div>
+        <form class="form" @submit.prevent="changePassword()">
+            <label>현재 비밀번호
+                <input type="password" x-model="passwordForm.currentPassword" autocomplete="current-password" required>
+            </label>
+            <label>새 비밀번호
+                <input type="password" x-model="passwordForm.newPassword" autocomplete="new-password" minlength="8" required>
+            </label>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="loading ? '변경 중…' : '비밀번호 변경'"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+</body>
+</html>

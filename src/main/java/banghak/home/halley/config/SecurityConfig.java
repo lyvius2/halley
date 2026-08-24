@@ -33,7 +33,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
+                        .requestMatchers("/api/**").authenticated()
+                        .anyRequest().permitAll())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(entryPoint))
                 .addFilterAfter(mustChangePasswordFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
