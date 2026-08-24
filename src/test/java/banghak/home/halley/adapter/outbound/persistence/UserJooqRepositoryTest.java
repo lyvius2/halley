@@ -49,7 +49,7 @@ class UserJooqRepositoryTest {
         userRepository.save(user("b", "b@example.com"));
 
         List<User> all = userRepository.findAll();
-        assertThat(all).hasSize(2);
+        assertThat(all).extracting(User::email).contains("a@example.com", "b@example.com");
     }
 
     @Test

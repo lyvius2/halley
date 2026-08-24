@@ -78,6 +78,26 @@ public class UserJooqRepository implements UserRepository {
     }
 
     @Override
+    public User update(User user) {
+        dsl.update(TABLE)
+                .set(NICKNAME, user.nickname())
+                .set(EMAIL, user.email())
+                .set(PASSWORD_HASH, user.passwordHash())
+                .set(ROLE, user.role().name())
+                .set(WORKPLACE_NAME, user.workplaceName())
+                .set(WORKPLACE_LAT, user.workplaceLat())
+                .set(WORKPLACE_LNG, user.workplaceLng())
+                .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
+                .set(AVAILABLE_BUDGET, user.availableBudget())
+                .set(ENABLED, user.enabled())
+                .set(DISABLED_AT, toOffset(user.disabledAt()))
+                .set(DISABLED_BY, user.disabledBy())
+                .where(ID.eq(user.id()))
+                .execute();
+        return user;
+    }
+
+    @Override
     public Optional<User> findById(Long id) {
         return dsl.selectFrom(TABLE)
                 .where(ID.eq(id))
