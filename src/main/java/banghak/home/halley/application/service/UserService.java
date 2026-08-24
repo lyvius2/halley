@@ -5,7 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.application.port.out.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;

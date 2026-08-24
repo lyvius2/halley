@@ -1,6 +1,6 @@
 package banghak.home.halley.config;
 
-import banghak.home.halley.application.port.out.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import lombok.extern.slf4j.Slf4j;

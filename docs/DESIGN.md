@@ -19,7 +19,7 @@
 | 참고 시세 | 국토부 실거래가 API — **참고 표기 전용**, 채점에는 미반영 (Session 3.3, 5.6) |
 | DB | **PostgreSQL** 단일 (JSONB, PostGIS 옵션) + **Redis** (세션 미러·캐시) — local은 **H2DB + 메모리 캐시** (Session 2.3) |
 | 영속화 | **jOOQ** (type-safe SQL DSL) — 코드 생성기(jooq-codegen) 미사용, 테이블/필드 수동 정의 (Session 2.4) |
-| 아키텍처 | **헥사고널(포트-어댑터)** — outbound port 중심, 영속화·외부 연동은 adapter로 격리 (Session 2.5) |
+| 아키텍처 | **저장소는 포트 없이 jOOQ 직접 사용**, 외부 연동·캐시·세션만 포트로 격리 (Session 2.5) |
 | 배포 | `https://cena.furaiki-lifelog.com` · 리버스 프록시 + Let's Encrypt |
 | 인증 | **Spring Session Data Redis**, 30분 idle timeout, sliding expiration |
 | 알림 | Slack **Incoming Webhook**, URL은 `application.yaml` 정의 (Session 12.4) |
@@ -126,16 +126,23 @@ Redis 장애 시 세션은 JDBC로 폴백 가능하도록 `SessionRepository` �
 
 - **jOOQ 코드 생성기(`jooq-codegen`)와 DSL 빌드 설정은 사용하지 않습니다.** 빌드 시 DB 스키마로부터 `Tables`/`Records` 클래스를 생성하는 codegen 없이, 테이블·필드 참조를 코드에 **수동 정의**해서 씁니다. 스키마가 바뀌면 코드의 테이블 정의만 고치면 되므로 local(H2)/live(PostgreSQL) 이중 스키마 관리와도 맞습니다.
 - 매핑은 수동(DTO/record ↔ jOOQ `Record`)으로 하며, `parse_confidence`·`path_summary`·`payload` 같은 JSON 컬럼은 jOOQ JSON 바인딩(`org.jooq.JSON` + Jackson 변환)으로 처리합니다.
-- 영속화 코드는 전부 **outbound persistence adapter**(Session 2.5) 안에만 위치하며, 도메인·애플리케이션 계층은 jOOQ를 모릅니다.
+- 영속화 코드는 `adapter/outbound/persistence`에 위치하며, 서비스 계층이 jOOQ `Repository` 클래스를 **직접 사용**합니다(저장소 포트 인터페이스 없음 — Session 2.5).
 
-### 2.5 헥사고널 아키텍처 (outbound port 기준)
+### 2.5 아키텍처 — 영속화는 직접, 외부 연동·캐시·세션만 포트
 
-**outbound port**를 중심으로 헥사고널(포트-어댑터) 아키텍처를 채택합니다.
+DB 벤더 차이(local H2 / live PostgreSQL)는 JDBC 드라이버 + jOOQ `SQLDialect` + Spring DataSource가 이미 흡수하므로, **저장소 계층에는 포트 인터페이스를 두지 않습니다.** 서비스가 jOOQ `Repository` 클래스를 직접 사용합니다(단일 구현이 두 DB를 모두 처리 — 16-I40).
 
-- **port(인터페이스)**: `application/port/out/...`에 위치. 영속화(`PropertyRepository`, `UserRepository`, ...)와 외부 연동(`KakaoLocalPort`, `OdsayTransitPort`, `MolitPort`, `SlackPort`, `CachePort`)을 인터페이스로 정의합니다.
-- **adapter(구현체)**: `adapter/outbound/...`에 위치. jOOQ 영속화, 메모리/Redis 캐시, 카카오·ODsay·국토부·Slack 클라이언트 등 실제 기술 구현을 담당합니다.
-- **도메인·애플리케이션 계층은 port에만 의존**하고 어댑터를 모릅니다. 따라서 local/live 전환(캐시·세션·DB), 외부 API 벤더 교체, 테스트 시 stub 주입이 모두 어댑터 교체로 끝납니다.
-- inbound는 REST Controller(`adapter/inbound/web`)가 유스케이스(port-in)를 호출하는 형태입니다. Spring 의존성 주입으로 port에 어댑터를 바인딩합니다.
+포트(port/어댑터)로 격리하는 대상은 **실제로 교체 가능성이 있는 계층**으로 한정합니다.
+
+| 계층 | 처리 | 근거 |
+|---|---|---|
+| 영속화(DB) | **포트 없음** — 서비스가 `adapter/outbound/persistence/*Repository`(jOOQ) 직접 사용 | H2/PG는 연결·다이얼렉트 차이뿐, 단일 구현 |
+| 캐시 | `CachePort` — local=메모리 / live=Redis | 구현체 2개, 교체 실재 |
+| 세션 | 세션 저장소 port — local=인메모리 / live=Redis | 구현체 2개 |
+| 외부 API | `KakaoLocalPort`·`OdsayTransitPort`·`MolitPort`·`SlackPort` | 테스트 stub 주입·캐시 래퍼·rate-limit |
+
+- inbound는 REST Controller(`adapter/inbound/web`)가 `application/service`를 호출합니다.
+- 도메인(`domain/`)은 프레임워크·DB 무관 순수 모델로 유지합니다(채점 규칙 등 단위테스트 가능).
 
 ```mermaid
 graph LR
@@ -145,14 +152,14 @@ graph LR
         Cache["outbound/cache<br/>Memory(local) | Redis(live)"]
         Ext["outbound/external<br/>Kakao | ODsay | Molit | Slack"]
     end
-    subgraph Core["application + domain (순수 로직)"]
-        PortIn["port/in (유스케이스)"]
+    subgraph Core["application + domain"]
         Svc["service"]
-        PortOut["port/out (인터페이스)"]
+        PortOut["port/out<br/>(캐시·외부 API만)"]
         Dom["domain 모델"]
     end
-    Web --> PortIn --> Svc --> PortOut
-    PortOut --> Persistence
+    Web --> Svc
+    Svc --> Persistence
+    Svc --> PortOut
     PortOut --> Cache
     PortOut --> Ext
     Svc --> Dom
@@ -1759,11 +1766,14 @@ regulation_param 테이블에 updated_by / updated_at만 추가합니다. 별도
 ### I36. 이미지 저장 · **[확정 — 로컬 볼륨]**
 로컬 볼륨으로 확정합니다. S3 등 외부 스토리지는 쓰지 않습니다. 원본은 장변 1920px로 리사이즈해 저장하고 썸네일(320px)을 함께 생성합니다. 백업은 Session 13.4의 rsync 대상에 이미지 디렉터리를 포함합니다.
 
+### I40. 저장소 포트 제거 · **[확정 — jOOQ 직접 사용]**
+DB 벤더 차이(H2/PostgreSQL)는 JDBC 드라이버 + jOOQ `SQLDialect` + Spring DataSource가 흡수하므로, 영속화에는 포트 인터페이스를 두지 않고 서비스가 jOOQ `Repository` 클래스를 직접 사용합니다. 포트는 실제로 교체되는 외부 API·캐시·세션에만 둡니다. (Session 2.5 반영)
+
 ---
 
 ## 17. 부록: 패키지 구조 (제안)
 
-Session 2.5의 헥사고널 아키텍처를 반영한 구조입니다. `domain`(순수 규칙) / `application`(유스케이스·port) / `adapter`(기술 구현)로 나눕니다.
+Session 2.5의 구조를 반영합니다. `domain`(순수 규칙) / `application`(유스케이스) / `adapter`(기술 구현)로 나누고, 저장소는 포트 없이 jOOQ Repository를 직접 사용합니다.
 
 ```
 banghak.home.halley
@@ -1778,19 +1788,17 @@ banghak.home.halley
 │   └── itinerary/               ItineraryOptimizer(Held-Karp)
 ├── application/
 │   ├── port/
-│   │   ├── in/                  유스케이스 인터페이스 (PropertyUseCase, UserUseCase, ...)
-│   │   └── out/                 출력 포트 인터페이스
-│   │       ├── persistence/     PropertyRepository, UserRepository, ...
+│   │   └── out/                 출력 포트 인터페이스 (외부 연동·캐시·세션만)
 │   │       └── external/        KakaoLocalPort, OdsayTransitPort, MolitPort, SlackPort, CachePort
-│   ├── service/                 유스케이스 구현 (port에만 의존)
+│   ├── service/                 유스케이스 구현 (jOOQ Repository + port 직접 사용)
 │   └── dto/                     요청/응답 DTO, Query
 ├── adapter/
 │   ├── inbound/
 │   │   └── web/                 REST Controller, ViewController(Mustache shell)
 │   └── outbound/
-│       ├── persistence/         jOOQ 기반 Repository 구현
+│       ├── persistence/         jOOQ Repository (저장소 포트 없음 — 직접 사용)
 │       │   ├── jdbc/            수동 정의 table/field (jOOQ codegen 미사용)
-│       │   └── mapper/          Record ↔ domain/DTO 변환
+│       │   └── support/         JooqMapping (Record ↔ domain/DTO 변환)
 │       ├── cache/               MemoryCacheAdapter(local) / RedisCacheAdapter(live)
 │       ├── session/             HttpSession(local) / Spring Session Redis(live)
 │       └── external/

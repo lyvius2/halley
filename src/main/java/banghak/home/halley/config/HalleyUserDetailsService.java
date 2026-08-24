@@ -1,6 +1,6 @@
 package banghak.home.halley.config;
 
-import banghak.home.halley.application.port.out.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;

@@ -2,7 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.ApiException;
 import banghak.home.halley.adapter.inbound.web.dto.AuthResponse;
-import banghak.home.halley.application.port.out.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
