@@ -1,14 +1,15 @@
 function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
-        view: 'list',
+        properties: [],
+        users: [],
         showLogin: false,
         showPassword: false,
+        showUsers: false,
         loginForm: { email: '', password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
-        users: [],
 
         async init() {
             await this.checkSession();
@@ -31,20 +32,15 @@ function halley() {
                 this.session = Object.assign({ authenticated: true }, body);
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
-                if (this.session.role === 'ADMIN' && !this.showPassword) {
-                    await this.loadUsers();
-                }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
                 this.showLogin = true;
             }
         },
 
-        setView(view) {
-            this.view = view;
-            if (view === 'users') {
-                this.loadUsers();
-            }
+        openUsers() {
+            this.showUsers = true;
+            this.loadUsers();
         },
 
         async loadUsers() {
@@ -68,9 +64,6 @@ function halley() {
                     this.loginForm = { email: '', password: '' };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
-                    if (this.session.role === 'ADMIN' && !this.showPassword) {
-                        await this.loadUsers();
-                    }
                 } else {
                     this.error = (body && body.message) || '로그인에 실패했습니다';
                 }
@@ -95,9 +88,6 @@ function halley() {
                     this.passwordForm = { currentPassword: '', newPassword: '' };
                     this.showPassword = false;
                     this.error = null;
-                    if (this.session.role === 'ADMIN') {
-                        await this.loadUsers();
-                    }
                 } else {
                     this.error = (body && body.message) || '비밀번호 변경에 실패했습니다';
                 }
@@ -116,9 +106,17 @@ function halley() {
             }
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
             this.users = [];
-            this.view = 'list';
             this.showLogin = true;
             this.showPassword = false;
+            this.showUsers = false;
+        },
+
+        dealLabel(type) {
+            return { SALE: '매매', JEONSE: '전세', MONTHLY: '월세' }[type] || type;
+        },
+
+        dealBadge(type) {
+            return { SALE: 'b-sale', JEONSE: 'b-jeonse', MONTHLY: 'b-monthly' }[type] || '';
         },
 
         fmtWon(won) {
