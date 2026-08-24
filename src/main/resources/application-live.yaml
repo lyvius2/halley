@@ -1,0 +1,11 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/halley}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:halley}
+    password: ${DB_PASSWORD:halley}
+  sql:
+    init:
+      mode: never
+  jooq:
+    sql-dialect: POSTGRES
