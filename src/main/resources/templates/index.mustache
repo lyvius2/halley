@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Halley — 신혼집 매물 비교</title>
+    <title>Halley — 부동산 매물 비교</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
 
 <div class="topbar">
     <div class="wrap topbar-in">
-        <a class="wordmark" href="/">Halley <em>신혼집</em></a>
+        <a class="wordmark" href="/">Halley</a>
         <template x-if="session.authenticated">
             <nav class="nav">
                 <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
@@ -32,7 +32,7 @@
         <div>
             <header class="head">
                 <div class="eyebrow">Property Comparison · 2인 전용</div>
-                <h1>신혼집 <em>매물 비교</em></h1>
+                <h1>부동산 <em>매물 비교</em></h1>
                 <p class="lede">매매·전세를 나누어 비교하고, 가격·층수·역세권·학군 등 12개 기준으로 우선순위를 정합니다.</p>
             </header>
 
@@ -77,7 +77,7 @@
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">Halley · 로그인</span>
-            <h3>신혼집 매물 비교</h3>
+            <h3>부동산 매물 비교</h3>
             <p>계정 정보를 입력해 들어오세요.</p>
         </div>
         <form class="form" @submit.prevent="login()">

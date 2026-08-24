@@ -1,5 +1,5 @@
 -- =============================================================================
--- Halley — 신혼집 매물 비교·평가 웹앱 DB 스키마 (PostgreSQL)
+-- Halley — 부동산 매물 비교·평가 웹앱 DB 스키마 (PostgreSQL)
 --
 -- 대상 : live = PostgreSQL, local = H2 (PostgreSQL 호환 모드)
 --        JSONB 등 PostgreSQL 전용 기능은 outbound adapter 뒤에 격리한다 (설계서 2.3).
