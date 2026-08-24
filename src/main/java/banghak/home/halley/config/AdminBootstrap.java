@@ -3,6 +3,7 @@ package banghak.home.halley.config;
 import banghak.home.halley.application.port.out.persistence.UserRepository;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 
+@Slf4j
 @Component
 public class AdminBootstrap implements ApplicationRunner {
 
@@ -35,7 +37,7 @@ public class AdminBootstrap implements ApplicationRunner {
                 true, 0L, true,
                 null, null, null
         ));
-        System.out.println("★ 초기 관리자 계정 생성 ★ email=" + ADMIN_EMAIL + " / password=" + password);
+        log.info("★ 초기 관리자 계정 생성 ★ email={} / password={}", ADMIN_EMAIL, password);
     }
 
     private String randomPassword() {
