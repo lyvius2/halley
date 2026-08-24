@@ -16,7 +16,7 @@
 
 | 영역 | 기술 |
 |---|---|
-| 언어/프레임워크 | Java 21, Spring Boot 3.x |
+| 언어/프레임워크 | Java 25, Spring Boot 4.x |
 | 빌드 | Gradle |
 | 화면 | Mustache(App Shell) + Alpine.js |
 | DB | PostgreSQL, Redis(세션·캐시) |
@@ -68,7 +68,7 @@ docker compose up -d
 
 ## 문서
 
-- [`docs/design.md`](./docs/design.md) — 전체 설계서: 아키텍처, ERD, 화면 정의, API 명세, 채점 산식, 확정된 의사결정 이력
+- [`docs/DESIGN.md`](./docs/design.md) — 전체 설계서: 아키텍처, ERD, 화면 정의, API 명세, 채점 산식, 확정된 의사결정 이력
 - [`AGENTS.md`](./AGENTS.md) — AI 코딩 에이전트용 작업 지침
 
 ## 상태

@@ -2,7 +2,7 @@
 
 > **문서 목적**: 요구사항을 구현 가능한 수준으로 구체화하고, 기술 선택의 근거와 미해결 이슈를 명시한다.
 > **작성일**: 2026-08-24
-> **스택**: Java 21 / Spring Boot 3.x / Mustache / PostgreSQL(or MySQL) / Vanilla JS(ES Modules)
+> **스택**: Java 25 / Spring Boot 4.x / Mustache / PostgreSQL(or MySQL) / Vanilla JS(ES Modules)
 
 ---
 
