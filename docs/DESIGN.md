@@ -2,7 +2,7 @@
 
 > **문서 목적**: 요구사항을 구현 가능한 수준으로 구체화하고, 기술 선택의 근거와 미해결 이슈를 명시한다.
 > **작성일**: 2026-08-24
-> **스택**: Java 25 / Spring Boot 4.x / Mustache / PostgreSQL(or MySQL) / Vanilla JS(ES Modules)
+> **스택**: Java 25 / Spring Boot 4.1.x / Mustache / PostgreSQL / Alpine.js
 
 ---
 
@@ -17,7 +17,9 @@
 | 매물 수집 | **네이버 매물 상세 텍스트 붙여넣기 파싱** — 48필드 실측 검증. 크롤링은 생존 확인 배치에만 (Session 9) |
 | 대출 한도 | 외부 API 없음 → **자체 계산 엔진 + 규제 파라미터 테이블** (Session 3.4) |
 | 참고 시세 | 국토부 실거래가 API — **참고 표기 전용**, 채점에는 미반영 (Session 3.3, 5.6) |
-| DB | **PostgreSQL** 단일 (JSONB, PostGIS 옵션) + **Redis** (세션 미러·캐시) |
+| DB | **PostgreSQL** 단일 (JSONB, PostGIS 옵션) + **Redis** (세션 미러·캐시) — local은 **H2DB + 메모리 캐시** (Session 2.3) |
+| 영속화 | **jOOQ** (type-safe SQL DSL) — 코드 생성기(jooq-codegen) 미사용, 테이블/필드 수동 정의 (Session 2.4) |
+| 아키텍처 | **헥사고널(포트-어댑터)** — outbound port 중심, 영속화·외부 연동은 adapter로 격리 (Session 2.5) |
 | 배포 | `https://cena.furaiki-lifelog.com` · 리버스 프록시 + Let's Encrypt |
 | 인증 | **Spring Session Data Redis**, 30분 idle timeout, sliding expiration |
 | 알림 | Slack **Incoming Webhook**, URL은 `application.yaml` 정의 (Session 12.4) |
@@ -101,6 +103,60 @@ Redis 장애 시 세션은 JDBC로 폴백 가능하도록 `SessionRepository` �
 **핵심**: `.mustache` 파일을 서버(`Mustache.java`)와 클라이언트(`mustache.js`)가 **공유**한다. 빌드 시 `src/main/resources/templates/partials/*.mustache`를 JS 번들로 인라인시켜 동일 문법을 양쪽에서 사용. 이렇게 하면 "Mustache로 개발"이라는 요구를 지키면서 SPA 동작을 얻는다.
 
 라우팅은 History API 기반 클라이언트 라우터를 쓰고, 서버는 `/`, `/admin/**` 등 모든 경로에서 동일 shell을 반환한다.
+
+### 2.3 개발 환경 분리 (local / live)
+
+개발·운영 환경을 두 프로파일로 분리합니다. 영속화·캐시·세션 계층의 구현체가 환경에 따라 달라지며, 이는 헥사고널 아키텍처(Session 2.5)의 **outbound adapter 교체**로 처리합니다.
+
+| 구분 | `local` | `live` |
+|---|---|---|
+| 목적 | 로컬 개발·단위 테스트 | 운영 배포 |
+| RDB | **H2DB** (인메모리 `jdbc:h2:mem:halley`) | **PostgreSQL** |
+| 캐시 | **메모리 캐시** (`ConcurrentMapCacheManager`) | **Redis** |
+| 세션 | 인메모리 `HttpSession` | Spring Session Data Redis |
+| Rate Limit | 메모리 (선택) | Redis |
+| 이미지 저장 | 로컬 디렉터리 | 로컬 볼륨 (동일) |
+
+- POI·경로·실거래가 캐시(2.1.1)와 세션 저장소를 각각 `CachePort`·세션 저장소 port로 추상화해, local은 메모리 어댑터, live는 Redis 어댑터를 붙입니다. **프로파일별로 어댑터 빈만 갈아끼우므로 도메인·애플리케이션 코드는 환경을 모릅니다.**
+- `application-local.yaml` / `application-live.yaml`로 접속 정보를 주입합니다. DB 스키마는 H2와 PostgreSQL이 호환되는 표준 SQL 범위로 관리하고, **JSONB·PostGIS 등 PostgreSQL 전용 기능은 port 뒤에 격리**합니다.
+
+### 2.4 영속화 — jOOQ (코드 생성 없음)
+
+**ORM 대신 jOOQ**를 사용합니다. jOOQ는 ORM이 아니라 type-safe SQL DSL이므로, SQL을 직접 작성하면서 컴파일 타임 타입 체크를 얻습니다.
+
+- **jOOQ 코드 생성기(`jooq-codegen`)와 DSL 빌드 설정은 사용하지 않습니다.** 빌드 시 DB 스키마로부터 `Tables`/`Records` 클래스를 생성하는 codegen 없이, 테이블·필드 참조를 코드에 **수동 정의**해서 씁니다. 스키마가 바뀌면 코드의 테이블 정의만 고치면 되므로 local(H2)/live(PostgreSQL) 이중 스키마 관리와도 맞습니다.
+- 매핑은 수동(DTO/record ↔ jOOQ `Record`)으로 하며, `parse_confidence`·`path_summary`·`payload` 같은 JSON 컬럼은 jOOQ JSON 바인딩(`org.jooq.JSON` + Jackson 변환)으로 처리합니다.
+- 영속화 코드는 전부 **outbound persistence adapter**(Session 2.5) 안에만 위치하며, 도메인·애플리케이션 계층은 jOOQ를 모릅니다.
+
+### 2.5 헥사고널 아키텍처 (outbound port 기준)
+
+**outbound port**를 중심으로 헥사고널(포트-어댑터) 아키텍처를 채택합니다.
+
+- **port(인터페이스)**: `application/port/out/...`에 위치. 영속화(`PropertyRepository`, `UserRepository`, ...)와 외부 연동(`KakaoLocalPort`, `OdsayTransitPort`, `MolitPort`, `SlackPort`, `CachePort`)을 인터페이스로 정의합니다.
+- **adapter(구현체)**: `adapter/outbound/...`에 위치. jOOQ 영속화, 메모리/Redis 캐시, 카카오·ODsay·국토부·Slack 클라이언트 등 실제 기술 구현을 담당합니다.
+- **도메인·애플리케이션 계층은 port에만 의존**하고 어댑터를 모릅니다. 따라서 local/live 전환(캐시·세션·DB), 외부 API 벤더 교체, 테스트 시 stub 주입이 모두 어댑터 교체로 끝납니다.
+- inbound는 REST Controller(`adapter/inbound/web`)가 유스케이스(port-in)를 호출하는 형태입니다. Spring 의존성 주입으로 port에 어댑터를 바인딩합니다.
+
+```mermaid
+graph LR
+    subgraph Adapter["adapter (기술 구현)"]
+        Web["inbound/web<br/>REST Controller"]
+        Persistence["outbound/persistence<br/>jOOQ Repository"]
+        Cache["outbound/cache<br/>Memory(local) | Redis(live)"]
+        Ext["outbound/external<br/>Kakao | ODsay | Molit | Slack"]
+    end
+    subgraph Core["application + domain (순수 로직)"]
+        PortIn["port/in (유스케이스)"]
+        Svc["service"]
+        PortOut["port/out (인터페이스)"]
+        Dom["domain 모델"]
+    end
+    Web --> PortIn --> Svc --> PortOut
+    PortOut --> Persistence
+    PortOut --> Cache
+    PortOut --> Ext
+    Svc --> Dom
+```
 
 ---
 
@@ -1454,7 +1510,7 @@ Slack 관련 항목은 `application.yaml`로 이동했습니다(Session 12.4). D
 | 도메인 | `https://cena.furaiki-lifelog.com` |
 | TLS | Let's Encrypt (Caddy 권장 — 자동 갱신 내장) |
 | 구조 | Reverse Proxy(Caddy/nginx) → Spring Boot(8080) → PostgreSQL |
-| 프로파일 | `local` / `prod` |
+| 프로파일 | `local` / `live` (Session 2.3) |
 
 ### 13.2 HTTPS 도입 시 필수 설정
 
@@ -1707,35 +1763,50 @@ regulation_param 테이블에 updated_by / updated_at만 추가합니다. 별도
 
 ## 17. 부록: 패키지 구조 (제안)
 
+Session 2.5의 헥사고널 아키텍처를 반영한 구조입니다. `domain`(순수 규칙) / `application`(유스케이스·port) / `adapter`(기술 구현)로 나눕니다.
+
 ```
-com.example.homefinder
-├── config/          SecurityConfig, SessionConfig, AsyncConfig, CacheConfig
-├── auth/            controller, service, dto
-├── user/            entity, repository, service, controller
-├── property/        entity, repository, service, controller, dto
-│   ├── image/
-│   └── agent/
-├── scoring/
-│   ├── engine/      ScoringEngine, ScoreNormalizer
-│   ├── criterion/   PriceScorer, CommuteScorer, FloorScorer, ... (전략 패턴)
-│   └── worker/      ScoringWorker, RescoreJob
-├── ingest/
-│   ├── parser/      NaverListingTextParser, FieldExtractor 구현체 N개
-│   ├── money/       WonConverter
-│   └── IngestService, ParsePreviewController
-├── external/
-│   ├── kakao/       KakaoLocalClient, KakaoGeocodingClient, KakaoRoadviewClient
-│   ├── odsay/       OdsayTransitClient
-│   └── molit/       RealTransactionClient (참고 카드 전용)
-├── loan/            LoanCalculator, RegulationParamService
-├── itinerary/       ItineraryOptimizer(Held-Karp), TravelMatrixService, PlanController
-├── notification/    SlackClient, NotificationListener, NotificationRetryJob
-├── setting/         SystemConfigService, ConfigCache, SettingController
-├── batch/           ListingCheckJob, ListingAliveChecker, CircuitBreaker
-└── web/             ViewController (Mustache shell)
+banghak.home.halley
+├── config/                      SecurityConfig, SessionConfig, AsyncConfig, CacheConfig
+├── domain/                      순수 도메인 모델·규칙 (프레임워크·외부 의존 없음)
+│   ├── user/
+│   ├── property/
+│   ├── scoring/
+│   │   ├── engine/              ScoringEngine, ScoreNormalizer
+│   │   └── criterion/           PriceScorer, CommuteScorer, FloorScorer, ... (전략 패턴)
+│   ├── loan/                    LoanCalculator, RegulationParam
+│   └── itinerary/               ItineraryOptimizer(Held-Karp)
+├── application/
+│   ├── port/
+│   │   ├── in/                  유스케이스 인터페이스 (PropertyUseCase, UserUseCase, ...)
+│   │   └── out/                 출력 포트 인터페이스
+│   │       ├── persistence/     PropertyRepository, UserRepository, ...
+│   │       └── external/        KakaoLocalPort, OdsayTransitPort, MolitPort, SlackPort, CachePort
+│   ├── service/                 유스케이스 구현 (port에만 의존)
+│   └── dto/                     요청/응답 DTO, Query
+├── adapter/
+│   ├── inbound/
+│   │   └── web/                 REST Controller, ViewController(Mustache shell)
+│   └── outbound/
+│       ├── persistence/         jOOQ 기반 Repository 구현
+│       │   ├── jdbc/            수동 정의 table/field (jOOQ codegen 미사용)
+│       │   └── mapper/          Record ↔ domain/DTO 변환
+│       ├── cache/               MemoryCacheAdapter(local) / RedisCacheAdapter(live)
+│       ├── session/             HttpSession(local) / Spring Session Redis(live)
+│       └── external/
+│           ├── kakao/           KakaoLocalAdapter, KakaoGeocodingAdapter, KakaoRoadviewAdapter
+│           ├── odsay/           OdsayTransitAdapter
+│           ├── molit/           RealTransactionAdapter (참고 카드 전용)
+│           └── slack/           SlackWebhookAdapter
+├── ingest/                      붙여넣기 파서 (순수 도메인 — 외부 호출 없음)
+│   ├── parser/                  NaverListingTextParser, FieldExtractor 구현체 N개
+│   └── money/                   WonConverter
+├── batch/                       ListingCheckJob, ListingAliveChecker, CircuitBreaker
+└── HalleyApplication
 ```
 
-`scoring.criterion` 아래 각 항목을 `Scorer` 인터페이스 구현체로 두면, 항목 추가가 클래스 하나 추가로 끝납니다.
+- `domain.scoring.criterion` 아래 각 항목을 `CriterionScorer` 인터페이스 구현체로 두면, 항목 추가가 클래스 하나 추가로 끝납니다.
+- `ScoringWorker`·`RescoreJob`(비동기 채점), `NotificationListener`·`NotificationRetryJob`(알림), `SystemConfigService`(설정)는 `application/service`에 두고, 외부 호출은 port를 통해서만 수행합니다.
 
 ```java
 public interface CriterionScorer {

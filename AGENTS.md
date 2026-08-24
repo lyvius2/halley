@@ -15,7 +15,7 @@ Halley — 신혼집 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 
 ## 스택 (고정 — 임의로 바꾸지 말 것)
 
-- Java 21 / Spring Boot 3.x / Gradle
+- Java 25 / Spring Boot 4.1.x / Gradle
 - 화면: Mustache(App Shell 전용) + **Alpine.js**(클라이언트 렌더링). React/Vue 등 추가 프레임워크 도입 금지
 - DB: **PostgreSQL 단일** + Redis(세션·캐시·rate limit 전용, 영속 데이터 저장 금지)
 - 지도: **카카오맵 JS SDK** + 카카오 로컬/Directions/Roadview REST API. 타사 지도 SDK 추가 금지

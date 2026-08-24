@@ -16,7 +16,7 @@
 
 | 영역 | 기술 |
 |---|---|
-| 언어/프레임워크 | Java 25, Spring Boot 4.x |
+| 언어/프레임워크 | Java 25, Spring Boot 4.1.x |
 | 빌드 | Gradle |
 | 화면 | Mustache(App Shell) + Alpine.js |
 | DB | PostgreSQL, Redis(세션·캐시) |
@@ -29,7 +29,7 @@
 
 ### 요구사항
 
-- JDK 21
+- JDK 25
 - Docker (PostgreSQL, Redis 로컬 실행용)
 
 ### 로컬 실행
