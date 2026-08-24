@@ -1,0 +1,84 @@
+package banghak.home.halley.adapter.outbound.persistence;
+
+import banghak.home.halley.application.port.out.persistence.AgentRepository;
+import banghak.home.halley.domain.property.Agent;
+import org.jooq.DSLContext;
+import org.jooq.Record;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.ADDRESS;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.AGENT_NAME;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.ID;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.LAT;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.LNG;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.MOBILE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.OFFICE_NAME;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.PHONE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.REGISTRATION_NO;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.AgentTable.TABLE;
+
+@Repository
+public class AgentJooqRepository implements AgentRepository {
+
+    private final DSLContext dsl;
+
+    public AgentJooqRepository(DSLContext dsl) {
+        this.dsl = dsl;
+    }
+
+    @Override
+    public Agent save(Agent agent) {
+        Long id = dsl.insertInto(TABLE)
+                .set(OFFICE_NAME, agent.officeName())
+                .set(AGENT_NAME, agent.agentName())
+                .set(PHONE, agent.phone())
+                .set(MOBILE, agent.mobile())
+                .set(REGISTRATION_NO, agent.registrationNo())
+                .set(ADDRESS, agent.address())
+                .set(LAT, agent.lat())
+                .set(LNG, agent.lng())
+                .returningResult(ID)
+                .fetchOne()
+                .component1();
+        return findById(id).orElseThrow();
+    }
+
+    @Override
+    public Optional<Agent> findById(Long id) {
+        return dsl.selectFrom(TABLE)
+                .where(ID.eq(id))
+                .fetchOptional()
+                .map(this::map);
+    }
+
+    @Override
+    public List<Agent> findAll() {
+        return dsl.selectFrom(TABLE)
+                .fetch()
+                .map(this::map);
+    }
+
+    @Override
+    public void delete(Long id) {
+        dsl.deleteFrom(TABLE)
+                .where(ID.eq(id))
+                .execute();
+    }
+
+    private Agent map(Record r) {
+        return new Agent(
+                r.get(ID),
+                r.get(OFFICE_NAME),
+                r.get(AGENT_NAME),
+                r.get(PHONE),
+                r.get(MOBILE),
+                r.get(REGISTRATION_NO),
+                r.get(ADDRESS),
+                r.get(LAT),
+                r.get(LNG)
+        );
+    }
+}

@@ -1,0 +1,321 @@
+package banghak.home.halley.adapter.outbound.persistence;
+
+import banghak.home.halley.application.port.out.persistence.AgentRepository;
+import banghak.home.halley.application.port.out.persistence.CommuteResultRepository;
+import banghak.home.halley.application.port.out.persistence.CriterionRepository;
+import banghak.home.halley.application.port.out.persistence.CriterionWeightRepository;
+import banghak.home.halley.application.port.out.persistence.LegalDongCodeRepository;
+import banghak.home.halley.application.port.out.persistence.ListingCheckLogRepository;
+import banghak.home.halley.application.port.out.persistence.LoanEstimateRepository;
+import banghak.home.halley.application.port.out.persistence.NearbyFacilityRepository;
+import banghak.home.halley.application.port.out.persistence.NotificationLogRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyAgentRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyImageRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyOpinionRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyScoreRepository;
+import banghak.home.halley.application.port.out.persistence.PropertyVisitPlanRepository;
+import banghak.home.halley.application.port.out.persistence.ReferenceTransactionRepository;
+import banghak.home.halley.application.port.out.persistence.RegulationParamRepository;
+import banghak.home.halley.application.port.out.persistence.SystemConfigRepository;
+import banghak.home.halley.application.port.out.persistence.UserCriterionScoreRepository;
+import banghak.home.halley.application.port.out.persistence.VisitPlanStopRepository;
+import banghak.home.halley.domain.geo.LegalDongCode;
+import banghak.home.halley.domain.itinerary.PlanStatus;
+import banghak.home.halley.domain.itinerary.PropertyVisitPlan;
+import banghak.home.halley.domain.itinerary.TravelMode;
+import banghak.home.halley.domain.itinerary.VisitPlanStop;
+import banghak.home.halley.domain.loan.LoanEstimate;
+import banghak.home.halley.domain.loan.ProductType;
+import banghak.home.halley.domain.loan.RegulationParam;
+import banghak.home.halley.domain.loan.RegulationValueType;
+import banghak.home.halley.domain.notification.NotificationEventType;
+import banghak.home.halley.domain.notification.NotificationLog;
+import banghak.home.halley.domain.notification.NotificationStatus;
+import banghak.home.halley.domain.property.Agent;
+import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.FloorBand;
+import banghak.home.halley.domain.property.ImageType;
+import banghak.home.halley.domain.property.ListingCheckLog;
+import banghak.home.halley.domain.property.ListingStatus;
+import banghak.home.halley.domain.property.ListingVerdict;
+import banghak.home.halley.domain.property.MoveInType;
+import banghak.home.halley.domain.property.NearbyFacility;
+import banghak.home.halley.domain.property.OpinionType;
+import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.property.PropertyAgent;
+import banghak.home.halley.domain.property.PropertyImage;
+import banghak.home.halley.domain.property.PropertyOpinion;
+import banghak.home.halley.domain.property.ReferenceDealType;
+import banghak.home.halley.domain.property.ReferenceSource;
+import banghak.home.halley.domain.property.ReferenceTransaction;
+import banghak.home.halley.domain.property.SourceType;
+import banghak.home.halley.domain.scoring.CommuteResult;
+import banghak.home.halley.domain.scoring.Criterion;
+import banghak.home.halley.domain.scoring.CriterionWeight;
+import banghak.home.halley.domain.scoring.PropertyScore;
+import banghak.home.halley.domain.scoring.ScoreSource;
+import banghak.home.halley.domain.scoring.ScoringType;
+import banghak.home.halley.domain.scoring.UserCriterionScore;
+import banghak.home.halley.domain.setting.ConfigCategory;
+import banghak.home.halley.domain.setting.ConfigValueType;
+import banghak.home.halley.domain.setting.SystemConfig;
+import tools.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+@ActiveProfiles("local")
+class JooqRepositoryIntegrationTest {
+
+    @Autowired private PropertyRepository propertyRepository;
+    @Autowired private AgentRepository agentRepository;
+    @Autowired private PropertyAgentRepository propertyAgentRepository;
+    @Autowired private PropertyImageRepository propertyImageRepository;
+    @Autowired private CriterionRepository criterionRepository;
+    @Autowired private CriterionWeightRepository criterionWeightRepository;
+    @Autowired private PropertyScoreRepository propertyScoreRepository;
+    @Autowired private UserCriterionScoreRepository userCriterionScoreRepository;
+    @Autowired private CommuteResultRepository commuteResultRepository;
+    @Autowired private NearbyFacilityRepository nearbyFacilityRepository;
+    @Autowired private PropertyOpinionRepository propertyOpinionRepository;
+    @Autowired private ListingCheckLogRepository listingCheckLogRepository;
+    @Autowired private SystemConfigRepository systemConfigRepository;
+    @Autowired private NotificationLogRepository notificationLogRepository;
+    @Autowired private ReferenceTransactionRepository referenceTransactionRepository;
+    @Autowired private LoanEstimateRepository loanEstimateRepository;
+    @Autowired private PropertyVisitPlanRepository propertyVisitPlanRepository;
+    @Autowired private VisitPlanStopRepository visitPlanStopRepository;
+    @Autowired private RegulationParamRepository regulationParamRepository;
+    @Autowired private LegalDongCodeRepository legalDongCodeRepository;
+    @Autowired private ObjectMapper objectMapper;
+
+    @Test
+    void propertyRoundTrip() {
+        Property saved = propertyRepository.save(new Property(
+                null, "독립문삼호", "101동", DealType.SALE, 1_350_000_000L, null, 300_000,
+                "서울 서대문구 통일로", "서울 서대문구 홍제동",
+                new BigDecimal("37.57"), new BigDecimal("126.96"),
+                new BigDecimal("84.93"), new BigDecimal("59.90"),
+                "7", 7, 15, FloorBand.HIGH, "3/2", "남동향", 1995, MoveInType.IMMEDIATE, null,
+                new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L,
+                SourceType.PASTE, "https://example.com", "12345", "raw", "v1",
+                objectMapper.createObjectNode().put("price", "EXACT"),
+                false, ListingStatus.ACTIVE, true, null, 0, null, null, null));
+
+        Property found = propertyRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.name()).isEqualTo("독립문삼호");
+        assertThat(found.dealType()).isEqualTo(DealType.SALE);
+        assertThat(found.floorBand()).isEqualTo(FloorBand.HIGH);
+        assertThat(found.moveInType()).isEqualTo(MoveInType.IMMEDIATE);
+        assertThat(found.sourceType()).isEqualTo(SourceType.PASTE);
+        assertThat(found.listingStatus()).isEqualTo(ListingStatus.ACTIVE);
+        assertThat(found.parseConfidence().get("price").asText()).isEqualTo("EXACT");
+        assertThat(found.createdAt()).isNotNull();
+    }
+
+    @Test
+    void agentRoundTrip() {
+        Agent saved = agentRepository.save(new Agent(
+                null, "한빛공인중개", "김중개", "02-123-4567", "010-1234-5678",
+                "11111-2222-33333", "서울 서대문구", new BigDecimal("37.5"), new BigDecimal("126.9")));
+
+        Agent found = agentRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.officeName()).isEqualTo("한빛공인중개");
+        assertThat(found.agentName()).isEqualTo("김중개");
+    }
+
+    @Test
+    void propertyAgentRoundTrip() {
+        PropertyAgent saved = propertyAgentRepository.save(new PropertyAgent(1L, 2L, true));
+
+        PropertyAgent found = propertyAgentRepository.findById(1L, 2L).orElseThrow();
+        assertThat(found.isPrimary()).isTrue();
+    }
+
+    @Test
+    void propertyImageRoundTrip() {
+        PropertyImage saved = propertyImageRepository.save(new PropertyImage(null, 1L, ImageType.FLOOR_PLAN, "/img/1.png", 0));
+
+        PropertyImage found = propertyImageRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.imageType()).isEqualTo(ImageType.FLOOR_PLAN);
+        assertThat(found.storagePath()).isEqualTo("/img/1.png");
+    }
+
+    @Test
+    void criterionRoundTrip() {
+        criterionRepository.save(new Criterion("PRICE", "가격", ScoringType.AUTO, true));
+
+        Criterion found = criterionRepository.findById("PRICE").orElseThrow();
+        assertThat(found.scoringType()).isEqualTo(ScoringType.AUTO);
+        assertThat(found.enabled()).isTrue();
+    }
+
+    @Test
+    void criterionWeightRoundTrip() {
+        criterionWeightRepository.save(new CriterionWeight("PRICE", 1, new BigDecimal("3.0"), null));
+
+        CriterionWeight found = criterionWeightRepository.findById("PRICE").orElseThrow();
+        assertThat(found.priorityRank()).isEqualTo(1);
+        assertThat(found.updatedAt()).isNotNull();
+    }
+
+    @Test
+    void propertyScoreRoundTrip() {
+        PropertyScore saved = propertyScoreRepository.save(new PropertyScore(
+                null, 1L, "PRICE", new BigDecimal("80.0"), null, new BigDecimal("80.0"),
+                ScoreSource.AUTO, null, null));
+
+        PropertyScore found = propertyScoreRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.scoreSource()).isEqualTo(ScoreSource.AUTO);
+        assertThat(found.effectiveScore()).isEqualByComparingTo("80.0");
+    }
+
+    @Test
+    void userCriterionScoreRoundTrip() {
+        userCriterionScoreRepository.save(new UserCriterionScore(1L, 2L, "COMFORT", 4));
+
+        UserCriterionScore found = userCriterionScoreRepository.findById(1L, 2L, "COMFORT").orElseThrow();
+        assertThat(found.score()).isEqualTo(4);
+    }
+
+    @Test
+    void commuteResultRoundTrip() {
+        commuteResultRepository.save(new CommuteResult(
+                1L, 2L, 45, 1, 10, objectMapper.createObjectNode().put("mode", "TRANSIT"), null));
+
+        CommuteResult found = commuteResultRepository.findById(1L, 2L).orElseThrow();
+        assertThat(found.totalMinutes()).isEqualTo(45);
+        assertThat(found.pathSummary().get("mode").asText()).isEqualTo("TRANSIT");
+    }
+
+    @Test
+    void nearbyFacilityRoundTrip() {
+        NearbyFacility saved = nearbyFacilityRepository.save(new NearbyFacility(
+                null, 1L, "STATION", null, "무악재역", 300, 11, null));
+
+        NearbyFacility found = nearbyFacilityRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.category()).isEqualTo("STATION");
+        assertThat(found.name()).isEqualTo("무악재역");
+    }
+
+    @Test
+    void propertyOpinionRoundTrip() {
+        PropertyOpinion saved = propertyOpinionRepository.save(new PropertyOpinion(
+                null, 1L, 2L, OpinionType.MERIT, "역세권 좋음", 0));
+
+        PropertyOpinion found = propertyOpinionRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.opinionType()).isEqualTo(OpinionType.MERIT);
+    }
+
+    @Test
+    void listingCheckLogRoundTrip() {
+        ListingCheckLog saved = listingCheckLogRepository.save(new ListingCheckLog(
+                null, 1L, null, 200, ListingVerdict.ALIVE, "ok", 123, false));
+
+        ListingCheckLog found = listingCheckLogRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.verdict()).isEqualTo(ListingVerdict.ALIVE);
+        assertThat(found.checkedAt()).isNotNull();
+    }
+
+    @Test
+    void systemConfigRoundTrip() {
+        systemConfigRepository.save(new SystemConfig(
+                "batch.listingCheck.cron", "0 0 9 * * *", ConfigValueType.STRING,
+                ConfigCategory.BATCH, "생존확인 스케줄", false, null, null));
+
+        SystemConfig found = systemConfigRepository.findById("batch.listingCheck.cron").orElseThrow();
+        assertThat(found.category()).isEqualTo(ConfigCategory.BATCH);
+        assertThat(found.valueType()).isEqualTo(ConfigValueType.STRING);
+    }
+
+    @Test
+    void notificationLogRoundTrip() {
+        NotificationLog saved = notificationLogRepository.save(new NotificationLog(
+                null, NotificationEventType.PROPERTY_CREATED, 1L, "slack",
+                NotificationStatus.SENT, 0, null,
+                objectMapper.createObjectNode().put("name", "독립문삼호"),
+                null, null));
+
+        NotificationLog found = notificationLogRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.eventType()).isEqualTo(NotificationEventType.PROPERTY_CREATED);
+        assertThat(found.status()).isEqualTo(NotificationStatus.SENT);
+        assertThat(found.payload().get("name").asText()).isEqualTo("독립문삼호");
+    }
+
+    @Test
+    void referenceTransactionRoundTrip() {
+        ReferenceTransaction saved = referenceTransactionRepository.save(new ReferenceTransaction(
+                null, 1L, ReferenceDealType.TRADE, LocalDate.of(2026, 7, 1),
+                1_290_000_000L, 2, ReferenceSource.MOLIT_TRADE, null));
+
+        ReferenceTransaction found = referenceTransactionRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.dealType()).isEqualTo(ReferenceDealType.TRADE);
+        assertThat(found.source()).isEqualTo(ReferenceSource.MOLIT_TRADE);
+    }
+
+    @Test
+    void loanEstimateRoundTrip() {
+        LoanEstimate saved = loanEstimateRepository.save(new LoanEstimate(
+                null, 1L, ProductType.MORTGAGE, new BigDecimal("0.4"),
+                540_000_000L, 540_000_000L, 540_000_000L, 810_000_000L, 30_000_000L,
+                objectMapper.createObjectNode().put("income", "1억"), null));
+
+        LoanEstimate found = loanEstimateRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.productType()).isEqualTo(ProductType.MORTGAGE);
+        assertThat(found.assumptions().get("income").asText()).isEqualTo("1억");
+    }
+
+    @Test
+    void propertyVisitPlanRoundTrip() {
+        PropertyVisitPlan saved = propertyVisitPlanRepository.save(new PropertyVisitPlan(
+                null, LocalDate.of(2026, 8, 30), 1L, "서울 종로구",
+                new BigDecimal("37.57"), new BigDecimal("126.98"),
+                TravelMode.TRANSIT, LocalTime.of(9, 0), LocalTime.of(19, 0),
+                25, PlanStatus.DRAFT, null));
+
+        PropertyVisitPlan found = propertyVisitPlanRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.travelMode()).isEqualTo(TravelMode.TRANSIT);
+        assertThat(found.status()).isEqualTo(PlanStatus.DRAFT);
+    }
+
+    @Test
+    void visitPlanStopRoundTrip() {
+        VisitPlanStop saved = visitPlanStopRepository.save(new VisitPlanStop(
+                null, 1L, 1L, 0, LocalTime.of(9, 0), LocalTime.of(9, 25),
+                30, "TRANSIT", false, null));
+
+        VisitPlanStop found = visitPlanStopRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.stopOrder()).isEqualTo(0);
+        assertThat(found.visited()).isFalse();
+    }
+
+    @Test
+    void regulationParamRoundTrip() {
+        RegulationParam saved = regulationParamRepository.save(new RegulationParam(
+                null, "2025-10-15", "LTV_RATE", "0.4", RegulationValueType.DECIMAL,
+                "LTV 비율", null, null));
+
+        RegulationParam found = regulationParamRepository.findById(saved.id()).orElseThrow();
+        assertThat(found.valueType()).isEqualTo(RegulationValueType.DECIMAL);
+        assertThat(found.paramValue()).isEqualTo("0.4");
+    }
+
+    @Test
+    void legalDongCodeRoundTrip() {
+        legalDongCodeRepository.save(new LegalDongCode(
+                "1111010100", "서울특별시", "종로구", "청운동", null, true, null));
+
+        LegalDongCode found = legalDongCodeRepository.findById("1111010100").orElseThrow();
+        assertThat(found.sigungu()).isEqualTo("종로구");
+        assertThat(found.dongName()).isEqualTo("청운동");
+    }
+}

@@ -4,9 +4,10 @@ import org.jooq.Field;
 import org.jooq.JSON;
 import org.jooq.Record;
 import org.jooq.Table;
+import org.jooq.impl.SQLDataType;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
+import java.sql.Date;
 import java.time.OffsetDateTime;
 
 import static org.jooq.impl.DSL.field;
@@ -40,7 +41,7 @@ public final class PropertyTable {
     public static final Field<String> DIRECTION = field(name(T, "direction"), String.class);
     public static final Field<Integer> APPROVAL_YEAR = field(name(T, "approval_year"), Integer.class);
     public static final Field<String> MOVE_IN_TYPE = field(name(T, "move_in_type"), String.class);
-    public static final Field<LocalDate> MOVE_IN_DATE = field(name(T, "move_in_date"), LocalDate.class);
+    public static final Field<Date> MOVE_IN_DATE = field(name(T, "move_in_date"), SQLDataType.DATE);
     public static final Field<BigDecimal> PARKING_PER_HOUSEHOLD = field(name(T, "parking_per_household"), BigDecimal.class);
     public static final Field<Integer> TOTAL_HOUSEHOLDS = field(name(T, "total_households"), Integer.class);
     public static final Field<String> HEATING_TYPE = field(name(T, "heating_type"), String.class);
