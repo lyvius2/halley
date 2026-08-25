@@ -122,6 +122,52 @@ public class PropertyRepository {
         return findById(id).orElseThrow();
     }
 
+    public Property update(Property property) {
+        dsl.update(TABLE)
+                .set(NAME, property.name())
+                .set(DONG_HO, property.dongHo())
+                .set(DEAL_TYPE, property.dealType() == null ? null : property.dealType().name())
+                .set(PRICE_DEPOSIT, property.priceDeposit())
+                .set(PRICE_MONTHLY, property.priceMonthly())
+                .set(MAINTENANCE_FEE, property.maintenanceFee())
+                .set(ADDRESS_ROAD, property.addressRoad())
+                .set(ADDRESS_JIBUN, property.addressJibun())
+                .set(LAT, property.lat())
+                .set(LNG, property.lng())
+                .set(AREA_SUPPLY_M2, property.areaSupplyM2())
+                .set(AREA_EXCLUSIVE_M2, property.areaExclusiveM2())
+                .set(FLOOR_RAW, property.floorRaw())
+                .set(FLOOR_NO, property.floorNo())
+                .set(FLOOR_TOTAL, property.floorTotal())
+                .set(FLOOR_BAND, property.floorBand() == null ? null : property.floorBand().name())
+                .set(ROOM_BATH, property.roomBath())
+                .set(DIRECTION, property.direction())
+                .set(APPROVAL_YEAR, property.approvalYear())
+                .set(MOVE_IN_TYPE, property.moveInType() == null ? null : property.moveInType().name())
+                .set(MOVE_IN_DATE, toSqlDate(property.moveInDate()))
+                .set(PARKING_PER_HOUSEHOLD, property.parkingPerHousehold())
+                .set(TOTAL_HOUSEHOLDS, property.totalHouseholds())
+                .set(HEATING_TYPE, property.heatingType())
+                .set(BUILDING_COUNT, property.buildingCount())
+                .set(KB_PRICE, property.kbPrice())
+                .set(SOURCE_TYPE, property.sourceType() == null ? null : property.sourceType().name())
+                .set(SOURCE_URL, property.sourceUrl())
+                .set(NAVER_ARTICLE_NO, property.naverArticleNo())
+                .set(RAW_PASTE_TEXT, property.rawPasteText())
+                .set(PARSER_VERSION, property.parserVersion())
+                .set(PARSE_CONFIDENCE, toJson(property.parseConfidence(), objectMapper))
+                .set(IS_DRAFT, property.isDraft())
+                .set(LISTING_STATUS, property.listingStatus() == null ? null : property.listingStatus().name())
+                .set(ACTIVE, property.active())
+                .set(LAST_CHECKED_AT, toOffset(property.lastCheckedAt()))
+                .set(CHECK_FAIL_STREAK, property.checkFailStreak())
+                .set(SOLD_DETECTED_AT, toOffset(property.soldDetectedAt()))
+                .set(CREATED_BY, property.createdBy())
+                .where(ID.eq(property.id()))
+                .execute();
+        return findById(property.id()).orElseThrow();
+    }
+
     public Optional<Property> findById(Long id) {
         return dsl.selectFrom(TABLE)
                 .where(ID.eq(id))

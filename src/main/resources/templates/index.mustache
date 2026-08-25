@@ -42,14 +42,16 @@
             <template x-if="session.authenticated && !session.mustChangePassword">
                 <div>
                     <div x-show="view==='list'">
-                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="properties.length + '건'"></span></div>
+                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="properties.length + '건'"></span>
+                            <button class="btn btn-primary btn-sm" @click="openAddProperty()">+ 매물 추가</button>
+                        </div>
                         <div class="property-list">
                             <template x-if="properties.length === 0">
                                 <div class="empty">
                                     <div class="empty-ic">◌</div>
                                     <h4>아직 등록된 매물이 없습니다</h4>
                                     <p>네이버 매물 상세 텍스트를 붙여넣거나 직접 입력해 첫 매물을 등록해 보세요.</p>
-                                    <button class="btn btn-primary" disabled>+ 매물 추가 (준비 중)</button>
+                                    <button class="btn btn-primary" @click="openAddProperty()">+ 매물 추가</button>
                                 </div>
                             </template>
                             <template x-for="p in properties" :key="p.id">
@@ -61,6 +63,12 @@
                                     <div class="property-card-meta">
                                         <span class="badge" :class="dealBadge(p.dealType)" x-text="dealLabel(p.dealType)"></span>
                                         <span x-text="p.addressRoad"></span>
+                                        <span x-show="p.floorNo" x-text="p.floorNo + '층'"></span>
+                                        <span x-show="p.areaExclusiveM2" x-text="p.areaExclusiveM2 + '㎡'"></span>
+                                    </div>
+                                    <div class="property-card-actions">
+                                        <button class="btn-link" @click="openEditProperty(p)">수정</button>
+                                        <button class="btn-link danger" @click="removeProperty(p)">삭제</button>
                                     </div>
                                 </article>
                             </template>
@@ -137,6 +145,83 @@
             <p class="form-error" x-show="error" x-text="error"></p>
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '변경 중…' : '비밀번호 변경'"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- D10 매물 수기 등록/수정 모달 -->
+<div class="modal" x-show="showPropertyForm" x-cloak>
+    <div class="modal-backdrop" @click="closePropertyForm()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">매물 등록</span>
+            <h3 x-text="propertyForm.id ? '매물 수정' : '매물 수기 등록'"></h3>
+            <p>네이버 붙여넣기 등록은 추후 제공됩니다. 지금은 핵심 정보를 직접 입력하세요.</p>
+        </div>
+        <form class="form" @submit.prevent="saveProperty()">
+            <div class="form-grid">
+                <label class="span2">매물명
+                    <input type="text" x-model="propertyForm.name" placeholder="예: 한빛아파트" required>
+                </label>
+                <label>거래유형
+                    <select x-model="propertyForm.dealType">
+                        <option value="SALE">매매</option>
+                        <option value="JEONSE">전세</option>
+                        <option value="MONTHLY">월세</option>
+                    </select>
+                </label>
+                <label>보증금/매매가 (원)
+                    <input type="number" min="0" x-model="propertyForm.priceDeposit" placeholder="550000000">
+                </label>
+                <label>월세 (원)
+                    <input type="number" min="0" x-model="propertyForm.priceMonthly" placeholder="0">
+                </label>
+                <label>관리비 (원/월)
+                    <input type="number" min="0" x-model="propertyForm.maintenanceFee" placeholder="0">
+                </label>
+                <label class="span2">도로명주소
+                    <input type="text" x-model="propertyForm.addressRoad" placeholder="서울시 ...">
+                </label>
+                <label>전용면적 (㎡)
+                    <input type="number" step="0.01" min="0" x-model="propertyForm.areaExclusiveM2" placeholder="84.9">
+                </label>
+                <label>공급면적 (㎡)
+                    <input type="number" step="0.01" min="0" x-model="propertyForm.areaSupplyM2" placeholder="112.0">
+                </label>
+                <label>층
+                    <input type="number" min="1" x-model="propertyForm.floorNo" placeholder="5">
+                </label>
+                <label>총 층수
+                    <input type="number" min="1" x-model="propertyForm.floorTotal" placeholder="12">
+                </label>
+                <label>향
+                    <input type="text" x-model="propertyForm.direction" placeholder="남향">
+                </label>
+                <label>준공년도
+                    <input type="number" min="1900" x-model="propertyForm.approvalYear" placeholder="2018">
+                </label>
+                <label>건물동수
+                    <input type="number" min="1" x-model="propertyForm.buildingCount" placeholder="3">
+                </label>
+                <label>총세대수
+                    <input type="number" min="1" x-model="propertyForm.totalHouseholds" placeholder="300">
+                </label>
+                <label>입주가능
+                    <select x-model="propertyForm.moveInType">
+                        <option value="">선택 안 함</option>
+                        <option value="IMMEDIATE">즉시 입주</option>
+                        <option value="NEGOTIABLE">협의</option>
+                        <option value="DATE">날짜 지정</option>
+                    </select>
+                </label>
+                <label>입주가능일
+                    <input type="date" x-model="propertyForm.moveInDate">
+                </label>
+            </div>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="loading ? '저장 중…' : (propertyForm.id ? '저장' : '등록')"></span>
             </button>
         </form>
     </div>
