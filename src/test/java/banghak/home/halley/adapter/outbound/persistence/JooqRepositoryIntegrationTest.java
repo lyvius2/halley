@@ -152,19 +152,19 @@ class JooqRepositoryIntegrationTest {
 
     @Test
     void criterionRoundTrip() {
-        criterionRepository.save(new Criterion("PRICE", "가격", ScoringType.AUTO, true));
+        criterionRepository.save(new Criterion("CUSTOM", "테스트", ScoringType.AUTO, true));
 
-        Criterion found = criterionRepository.findById("PRICE").orElseThrow();
+        Criterion found = criterionRepository.findById("CUSTOM").orElseThrow();
         assertThat(found.scoringType()).isEqualTo(ScoringType.AUTO);
         assertThat(found.enabled()).isTrue();
     }
 
     @Test
     void criterionWeightRoundTrip() {
-        criterionWeightRepository.save(new CriterionWeight("PRICE", 1, new BigDecimal("3.0"), null));
+        criterionWeightRepository.save(new CriterionWeight("CUSTOM", 99, new BigDecimal("3.0"), null));
 
-        CriterionWeight found = criterionWeightRepository.findById("PRICE").orElseThrow();
-        assertThat(found.priorityRank()).isEqualTo(1);
+        CriterionWeight found = criterionWeightRepository.findById("CUSTOM").orElseThrow();
+        assertThat(found.priorityRank()).isEqualTo(99);
         assertThat(found.updatedAt()).isNotNull();
     }
 

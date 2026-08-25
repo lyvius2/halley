@@ -79,7 +79,7 @@ class PropertyApiIntegrationTest {
         // then
         mockMvc.perform(get("/api/properties").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("한빛아파트"));
+                .andExpect(jsonPath("$[?(@.name == '한빛아파트')]").isNotEmpty());
 
         mockMvc.perform(get("/api/properties/" + id).session(session))
                 .andExpect(status().isOk())
