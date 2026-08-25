@@ -2,8 +2,8 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
-import banghak.home.halley.adapter.inbound.web.exception.InvalidPropertyRequestException;
-import banghak.home.halley.adapter.inbound.web.exception.NotFoundListingsException;
+import banghak.home.halley.config.exception.InvalidPropertyRequestException;
+import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.property.ListingStatus;

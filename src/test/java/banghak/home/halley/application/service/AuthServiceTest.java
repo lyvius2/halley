@@ -2,8 +2,9 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.AuthResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
-import banghak.home.halley.adapter.inbound.web.exception.InvalidCredentialsException;
+import banghak.home.halley.config.exception.InvalidCredentialsException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -14,7 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -39,7 +40,8 @@ class AuthServiceTest {
     void bootstrapAdminExists() {
         // then
         assertThat(userRepository.findByEmail("admin")).isPresent();
-        assertThat(userRepository.findByEmail("admin").get().role()).isEqualTo(UserRole.ADMIN);
+        final UserRole userRole = userRepository.findByEmail("admin").map(User::role).orElse(null);
+        assertThat(userRole).isEqualTo(UserRole.ADMIN);
     }
 
     @Test
@@ -56,7 +58,8 @@ class AuthServiceTest {
         assertThat(first.role()).isEqualTo(UserRole.MEMBER);
 
         authService.changePassword("password1!", "newpassword2!");
-        assertThat(userRepository.findByEmail("auth@example.com").get().mustChangePassword()).isFalse();
+        final Boolean isMustChangePassword = userRepository.findByEmail("auth@example.com").map(User::mustChangePassword).orElse(null);
+        assertThat(isMustChangePassword).isFalse();
 
         SecurityContextHolder.clearContext();
         final AuthResponse second = authService.login("auth@example.com", "newpassword2!");
@@ -70,9 +73,9 @@ class AuthServiceTest {
         userService.create(new CreateUserRequest("wrong-user", "wrong@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
 
         // when
-        final InvalidCredentialsException ex = catchThrowableOfType(
-                () -> authService.login("wrong@example.com", "bad-password"),
-                InvalidCredentialsException.class);
+        final InvalidCredentialsException ex = assertThrows(
+                InvalidCredentialsException.class,
+                () -> authService.login("wrong@example.com", "bad-password"));
 
         // then
         assertThat(ex).isNotNull();

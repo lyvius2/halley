@@ -1,11 +1,11 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.AuthResponse;
-import banghak.home.halley.adapter.inbound.web.exception.AccountDisabledException;
-import banghak.home.halley.adapter.inbound.web.exception.AuthenticationRequiredException;
-import banghak.home.halley.adapter.inbound.web.exception.InvalidCredentialsException;
-import banghak.home.halley.adapter.inbound.web.exception.InvalidPasswordException;
-import banghak.home.halley.adapter.inbound.web.exception.NotFoundUserException;
+import banghak.home.halley.config.exception.AccountDisabledException;
+import banghak.home.halley.config.exception.AuthenticationRequiredException;
+import banghak.home.halley.config.exception.InvalidCredentialsException;
+import banghak.home.halley.config.exception.InvalidPasswordException;
+import banghak.home.halley.config.exception.NotFoundUserException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.user.User;

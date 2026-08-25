@@ -74,7 +74,7 @@ class PropertyApiIntegrationTest {
                 .andExpect(jsonPath("$.name").value("한빛아파트"))
                 .andExpect(jsonPath("$.sourceType").value("MANUAL"))
                 .andReturn().getResponse().getContentAsString();
-        final String id = objectMapper.readTree(createdBody).get("id").asText();
+        final String id = objectMapper.readTree(createdBody).get("id").asString();
 
         // then
         mockMvc.perform(get("/api/properties").session(session))

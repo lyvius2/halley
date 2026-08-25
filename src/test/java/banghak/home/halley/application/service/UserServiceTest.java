@@ -4,7 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.adapter.inbound.web.exception.DuplicateEmailException;
+import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
@@ -16,7 +16,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -52,9 +52,9 @@ class UserServiceTest {
         userService.create(new CreateUserRequest("dup1", "dup@example.com", "pw12345!", null, null, null, null, null));
 
         // when
-        final DuplicateEmailException ex = catchThrowableOfType(
-                () -> userService.create(new CreateUserRequest("dup2", "dup@example.com", "pw12345!", null, null, null, null, null)),
-                DuplicateEmailException.class);
+        final DuplicateEmailException ex = assertThrows(
+                DuplicateEmailException.class,
+                () -> userService.create(new CreateUserRequest("dup2", "dup@example.com", "pw12345!", null, null, null, null, null)));
 
         // then
         assertThat(ex).isNotNull();

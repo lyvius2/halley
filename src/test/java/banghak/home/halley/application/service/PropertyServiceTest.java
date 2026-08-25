@@ -2,8 +2,8 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
-import banghak.home.halley.adapter.inbound.web.exception.InvalidPropertyRequestException;
-import banghak.home.halley.adapter.inbound.web.exception.NotFoundListingsException;
+import banghak.home.halley.config.exception.InvalidPropertyRequestException;
+import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ListingStatus;
@@ -17,7 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import java.math.BigDecimal;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -58,8 +58,8 @@ class PropertyServiceTest {
                 null, null, null, null, null);
 
         // when
-        final InvalidPropertyRequestException ex = catchThrowableOfType(
-                () -> propertyService.create(request), InvalidPropertyRequestException.class);
+        final InvalidPropertyRequestException ex = assertThrows(
+                InvalidPropertyRequestException.class, () -> propertyService.create(request));
 
         // then
         assertThat(ex).isNotNull();
@@ -70,9 +70,9 @@ class PropertyServiceTest {
     @DisplayName("매물명이 공백이면 InvalidPropertyRequestException이 발생한다")
     void createRequiresName() {
         // when
-        final InvalidPropertyRequestException ex = catchThrowableOfType(
-                () -> propertyService.create(request("  ", DealType.JEONSE, 300_000_000L)),
-                InvalidPropertyRequestException.class);
+        final InvalidPropertyRequestException ex = assertThrows(
+                InvalidPropertyRequestException.class,
+                () -> propertyService.create(request("  ", DealType.JEONSE, 300_000_000L)));
 
         // then
         assertThat(ex).isNotNull();
@@ -105,9 +105,9 @@ class PropertyServiceTest {
     @DisplayName("존재하지 않는 매물을 수정하면 NotFoundListingsException이 발생한다")
     void updateNotFound() {
         // when
-        final NotFoundListingsException ex = catchThrowableOfType(
-                () -> propertyService.update(999_999L, request("없음", DealType.SALE, 100_000_000L)),
-                NotFoundListingsException.class);
+        final NotFoundListingsException ex = assertThrows(
+                NotFoundListingsException.class,
+                () -> propertyService.update(999_999L, request("없음", DealType.SALE, 100_000_000L)));
 
         // then
         assertThat(ex).isNotNull();

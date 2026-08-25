@@ -1,4 +1,4 @@
-package banghak.home.halley.adapter.inbound.web.exception;
+package banghak.home.halley.config.exception;
 
 import org.springframework.http.HttpStatus;
 
