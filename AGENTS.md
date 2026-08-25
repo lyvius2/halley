@@ -47,6 +47,10 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 ## 코딩 규칙
 
 - **모든 프로덕션 코드에는 JUnit5 테스트를 반드시 작성한다.** 기능 구현·수정 시 해당 단위/통합 테스트를 함께 추가하고, 테스트가 통과하기 전에는 커밋하지 않는다.
+- **테스트는 `// given` / `// when` / `// then` 주석 구조로 작성한다.** (given: 준비, when: 실행, then: 검증)
+- **테스트에는 `@DisplayName`을 붙여 어떤 목적의, 어떤 결과를 기대하는 테스트인지 간략·명확하게 서술한다.**
+- **변수는 가급적 불변으로 취급하고, 불변인 변수 선언 앞에는 `final`을 붙인다.** 재할당이 필요한 변수에만 `final`을 생략한다.
+- **애플리케이션 예외는 원인을 근거로 명명한 CustomException을 만들어 던진다.** 범용 `ApiException`으로 처리하지 않는다. 예: 매물이 없으면 `RuntimeException`을 상속한 `NotFoundListingsException`을 사용한다.
 - 로깅은 Lombok `@Slf4j` + `log.info`/`log.warn`/`log.error`로만 사용한다. `System.out.println` 금지.
 
 ## 테스트 필수 항목
