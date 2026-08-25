@@ -1,5 +1,14 @@
 # Halley
 
+![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.x-6DB33F?logo=springboot&logoColor=white)
+![Gradle](https://img.shields.io/badge/Gradle-build-02303A?logo=gradle&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-database-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-cache%20%C2%B7%20session-FF4438?logo=redis&logoColor=white)
+![Alpine.js](https://img.shields.io/badge/Alpine.js-frontend-8BC0D0?logo=alpinedotjs&logoColor=black)
+![Kakao Map](https://img.shields.io/badge/Kakao%20Map-SDK-FFCD00?logo=kakao&logoColor=black)
+![DeepSeek](https://img.shields.io/badge/Built%20with-DeepSeek%20V4%20Pro-4D6BFE?logo=deepseek&logoColor=white)
+
 부동산 매물을 비교·평가하기 위한 2인 전용 폐쇄형 웹 애플리케이션입니다. 네이버 부동산 매물 정보를 붙여넣기로 등록하고, 직주근접·가격·역세권 등 12개 기준으로 자동/수동 채점해 우선순위를 정합니다.
 
 ## 주요 기능
@@ -68,7 +77,7 @@ docker compose up -d
 
 ## 문서
 
-- [`docs/DESIGN.md`](./docs/design.md) — 전체 설계서: 아키텍처, ERD, 화면 정의, API 명세, 채점 산식, 확정된 의사결정 이력
+- [`docs/DESIGN.md`](./docs/DESIGN.md) — 전체 설계서: 아키텍처, ERD, 화면 정의, API 명세, 채점 산식, 확정된 의사결정 이력
 - [`AGENTS.md`](./AGENTS.md) — AI 코딩 에이전트용 작업 지침
 
 ## 상태
