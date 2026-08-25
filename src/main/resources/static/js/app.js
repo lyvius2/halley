@@ -8,6 +8,8 @@ function emptyPropertyForm() {
         maintenanceFee: '',
         addressRoad: '',
         addressJibun: '',
+        lat: '',
+        lng: '',
         areaSupplyM2: '',
         areaExclusiveM2: '',
         floorNo: '',
@@ -31,6 +33,13 @@ function halley() {
         showPassword: false,
         showPropertyForm: false,
         propertyForm: emptyPropertyForm(),
+        map: null,
+        markers: {},
+        activePropertyId: null,
+        showRoadview: false,
+        roadviewProperty: null,
+        roadviewState: 'loading',
+        roadview: null,
         loginForm: { email: '', password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
@@ -159,6 +168,7 @@ function halley() {
             const { ok, body } = await this.request('/api/properties');
             if (ok) {
                 this.properties = body || [];
+                this.renderMap();
             }
         },
 
@@ -178,6 +188,8 @@ function halley() {
                 maintenanceFee: p.maintenanceFee ?? '',
                 addressRoad: p.addressRoad || '',
                 addressJibun: p.addressJibun || '',
+                lat: p.lat ?? '',
+                lng: p.lng ?? '',
                 areaSupplyM2: p.areaSupplyM2 ?? '',
                 areaExclusiveM2: p.areaExclusiveM2 ?? '',
                 floorNo: p.floorNo ?? '',
@@ -209,6 +221,8 @@ function halley() {
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
+                lat: toNum(this.propertyForm.lat),
+                lng: toNum(this.propertyForm.lng),
                 areaSupplyM2: toNum(this.propertyForm.areaSupplyM2),
                 areaExclusiveM2: toNum(this.propertyForm.areaExclusiveM2),
                 floorNo: toNum(this.propertyForm.floorNo),
@@ -250,6 +264,104 @@ function halley() {
             if (ok) {
                 await this.loadProperties();
             }
+        },
+
+        renderMap() {
+            if (typeof kakao === 'undefined' || !kakao.maps) {
+                return;
+            }
+            kakao.maps.load(() => {
+                this.initMapIfNeeded();
+                this.renderMarkers();
+            });
+        },
+
+        initMapIfNeeded() {
+            if (this.map) {
+                return;
+            }
+            const el = document.getElementById('map');
+            if (!el) {
+                return;
+            }
+            this.map = new kakao.maps.Map(el, {
+                center: new kakao.maps.LatLng(37.5665, 126.9780),
+                level: 8
+            });
+        },
+
+        renderMarkers() {
+            if (!this.map) {
+                return;
+            }
+            Object.values(this.markers).forEach(m => m.setMap(null));
+            this.markers = {};
+            const coords = this.properties.filter(p => p.lat && p.lng);
+            coords.forEach(p => {
+                const position = new kakao.maps.LatLng(p.lat, p.lng);
+                const marker = new kakao.maps.Marker({ position, map: this.map });
+                kakao.maps.event.addListener(marker, 'click', () => this.selectMarker(p.id));
+                this.markers[p.id] = marker;
+            });
+            if (coords.length > 0) {
+                const bounds = new kakao.maps.LatLngBounds();
+                coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
+                this.map.setBounds(bounds);
+            }
+        },
+
+        focusProperty(p) {
+            this.activePropertyId = p.id;
+            if (!this.map || !p.lat || !p.lng) {
+                return;
+            }
+            const position = new kakao.maps.LatLng(p.lat, p.lng);
+            this.map.panTo(position);
+            this.map.setLevel(4);
+        },
+
+        selectMarker(id) {
+            this.activePropertyId = id;
+            const el = document.getElementById('prop-' + id);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+            const p = this.properties.find(x => x.id === id);
+            if (p) {
+                this.openRoadview(p);
+            }
+        },
+
+        openRoadview(p) {
+            this.roadviewProperty = p;
+            this.showRoadview = true;
+            this.roadviewState = 'loading';
+            setTimeout(() => this.loadRoadview(p), 0);
+        },
+
+        loadRoadview(p) {
+            const container = document.getElementById('roadview');
+            if (!container || !p.lat || !p.lng) {
+                this.roadviewState = 'missing';
+                return;
+            }
+            const position = new kakao.maps.LatLng(p.lat, p.lng);
+            const client = new kakao.maps.RoadviewClient();
+            client.getNearestPanoId(position, 50, (panoId) => {
+                if (panoId === null) {
+                    this.roadviewState = 'missing';
+                    return;
+                }
+                this.roadview = new kakao.maps.Roadview(container, { panoId, position });
+                this.roadviewState = 'ready';
+            });
+        },
+
+        closeRoadview() {
+            this.showRoadview = false;
+            this.roadviewProperty = null;
+            this.roadviewState = 'loading';
+            this.roadview = null;
         },
 
         dealLabel(type) {

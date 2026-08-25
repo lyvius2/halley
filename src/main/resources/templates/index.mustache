@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="/css/app.css">
     <script defer src="/js/app.js"></script>
     <script defer src="/js/vendor/alpine.min.js"></script>
+    {{#kakaoJsKey}}
+    <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
+    {{/kakaoJsKey}}
 </head>
 <body x-data="halley()" x-init="init()">
 
@@ -55,7 +58,8 @@
                                 </div>
                             </template>
                             <template x-for="p in properties" :key="p.id">
-                                <article class="property-card">
+                                <article class="property-card" :class="{active: activePropertyId === p.id}"
+                                         :id="'prop-' + p.id" @click="focusProperty(p)">
                                     <div class="property-card-header">
                                         <span class="property-card-name" x-text="p.name"></span>
                                         <span class="property-card-price" x-text="fmtWon(p.priceDeposit)"></span>
@@ -66,7 +70,7 @@
                                         <span x-show="p.floorNo" x-text="p.floorNo + '층'"></span>
                                         <span x-show="p.areaExclusiveM2" x-text="p.areaExclusiveM2 + '㎡'"></span>
                                     </div>
-                                    <div class="property-card-actions">
+                                    <div class="property-card-actions" @click.stop>
                                         <button class="btn-link" @click="openEditProperty(p)">수정</button>
                                         <button class="btn-link danger" @click="removeProperty(p)">삭제</button>
                                     </div>
@@ -183,6 +187,12 @@
                 <label class="span2">도로명주소
                     <input type="text" x-model="propertyForm.addressRoad" placeholder="서울시 ...">
                 </label>
+                <label>위도
+                    <input type="number" step="0.000001" x-model="propertyForm.lat" placeholder="37.5">
+                </label>
+                <label>경도
+                    <input type="number" step="0.000001" x-model="propertyForm.lng" placeholder="127.0">
+                </label>
                 <label>전용면적 (㎡)
                     <input type="number" step="0.01" min="0" x-model="propertyForm.areaExclusiveM2" placeholder="84.9">
                 </label>
@@ -224,6 +234,26 @@
                 <span x-text="loading ? '저장 중…' : (propertyForm.id ? '저장' : '등록')"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D23 로드뷰 모달 -->
+<div class="modal modal-roadview" x-show="showRoadview" x-cloak>
+    <div id="roadview" class="rv-canvas"></div>
+    <div class="rv-fallback" x-show="roadviewState === 'missing'">
+        <div class="empty-ic">◌</div>
+        <h4>이 위치는 로드뷰가 제공되지 않습니다</h4>
+        <p>신축 단지나 골목 안쪽은 로드뷰가 없을 수 있습니다.</p>
+    </div>
+    <div class="rv-top" x-show="roadviewProperty">
+        <div class="rv-info">
+            <span class="rv-name" x-text="roadviewProperty.name"></span>
+            <span class="rv-meta">
+                <span class="badge" :class="dealBadge(roadviewProperty.dealType)" x-text="dealLabel(roadviewProperty.dealType)"></span>
+                <span x-text="fmtWon(roadviewProperty.priceDeposit)"></span>
+            </span>
+        </div>
+        <button class="btn btn-ghost" @click="closeRoadview()">닫기</button>
     </div>
 </div>
 

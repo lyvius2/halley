@@ -1,15 +1,19 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.ApiException;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
+import banghak.home.halley.adapter.inbound.web.exception.DuplicateEmailException;
+import banghak.home.halley.adapter.inbound.web.exception.DuplicateNicknameException;
+import banghak.home.halley.adapter.inbound.web.exception.LastAdminException;
+import banghak.home.halley.adapter.inbound.web.exception.NotFoundUserException;
+import banghak.home.halley.adapter.inbound.web.exception.SelfDeleteException;
+import banghak.home.halley.adapter.inbound.web.exception.SelfDisableException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,12 +43,12 @@ public class UserService {
 
     public UserResponse create(CreateUserRequest request) {
         if (userRepository.findByEmail(request.email()).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_DUPLICATED", "이미 존재하는 이메일입니다");
+            throw new DuplicateEmailException();
         }
         if (userRepository.findByNickname(request.nickname()).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "NICKNAME_DUPLICATED", "이미 존재하는 닉네임입니다");
+            throw new DuplicateNicknameException();
         }
-        User saved = userRepository.save(new User(
+        final User saved = userRepository.save(new User(
                 null,
                 request.nickname(),
                 request.email(),
@@ -61,14 +65,14 @@ public class UserService {
     }
 
     public UserResponse update(Long id, UpdateUserRequest request) {
-        User user = get(id);
+        final User user = get(id);
         if (!user.email().equals(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "EMAIL_DUPLICATED", "이미 존재하는 이메일입니다");
+            throw new DuplicateEmailException();
         }
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
-            throw new ApiException(HttpStatus.CONFLICT, "NICKNAME_DUPLICATED", "이미 존재하는 닉네임입니다");
+            throw new DuplicateNicknameException();
         }
-        User updated = userRepository.update(new User(
+        final User updated = userRepository.update(new User(
                 user.id(),
                 request.nickname(),
                 request.email(),
@@ -85,28 +89,28 @@ public class UserService {
     }
 
     public void delete(Long id) {
-        User user = get(id);
+        final User user = get(id);
         if (user.id().equals(currentAdminId())) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "SELF_DELETE", "자기 자신을 삭제할 수 없습니다");
+            throw new SelfDeleteException();
         }
         if (user.role() == UserRole.ADMIN && countAdmins() <= 1) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "LAST_ADMIN", "마지막 관리자는 삭제할 수 없습니다");
+            throw new LastAdminException("마지막 관리자는 삭제할 수 없습니다");
         }
         userRepository.delete(id);
     }
 
     public UserResponse updateStatus(Long id, boolean enabled) {
-        User user = get(id);
+        final User user = get(id);
         if (!enabled) {
             if (user.id().equals(currentAdminId())) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "SELF_DISABLE", "자기 자신을 비활성화할 수 없습니다");
+                throw new SelfDisableException();
             }
             if (user.role() == UserRole.ADMIN && countAdmins() <= 1) {
-                throw new ApiException(HttpStatus.BAD_REQUEST, "LAST_ADMIN", "마지막 관리자는 비활성화할 수 없습니다");
+                throw new LastAdminException("마지막 관리자는 비활성화할 수 없습니다");
             }
         }
-        Instant now = Instant.now();
-        User updated = userRepository.update(new User(
+        final Instant now = Instant.now();
+        final User updated = userRepository.update(new User(
                 user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.mustChangePassword(), user.availableBudget(), enabled,
@@ -117,8 +121,8 @@ public class UserService {
     }
 
     public ResetPasswordResponse resetPassword(Long id) {
-        User user = get(id);
-        String temporaryPassword = randomPassword();
+        final User user = get(id);
+        final String temporaryPassword = randomPassword();
         userRepository.update(new User(
                 user.id(), user.nickname(), user.email(), passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
@@ -129,7 +133,7 @@ public class UserService {
 
     private User get(Long id) {
         return userRepository.findById(id)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "NOT_FOUND", "사용자를 찾을 수 없습니다"));
+                .orElseThrow(NotFoundUserException::new);
     }
 
     private long countAdmins() {
@@ -137,7 +141,7 @@ public class UserService {
     }
 
     private Long currentAdminId() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
             return principal.getId();
         }
@@ -152,8 +156,8 @@ public class UserService {
     }
 
     private String randomPassword() {
-        SecureRandom random = new SecureRandom();
-        StringBuilder sb = new StringBuilder(12);
+        final SecureRandom random = new SecureRandom();
+        final StringBuilder sb = new StringBuilder(12);
         for (int i = 0; i < 12; i++) {
             sb.append(PASSWORD_CHARS.charAt(random.nextInt(PASSWORD_CHARS.length())));
         }

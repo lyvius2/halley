@@ -321,6 +321,69 @@ td.num {
 .form-grid .span2 { grid-column: span 2; }
 .form-error { font-size: 11px; color: var(--lava); }
 
+/* ── 매물 카드 활성(지도↔리스트 동기화) ────────────── */
+.property-card.active {
+    border-color: var(--ocean);
+    box-shadow: 0 4px 16px rgba(27, 94, 120, .12);
+}
+
+/* ── 로드뷰 모달 (D23) ─────────────────────────────── */
+.modal-roadview {
+    align-items: stretch;
+    justify-content: stretch;
+}
+.rv-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.rv-top {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+    right: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(20, 20, 20, .72);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    color: #f4f0e8;
+    border-radius: 10px;
+    padding: 12px 16px;
+}
+.rv-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rv-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 15px;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.rv-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+    color: #d8d2c6;
+}
+.rv-fallback {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: 8px;
+    text-align: center;
+    color: var(--ink3);
+    background: var(--paper);
+}
+.rv-fallback h4 { font-family: 'Noto Serif KR', serif; font-size: 15px; color: var(--ink2); font-weight: 500; }
+.rv-fallback p { font-size: 12px; }
+
 /* ── 반응형 ──────────────────────────────────────── */
 @media (max-width: 900px) {
     .shell { height: auto; min-height: 100vh; overflow: visible; }
