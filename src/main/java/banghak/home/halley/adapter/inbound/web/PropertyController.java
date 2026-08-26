@@ -1,9 +1,12 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
+import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyService;
 import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
@@ -27,10 +30,19 @@ public class PropertyController {
 
     private final PropertyService propertyService;
     private final ScoringService scoringService;
+    private final ParsePreviewService parsePreviewService;
 
-    public PropertyController(PropertyService propertyService, ScoringService scoringService) {
+    public PropertyController(PropertyService propertyService,
+                              ScoringService scoringService,
+                              ParsePreviewService parsePreviewService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
+        this.parsePreviewService = parsePreviewService;
+    }
+
+    @PostMapping("/parse-preview")
+    public ParsePreviewResponse parsePreview(@RequestBody ParsePreviewRequest request) {
+        return parsePreviewService.preview(request.text());
     }
 
     @GetMapping
