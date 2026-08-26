@@ -78,6 +78,7 @@ docker compose up -d
 ## 문서
 
 - [`docs/DESIGN.md`](./docs/DESIGN.md) — 전체 설계서: 아키텍처, ERD, 화면 정의, API 명세, 채점 산식, 확정된 의사결정 이력
+- [`docs/INTERFACE_MANUAL.md`](./docs/INTERFACE_MANUAL.md) — 외부 API 연동 매뉴얼: 카카오·ODsay·Slack 키 발급처, 설정 키, 호출 흐름(Mermaid)
 - [`AGENTS.md`](./AGENTS.md) — AI 코딩 에이전트용 작업 지침
 
 ## 상태
