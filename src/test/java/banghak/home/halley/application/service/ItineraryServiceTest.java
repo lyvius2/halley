@@ -43,6 +43,8 @@ class ItineraryServiceTest {
     @TestConfiguration
     static class StubConfig {
 
+        final java.util.concurrent.atomic.AtomicInteger transitCalls = new java.util.concurrent.atomic.AtomicInteger();
+
         @Bean
         @Primary
         KakaoDirectionsPort kakaoDirectionsPort() {
@@ -52,9 +54,15 @@ class ItineraryServiceTest {
         @Bean
         @Primary
         OdsayTransitPort odsayTransitPort() {
-            return (sx, sy, ex, ey) -> new TransitResult(15, 1, 5);
+            return (sx, sy, ex, ey) -> {
+                transitCalls.incrementAndGet();
+                return new TransitResult(15, 1, 5);
+            };
         }
     }
+
+    @Autowired
+    private StubConfig stubConfig;
 
     @Autowired
     private ItineraryService itineraryService;
@@ -70,6 +78,7 @@ class ItineraryServiceTest {
 
     @BeforeEach
     void setUpAuth() {
+        stubConfig.transitCalls.set(0);
         if (userRepository.findByEmail("itinerary@example.com").isEmpty()) {
             userService.create(new CreateUserRequest(
                     "임장자", "itinerary@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
@@ -154,10 +163,36 @@ class ItineraryServiceTest {
         assertThat(recomputed.stops().getFirst().visited()).isFalse();
     }
 
+    @Test
+    @DisplayName("대중교통 이동시간은 TTL 캐시로 재계산 시 조회하지 않는다")
+    void transitTravelTimeCached() {
+        // given — 좌표가 서로 다른 매물
+        final List<Long> ids = List.of(
+                propertyService.create(request("캐시A", "37.51", "126.91")).id(),
+                propertyService.create(request("캐시B", "37.52", "126.92")).id());
+
+        // when — 첫 계산은 캐시 미스 → ODsay 호출
+        itineraryService.optimize(new OptimizeItineraryRequest(
+                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
+        final int firstCalls = stubConfig.transitCalls.get();
+        assertThat(firstCalls).isGreaterThan(0);
+
+        // 같은 요청 재계산 → 캐시 히트로 추가 호출 없음
+        itineraryService.optimize(new OptimizeItineraryRequest(
+                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
+
+        // then
+        assertThat(stubConfig.transitCalls.get()).isEqualTo(firstCalls);
+    }
+
     private PropertyRequest request(String name) {
+        return request(name, "37.5", "127.0");
+    }
+
+    private PropertyRequest request(String name, String lat, String lng) {
         return new PropertyRequest(
                 name, null, DealType.SALE, 500_000_000L, null, null,
-                "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
+                "서울시", null, new BigDecimal(lat), new BigDecimal(lng),
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,
                 null, null, null, 3, null,

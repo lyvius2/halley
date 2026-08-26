@@ -9,3 +9,7 @@ spring:
       mode: never
   jooq:
     sql-dialect: POSTGRES
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}

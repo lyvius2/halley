@@ -8,6 +8,7 @@ import banghak.home.halley.adapter.inbound.web.dto.VisitPlanStopResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyVisitPlanRepository;
 import banghak.home.halley.adapter.outbound.persistence.VisitPlanStopRepository;
+import banghak.home.halley.application.port.out.cache.TravelTimeCache;
 import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
 import banghak.home.halley.config.HalleyUserDetails;
@@ -48,6 +49,7 @@ public class ItineraryService {
     private final VisitPlanStopRepository visitPlanStopRepository;
     private final KakaoDirectionsPort kakaoDirectionsPort;
     private final OdsayTransitPort odsayTransitPort;
+    private final TravelTimeCache travelTimeCache;
     private final ItineraryOptimizer optimizer;
 
     public ItineraryService(PropertyRepository propertyRepository,
@@ -55,12 +57,14 @@ public class ItineraryService {
                             VisitPlanStopRepository visitPlanStopRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
                             OdsayTransitPort odsayTransitPort,
+                            TravelTimeCache travelTimeCache,
                             ItineraryOptimizer optimizer) {
         this.propertyRepository = propertyRepository;
         this.propertyVisitPlanRepository = propertyVisitPlanRepository;
         this.visitPlanStopRepository = visitPlanStopRepository;
         this.kakaoDirectionsPort = kakaoDirectionsPort;
         this.odsayTransitPort = odsayTransitPort;
+        this.travelTimeCache = travelTimeCache;
         this.optimizer = optimizer;
     }
 
@@ -203,8 +207,16 @@ public class ItineraryService {
             final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat);
             return route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES;
         }
+        final Integer cached = travelTimeCache.get(mode, fromLng, fromLat, toLng, toLat);
+        if (cached != null) {
+            return cached;
+        }
         final TransitResult transit = odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
-        return transit.isComputed() ? transit.totalMinutes() : UNREACHABLE_MINUTES;
+        final int minutes = transit.isComputed() ? transit.totalMinutes() : UNREACHABLE_MINUTES;
+        if (minutes != UNREACHABLE_MINUTES) {
+            travelTimeCache.put(mode, fromLng, fromLat, toLng, toLat, minutes);
+        }
+        return minutes;
     }
 
     private VisitPlanResponse toResponse(PropertyVisitPlan plan, List<VisitPlanStop> stops) {
