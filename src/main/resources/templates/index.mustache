@@ -24,6 +24,7 @@
                 <nav class="nav">
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn" :class="{on: view==='users'}" x-show="session.role==='ADMIN'" @click="setView('users')">사용자</button>
+                    <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -48,6 +49,12 @@
                         <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="properties.length + '건'"></span>
                             <button class="btn btn-primary btn-sm" @click="openAddProperty()">+ 매물 추가</button>
                         </div>
+                        <div class="deal-tabs">
+                            <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
+                            <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
+                            <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
+                            <button :class="{on: dealTypeFilter==='MONTHLY'}" @click="setDealTypeFilter('MONTHLY')">월세</button>
+                        </div>
                         <div class="property-list">
                             <template x-if="properties.length === 0">
                                 <div class="empty">
@@ -57,26 +64,62 @@
                                     <button class="btn btn-primary" @click="openAddProperty()">+ 매물 추가</button>
                                 </div>
                             </template>
-                            <template x-for="p in properties" :key="p.id">
-                                <article class="property-card" :class="{active: activePropertyId === p.id}"
-                                         :id="'prop-' + p.id" @click="focusProperty(p)">
+                            <template x-for="r in properties" :key="r.property.id">
+                                <article class="property-card" :class="{active: activePropertyId === r.property.id}"
+                                         :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
-                                        <span class="property-card-name" x-text="p.name"></span>
-                                        <span class="property-card-price" x-text="fmtWon(p.priceDeposit)"></span>
+                                        <span class="property-card-name" x-text="r.property.name"></span>
+                                        <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
-                                        <span class="badge" :class="dealBadge(p.dealType)" x-text="dealLabel(p.dealType)"></span>
-                                        <span x-text="p.addressRoad"></span>
-                                        <span x-show="p.floorNo" x-text="p.floorNo + '층'"></span>
-                                        <span x-show="p.areaExclusiveM2" x-text="p.areaExclusiveM2 + '㎡'"></span>
+                                        <span class="badge" :class="dealBadge(r.property.dealType)" x-text="dealLabel(r.property.dealType)"></span>
+                                        <span x-text="r.property.addressRoad"></span>
+                                        <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
+                                        <span x-show="r.property.areaExclusiveM2" x-text="r.property.areaExclusiveM2 + '㎡'"></span>
+                                        <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
+                                            <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
+                                        </span>
                                     </div>
                                     <div class="property-card-actions" @click.stop>
-                                        <button class="btn-link" @click="openEditProperty(p)">수정</button>
-                                        <button class="btn-link danger" @click="removeProperty(p)">삭제</button>
+                                        <button class="btn-link" @click="openScoreModal(r)">채점</button>
+                                        <button class="btn-link" @click="openEditProperty(r)">수정</button>
+                                        <button class="btn-link danger" @click="removeProperty(r)">삭제</button>
                                     </div>
                                 </article>
                             </template>
                         </div>
+                    </div>
+
+                    <div x-show="view==='weights'">
+                        <div class="sec-head"><span class="sec-num">03</span><h2>평가 기준·가중치</h2><span class="sec-sub" x-text="weights.length + '개'"></span></div>
+                        <div class="card table-wrap">
+                            <table>
+                                <thead>
+                                <tr><th>순위</th><th>기준</th><th>유형</th><th>가중치</th><th>이동</th></tr>
+                                </thead>
+                                <tbody>
+                                <template x-for="(w, i) in weights" :key="w.criterionCode">
+                                    <tr>
+                                        <td class="num" x-text="i + 1"></td>
+                                        <td class="strong" x-text="w.name"></td>
+                                        <td>
+                                            <span class="badge" :class="w.scoringType==='AUTO' ? 'b-mem' : 'b-admin'"
+                                                  x-text="w.scoringType==='AUTO' ? '자동' : '수동'"></span>
+                                        </td>
+                                        <td class="num" x-text="w.weight"></td>
+                                        <td>
+                                            <button class="btn-link" @click="moveWeight(i, -1)" :disabled="i === 0">↑</button>
+                                            <button class="btn-link" @click="moveWeight(i, 1)" :disabled="i === weights.length - 1">↓</button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="form-error" x-show="error" x-text="error"></p>
+                        <button class="btn btn-primary" @click="saveWeights()" :disabled="loading">
+                            <span x-text="loading ? '저장 중…' : '가중치 저장'"></span>
+                        </button>
                     </div>
 
                     <div x-show="view==='users'">
@@ -234,6 +277,37 @@
                 <span x-text="loading ? '저장 중…' : (propertyForm.id ? '저장' : '등록')"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D14 평가 채점 모달 -->
+<div class="modal" x-show="showScoreModal" x-cloak>
+    <div class="modal-backdrop" @click="closeScoreModal()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">평가 채점</span>
+            <h3 x-text="scoreProperty.property.name"></h3>
+            <p>항목별 수동 점수를 입력하면 자동 점수를 덮어씁니다. 쾌적함은 사용자별 1~5로 평가합니다.</p>
+        </div>
+        <div class="score-list">
+            <template x-for="s in scoreProperty.scores" :key="s.code">
+                <label class="score-row">
+                    <span class="score-name">
+                        <b x-text="s.name"></b>
+                        <span class="score-source" x-text="scoreSourceLabel(s.scoreSource)"></span>
+                    </span>
+                    <span class="score-auto" x-text="'유효 ' + fmtScore(s.effectiveScore)"></span>
+                    <input type="number" x-model="scoreForm[s.code]"
+                           :min="s.code === 'COMFORT' ? 1 : 0"
+                           :max="s.code === 'COMFORT' ? 5 : 100"
+                           :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'">
+                </label>
+            </template>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
+            <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
+        </button>
     </div>
 </div>
 

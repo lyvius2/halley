@@ -2,7 +2,11 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.PropertyService;
+import banghak.home.halley.application.service.ScoringService;
+import banghak.home.halley.domain.property.DealType;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,6 +15,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -21,30 +26,39 @@ import java.util.List;
 public class PropertyController {
 
     private final PropertyService propertyService;
+    private final ScoringService scoringService;
 
-    public PropertyController(PropertyService propertyService) {
+    public PropertyController(PropertyService propertyService, ScoringService scoringService) {
         this.propertyService = propertyService;
+        this.scoringService = scoringService;
     }
 
     @GetMapping
-    public List<PropertyResponse> list() {
-        return propertyService.list();
+    public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {
+        return scoringService.list(dealType);
     }
 
     @GetMapping("/{id}")
-    public PropertyResponse get(@PathVariable Long id) {
-        return propertyService.get(id);
+    public ScoredPropertyResponse get(@PathVariable Long id) {
+        return scoringService.getScored(id);
     }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public PropertyResponse create(@RequestBody PropertyRequest request) {
-        return propertyService.create(request);
+    public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
+        final PropertyResponse created = propertyService.create(request);
+        return scoringService.rescore(created.id());
     }
 
     @PutMapping("/{id}")
-    public PropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request) {
-        return propertyService.update(id, request);
+    public ScoredPropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request) {
+        final PropertyResponse updated = propertyService.update(id, request);
+        return scoringService.rescore(id);
+    }
+
+    @PutMapping("/{id}/scores")
+    public ScoredPropertyResponse updateScores(@PathVariable Long id, @RequestBody UpdateScoresRequest request) {
+        return scoringService.saveManualScores(id, request.scores());
     }
 
     @DeleteMapping("/{id}")

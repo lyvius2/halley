@@ -148,13 +148,6 @@ public class PropertyService {
     }
 
     private PropertyResponse toResponse(Property p) {
-        return new PropertyResponse(
-                p.id(), p.name(), p.dongHo(), p.dealType(),
-                p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
-                p.addressRoad(), p.addressJibun(), p.lat(), p.lng(),
-                p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
-                p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
-                p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
-                p.sourceType(), p.listingStatus(), p.active(), p.createdAt());
+        return PropertyResponse.from(p);
     }
 }

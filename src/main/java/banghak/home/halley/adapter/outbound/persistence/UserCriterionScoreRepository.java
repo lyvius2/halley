@@ -33,6 +33,18 @@ public class UserCriterionScoreRepository {
         return findById(score.propertyId(), score.userId(), score.criterionCode()).orElseThrow();
     }
 
+    public void upsert(UserCriterionScore score) {
+        dsl.insertInto(TABLE)
+                .set(PROPERTY_ID, score.propertyId())
+                .set(USER_ID, score.userId())
+                .set(CRITERION_CODE, score.criterionCode())
+                .set(SCORE, score.score())
+                .onConflict(PROPERTY_ID, USER_ID, CRITERION_CODE)
+                .doUpdate()
+                .set(SCORE, score.score())
+                .execute();
+    }
+
     public Optional<UserCriterionScore> findById(Long propertyId, Long userId, String criterionCode) {
         return dsl.selectFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId).and(USER_ID.eq(userId)).and(CRITERION_CODE.eq(criterionCode)))

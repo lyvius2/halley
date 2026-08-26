@@ -4,6 +4,7 @@ import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.MoveInType;
+import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SourceType;
 
 import java.math.BigDecimal;
@@ -43,4 +44,15 @@ public record PropertyResponse(
         boolean active,
         Instant createdAt
 ) {
+
+    public static PropertyResponse from(Property p) {
+        return new PropertyResponse(
+                p.id(), p.name(), p.dongHo(), p.dealType(),
+                p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
+                p.addressRoad(), p.addressJibun(), p.lat(), p.lng(),
+                p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
+                p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
+                p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
+                p.sourceType(), p.listingStatus(), p.active(), p.createdAt());
+    }
 }

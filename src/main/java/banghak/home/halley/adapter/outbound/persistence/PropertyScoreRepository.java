@@ -6,7 +6,9 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.AUTO_SCORE;
@@ -32,16 +34,16 @@ public class PropertyScoreRepository {
     }
 
     public PropertyScore save(PropertyScore score) {
-        Long id = dsl.insertInto(TABLE)
-                .set(PROPERTY_ID, score.propertyId())
-                .set(CRITERION_CODE, score.criterionCode())
-                .set(AUTO_SCORE, score.autoScore())
-                .set(MANUAL_SCORE, score.manualScore())
-                .set(EFFECTIVE_SCORE, score.effectiveScore())
-                .set(SCORE_SOURCE, score.scoreSource() == null ? null : score.scoreSource().name())
-                .set(FALLBACK_REASON, score.fallbackReason())
-                .returningResult(ID)
-                .fetchOne()
+        final Long id = Objects.requireNonNull(dsl.insertInto(TABLE)
+                        .set(PROPERTY_ID, score.propertyId())
+                        .set(CRITERION_CODE, score.criterionCode())
+                        .set(AUTO_SCORE, score.autoScore())
+                        .set(MANUAL_SCORE, score.manualScore())
+                        .set(EFFECTIVE_SCORE, score.effectiveScore())
+                        .set(SCORE_SOURCE, score.scoreSource() == null ? null : score.scoreSource().name())
+                        .set(FALLBACK_REASON, score.fallbackReason())
+                        .returningResult(ID)
+                        .fetchOne())
                 .component1();
         return findById(id).orElseThrow();
     }
@@ -63,6 +65,23 @@ public class PropertyScoreRepository {
     public void delete(Long id) {
         dsl.deleteFrom(TABLE)
                 .where(ID.eq(id))
+                .execute();
+    }
+
+    public void deleteByPropertyId(Long propertyId) {
+        dsl.deleteFrom(TABLE)
+                .where(PROPERTY_ID.eq(propertyId))
+                .execute();
+    }
+
+    public void upsertManualScore(Long propertyId, String criterionCode, BigDecimal manualScore) {
+        dsl.insertInto(TABLE)
+                .set(PROPERTY_ID, propertyId)
+                .set(CRITERION_CODE, criterionCode)
+                .set(MANUAL_SCORE, manualScore)
+                .onConflict(PROPERTY_ID, CRITERION_CODE)
+                .doUpdate()
+                .set(MANUAL_SCORE, manualScore)
                 .execute();
     }
 
