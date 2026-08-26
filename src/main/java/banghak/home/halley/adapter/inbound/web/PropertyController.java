@@ -1,6 +1,8 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
+import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
@@ -8,6 +10,7 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
+import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyService;
 import banghak.home.halley.application.service.ScoringService;
@@ -34,13 +37,21 @@ public class PropertyController {
     private final PropertyService propertyService;
     private final ScoringService scoringService;
     private final ParsePreviewService parsePreviewService;
+    private final LoanEstimateService loanEstimateService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
-                              ParsePreviewService parsePreviewService) {
+                              ParsePreviewService parsePreviewService,
+                              LoanEstimateService loanEstimateService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
+        this.loanEstimateService = loanEstimateService;
+    }
+
+    @PostMapping("/{id}/loan-estimate")
+    public LoanEstimateResponse loanEstimate(@PathVariable Long id, @RequestBody LoanEstimateRequest request) {
+        return loanEstimateService.estimate(id, request);
     }
 
     @PostMapping("/parse-preview")

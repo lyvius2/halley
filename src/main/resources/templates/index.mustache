@@ -86,6 +86,7 @@
                                     <div class="property-card-actions" @click.stop>
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
+                                        <button class="btn-link" @click="openLoanModal(r)">대출</button>
                                         <button class="btn-link" @click="openEditProperty(r)">수정</button>
                                         <button class="btn-link danger" @click="removeProperty(r)">삭제</button>
                                     </div>
@@ -433,6 +434,46 @@
         <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
             <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
         </button>
+    </div>
+</div>
+
+<!-- D16 대출 한도 시뮬레이션 모달 -->
+<div class="modal" x-show="showLoanModal" x-cloak>
+    <div class="modal-backdrop" @click="closeLoanModal()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">대출 한도</span>
+            <h3 x-text="loanProperty.property.name"></h3>
+            <p>LTV·DSR 기반 자체 계산입니다. 실제 한도는 은행 가심사가 필요합니다.</p>
+        </div>
+        <form class="form" @submit.prevent="runLoanEstimate()">
+            <div class="form-grid">
+                <label>연 소득 (원)
+                    <input type="number" min="0" x-model="loanForm.annualIncome" placeholder="50000000" required>
+                </label>
+                <label>보유 현금 (원)
+                    <input type="number" min="0" x-model="loanForm.cash" placeholder="300000000" required>
+                </label>
+                <label class="span2">생애최초
+                    <input type="checkbox" x-model="loanForm.firstHome">
+                </label>
+            </div>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="loading ? '계산 중…' : '한도 계산'"></span>
+            </button>
+        </form>
+        <template x-if="loanResult">
+            <div class="loan-result">
+                <div class="loan-row"><span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b></div>
+                <div class="loan-row"><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
+                <div class="loan-row"><span>최종 한도</span><b x-text="fmtWon(loanResult.finalLimit)"></b></div>
+                <div class="loan-row"><span>필요 현금</span><b x-text="fmtWon(loanResult.requiredCash)"></b></div>
+                <div class="loan-row"><span>취득세</span><b x-text="fmtWon(loanResult.acquisitionTax)"></b></div>
+                <div class="loan-row"><span>월 상환액</span><b x-text="fmtWon(loanResult.monthlyPayment)"></b></div>
+                <p class="loan-note">월 상환액은 LTV·DSR 한도 기준 추정치입니다. 은행 가심사를 받으세요.</p>
+            </div>
+        </template>
     </div>
 </div>
 

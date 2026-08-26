@@ -379,6 +379,21 @@ td.num {
 .settings-input:focus { outline: none; border-color: var(--ocean); background: #fff; }
 .empty-cell { text-align: center; color: var(--ink3); padding: 20px; }
 
+/* ── 대출 결과 (D16) ───────────────────────────────── */
+.loan-result { margin-top: 16px; border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; }
+.loan-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--line2);
+    font-size: 12.5px;
+}
+.loan-row:last-of-type { border-bottom: none; }
+.loan-row span { color: var(--ink2); }
+.loan-row b { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
+.loan-note { margin-top: 10px; font-size: 10.5px; color: var(--ink3); }
+
 /* ── 등록 방식 선택 (D8) ────────────────────────────── */.add-choices { display: flex; flex-direction: column; gap: 10px; }
 .add-choice {
     display: flex;

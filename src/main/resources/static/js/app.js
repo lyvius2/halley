@@ -38,6 +38,10 @@ function halley() {
         showCheckLogs: false,
         checkLogs: [],
         checkLogProperty: null,
+        showLoanModal: false,
+        loanProperty: null,
+        loanForm: { annualIncome: '', cash: '', firstHome: false },
+        loanResult: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -275,6 +279,47 @@ function halley() {
 
         verdictLabel(verdict) {
             return { ALIVE: '생존', GONE: '삭제', BLOCKED: '차단', ERROR: '오류' }[verdict] || verdict;
+        },
+
+        openLoanModal(item) {
+            this.loanProperty = item;
+            this.loanForm = { annualIncome: '', cash: '', firstHome: false };
+            this.loanResult = null;
+            this.error = null;
+            this.showLoanModal = true;
+        },
+
+        closeLoanModal() {
+            this.showLoanModal = false;
+            this.loanProperty = null;
+            this.loanResult = null;
+            this.error = null;
+        },
+
+        async runLoanEstimate() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.loanProperty.property.id}/loan-estimate`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            annualIncome: toNum(this.loanForm.annualIncome),
+                            cash: toNum(this.loanForm.cash),
+                            firstHome: this.loanForm.firstHome
+                        })
+                    });
+                if (ok) {
+                    this.loanResult = body;
+                } else {
+                    this.error = (body && body.message) || '계산에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         openAddProperty() {
