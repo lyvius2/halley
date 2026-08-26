@@ -1,6 +1,6 @@
 # Halley 외부 인터페이스 매뉴얼
 
-> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
+> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
 > 수치는 실제 코드(`src/main/resources/application.yaml`, 각 `@FeignClient`, `config/`)와 정합합니다.
 > 인터페이스 아키텍처 원칙은 `docs/DESIGN.md` 2.5(외부 연동은 port/어댑터)를 따릅니다.
 
@@ -14,8 +14,9 @@
 | **카카오 로컬 REST** | 주소→좌표 지오코딩 · POI 반경검색(채점용) | 서버(Feign) | REST 키(`Authorization: KakaoAK …`) | `KAKAO_REST_KEY` | `KakaoLocalFeignClient` | 사용 중 |
 | **ODsay** | 대중교통 경로(직주근접 채점) | 서버(Feign) | `apiKey` 쿼리 파라미터 | `ODSAY_API_KEY` | `OdsayTransitFeignClient` | 사용 중 |
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
+| **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MOLIT_API_KEY` | `MolitReferenceFeignClient` | 사용 중(참고 전용) |
 
-> **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL은 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
+> **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL·국토부 키는 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
 
 ---
 
@@ -190,7 +191,60 @@ sequenceDiagram
 
 ---
 
-## 5. 공통 · 운영 메모
+## 5. 국토부 (Molit) — 실거래가 참고
+
+### 5.1 역할
+
+**최근 실거래 참고 카드** — 매물 상세(M2)에 동일 단지·유사 면적의 최근 거래를 참고용으로 표시합니다.
+**`PRICE` 채점에는 절대 반영하지 않습니다**(설계 5.5 — 실거래가는 계약 시점 가격이라 호가 기준 채점과 섞지 않음).
+
+| 데이터 | API |
+|---|---|
+| 아파트 매매 실거래가 | `RTMSDataSvcAptTradeDev` |
+| 아파트 전월세 실거래가 | `RTMSDataSvcAptRent` |
+
+### 5.2 키 발급 절차
+
+1. [공공데이터포털 data.go.kr](https://www.data.go.kr) 회원가입/로그인
+2. **국토교통부 부동산 실거래가 정보** 검색 → 원하는 API(매매/전월세) **활용신청**
+3. **마이페이지 → 데이터 활용 → 서비스 키** 발급 (인코딩 키)
+4. `MOLIT_API_KEY` 환경변수로 주입
+
+### 5.3 설정 키
+
+| application.yaml 키 | 환경변수 | 기본값 | 설명 |
+|---|---|---|---|
+| `molit.service-key` | `MOLIT_API_KEY` | (없음) | 요청 `serviceKey` 파라미터 |
+| `molit.base-url` | — | `http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest` | API 베이스 |
+
+**서킷브레이커/타임아웃**: `molit-reference` connect 3s / read 8s, 실패율 40%, open 30s (참고 데이터라 실패해도 치명적이지 않음)
+
+### 5.4 호출 흐름
+
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant S as Halley 서버
+    participant M as 국토부(openapi.molit.go.kr)
+    participant R as reference_transaction
+
+    U->>S: M2 진입 (매물 상세)
+    S->>S: 법정동코드(5자리)·계약년월 확인 (주소 역매핑)
+    S->>R: 캐시 조회 (property_id, source)
+    alt 캐시 없음
+        S->>M: GET RTMSDataSvcAptTradeDev?LAWD_CD&DEAL_YMD&serviceKey
+        M-->>S: item 목록 (거래금액·전용면적·층·계약월일)
+        S->>S: 단지명·전용면적 유사도 필터 + 정렬
+        S->>R: 저장 (캐시 TTL 7일)
+    end
+    S-->>U: 최근 실거래 카드 (호가 대비 괴리율 포함)
+```
+
+> **동기화 (설계 5.5)**: 등록 시 1회 조회 + 캐시(Redis TTL 7일). 국토부는 월 단위 갱신이므로 실시간 폴링 불필요. 실거래가는 **참고 표기 전용**입니다.
+
+---
+
+## 6. 공통 · 운영 메모
 
 ### 5.1 로컬 개발 시 키 없이 동작하는 방식
 
