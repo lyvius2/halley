@@ -50,6 +50,10 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 - **테스트는 `// given` / `// when` / `// then` 주석 구조로 작성한다.** (given: 준비, when: 실행, then: 검증)
 - **테스트에는 `@DisplayName`을 붙여 어떤 목적의, 어떤 결과를 기대하는 테스트인지 간략·명확하게 서술한다.**
 - **변수는 가급적 불변으로 취급하고, 불변인 변수 선언 앞에는 `final`을 붙인다.** 재할당이 필요한 변수에만 `final`을 생략한다.
+- **Collection 첫 요소는 `.get(0)` 대신 `.getFirst()`를 사용한다.**
+- **테스트 예외 검증은 `catchThrowableOfType()`(deprecated) 대신 JUnit `assertThrows()`를 사용한다.**
+- **Jackson JSON 노드 값 추출은 `.asText()` 대신 `.asString()`을 사용한다.**
+- **객체 생성은 Factory Pattern을 적극적으로 활용한다.** 생성 로직이 복잡하거나 여러 곳에서 같은 방식으로 만들어질 때 팩토리 메서드/팩토리 클래스로 캡슐화한다.
 - **애플리케이션 예외는 원인을 근거로 명명한 CustomException을 만들어 던진다.** 범용 `ApiException`으로 처리하지 않는다. 예: 매물이 없으면 `RuntimeException`을 상속한 `NotFoundListingsException`을 사용한다.
 - 로깅은 Lombok `@Slf4j` + `log.info`/`log.warn`/`log.error`로만 사용한다. `System.out.println` 금지.
 

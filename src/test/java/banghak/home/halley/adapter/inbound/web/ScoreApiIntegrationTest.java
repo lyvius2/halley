@@ -67,7 +67,7 @@ class ScoreApiIntegrationTest {
         // then
         double comfortEffective = -1.0;
         for (final JsonNode s : objectMapper.readTree(body).path("scores")) {
-            if ("COMFORT".equals(s.path("code").asText())) {
+            if ("COMFORT".equals(s.path("code").asString())) {
                 comfortEffective = s.path("effectiveScore").asDouble();
             }
         }

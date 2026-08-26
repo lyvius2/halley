@@ -13,7 +13,6 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
@@ -32,8 +31,8 @@ class CriteriaServiceTest {
         // then
         assertThat(weights).hasSize(12);
         assertThat(weights).extracting(CriterionWeightResponse::priorityRank).isSorted();
-        assertThat(weights.get(0).criterionCode()).isEqualTo("COMFORT");
-        assertThat(weights.get(0).weight()).isEqualByComparingTo("3.0");
+        assertThat(weights.getFirst().criterionCode()).isEqualTo("COMFORT");
+        assertThat(weights.getFirst().weight()).isEqualByComparingTo("3.0");
         assertThat(weights.get(11).criterionCode()).isEqualTo("BUILDING_COUNT");
         assertThat(weights.get(11).weight()).isEqualByComparingTo("0.8");
     }
@@ -53,7 +52,7 @@ class CriteriaServiceTest {
         // then
         assertThat(updated).extracting(CriterionWeightResponse::criterionCode)
                 .containsExactlyElementsOf(newOrder);
-        assertThat(updated.get(0).weight()).isEqualByComparingTo("3.0");
+        assertThat(updated.getFirst().weight()).isEqualByComparingTo("3.0");
 
         // restore
         final List<CriterionWeightResponse> restored = criteriaService.updateWeights(original);
@@ -70,7 +69,6 @@ class CriteriaServiceTest {
                 () -> criteriaService.updateWeights(List.of("PRICE")));
 
         // then
-        assertThat(ex).isNotNull();
         assertThat(ex.getCode()).isEqualTo("INVALID_WEIGHTS");
     }
 }

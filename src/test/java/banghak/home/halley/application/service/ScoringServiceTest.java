@@ -20,8 +20,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
@@ -100,7 +98,6 @@ class ScoringServiceTest {
                 () -> scoringService.saveManualScores(created.id(), Map.of("PRICE", new BigDecimal("150"))));
 
         // then
-        assertThat(ex).isNotNull();
         assertThat(ex.getCode()).isEqualTo("INVALID_SCORE");
     }
 
