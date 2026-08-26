@@ -25,6 +25,7 @@
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn" :class="{on: view==='users'}" x-show="session.role==='ADMIN'" @click="setView('users')">사용자</button>
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
+                    <button class="nav-btn" :class="{on: view==='settings'}" x-show="session.role==='ADMIN'" @click="setView('settings')">설정</button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -141,6 +142,59 @@
                                 </template>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+
+                    <div x-show="view==='settings'">
+                        <div class="sec-head"><span class="sec-num">04</span><h2>시스템 설정</h2></div>
+                        <template x-for="cat in ['BATCH', 'SCORING', 'LOAN']" :key="cat">
+                            <div class="settings-section">
+                                <h4 x-text="configCategoryLabel(cat)"></h4>
+                                <div class="card table-wrap">
+                                    <table>
+                                        <thead><tr><th>항목</th><th>값</th></tr></thead>
+                                        <tbody>
+                                        <template x-for="s in settingsByCategory(cat)" :key="s.configKey">
+                                            <tr>
+                                                <td class="strong" x-text="s.description"></td>
+                                                <td><input class="settings-input" type="text" x-model="settingsForm[s.configKey]"></td>
+                                            </tr>
+                                        </template>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </template>
+                        <p class="form-error" x-show="error" x-text="error"></p>
+                        <button class="btn btn-primary" @click="saveSettings()" :disabled="loading">설정 저장</button>
+
+                        <div class="settings-section">
+                            <h4>Slack 알림</h4>
+                            <p class="settings-note">Slack 연동은 서버 환경변수(SLACK_WEBHOOK_URL)로 관리됩니다. 설정 화면에서는 테스트 발송만 제공합니다.</p>
+                            <button class="btn" @click="testSlack()" :disabled="loading">테스트 메시지 발송</button>
+                        </div>
+
+                        <div class="settings-section">
+                            <h4>알림 이력</h4>
+                            <div class="card table-wrap">
+                                <table>
+                                    <thead><tr><th>이벤트</th><th>매물</th><th>상태</th><th>오류</th><th>시간</th></tr></thead>
+                                    <tbody>
+                                    <template x-if="notifications.length === 0">
+                                        <tr><td colspan="5" class="empty-cell">발송 이력이 없습니다</td></tr>
+                                    </template>
+                                    <template x-for="n in notifications" :key="n.id">
+                                        <tr>
+                                            <td x-text="n.eventType"></td>
+                                            <td class="num" x-text="n.propertyId ?? '-'"></td>
+                                            <td><span class="badge" :class="n.status==='SENT' ? 'b-on' : 'b-off'" x-text="n.status"></span></td>
+                                            <td x-text="n.errorMessage || ''"></td>
+                                            <td x-text="fmtTime(n.createdAt)"></td>
+                                        </tr>
+                                    </template>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </div>

@@ -46,6 +46,9 @@ function halley() {
         scoreProperty: null,
         scoreForm: {},
         weights: [],
+        settings: [],
+        settingsForm: {},
+        notifications: [],
         map: null,
         markers: {},
         activePropertyId: null,
@@ -98,6 +101,10 @@ function halley() {
             }
             if (view === 'weights') {
                 this.loadWeights();
+            }
+            if (view === 'settings') {
+                this.loadSettings();
+                this.loadNotifications();
             }
         },
 
@@ -536,6 +543,82 @@ function halley() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        async loadSettings() {
+            const { ok, body } = await this.request('/api/admin/settings');
+            if (ok) {
+                this.settings = body || [];
+                const form = {};
+                this.settings.forEach(s => {
+                    form[s.configKey] = s.configValue || '';
+                });
+                this.settingsForm = form;
+            }
+        },
+
+        async saveSettings() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const body = this.settings.map(s => ({
+                    configKey: s.configKey,
+                    configValue: this.settingsForm[s.configKey] ?? s.configValue
+                }));
+                const { ok, body: resBody } = await this.request('/api/admin/settings', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                if (ok) {
+                    await this.loadSettings();
+                } else {
+                    this.error = (resBody && resBody.message) || '설정 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async testSlack() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/settings/slack/test', { method: 'POST' });
+                if (ok && body && body.sent) {
+                    alert('Slack 테스트 메시지를 보냈습니다.');
+                } else {
+                    alert('Slack 전송에 실패했습니다. 환경변수(SLACK_WEBHOOK_URL)를 확인하세요.');
+                }
+            } catch (e) {
+                alert('네트워크 오류가 발생했습니다');
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadNotifications() {
+            const { ok, body } = await this.request('/api/admin/notifications');
+            if (ok) {
+                this.notifications = body || [];
+            }
+        },
+
+        settingsByCategory(category) {
+            return this.settings.filter(s => s.category === category);
+        },
+
+        configCategoryLabel(category) {
+            return { BATCH: '배치', SCORING: '채점', LOAN: '대출' }[category] || category;
+        },
+
+        fmtTime(iso) {
+            if (!iso) {
+                return '-';
+            }
+            return new Date(iso).toLocaleString('ko-KR');
         },
 
         renderMap() {

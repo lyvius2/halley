@@ -46,3 +46,15 @@ resilience4j:
         failureRateThreshold: 30
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
+      slack-webhook:
+        baseConfig: default
+        slidingWindowSize: 5
+        failureRateThreshold: 30
+        waitDurationInOpenState: 60s
+        permittedNumberOfCallsInHalfOpenState: 2
+
+slack:
+  enabled: ${SLACK_ENABLED:false}
+  webhook-url: ${SLACK_WEBHOOK_URL:}
+  notify:
+    property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}

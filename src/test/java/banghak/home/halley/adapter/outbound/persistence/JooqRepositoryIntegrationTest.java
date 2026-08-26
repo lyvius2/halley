@@ -231,10 +231,10 @@ class JooqRepositoryIntegrationTest {
     @Test
     void systemConfigRoundTrip() {
         systemConfigRepository.save(new SystemConfig(
-                "batch.listingCheck.cron", "0 0 9 * * *", ConfigValueType.STRING,
-                ConfigCategory.BATCH, "생존확인 스케줄", false, null, null));
+                "custom.config.key", "value", ConfigValueType.STRING,
+                ConfigCategory.BATCH, "테스트 설정", false, null, null));
 
-        SystemConfig found = systemConfigRepository.findById("batch.listingCheck.cron").orElseThrow();
+        SystemConfig found = systemConfigRepository.findById("custom.config.key").orElseThrow();
         assertThat(found.category()).isEqualTo(ConfigCategory.BATCH);
         assertThat(found.valueType()).isEqualTo(ConfigValueType.STRING);
     }

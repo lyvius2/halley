@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.application.event.PropertyCreatedEvent;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
@@ -9,9 +10,11 @@ import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SourceType;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -20,9 +23,12 @@ import java.util.List;
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public PropertyService(PropertyRepository propertyRepository) {
+    public PropertyService(PropertyRepository propertyRepository,
+                           ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<PropertyResponse> list() {
@@ -34,6 +40,7 @@ public class PropertyService {
                 .orElseThrow(NotFoundListingsException::new));
     }
 
+    @Transactional
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
         final boolean fromPaste = request.rawPasteText() != null && !request.rawPasteText().isBlank();
@@ -77,6 +84,7 @@ public class PropertyService {
                 null, 0, null,
                 currentUserId(),
                 Instant.now()));
+        eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         return toResponse(saved);
     }
 

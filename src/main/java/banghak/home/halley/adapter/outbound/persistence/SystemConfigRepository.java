@@ -44,6 +44,14 @@ public class SystemConfigRepository {
         return findById(config.configKey()).orElseThrow();
     }
 
+    public void update(SystemConfig config) {
+        dsl.update(TABLE)
+                .set(CONFIG_VALUE, config.configValue())
+                .set(UPDATED_BY, config.updatedBy())
+                .where(CONFIG_KEY.eq(config.configKey()))
+                .execute();
+    }
+
     public Optional<SystemConfig> findById(String configKey) {
         return dsl.selectFrom(TABLE)
                 .where(CONFIG_KEY.eq(configKey))

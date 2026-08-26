@@ -8,6 +8,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -26,6 +27,7 @@ import static banghak.home.halley.adapter.outbound.persistence.support.JooqMappi
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toInstant;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJson;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJsonNode;
+import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 
 @Repository
@@ -66,6 +68,23 @@ public class NotificationLogRepository {
         return dsl.selectFrom(TABLE)
                 .fetch()
                 .map(this::map);
+    }
+
+    public List<NotificationLog> findLatest(int limit) {
+        return dsl.selectFrom(TABLE)
+                .orderBy(ID.desc())
+                .limit(limit)
+                .fetch()
+                .map(this::map);
+    }
+
+    public void updateStatus(Long id, NotificationStatus status, String errorMessage, Instant sentAt) {
+        dsl.update(TABLE)
+                .set(STATUS, status.name())
+                .set(ERROR_MESSAGE, errorMessage)
+                .set(SENT_AT, toOffset(sentAt))
+                .where(ID.eq(id))
+                .execute();
     }
 
     public void delete(Long id) {

@@ -357,8 +357,24 @@ td.num {
 .score-high { background: #e8f2ec; color: var(--palm); }
 .score-low { background: #fbe9e4; color: var(--lava); }
 
-/* ── 등록 방식 선택 (D8) ────────────────────────────── */
-.add-choices { display: flex; flex-direction: column; gap: 10px; }
+/* ── 시스템 설정 (M6) ───────────────────────────────── */
+.settings-section { margin-bottom: 20px; }
+.settings-section h4 { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 8px; color: var(--ink2); }
+.settings-note { font-size: 11.5px; color: var(--ink3); margin-bottom: 10px; }
+.settings-input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    width: 100%;
+}
+.settings-input:focus { outline: none; border-color: var(--ocean); background: #fff; }
+.empty-cell { text-align: center; color: var(--ink3); padding: 20px; }
+
+/* ── 등록 방식 선택 (D8) ────────────────────────────── */.add-choices { display: flex; flex-direction: column; gap: 10px; }
 .add-choice {
     display: flex;
     flex-direction: column;
