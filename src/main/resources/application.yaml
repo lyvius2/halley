@@ -26,6 +26,9 @@ feign:
       odsay:
         connectTimeout: 5000
         readTimeout: 15000
+      ministry-reference:
+        connectTimeout: 3000
+        readTimeout: 8000
 
 resilience4j:
   circuitbreaker:
@@ -52,6 +55,10 @@ resilience4j:
         failureRateThreshold: 30
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
+      ministry-reference:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 30s
 
 slack:
   enabled: ${SLACK_ENABLED:false}

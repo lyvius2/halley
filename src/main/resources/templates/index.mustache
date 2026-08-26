@@ -87,6 +87,7 @@
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
+                                        <button class="btn-link" @click="openRefModal(r)">실거래</button>
                                         <button class="btn-link" @click="openEditProperty(r)">수정</button>
                                         <button class="btn-link danger" @click="removeProperty(r)">삭제</button>
                                     </div>
@@ -434,6 +435,47 @@
         <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
             <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
         </button>
+    </div>
+</div>
+
+<!-- D16-2 국토부 실거래가 참고 카드 모달 -->
+<div class="modal" x-show="showRefModal" x-cloak>
+    <div class="modal-backdrop" @click="closeRefModal()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">최근 실거래</span>
+            <h3 x-text="refProperty.property.name"></h3>
+            <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
+        </div>
+        <div class="form-grid">
+            <label>법정동코드 (5자리)
+                <input type="text" x-model="refForm.legalDongCode" placeholder="11010" maxlength="5">
+            </label>
+            <label>계약년월 (YYYYMM)
+                <input type="text" x-model="refForm.dealMonth" placeholder="202607" maxlength="6">
+            </label>
+        </div>
+        <div class="paste-actions">
+            <button class="btn btn-primary" @click="loadReference()" :disabled="loading">조회</button>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <template x-if="refCard">
+            <div class="ref-card">
+                <template x-if="refCard.transactions.length === 0">
+                    <p class="ref-empty">실거래 내역이 없습니다. 법정동코드·계약년월을 확인하세요.</p>
+                </template>
+                <template x-for="t in refCard.transactions" :key="t.contractDate + '-' + t.floorNo">
+                    <div class="ref-row">
+                        <span x-text="t.contractDate"></span>
+                        <b x-text="fmtWon(t.price)"></b>
+                        <span x-text="t.floorNo ? t.floorNo + '층' : ''"></span>
+                    </div>
+                </template>
+                <p class="ref-gap" x-show="refCard.gapPercent != null">
+                    호가 <b x-text="fmtWon(refCard.askingPrice)"></b> vs 최근 실거래 → 괴리 <b x-text="(refCard.gapPercent > 0 ? '+' : '') + refCard.gapPercent + '%'"></b>
+                </p>
+            </div>
+        </template>
     </div>
 </div>
 

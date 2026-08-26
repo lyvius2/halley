@@ -54,7 +54,7 @@ graph TB
     subgraph Ext["외부 연동"]
         Kakao["카카오 Local API<br/>POI · 주소검색"]
         ODsay["ODsay API<br/>대중교통 길찾기"]
-        MOLIT["국토부 실거래가 API<br/>공공데이터포털"]
+        MINISTRY["국토부 실거래가 API<br/>공공데이터포털"]
         Naver["네이버 부동산 URL<br/>(보조·수동 확인)"]
     end
 
@@ -70,7 +70,7 @@ graph TB
     Ctrl --> Shell
     Svc --> Score & Loan & Ingest
     Ingest --> Async
-    Async --> Kakao & ODsay & MOLIT & Naver
+    Async --> Kakao & ODsay & MINISTRY & Naver
     Score --> Redis
     Svc --> DB
     Svc --> Files
@@ -139,7 +139,7 @@ DB 벤더 차이(local H2 / live PostgreSQL)는 JDBC 드라이버 + jOOQ `SQLDia
 | 영속화(DB) | **포트 없음** — 서비스가 `adapter/outbound/persistence/*Repository`(jOOQ) 직접 사용 | H2/PG는 연결·다이얼렉트 차이뿐, 단일 구현 |
 | 캐시 | `CachePort` — local=메모리 / live=Redis | 구현체 2개, 교체 실재 |
 | 세션 | 세션 저장소 port — local=인메모리 / live=Redis | 구현체 2개 |
-| 외부 API | `KakaoLocalPort`·`OdsayTransitPort`·`MolitPort`·`SlackPort` | 테스트 stub 주입·캐시 래퍼·rate-limit |
+| 외부 API | `KakaoLocalPort`·`OdsayTransitPort`·`MinistryPort`·`SlackPort` | 테스트 stub 주입·캐시 래퍼·rate-limit |
 
 - inbound는 REST Controller(`adapter/inbound/web`)가 `application/service`를 호출합니다.
 - 도메인(`domain/`)은 프레임워크·DB 무관 순수 모델로 유지합니다(채점 규칙 등 단위테스트 가능).
@@ -150,7 +150,7 @@ graph LR
         Web["inbound/web<br/>REST Controller"]
         Persistence["outbound/persistence<br/>jOOQ Repository"]
         Cache["outbound/cache<br/>Memory(local) | Redis(live)"]
-        Ext["outbound/external<br/>Kakao | ODsay | Molit | Slack"]
+        Ext["outbound/external<br/>Kakao | ODsay | Ministry | Slack"]
     end
     subgraph Core["application + domain"]
         Svc["service"]
@@ -446,7 +446,7 @@ erDiagram
         date contract_date
         bigint price
         int floor
-        varchar source "MOLIT_TRADE|MOLIT_RENT"
+        varchar source "MINISTRY_TRADE|MINISTRY_RENT"
         timestamp cached_at
     }
 
@@ -1789,7 +1789,7 @@ banghak.home.halley
 ├── application/
 │   ├── port/
 │   │   └── out/                 출력 포트 인터페이스 (외부 연동·캐시·세션만)
-│   │       └── external/        KakaoLocalPort, OdsayTransitPort, MolitPort, SlackPort, CachePort
+│   │       └── external/        KakaoLocalPort, OdsayTransitPort, MinistryPort, SlackPort, CachePort
 │   ├── service/                 유스케이스 구현 (jOOQ Repository + port 직접 사용)
 │   └── dto/                     요청/응답 DTO, Query
 ├── adapter/
@@ -1804,7 +1804,7 @@ banghak.home.halley
 │       └── external/
 │           ├── kakao/           KakaoLocalAdapter, KakaoGeocodingAdapter, KakaoRoadviewAdapter
 │           ├── odsay/           OdsayTransitAdapter
-│           ├── molit/           RealTransactionAdapter (참고 카드 전용)
+│           ├── ministry/           RealTransactionAdapter (참고 카드 전용)
 │           └── slack/           SlackWebhookAdapter
 ├── ingest/                      붙여넣기 파서 (순수 도메인 — 외부 호출 없음)
 │   ├── parser/                  NaverListingTextParser, FieldExtractor 구현체 N개

@@ -257,11 +257,11 @@ class JooqRepositoryIntegrationTest {
     void referenceTransactionRoundTrip() {
         ReferenceTransaction saved = referenceTransactionRepository.save(new ReferenceTransaction(
                 null, 1L, ReferenceDealType.TRADE, LocalDate.of(2026, 7, 1),
-                1_290_000_000L, 2, ReferenceSource.MOLIT_TRADE, null));
+                1_290_000_000L, 2, ReferenceSource.MINISTRY_TRADE, null));
 
         ReferenceTransaction found = referenceTransactionRepository.findById(saved.id()).orElseThrow();
         assertThat(found.dealType()).isEqualTo(ReferenceDealType.TRADE);
-        assertThat(found.source()).isEqualTo(ReferenceSource.MOLIT_TRADE);
+        assertThat(found.source()).isEqualTo(ReferenceSource.MINISTRY_TRADE);
     }
 
     @Test

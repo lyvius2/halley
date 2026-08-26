@@ -269,7 +269,7 @@ CREATE TABLE reference_transaction (
     contract_date DATE,
     price         BIGINT,
     floor_no      INTEGER,
-    source        VARCHAR(30),                                           -- MOLIT_TRADE | MOLIT_RENT
+    source        VARCHAR(30),                                           -- MINISTRY_TRADE | MINISTRY_RENT
     cached_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX ix_reference_transaction_property ON reference_transaction (property_id, contract_date);

@@ -14,7 +14,7 @@
 | **카카오 로컬 REST** | 주소→좌표 지오코딩 · POI 반경검색(채점용) | 서버(Feign) | REST 키(`Authorization: KakaoAK …`) | `KAKAO_REST_KEY` | `KakaoLocalFeignClient` | 사용 중 |
 | **ODsay** | 대중교통 경로(직주근접 채점) | 서버(Feign) | `apiKey` 쿼리 파라미터 | `ODSAY_API_KEY` | `OdsayTransitFeignClient` | 사용 중 |
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
-| **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MOLIT_API_KEY` | `MolitReferenceFeignClient` | 사용 중(참고 전용) |
+| **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
 
 > **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL·국토부 키는 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
 
@@ -191,7 +191,7 @@ sequenceDiagram
 
 ---
 
-## 5. 국토부 (Molit) — 실거래가 참고
+## 5. 국토부 (Ministry) — 실거래가 참고
 
 ### 5.1 역할
 
@@ -208,16 +208,16 @@ sequenceDiagram
 1. [공공데이터포털 data.go.kr](https://www.data.go.kr) 회원가입/로그인
 2. **국토교통부 부동산 실거래가 정보** 검색 → 원하는 API(매매/전월세) **활용신청**
 3. **마이페이지 → 데이터 활용 → 서비스 키** 발급 (인코딩 키)
-4. `MOLIT_API_KEY` 환경변수로 주입
+4. `MINISTRY_API_KEY` 환경변수로 주입
 
 ### 5.3 설정 키
 
 | application.yaml 키 | 환경변수 | 기본값 | 설명 |
 |---|---|---|---|
-| `molit.service-key` | `MOLIT_API_KEY` | (없음) | 요청 `serviceKey` 파라미터 |
-| `molit.base-url` | — | `http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest` | API 베이스 |
+| `ministry.service-key` | `MINISTRY_API_KEY` | (없음) | 요청 `serviceKey` 파라미터 |
+| `ministry.base-url` | — | `http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest` | API 베이스 |
 
-**서킷브레이커/타임아웃**: `molit-reference` connect 3s / read 8s, 실패율 40%, open 30s (참고 데이터라 실패해도 치명적이지 않음)
+**서킷브레이커/타임아웃**: `ministry-reference` connect 3s / read 8s, 실패율 40%, open 30s (참고 데이터라 실패해도 치명적이지 않음)
 
 ### 5.4 호출 흐름
 

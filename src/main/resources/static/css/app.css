@@ -394,6 +394,15 @@ td.num {
 .loan-row b { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
 .loan-note { margin-top: 10px; font-size: 10.5px; color: var(--ink3); }
 
+/* ── 실거래 참고 카드 (D16-2) ───────────────────────── */
+.ref-card { margin-top: 16px; border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; }
+.ref-row { display: flex; gap: 12px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
+.ref-row span { color: var(--ink2); min-width: 90px; }
+.ref-row b { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
+.ref-gap { margin-top: 12px; font-size: 12px; color: var(--ink2); }
+.ref-gap b { font-family: 'JetBrains Mono', monospace; }
+.ref-empty { font-size: 12px; color: var(--ink3); padding: 12px 0; }
+
 /* ── 등록 방식 선택 (D8) ────────────────────────────── */.add-choices { display: flex; flex-direction: column; gap: 10px; }
 .add-choice {
     display: flex;

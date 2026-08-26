@@ -42,6 +42,10 @@ function halley() {
         loanProperty: null,
         loanForm: { annualIncome: '', cash: '', firstHome: false },
         loanResult: null,
+        showRefModal: false,
+        refProperty: null,
+        refForm: { legalDongCode: '', dealMonth: '' },
+        refCard: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -314,6 +318,43 @@ function halley() {
                     this.loanResult = body;
                 } else {
                     this.error = (body && body.message) || '계산에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        openRefModal(item) {
+            this.refProperty = item;
+            this.refForm = { legalDongCode: '', dealMonth: '' };
+            this.refCard = null;
+            this.error = null;
+            this.showRefModal = true;
+        },
+
+        closeRefModal() {
+            this.showRefModal = false;
+            this.refProperty = null;
+            this.refCard = null;
+            this.error = null;
+        },
+
+        async loadReference() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const params = new URLSearchParams({
+                    legalDongCode: this.refForm.legalDongCode || '',
+                    dealMonth: this.refForm.dealMonth || ''
+                }).toString();
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.refProperty.property.id}/reference-transactions?${params}`);
+                if (ok) {
+                    this.refCard = body;
+                } else {
+                    this.error = (body && body.message) || '조회에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

@@ -7,12 +7,14 @@ import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyService;
+import banghak.home.halley.application.service.ReferenceTransactionService;
 import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
 import org.springframework.http.HttpStatus;
@@ -38,15 +40,26 @@ public class PropertyController {
     private final ScoringService scoringService;
     private final ParsePreviewService parsePreviewService;
     private final LoanEstimateService loanEstimateService;
+    private final ReferenceTransactionService referenceTransactionService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
                               ParsePreviewService parsePreviewService,
-                              LoanEstimateService loanEstimateService) {
+                              LoanEstimateService loanEstimateService,
+                              ReferenceTransactionService referenceTransactionService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
         this.loanEstimateService = loanEstimateService;
+        this.referenceTransactionService = referenceTransactionService;
+    }
+
+    @GetMapping("/{id}/reference-transactions")
+    public ReferenceCardResponse referenceTransactions(
+            @PathVariable Long id,
+            @RequestParam(value = "legalDongCode", required = false) String legalDongCode,
+            @RequestParam(value = "dealMonth", required = false) String dealMonth) {
+        return referenceTransactionService.getReferences(id, legalDongCode, dealMonth);
     }
 
     @PostMapping("/{id}/loan-estimate")
