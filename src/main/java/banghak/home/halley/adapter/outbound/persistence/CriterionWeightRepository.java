@@ -52,6 +52,11 @@ public class CriterionWeightRepository {
                 .execute();
     }
 
+    public void deleteAll() {
+        dsl.deleteFrom(TABLE)
+                .execute();
+    }
+
     private CriterionWeight map(Record r) {
         return new CriterionWeight(
                 r.get(CRITERION_CODE),

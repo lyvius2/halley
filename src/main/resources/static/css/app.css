@@ -321,6 +321,70 @@ td.num {
 .form-grid .span2 { grid-column: span 2; }
 .form-error { font-size: 11px; color: var(--lava); }
 
+/* ── 거래유형 탭 ───────────────────────────────────── */
+.deal-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.deal-tabs button {
+    font-family: inherit;
+    font-size: 12px;
+    padding: 5px 14px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--card);
+    color: var(--ink2);
+    cursor: pointer;
+    transition: .15s;
+}
+.deal-tabs button:hover { border-color: var(--ocean); color: var(--ocean); }
+.deal-tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+
+/* ── 총점 배지 ────────────────────────────────────── */
+.score-pill {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin-left: auto;
+}
+.score-pill i { font-style: normal; font-weight: 500; font-size: 10px; }
+.score-high { background: #e8f2ec; color: var(--palm); }
+.score-low { background: #fbe9e4; color: var(--lava); }
+
+/* ── 평가 채점 (D14) ───────────────────────────────── */
+.score-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; max-height: 60vh; overflow-y: auto; }
+.score-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+}
+.score-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.score-name b { font-weight: 500; white-space: nowrap; }
+.score-source { font-size: 10px; color: var(--ink3); white-space: nowrap; }
+.score-auto { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink3); white-space: nowrap; }
+.score-row input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    width: 76px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    text-align: right;
+}
+.score-row input:focus { outline: none; border-color: var(--ocean); background: #fff; }
+
 /* ── 매물 카드 활성(지도↔리스트 동기화) ────────────── */
 .property-card.active {
     border-color: var(--ocean);

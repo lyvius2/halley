@@ -27,12 +27,17 @@ function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
         view: 'list',
+        dealTypeFilter: 'ALL',
         properties: [],
         users: [],
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
         propertyForm: emptyPropertyForm(),
+        showScoreModal: false,
+        scoreProperty: null,
+        scoreForm: {},
+        weights: [],
         map: null,
         markers: {},
         activePropertyId: null,
@@ -82,6 +87,9 @@ function halley() {
             this.view = view;
             if (view === 'users') {
                 this.loadUsers();
+            }
+            if (view === 'weights') {
+                this.loadWeights();
             }
         },
 
@@ -159,17 +167,26 @@ function halley() {
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
             this.users = [];
             this.properties = [];
+            this.weights = [];
             this.view = 'list';
+            this.dealTypeFilter = 'ALL';
             this.showLogin = true;
             this.showPassword = false;
         },
 
         async loadProperties() {
-            const { ok, body } = await this.request('/api/properties');
+            const url = '/api/properties'
+                + (this.dealTypeFilter !== 'ALL' ? '?dealType=' + this.dealTypeFilter : '');
+            const { ok, body } = await this.request(url);
             if (ok) {
                 this.properties = body || [];
                 this.renderMap();
             }
+        },
+
+        async setDealTypeFilter(filter) {
+            this.dealTypeFilter = filter;
+            await this.loadProperties();
         },
 
         openAddProperty() {
@@ -178,7 +195,8 @@ function halley() {
             this.showPropertyForm = true;
         },
 
-        openEditProperty(p) {
+        openEditProperty(item) {
+            const p = item.property;
             this.propertyForm = {
                 id: p.id,
                 name: p.name || '',
@@ -256,13 +274,103 @@ function halley() {
             }
         },
 
-        async removeProperty(p) {
+        async removeProperty(item) {
+            const p = item.property;
             if (!confirm(`'${p.name}' 매물을 삭제할까요?`)) {
                 return;
             }
             const { ok } = await this.request(`/api/properties/${p.id}`, { method: 'DELETE' });
             if (ok) {
                 await this.loadProperties();
+            }
+        },
+
+        openScoreModal(item) {
+            this.scoreProperty = item;
+            const form = {};
+            (item.scores || []).forEach(s => {
+                form[s.code] = s.manualScore != null ? String(s.manualScore) : '';
+            });
+            this.scoreForm = form;
+            this.error = null;
+            this.showScoreModal = true;
+        },
+
+        closeScoreModal() {
+            this.showScoreModal = false;
+            this.scoreProperty = null;
+            this.scoreForm = {};
+            this.error = null;
+        },
+
+        async saveScore() {
+            this.loading = true;
+            this.error = null;
+            const scores = {};
+            for (const code in this.scoreForm) {
+                const value = toNum(this.scoreForm[code]);
+                if (value != null) {
+                    scores[code] = value;
+                }
+            }
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.scoreProperty.property.id}/scores`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ scores })
+                    });
+                if (ok) {
+                    this.showScoreModal = false;
+                    await this.loadProperties();
+                } else {
+                    this.error = (body && body.message) || '채점 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadWeights() {
+            const { ok, body } = await this.request('/api/criteria/weights');
+            if (ok) {
+                this.weights = body || [];
+            }
+        },
+
+        moveWeight(index, dir) {
+            const target = index + dir;
+            if (target < 0 || target >= this.weights.length) {
+                return;
+            }
+            const arr = this.weights.slice();
+            const tmp = arr[index];
+            arr[index] = arr[target];
+            arr[target] = tmp;
+            this.weights = arr;
+        },
+
+        async saveWeights() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/criteria/weights', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ order: this.weights.map(w => w.criterionCode) })
+                });
+                if (ok) {
+                    this.weights = body || [];
+                    await this.loadProperties();
+                } else {
+                    this.error = (body && body.message) || '가중치 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
             }
         },
 
@@ -296,8 +404,9 @@ function halley() {
             }
             Object.values(this.markers).forEach(m => m.setMap(null));
             this.markers = {};
-            const coords = this.properties.filter(p => p.lat && p.lng);
-            coords.forEach(p => {
+            const coords = this.properties.filter(r => r.property.lat && r.property.lng);
+            coords.forEach(r => {
+                const p = r.property;
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
                 const marker = new kakao.maps.Marker({ position, map: this.map });
                 kakao.maps.event.addListener(marker, 'click', () => this.selectMarker(p.id));
@@ -305,12 +414,16 @@ function halley() {
             });
             if (coords.length > 0) {
                 const bounds = new kakao.maps.LatLngBounds();
-                coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
+                coords.forEach(r => {
+                    const p = r.property;
+                    bounds.extend(new kakao.maps.LatLng(p.lat, p.lng));
+                });
                 this.map.setBounds(bounds);
             }
         },
 
-        focusProperty(p) {
+        focusProperty(item) {
+            const p = item.property;
             this.activePropertyId = p.id;
             if (!this.map || !p.lat || !p.lng) {
                 return;
@@ -326,17 +439,17 @@ function halley() {
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            const p = this.properties.find(x => x.id === id);
-            if (p) {
-                this.openRoadview(p);
+            const item = this.properties.find(x => x.property.id === id);
+            if (item) {
+                this.openRoadview(item);
             }
         },
 
-        openRoadview(p) {
-            this.roadviewProperty = p;
+        openRoadview(item) {
+            this.roadviewProperty = item.property;
             this.showRoadview = true;
             this.roadviewState = 'loading';
-            setTimeout(() => this.loadRoadview(p), 0);
+            setTimeout(() => this.loadRoadview(item.property), 0);
         },
 
         loadRoadview(p) {
@@ -370,6 +483,17 @@ function halley() {
 
         dealBadge(type) {
             return { SALE: 'b-sale', JEONSE: 'b-jeonse', MONTHLY: 'b-monthly' }[type] || '';
+        },
+
+        scoreSourceLabel(source) {
+            return { AUTO: '자동', MANUAL: '수동', FALLBACK: '폴백' }[source] || '';
+        },
+
+        fmtScore(n) {
+            if (n == null) {
+                return '-';
+            }
+            return Number(n).toFixed(0);
         },
 
         fmtWon(won) {

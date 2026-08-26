@@ -71,19 +71,19 @@ class PropertyApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(createBody))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.name").value("한빛아파트"))
-                .andExpect(jsonPath("$.sourceType").value("MANUAL"))
+                .andExpect(jsonPath("$.property.name").value("한빛아파트"))
+                .andExpect(jsonPath("$.property.sourceType").value("MANUAL"))
                 .andReturn().getResponse().getContentAsString();
-        final String id = objectMapper.readTree(createdBody).get("id").asString();
+        final String id = objectMapper.readTree(createdBody).get("property").get("id").asString();
 
         // then
         mockMvc.perform(get("/api/properties").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].name").value("한빛아파트"));
+                .andExpect(jsonPath("$[?(@.property.name == '한빛아파트')]").isNotEmpty());
 
         mockMvc.perform(get("/api/properties/" + id).session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(id));
+                .andExpect(jsonPath("$.property.id").value(id));
 
         final String updateBody = """
                 {"name":"한빛아파트2","dealType":"JEONSE","priceDeposit":350000000}
@@ -92,8 +92,8 @@ class PropertyApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(updateBody))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.name").value("한빛아파트2"))
-                .andExpect(jsonPath("$.dealType").value("JEONSE"));
+                .andExpect(jsonPath("$.property.name").value("한빛아파트2"))
+                .andExpect(jsonPath("$.property.dealType").value("JEONSE"));
 
         mockMvc.perform(delete("/api/properties/" + id).session(session))
                 .andExpect(status().isNoContent());

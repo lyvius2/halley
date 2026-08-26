@@ -65,6 +65,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -74,6 +75,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @ActiveProfiles("local")
+@Transactional
 class JooqRepositoryIntegrationTest {
 
     @Autowired private PropertyRepository propertyRepository;
@@ -118,7 +120,7 @@ class JooqRepositoryIntegrationTest {
         assertThat(found.moveInType()).isEqualTo(MoveInType.IMMEDIATE);
         assertThat(found.sourceType()).isEqualTo(SourceType.PASTE);
         assertThat(found.listingStatus()).isEqualTo(ListingStatus.ACTIVE);
-        assertThat(found.parseConfidence().get("price").asText()).isEqualTo("EXACT");
+        assertThat(found.parseConfidence().get("price").asString()).isEqualTo("EXACT");
         assertThat(found.createdAt()).isNotNull();
     }
 
@@ -152,26 +154,26 @@ class JooqRepositoryIntegrationTest {
 
     @Test
     void criterionRoundTrip() {
-        criterionRepository.save(new Criterion("PRICE", "가격", ScoringType.AUTO, true));
+        criterionRepository.save(new Criterion("CUSTOM", "테스트", ScoringType.AUTO, true));
 
-        Criterion found = criterionRepository.findById("PRICE").orElseThrow();
+        Criterion found = criterionRepository.findById("CUSTOM").orElseThrow();
         assertThat(found.scoringType()).isEqualTo(ScoringType.AUTO);
         assertThat(found.enabled()).isTrue();
     }
 
     @Test
     void criterionWeightRoundTrip() {
-        criterionWeightRepository.save(new CriterionWeight("PRICE", 1, new BigDecimal("3.0"), null));
+        criterionWeightRepository.save(new CriterionWeight("CUSTOM", 99, new BigDecimal("3.0"), null));
 
-        CriterionWeight found = criterionWeightRepository.findById("PRICE").orElseThrow();
-        assertThat(found.priorityRank()).isEqualTo(1);
+        CriterionWeight found = criterionWeightRepository.findById("CUSTOM").orElseThrow();
+        assertThat(found.priorityRank()).isEqualTo(99);
         assertThat(found.updatedAt()).isNotNull();
     }
 
     @Test
     void propertyScoreRoundTrip() {
         PropertyScore saved = propertyScoreRepository.save(new PropertyScore(
-                null, 1L, "PRICE", new BigDecimal("80.0"), null, new BigDecimal("80.0"),
+                null, 90_010L, "PRICE", new BigDecimal("80.0"), null, new BigDecimal("80.0"),
                 ScoreSource.AUTO, null, null));
 
         PropertyScore found = propertyScoreRepository.findById(saved.id()).orElseThrow();
@@ -181,9 +183,9 @@ class JooqRepositoryIntegrationTest {
 
     @Test
     void userCriterionScoreRoundTrip() {
-        userCriterionScoreRepository.save(new UserCriterionScore(1L, 2L, "COMFORT", 4));
+        userCriterionScoreRepository.save(new UserCriterionScore(90_011L, 90_011L, "COMFORT", 4));
 
-        UserCriterionScore found = userCriterionScoreRepository.findById(1L, 2L, "COMFORT").orElseThrow();
+        UserCriterionScore found = userCriterionScoreRepository.findById(90_011L, 90_011L, "COMFORT").orElseThrow();
         assertThat(found.score()).isEqualTo(4);
     }
 
@@ -194,7 +196,7 @@ class JooqRepositoryIntegrationTest {
 
         CommuteResult found = commuteResultRepository.findById(1L, 2L).orElseThrow();
         assertThat(found.totalMinutes()).isEqualTo(45);
-        assertThat(found.pathSummary().get("mode").asText()).isEqualTo("TRANSIT");
+        assertThat(found.pathSummary().get("mode").asString()).isEqualTo("TRANSIT");
     }
 
     @Test
@@ -248,7 +250,7 @@ class JooqRepositoryIntegrationTest {
         NotificationLog found = notificationLogRepository.findById(saved.id()).orElseThrow();
         assertThat(found.eventType()).isEqualTo(NotificationEventType.PROPERTY_CREATED);
         assertThat(found.status()).isEqualTo(NotificationStatus.SENT);
-        assertThat(found.payload().get("name").asText()).isEqualTo("독립문삼호");
+        assertThat(found.payload().get("name").asString()).isEqualTo("독립문삼호");
     }
 
     @Test
@@ -271,7 +273,7 @@ class JooqRepositoryIntegrationTest {
 
         LoanEstimate found = loanEstimateRepository.findById(saved.id()).orElseThrow();
         assertThat(found.productType()).isEqualTo(ProductType.MORTGAGE);
-        assertThat(found.assumptions().get("income").asText()).isEqualTo("1억");
+        assertThat(found.assumptions().get("income").asString()).isEqualTo("1억");
     }
 
     @Test
