@@ -1,5 +1,6 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.application.port.out.external.SlackPort;
@@ -87,6 +88,14 @@ public class NotificationService {
 
     public boolean testSend() {
         return slackPort.send(":tada: Halley에서 테스트 메시지를 보냅니다.");
+    }
+
+    public List<NotificationLogResponse> recentNotifications() {
+        return notificationLogRepository.findLatest(50).stream()
+                .map(log -> new NotificationLogResponse(
+                        log.id(), log.eventType(), log.propertyId(), log.status(),
+                        log.retryCount(), log.errorMessage(), log.createdAt(), log.sentAt()))
+                .toList();
     }
 
     private void sendEvent(NotificationEventType eventType, Long propertyId, String text) {

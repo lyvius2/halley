@@ -52,6 +52,7 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 - **변수는 가급적 불변으로 취급하고, 불변인 변수 선언 앞에는 `final`을 붙인다.** 재할당이 필요한 변수에만 `final`을 생략한다.
 - **Lombok `@Getter`/`@Setter`로 getter·setter 메서드를 대체한다.** 단, **모든 private 필드에 대해 getter·setter를 만들지 않는다면 Lombok을 쓰지 않고 수동으로 작성**한다. Entity의 경우 `@Getter`는 허용하되 `@Setter`는 보수적으로 접근한다(불필요한 변경 포인트를 만들지 않음).
 - **모델(도메인 객체)은 최우선순위로 불변 특성을 갖는 `record`로 정의한다.** 가변 필드가 꼭 필요한 경우에만 클래스로 전환하고, 그때도 최소한의 변경 포인트만 둔다.
+- **Controller는 Repository·Adapter 등 퍼시스턴스/외부 연동 계층에 직접 의존하지 않는다.** 비즈니스 로직을 구현하는 Service에 의존한다. (간단한 조회·검증 등 예외는 허용)
 - **Collection 첫 요소는 `.get(0)` 대신 `.getFirst()`를 사용한다.**
 - **테스트 예외 검증은 `catchThrowableOfType()`(deprecated) 대신 JUnit `assertThrows()`를 사용한다.**
 - **Jackson JSON 노드 값 추출은 `.asText()` 대신 `.asString()`을 사용한다.**

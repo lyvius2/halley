@@ -3,10 +3,8 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.SystemConfigResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateConfigRequest;
-import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.application.service.NotificationService;
 import banghak.home.halley.application.service.SystemConfigService;
-import banghak.home.halley.domain.notification.NotificationLog;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -23,14 +21,11 @@ public class AdminSettingsController {
 
     private final SystemConfigService systemConfigService;
     private final NotificationService notificationService;
-    private final NotificationLogRepository notificationLogRepository;
 
     public AdminSettingsController(SystemConfigService systemConfigService,
-                                   NotificationService notificationService,
-                                   NotificationLogRepository notificationLogRepository) {
+                                   NotificationService notificationService) {
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
-        this.notificationLogRepository = notificationLogRepository;
     }
 
     @GetMapping("/settings")
@@ -50,12 +45,6 @@ public class AdminSettingsController {
 
     @GetMapping("/notifications")
     public List<NotificationLogResponse> notifications() {
-        return notificationLogRepository.findLatest(50).stream().map(this::toResponse).toList();
-    }
-
-    private NotificationLogResponse toResponse(NotificationLog log) {
-        return new NotificationLogResponse(
-                log.id(), log.eventType(), log.propertyId(), log.status(),
-                log.retryCount(), log.errorMessage(), log.createdAt(), log.sentAt());
+        return notificationService.recentNotifications();
     }
 }
