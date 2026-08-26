@@ -34,6 +34,14 @@ function halley() {
         showPassword: false,
         showPropertyForm: false,
         propertyForm: emptyPropertyForm(),
+        showAddMenu: false,
+        showPasteModal: false,
+        pasteText: '',
+        pasteParsing: false,
+        pastePreview: null,
+        pasteForm: {},
+        pasteError: null,
+        _pasteTimer: null,
         showScoreModal: false,
         scoreProperty: null,
         scoreForm: {},
@@ -193,6 +201,162 @@ function halley() {
             this.propertyForm = emptyPropertyForm();
             this.error = null;
             this.showPropertyForm = true;
+        },
+
+        openAddMenu() {
+            this.showAddMenu = true;
+        },
+
+        closeAddMenu() {
+            this.showAddMenu = false;
+        },
+
+        startManual() {
+            this.closeAddMenu();
+            this.openAddProperty();
+        },
+
+        openPasteModal() {
+            this.closeAddMenu();
+            this.showPasteModal = true;
+            this.pasteText = '';
+            this.pastePreview = null;
+            this.pasteForm = {};
+            this.pasteError = null;
+            setTimeout(() => {
+                const el = document.getElementById('pasteText');
+                if (el) {
+                    el.focus();
+                }
+            }, 50);
+        },
+
+        closePasteModal() {
+            this.showPasteModal = false;
+            this.pasteText = '';
+            this.pastePreview = null;
+            this.pasteForm = {};
+            this.pasteError = null;
+            clearTimeout(this._pasteTimer);
+        },
+
+        onPasteInput() {
+            clearTimeout(this._pasteTimer);
+            this._pasteTimer = setTimeout(() => this.parsePaste(), 300);
+        },
+
+        async parsePaste() {
+            const text = this.pasteText;
+            if (!text || !text.trim()) {
+                this.pastePreview = null;
+                return;
+            }
+            this.pasteParsing = true;
+            this.pasteError = null;
+            const { ok, body } = await this.request('/api/properties/parse-preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text })
+            });
+            this.pasteParsing = false;
+            if (ok) {
+                this.pastePreview = body;
+                const form = {};
+                (body.fields || []).forEach(f => {
+                    form[f.key] = f.value != null ? String(f.value) : '';
+                });
+                this.pasteForm = form;
+            } else {
+                this.pasteError = (body && body.message) || '파싱에 실패했습니다';
+            }
+        },
+
+        async savePaste() {
+            this.pasteParsing = true;
+            this.pasteError = null;
+            try {
+                const { ok, body } = await this.request('/api/properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.buildPasteRequest())
+                });
+                if (ok) {
+                    this.showPasteModal = false;
+                    this.pasteText = '';
+                    this.pastePreview = null;
+                    this.pasteForm = {};
+                    await this.loadProperties();
+                } else {
+                    this.pasteError = (body && body.message) || '등록에 실패했습니다';
+                }
+            } catch (e) {
+                this.pasteError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.pasteParsing = false;
+            }
+        },
+
+        buildPasteRequest() {
+            const value = (k) => (this.pasteForm[k] != null ? String(this.pasteForm[k]).trim() : '');
+            const dealCode = { 매매: 'SALE', 전세: 'JEONSE', 월세: 'MONTHLY' }[value('dealType')] || null;
+            const floor = value('floor').split('/');
+            const moveIn = value('moveIn');
+            let moveInType = null;
+            let moveInDate = null;
+            if (/즉시/.test(moveIn)) {
+                moveInType = 'IMMEDIATE';
+            } else if (/협의/.test(moveIn)) {
+                moveInType = 'NEGOTIABLE';
+            } else {
+                const note = this.pasteNote('moveIn');
+                const match = note && note.match(/(\d{4}-\d{2}-\d{2})/);
+                if (match) {
+                    moveInType = 'DATE';
+                    moveInDate = match[1];
+                }
+            }
+            return {
+                name: value('name'),
+                dealType: dealCode,
+                priceDeposit: toNum(value('priceDeposit')),
+                priceMonthly: toNum(value('priceMonthly')),
+                kbPrice: toNum(value('kbPrice')),
+                areaSupplyM2: toNum(value('areaSupplyM2')),
+                areaExclusiveM2: toNum(value('areaExclusiveM2')),
+                floorNo: toNum(floor[0]),
+                floorTotal: toNum(floor[1]),
+                direction: value('direction') || null,
+                addressJibun: value('addressJibun') || null,
+                approvalYear: toNum(value('approvalYear')),
+                totalHouseholds: toNum(value('totalHouseholds')),
+                parkingPerHousehold: toNum(value('parkingPerHousehold')),
+                moveInType,
+                moveInDate,
+                naverArticleNo: value('naverArticleNo') || null,
+                rawPasteText: this.pasteText
+            };
+        },
+
+        pasteNote(key) {
+            if (!this.pastePreview) {
+                return null;
+            }
+            const field = this.pastePreview.fields.find(f => f.key === key);
+            return field ? field.note : null;
+        },
+
+        fieldLabel(key) {
+            return {
+                name: '단지명', naverArticleNo: '매물번호', dealType: '거래유형',
+                priceDeposit: '매매가/보증금', priceMonthly: '월세', kbPrice: 'KB시세',
+                areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
+                direction: '향', addressJibun: '지번주소', approvalYear: '사용승인년도',
+                totalHouseholds: '세대수', parkingPerHousehold: '주차(세대당)', moveIn: '입주가능일'
+            }[key] || key;
+        },
+
+        confidenceLabel(confidence) {
+            return { EXACT: '확정', DERIVED: '추정', MISSING: '누락' }[confidence] || '';
         },
 
         openEditProperty(item) {

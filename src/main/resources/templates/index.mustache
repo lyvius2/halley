@@ -47,7 +47,7 @@
                 <div>
                     <div x-show="view==='list'">
                         <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="properties.length + '건'"></span>
-                            <button class="btn btn-primary btn-sm" @click="openAddProperty()">+ 매물 추가</button>
+                            <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
                         </div>
                         <div class="deal-tabs">
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
@@ -61,7 +61,7 @@
                                     <div class="empty-ic">◌</div>
                                     <h4>아직 등록된 매물이 없습니다</h4>
                                     <p>네이버 매물 상세 텍스트를 붙여넣거나 직접 입력해 첫 매물을 등록해 보세요.</p>
-                                    <button class="btn btn-primary" @click="openAddProperty()">+ 매물 추가</button>
+                                    <button class="btn btn-primary" @click="openAddMenu()">+ 매물 추가</button>
                                 </div>
                             </template>
                             <template x-for="r in properties" :key="r.property.id">
@@ -194,6 +194,74 @@
                 <span x-text="loading ? '변경 중…' : '비밀번호 변경'"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D8 등록 방식 선택 모달 -->
+<div class="modal" x-show="showAddMenu" x-cloak>
+    <div class="modal-backdrop" @click="closeAddMenu()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">매물 등록</span>
+            <h3>등록 방식 선택</h3>
+            <p>네이버 매물 상세 텍스트를 붙여넣거나 직접 입력하세요.</p>
+        </div>
+        <div class="add-choices">
+            <button class="add-choice" @click="openPasteModal()">
+                <b>붙여넣기로 등록</b>
+                <span>네이버 매물 상세 텍스트를 복사해 붙여넣으면 자동 파싱됩니다.</span>
+            </button>
+            <button class="add-choice" @click="startManual()">
+                <b>직접 입력</b>
+                <span>빈 폼에 직접 입력합니다.</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- D9 붙여넣기 등록 모달 -->
+<div class="modal" x-show="showPasteModal" x-cloak>
+    <div class="modal-backdrop" @click="closePasteModal()"></div>
+    <div class="modal-card modal-wide modal-tall">
+        <div class="modal-head">
+            <span class="modal-kicker">붙여넣기 등록</span>
+            <h3 x-text="pastePreview ? '파싱 프리뷰' : '네이버 매물 상세 붙여넣기'"></h3>
+            <p>네이버 부동산 매물 상세에서 전체 선택 → 복사 → 여기에 붙여넣으세요.</p>
+        </div>
+        <template x-if="!pastePreview">
+            <div class="paste-step">
+                <textarea id="pasteText" class="paste-textarea" x-model="pasteText"
+                          @input="onPasteInput()" placeholder="매매&#10;매매가&#10;15억&#10;전용면적&#10;84.98㎡&#10;…"></textarea>
+                <p class="paste-hint" x-show="pasteParsing">파싱 중…</p>
+                <p class="form-error" x-show="pasteError && !pastePreview" x-text="pasteError"></p>
+                <button class="btn btn-ghost" @click="closePasteModal()">닫기</button>
+            </div>
+        </template>
+        <template x-if="pastePreview">
+            <div class="paste-step">
+                <p class="paste-warn" x-show="!pastePreview.isListing">네이버 매물 상세 텍스트가 아닌 것 같습니다. 직접 입력을 이용하세요.</p>
+                <div class="paste-grid">
+                    <template x-for="f in pastePreview.fields" :key="f.key">
+                        <label class="paste-field" :class="'c-' + f.confidence">
+                            <span class="paste-field-head">
+                                <b x-text="fieldLabel(f.key)"></b>
+                                <span class="badge" :class="f.confidence==='EXACT' ? 'b-on' : (f.confidence==='DERIVED' ? 'b-jeonse' : 'b-off')"
+                                      x-text="confidenceLabel(f.confidence)"></span>
+                            </span>
+                            <input type="text" x-model="pasteForm[f.key]" :placeholder="f.confidence==='MISSING' ? '직접 입력' : ''">
+                            <span class="paste-note" x-show="f.note" x-text="f.note"></span>
+                        </label>
+                    </template>
+                </div>
+                <p class="form-error" x-show="pasteError" x-text="pasteError"></p>
+                <div class="paste-actions">
+                    <button class="btn btn-ghost" @click="pastePreview=null; pasteForm={}">다시 입력</button>
+                    <button class="btn btn-primary" @click="savePaste()" :disabled="pasteParsing">
+                        <span x-text="pasteParsing ? '등록 중…' : '매물 등록'"></span>
+                    </button>
+                </div>
+            </div>
+        </template>
     </div>
 </div>
 

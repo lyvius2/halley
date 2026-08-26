@@ -112,6 +112,7 @@ class CommuteDataServiceTest {
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null)).id()).orElseThrow();
+                null, null, null, null, null,
+                null, null, null)).id()).orElseThrow();
     }
 }

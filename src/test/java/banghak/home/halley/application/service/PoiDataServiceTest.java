@@ -110,6 +110,7 @@ class PoiDataServiceTest {
                 "서울시", null, lat, lng,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null,
+                null, null, null);
     }
 }

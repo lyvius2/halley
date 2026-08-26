@@ -36,6 +36,7 @@ public class PropertyService {
 
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
+        final boolean fromPaste = request.rawPasteText() != null && !request.rawPasteText().isBlank();
         final Property saved = propertyRepository.save(new Property(
                 null,
                 request.name(),
@@ -64,8 +65,12 @@ public class PropertyService {
                 request.heatingType(),
                 request.buildingCount(),
                 request.kbPrice(),
-                SourceType.MANUAL,
-                null, null, null, null, null,
+                fromPaste ? SourceType.PASTE : SourceType.MANUAL,
+                request.sourceUrl(),
+                request.naverArticleNo(),
+                request.rawPasteText(),
+                fromPaste ? "parser-v1" : null,
+                null,
                 false,
                 ListingStatus.ACTIVE,
                 true,

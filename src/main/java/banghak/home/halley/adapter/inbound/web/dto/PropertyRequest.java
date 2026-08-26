@@ -33,6 +33,9 @@ public record PropertyRequest(
         Integer totalHouseholds,
         String heatingType,
         Integer buildingCount,
-        Long kbPrice
+        Long kbPrice,
+        String sourceUrl,
+        String naverArticleNo,
+        String rawPasteText
 ) {
 }

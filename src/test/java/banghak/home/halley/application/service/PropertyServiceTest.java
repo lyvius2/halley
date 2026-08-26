@@ -55,7 +55,8 @@ class PropertyServiceTest {
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null);
+                null, null, null, null, null,
+                null, null, null);
 
         // when
         final InvalidPropertyRequestException ex = assertThrows(
@@ -89,7 +90,8 @@ class PropertyServiceTest {
                 "서울시 새주소", null, new BigDecimal("37.6"), new BigDecimal("127.1"),
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
-                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L);
+                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L,
+                null, null, null);
 
         // when
         final PropertyResponse updated = propertyService.update(created.id(), updateRequest);
@@ -115,6 +117,31 @@ class PropertyServiceTest {
     }
 
     @Test
+    @DisplayName("rawPasteText가 있으면 PASTE 출처로 저장하고 원문을 보존한다")
+    void createFromPastePreservesRawText() {
+        // given
+        final PropertyRequest base = request("한빛아파트", DealType.SALE, 500_000_000L);
+        final PropertyRequest pasteRequest = new PropertyRequest(
+                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(), base.priceMonthly(),
+                base.maintenanceFee(), base.addressRoad(), base.addressJibun(), base.lat(), base.lng(),
+                base.areaSupplyM2(), base.areaExclusiveM2(), base.floorRaw(), base.floorNo(), base.floorTotal(),
+                base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
+                base.moveInDate(), base.parkingPerHousehold(), base.totalHouseholds(), base.heatingType(),
+                base.buildingCount(), base.kbPrice(),
+                null, "A12345678", "매매\n매매가\n15억");
+
+        // when
+        final PropertyResponse created = propertyService.create(pasteRequest);
+
+        // then
+        assertThat(created.sourceType()).isEqualTo(SourceType.PASTE);
+        assertThat(propertyRepository.findById(created.id()).orElseThrow().rawPasteText())
+                .isEqualTo("매매\n매매가\n15억");
+        assertThat(propertyRepository.findById(created.id()).orElseThrow().naverArticleNo())
+                .isEqualTo("A12345678");
+    }
+
+    @Test
     @DisplayName("매물을 삭제하면 저장소에서 제거된다")
     void delete() {
         // given
@@ -133,6 +160,7 @@ class PropertyServiceTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null);
+                null, null, null, 3, null,
+                null, null, null);
     }
 }

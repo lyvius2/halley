@@ -357,8 +357,81 @@ td.num {
 .score-high { background: #e8f2ec; color: var(--palm); }
 .score-low { background: #fbe9e4; color: var(--lava); }
 
-/* ── 평가 채점 (D14) ───────────────────────────────── */
-.score-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; max-height: 60vh; overflow-y: auto; }
+/* ── 등록 방식 선택 (D8) ────────────────────────────── */
+.add-choices { display: flex; flex-direction: column; gap: 10px; }
+.add-choice {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    text-align: left;
+    font-family: inherit;
+    padding: 16px 18px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    cursor: pointer;
+    transition: .15s;
+}
+.add-choice:hover { border-color: var(--ocean); background: #fff; }
+.add-choice b { font-size: 14px; color: var(--ink); }
+.add-choice span { font-size: 11.5px; color: var(--ink3); }
+
+/* ── 붙여넣기 등록 (D9) ─────────────────────────────── */
+.modal-tall { max-height: 92vh; overflow: hidden; display: flex; flex-direction: column; }
+.modal-tall .modal-head { flex: none; }
+.paste-step { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; }
+.paste-textarea {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    width: 100%;
+    min-height: 42vh;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+    color: var(--ink);
+    resize: vertical;
+}
+.paste-textarea:focus { outline: none; border-color: var(--ocean); background: #fff; }
+.paste-hint { font-size: 11px; color: var(--ink3); }
+.paste-warn {
+    font-size: 12px;
+    color: var(--lava);
+    background: #fbe9e4;
+    border: 1px solid #f3c3b6;
+    border-radius: 8px;
+    padding: 10px 12px;
+}
+.paste-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.paste-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 11.5px;
+}
+.paste-field.c-EXACT { border-color: var(--line); }
+.paste-field.c-DERIVED { background: #fdf6e4; border-color: #e8d9a8; }
+.paste-field.c-MISSING { background: #fdf1ee; border-color: #eeb4a4; }
+.paste-field-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.paste-field-head b { font-weight: 500; color: var(--ink2); }
+.paste-field input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--ink);
+}
+.paste-field input:focus { outline: none; border-color: var(--ocean); }
+.paste-note { font-size: 10.5px; color: var(--ink3); }
+.paste-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+
+/* ── 평가 채점 (D14) ───────────────────────────────── */.score-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; max-height: 60vh; overflow-y: auto; }
 .score-row {
     display: flex;
     align-items: center;
