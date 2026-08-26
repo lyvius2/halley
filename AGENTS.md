@@ -54,6 +54,7 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 - **테스트 예외 검증은 `catchThrowableOfType()`(deprecated) 대신 JUnit `assertThrows()`를 사용한다.**
 - **Jackson JSON 노드 값 추출은 `.asText()` 대신 `.asString()`을 사용한다.**
 - **객체 생성은 Factory Pattern을 적극적으로 활용한다.** 생성 로직이 복잡하거나 여러 곳에서 같은 방식으로 만들어질 때 팩토리 메서드/팩토리 클래스로 캡슐화한다.
+- **외부 API 호출은 OpenFeign `@FeignClient`로 선언하고, 각 FeignClient마다 `FallbackFactory` 클래스를 반드시 구현한다.** 타임아웃·서킷브레이커 임계값은 API별로 다르게 설정한다.
 - **애플리케이션 예외는 원인을 근거로 명명한 CustomException을 만들어 던진다.** 범용 `ApiException`으로 처리하지 않는다. 예: 매물이 없으면 `RuntimeException`을 상속한 `NotFoundListingsException`을 사용한다.
 - 로깅은 Lombok `@Slf4j` + `log.info`/`log.warn`/`log.error`로만 사용한다. `System.out.println` 금지.
 

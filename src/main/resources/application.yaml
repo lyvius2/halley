@@ -3,8 +3,46 @@ spring:
     name: Halley
   profiles:
     default: local
+  cloud:
+    openfeign:
+      circuitbreaker:
+        enabled: true
 
 server:
   servlet:
     session:
       timeout: 30m
+
+feign:
+  client:
+    config:
+      default:
+        connectTimeout: 2000
+        readTimeout: 5000
+      kakao-local:
+        connectTimeout: 3000
+        readTimeout: 6000
+        loggerLevel: BASIC
+      odsay:
+        connectTimeout: 5000
+        readTimeout: 15000
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+    instances:
+      kakao-local:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 15s
+      odsay:
+        baseConfig: default
+        slidingWindowSize: 5
+        failureRateThreshold: 30
+        waitDurationInOpenState: 60s
+        permittedNumberOfCallsInHalfOpenState: 2

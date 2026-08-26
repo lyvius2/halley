@@ -4,6 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
 import banghak.home.halley.application.service.UserService;
 import banghak.home.halley.domain.geo.GeoSearchResult;
+import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,9 +44,19 @@ class GeoControllerIntegrationTest {
         @Bean
         @Primary
         KakaoLocalPort kakaoLocalPort() {
-            return query -> List.of(new GeoSearchResult(
-                    "서울 마포구 서교동", "서울 마포구 양화로",
-                    new BigDecimal("37.55"), new BigDecimal("126.91")));
+            return new KakaoLocalPort() {
+                @Override
+                public List<GeoSearchResult> searchAddress(String query) {
+                    return List.of(new GeoSearchResult(
+                            "서울 마포구 서교동", "서울 마포구 양화로",
+                            new BigDecimal("37.55"), new BigDecimal("126.91")));
+                }
+
+                @Override
+                public List<PoiResult> searchCategory(String categoryGroupCode, double x, double y, int radius) {
+                    return List.of();
+                }
+            };
         }
     }
 

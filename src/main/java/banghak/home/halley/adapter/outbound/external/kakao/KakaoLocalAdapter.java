@@ -4,10 +4,9 @@ import banghak.home.halley.application.port.out.external.KakaoLocalPort;
 import banghak.home.halley.config.exception.GeoSearchFailedException;
 import banghak.home.halley.config.exception.KakaoApiKeyMissingException;
 import banghak.home.halley.domain.geo.GeoSearchResult;
+import banghak.home.halley.domain.geo.PoiResult;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -19,52 +18,49 @@ import java.util.List;
 @Component
 public class KakaoLocalAdapter implements KakaoLocalPort {
 
-    private static final String BASE_URL = "https://dapi.kakao.com";
-
+    private final KakaoLocalFeignClient client;
     private final String restKey;
-    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
-    public KakaoLocalAdapter(@Value("${kakao.rest-key:}") String restKey,
+    public KakaoLocalAdapter(KakaoLocalFeignClient client,
+                             @Value("${kakao.rest-key:}") String restKey,
                              ObjectMapper objectMapper) {
+        this.client = client;
         this.restKey = restKey;
-        this.restClient = RestClient.builder().baseUrl(BASE_URL).build();
         this.objectMapper = objectMapper;
     }
 
     @Override
     public List<GeoSearchResult> searchAddress(String query) {
+        requireKey();
+        final String json = client.searchAddress(query);
+        if (json == null) {
+            return List.of();
+        }
+        return GeoSearchResult.mapDocuments(parse(json));
+    }
+
+    @Override
+    public List<PoiResult> searchCategory(String categoryGroupCode, double x, double y, int radius) {
+        requireKey();
+        final String json = client.searchCategory(categoryGroupCode, String.valueOf(x), String.valueOf(y), radius);
+        if (json == null) {
+            return List.of();
+        }
+        return PoiResult.mapPois(parse(json));
+    }
+
+    private void requireKey() {
         if (restKey == null || restKey.isBlank()) {
             throw new KakaoApiKeyMissingException();
         }
-        try {
-            final String json = restClient.get()
-                    .uri(uriBuilder -> uriBuilder
-                            .path("/v2/local/search/address.json")
-                            .queryParam("query", query)
-                            .build())
-                    .header("Authorization", "KakaoAK " + restKey)
-                    .retrieve()
-                    .body(String.class);
-            return mapDocuments(objectMapper.readTree(json));
-        } catch (RestClientException e) {
-            throw new GeoSearchFailedException(e.getMessage());
-        } catch (JacksonException e) {
-            throw new GeoSearchFailedException("지오코딩 응답 파싱에 실패했습니다");
-        }
     }
 
-    List<GeoSearchResult> mapDocuments(JsonNode root) {
-        final List<GeoSearchResult> results = new ArrayList<>();
-        for (final JsonNode document : root.path("documents")) {
-            final String y = document.path("y").asString(null);
-            final String x = document.path("x").asString(null);
-            results.add(new GeoSearchResult(
-                    document.path("address_name").asString(null),
-                    document.path("road_address_name").asString(null),
-                    y == null ? null : new BigDecimal(y),
-                    x == null ? null : new BigDecimal(x)));
+    private JsonNode parse(String json) {
+        try {
+            return objectMapper.readTree(json);
+        } catch (JacksonException e) {
+            throw new GeoSearchFailedException("카카오 응답 파싱에 실패했습니다");
         }
-        return results;
     }
 }
