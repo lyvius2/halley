@@ -1,5 +1,6 @@
 package banghak.home.halley.config;
 
+import banghak.home.halley.domain.itinerary.ItineraryOptimizer;
 import banghak.home.halley.domain.loan.LoanCalculator;
 import banghak.home.halley.domain.scoring.criterion.AgeScorer;
 import banghak.home.halley.domain.scoring.criterion.AmenityScorer;
@@ -32,6 +33,11 @@ public class ScoringConfig {
     @Bean
     public ScoringEngine scoringEngine() {
         return new ScoringEngine();
+    }
+
+    @Bean
+    public ItineraryOptimizer itineraryOptimizer() {
+        return new ItineraryOptimizer();
     }
 
     @Bean

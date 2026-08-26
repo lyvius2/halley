@@ -23,6 +23,9 @@ feign:
         connectTimeout: 3000
         readTimeout: 6000
         loggerLevel: BASIC
+      kakao-directions:
+        connectTimeout: 3000
+        readTimeout: 6000
       odsay:
         connectTimeout: 5000
         readTimeout: 15000
@@ -40,6 +43,10 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
     instances:
       kakao-local:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 15s
+      kakao-directions:
         baseConfig: default
         failureRateThreshold: 40
         waitDurationInOpenState: 15s

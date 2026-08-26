@@ -12,6 +12,7 @@
 |---|---|---|---|---|---|---|
 | **카카오맵 JS SDK** | 지도·마커·로드뷰(D23) 렌더링 | 클라이언트(브라우저) | JavaScript 키 | `KAKAO_JS_KEY` | `ViewController` · `app.js` | 사용 중 |
 | **카카오 로컬 REST** | 주소→좌표 지오코딩 · POI 반경검색(채점용) | 서버(Feign) | REST 키(`Authorization: KakaoAK …`) | `KAKAO_REST_KEY` | `KakaoLocalFeignClient` | 사용 중 |
+| **카카오 Directions** | 자가용 이동시간·경로선(임장 플래너) | 서버(Feign) | REST 키(`KakaoAK`, 재사용) | `KAKAO_REST_KEY` | `KakaoDirectionsFeignClient` | 사용 중 |
 | **ODsay** | 대중교통 경로(직주근접 채점) | 서버(Feign) | `apiKey` 쿼리 파라미터 | `ODSAY_API_KEY` | `OdsayTransitFeignClient` | 사용 중 |
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
 | **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
@@ -84,6 +85,55 @@ sequenceDiagram
         S-->>S: nearby_facility 저장 → Scorer 계산
     end
 ```
+
+---
+
+## 2.5 카카오 Directions (자가용 — 임장 플래너)
+
+### 2.5.1 역할
+
+**임장 동선 최적화(P9)** 의 자가용 이동시간·경로선·통행료/유류비 조회에 사용합니다. 대중교통 이동시간은 ODsay(3장)가 담당합니다.
+
+| 기능 | 상세 |
+|---|---|
+| 이동시간 행렬 | 자가용 `DRIVING` 계획의 노드 간 소요시간 (분) |
+| 경로선 | 지도 폴리라인용 좌표 경로 (`routes[].path`) |
+| 부가 정보 | 예상 통행료·유류비 (`summary.tollFare` / `fuelPrice`) |
+
+### 2.5.2 키 발급
+
+- **카카오 REST 키 재사용** (`KAKAO_REST_KEY`, 2.2에서 발급)
+- [카카오모빌리티 Directions API](https://developers.kakao.com/docs/latest/ko/devtalk/directions) 는 별도 앱이 아니라 **카카오 개발자 콘솔 앱의 REST 키**로 호출하며, `apis-navi.kakamobility.com` 도메인 사용을 위해 해당 API를 활성화합니다.
+
+### 2.5.3 설정 키
+
+| application.yaml 키 | 환경변수 | 기본값 | 설명 |
+|---|---|---|---|
+| `kakao.directions.base-url` | — | `https://apis-navi.kakamobility.com` | Directions 베이스 |
+| `kakao.rest-key` | `KAKAO_REST_KEY` | (없음) | 로컬 API와 동일한 인증 헤더 |
+
+**서킷브레이커/타임아웃**: `kakao-directions` connect 3s / read 6s, 실패율 40%, open 15s
+
+### 2.5.4 호출 흐름
+
+```mermaid
+sequenceDiagram
+    participant U as 사용자
+    participant S as Halley 서버
+    participant D as 카카오 Directions(apis-navi.kakamobility.com)
+
+    U->>S: POST /api/itinerary/optimize (매물 N건, DRIVING)
+    S->>S: (N+1)개 노드 순서쌍 나열
+    loop 각 순서쌍 (from→to)
+        S->>D: GET /v1/directions?origin=경도,위도&destination=… (KakaoAK)
+        D-->>S: routes[0].summary.duration/distance/tollFare/fuelPrice
+        S->>S: 소요시간(분)으로 행렬 구성
+    end
+    S->>S: Held-Karp 최적 순서 계산
+    S-->>U: 최적 방문 순서 + 총 소요시간
+```
+
+> **캐시 정책 (설계 10.4·10.8.1)**: 자가용은 실시간 교통을 반영해야 하므로 **캐시를 쓰지 않습니다**. 대중교통(TRANSIT)만 Redis 캐시(TTL 7일)를 사용합니다.
 
 ---
 
