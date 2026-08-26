@@ -29,7 +29,15 @@ function halley() {
         view: 'list',
         dealTypeFilter: 'ALL',
         properties: [],
+        visibleProperties: [],
+        showSoldOut: false,
         users: [],
+        soldOutRecent: [],
+        showSoldOutAlert: false,
+        soldOutAlertShown: false,
+        showCheckLogs: false,
+        checkLogs: [],
+        checkLogProperty: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -87,6 +95,7 @@ function halley() {
                 }
                 if (!this.showPassword) {
                     await this.loadProperties();
+                    await this.checkSoldOutAlert();
                 }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
@@ -134,6 +143,7 @@ function halley() {
                     }
                     if (!this.showPassword) {
                         await this.loadProperties();
+                        await this.checkSoldOutAlert();
                     }
                 } else {
                     this.error = (body && body.message) || '로그인에 실패했습니다';
@@ -182,9 +192,11 @@ function halley() {
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
             this.users = [];
             this.properties = [];
+            this.visibleProperties = [];
             this.weights = [];
             this.view = 'list';
             this.dealTypeFilter = 'ALL';
+            this.soldOutAlertShown = false;
             this.showLogin = true;
             this.showPassword = false;
         },
@@ -195,13 +207,74 @@ function halley() {
             const { ok, body } = await this.request(url);
             if (ok) {
                 this.properties = body || [];
+                this.applySoldOutFilter();
                 this.renderMap();
             }
+        },
+
+        applySoldOutFilter() {
+            this.visibleProperties = this.showSoldOut
+                ? this.properties
+                : this.properties.filter(r => r.property.listingStatus !== 'SOLD_OUT');
+        },
+
+        toggleSoldOut() {
+            this.showSoldOut = !this.showSoldOut;
+            this.applySoldOutFilter();
+            this.renderMap();
         },
 
         async setDealTypeFilter(filter) {
             this.dealTypeFilter = filter;
             await this.loadProperties();
+        },
+
+        async checkSoldOutAlert() {
+            if (this.soldOutAlertShown) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/properties/sold-out/recent');
+            if (ok && body && body.length > 0) {
+                this.soldOutRecent = body;
+                this.showSoldOutAlert = true;
+                this.soldOutAlertShown = true;
+            }
+        },
+
+        closeSoldOutAlert() {
+            this.showSoldOutAlert = false;
+        },
+
+        async openCheckLogs(item) {
+            this.checkLogProperty = item;
+            const { ok, body } = await this.request(`/api/properties/${item.property.id}/check-logs`);
+            this.checkLogs = ok ? (body || []) : [];
+            this.showCheckLogs = true;
+        },
+
+        closeCheckLogs() {
+            this.showCheckLogs = false;
+            this.checkLogs = [];
+            this.checkLogProperty = null;
+        },
+
+        async restoreListing(item) {
+            if (!confirm(`'${item.property.name}' 매물을 판매중으로 복구할까요?`)) {
+                return;
+            }
+            const { ok } = await this.request(`/api/properties/${item.property.id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ listingStatus: 'ACTIVE' })
+            });
+            if (ok) {
+                this.closeCheckLogs();
+                await this.loadProperties();
+            }
+        },
+
+        verdictLabel(verdict) {
+            return { ALIVE: '생존', GONE: '삭제', BLOCKED: '차단', ERROR: '오류' }[verdict] || verdict;
         },
 
         openAddProperty() {
@@ -651,7 +724,7 @@ function halley() {
             }
             Object.values(this.markers).forEach(m => m.setMap(null));
             this.markers = {};
-            const coords = this.properties.filter(r => r.property.lat && r.property.lng);
+            const coords = this.visibleProperties.filter(r => r.property.lat && r.property.lng);
             coords.forEach(r => {
                 const p = r.property;
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
@@ -686,7 +759,7 @@ function halley() {
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            const item = this.properties.find(x => x.property.id === id);
+            const item = this.visibleProperties.find(x => x.property.id === id);
             if (item) {
                 this.openRoadview(item);
             }

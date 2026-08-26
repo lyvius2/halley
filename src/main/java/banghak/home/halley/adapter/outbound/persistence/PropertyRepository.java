@@ -199,6 +199,15 @@ public class PropertyRepository {
                 .map(this::map);
     }
 
+    public List<Property> findRecentSoldOut(int limit) {
+        return dsl.selectFrom(TABLE)
+                .where(LISTING_STATUS.eq("SOLD_OUT").and(ACTIVE.eq(false)))
+                .orderBy(SOLD_DETECTED_AT.desc().nullsLast())
+                .limit(limit)
+                .fetch()
+                .map(this::map);
+    }
+
     public void updateListingStatus(Long id, ListingStatus status, boolean active,
                                     Integer checkFailStreak, Instant soldDetectedAt) {
         dsl.update(TABLE)

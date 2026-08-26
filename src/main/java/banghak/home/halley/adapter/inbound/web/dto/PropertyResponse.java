@@ -42,6 +42,7 @@ public record PropertyResponse(
         SourceType sourceType,
         ListingStatus listingStatus,
         boolean active,
+        Instant soldDetectedAt,
         Instant createdAt
 ) {
 
@@ -53,6 +54,6 @@ public record PropertyResponse(
                 p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
                 p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
                 p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
-                p.sourceType(), p.listingStatus(), p.active(), p.createdAt());
+                p.sourceType(), p.listingStatus(), p.active(), p.soldDetectedAt(), p.createdAt());
     }
 }

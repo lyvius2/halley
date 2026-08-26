@@ -1,10 +1,12 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyService;
@@ -13,6 +15,7 @@ import banghak.home.halley.domain.property.DealType;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -53,6 +56,21 @@ public class PropertyController {
     @GetMapping("/{id}")
     public ScoredPropertyResponse get(@PathVariable Long id) {
         return scoringService.getScored(id);
+    }
+
+    @GetMapping("/sold-out/recent")
+    public List<PropertyResponse> recentSoldOut() {
+        return propertyService.recentSoldOut();
+    }
+
+    @GetMapping("/{id}/check-logs")
+    public List<CheckLogResponse> checkLogs(@PathVariable Long id) {
+        return propertyService.checkLogs(id);
+    }
+
+    @PatchMapping("/{id}/status")
+    public PropertyResponse updateStatus(@PathVariable Long id, @RequestBody UpdateListingStatusRequest request) {
+        return propertyService.updateStatus(id, request.listingStatus());
     }
 
     @PostMapping

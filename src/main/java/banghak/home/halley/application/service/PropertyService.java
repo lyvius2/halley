@@ -2,11 +2,14 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
+import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SourceType;
@@ -23,11 +26,14 @@ import java.util.List;
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final ListingCheckLogRepository listingCheckLogRepository;
     private final ApplicationEventPublisher eventPublisher;
 
     public PropertyService(PropertyRepository propertyRepository,
+                           ListingCheckLogRepository listingCheckLogRepository,
                            ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
+        this.listingCheckLogRepository = listingCheckLogRepository;
         this.eventPublisher = eventPublisher;
     }
 
@@ -141,6 +147,42 @@ public class PropertyService {
         propertyRepository.findById(id)
                 .orElseThrow(NotFoundListingsException::new);
         propertyRepository.delete(id);
+    }
+
+    public PropertyResponse updateStatus(Long id, ListingStatus listingStatus) {
+        if (listingStatus == null) {
+            throw new InvalidPropertyRequestException("판매 상태는 필수입니다");
+        }
+        final Property existing = propertyRepository.findById(id)
+                .orElseThrow(NotFoundListingsException::new);
+        final boolean active = listingStatus != ListingStatus.SOLD_OUT && listingStatus != ListingStatus.ARCHIVED;
+        propertyRepository.updateListingStatus(
+                id,
+                listingStatus,
+                active,
+                listingStatus == ListingStatus.ACTIVE ? 0 : existing.checkFailStreak(),
+                listingStatus == ListingStatus.SOLD_OUT ? Instant.now() : null);
+        return get(id);
+    }
+
+    public List<CheckLogResponse> checkLogs(Long id) {
+        propertyRepository.findById(id)
+                .orElseThrow(NotFoundListingsException::new);
+        return listingCheckLogRepository.findByPropertyId(id).stream()
+                .map(this::toCheckLogResponse)
+                .toList();
+    }
+
+    public List<PropertyResponse> recentSoldOut() {
+        return propertyRepository.findRecentSoldOut(10).stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private CheckLogResponse toCheckLogResponse(ListingCheckLog log) {
+        return new CheckLogResponse(
+                log.id(), log.checkedAt(), log.httpStatus(), log.verdict(),
+                log.evidence(), log.elapsedMs());
     }
 
     private void validate(PropertyRequest request) {

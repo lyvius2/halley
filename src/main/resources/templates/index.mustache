@@ -47,7 +47,7 @@
             <template x-if="session.authenticated && !session.mustChangePassword">
                 <div>
                     <div x-show="view==='list'">
-                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="properties.length + '건'"></span>
+                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
                             <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
                         </div>
                         <div class="deal-tabs">
@@ -55,9 +55,10 @@
                             <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
                             <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
                             <button :class="{on: dealTypeFilter==='MONTHLY'}" @click="setDealTypeFilter('MONTHLY')">월세</button>
+                            <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
                         </div>
                         <div class="property-list">
-                            <template x-if="properties.length === 0">
+                            <template x-if="visibleProperties.length === 0">
                                 <div class="empty">
                                     <div class="empty-ic">◌</div>
                                     <h4>아직 등록된 매물이 없습니다</h4>
@@ -65,8 +66,8 @@
                                     <button class="btn btn-primary" @click="openAddMenu()">+ 매물 추가</button>
                                 </div>
                             </template>
-                            <template x-for="r in properties" :key="r.property.id">
-                                <article class="property-card" :class="{active: activePropertyId === r.property.id}"
+                            <template x-for="r in visibleProperties" :key="r.property.id">
+                                <article class="property-card" :class="{active: activePropertyId === r.property.id, sold: r.property.listingStatus==='SOLD_OUT'}"
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
                                         <span class="property-card-name" x-text="r.property.name"></span>
@@ -74,6 +75,7 @@
                                     </div>
                                     <div class="property-card-meta">
                                         <span class="badge" :class="dealBadge(r.property.dealType)" x-text="dealLabel(r.property.dealType)"></span>
+                                        <span class="badge b-off" x-show="r.property.listingStatus==='SOLD_OUT'">판매완료</span>
                                         <span x-text="r.property.addressRoad"></span>
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="r.property.areaExclusiveM2 + '㎡'"></span>
@@ -82,6 +84,7 @@
                                         </span>
                                     </div>
                                     <div class="property-card-actions" @click.stop>
+                                        <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openEditProperty(r)">수정</button>
                                         <button class="btn-link danger" @click="removeProperty(r)">삭제</button>
@@ -430,6 +433,70 @@
         <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
             <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
         </button>
+    </div>
+</div>
+
+<!-- D20 매물 점검 이력 모달 -->
+<div class="modal" x-show="showCheckLogs" x-cloak>
+    <div class="modal-backdrop" @click="closeCheckLogs()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">점검 이력</span>
+            <h3 x-text="checkLogProperty.property.name"></h3>
+            <p>생존 확인 배치의 판정 기록입니다.</p>
+        </div>
+        <div class="card table-wrap">
+            <table>
+                <thead><tr><th>시각</th><th>판정</th><th>HTTP</th><th>근거</th></tr></thead>
+                <tbody>
+                <template x-if="checkLogs.length === 0">
+                    <tr><td colspan="4" class="empty-cell">점검 이력이 없습니다</td></tr>
+                </template>
+                <template x-for="l in checkLogs" :key="l.id">
+                    <tr>
+                        <td x-text="fmtTime(l.checkedAt)"></td>
+                        <td><span class="badge" :class="l.verdict==='ALIVE' ? 'b-on' : 'b-off'" x-text="verdictLabel(l.verdict)"></span></td>
+                        <td class="num" x-text="l.httpStatus ?? '-'"></td>
+                        <td x-text="l.evidence"></td>
+                    </tr>
+                </template>
+                </tbody>
+            </table>
+        </div>
+        <div class="paste-actions">
+            <button class="btn btn-ghost" @click="closeCheckLogs()">닫기</button>
+            <button class="btn btn-primary" x-show="checkLogProperty.property.listingStatus==='SOLD_OUT'"
+                    @click="restoreListing(checkLogProperty)">판매중으로 복구</button>
+        </div>
+    </div>
+</div>
+
+<!-- D21 판매완료 알림 확인 모달 -->
+<div class="modal" x-show="showSoldOutAlert" x-cloak>
+    <div class="modal-backdrop" @click="closeSoldOutAlert()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">알림</span>
+            <h3>판매완료 감지 매물</h3>
+            <p>생존 확인 배치에서 판매완료로 판정된 매물입니다.</p>
+        </div>
+        <div class="property-list">
+            <template x-for="p in soldOutRecent" :key="p.id">
+                <article class="property-card sold">
+                    <div class="property-card-header">
+                        <span class="property-card-name" x-text="p.name"></span>
+                        <span class="property-card-price" x-text="fmtWon(p.priceDeposit)"></span>
+                    </div>
+                    <div class="property-card-meta">
+                        <span class="badge b-off">판매완료</span>
+                        <span x-text="p.soldDetectedAt ? '감지 ' + fmtTime(p.soldDetectedAt) : ''"></span>
+                    </div>
+                </article>
+            </template>
+        </div>
+        <div class="paste-actions">
+            <button class="btn btn-primary" @click="closeSoldOutAlert()">확인</button>
+        </div>
     </div>
 </div>
 

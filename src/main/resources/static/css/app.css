@@ -326,6 +326,7 @@ td.num {
     display: flex;
     gap: 6px;
     margin-bottom: 14px;
+    flex-wrap: wrap;
 }
 .deal-tabs button {
     font-family: inherit;
@@ -340,6 +341,10 @@ td.num {
 }
 .deal-tabs button:hover { border-color: var(--ocean); color: var(--ocean); }
 .deal-tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.deal-tabs .sold-toggle.on { background: var(--ink2); border-color: var(--ink2); }
+
+.property-card.sold { opacity: .55; }
+.property-card.sold .property-card-name { text-decoration: line-through; }
 
 /* ── 총점 배지 ────────────────────────────────────── */
 .score-pill {
