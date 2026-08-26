@@ -15,6 +15,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 
 @Service
 public class NotificationService {
@@ -38,16 +39,59 @@ public class NotificationService {
     }
 
     public void sendPropertyCreated(Long propertyId) {
-        if (!shouldNotify()) {
+        if (!shouldSend() || !slackProperties.isNotifyPropertyCreated()) {
             return;
         }
         final Property property = propertyRepository.findById(propertyId).orElse(null);
         if (property == null) {
             return;
         }
-        final String text = buildCreatedMessage(property);
+        sendEvent(NotificationEventType.PROPERTY_CREATED, propertyId, buildCreatedMessage(property));
+    }
+
+    public void sendListingsSoldOut(List<Property> soldOut) {
+        if (!shouldSend() || !slackProperties.isNotifySoldOut()) {
+            return;
+        }
+        final StringBuilder sb = new StringBuilder(":house: 판매완료 감지\n\n");
+        for (final Property p : soldOut) {
+            sb.append("• ").append(p.name()).append("  ")
+                    .append(p.priceDeposit() == null ? "" : fmtWon(p.priceDeposit()))
+                    .append('\n');
+        }
+        sendEvent(NotificationEventType.LISTING_SOLD_OUT, null, sb.toString());
+    }
+
+    public void sendBatchBlocked() {
+        if (!shouldSend()) {
+            return;
+        }
+        sendEvent(NotificationEventType.BATCH_BLOCKED, null, ":no_entry: 생존 확인 배치가 봇 차단(403/429)으로 중단되었습니다.");
+    }
+
+    public void sendBatchCircuitOpen() {
+        if (!shouldSend()) {
+            return;
+        }
+        sendEvent(NotificationEventType.BATCH_CIRCUIT_OPEN, null,
+                ":warning: 전체 매물의 과반이 GONE 판정 — 배치 서킷 개방, 상태 변경 없음.");
+    }
+
+    public void sendBatchSummary(int total, int alive, int gone, int error) {
+        if (!shouldSend()) {
+            return;
+        }
+        sendEvent(NotificationEventType.BATCH_SUMMARY, null,
+                "점검 " + total + "건 / 정상 " + alive + " · GONE " + gone + " · 오류 " + error);
+    }
+
+    public boolean testSend() {
+        return slackPort.send(":tada: Halley에서 테스트 메시지를 보냅니다.");
+    }
+
+    private void sendEvent(NotificationEventType eventType, Long propertyId, String text) {
         final NotificationLog log = notificationLogRepository.save(new NotificationLog(
-                null, NotificationEventType.PROPERTY_CREATED, propertyId, "slack",
+                null, eventType, propertyId, "slack",
                 NotificationStatus.RETRYING, 0, null, payload(propertyId), null, null));
 
         final boolean sent = slackPort.send(text);
@@ -58,13 +102,8 @@ public class NotificationService {
         }
     }
 
-    public boolean testSend() {
-        return slackPort.send(":tada: Halley에서 테스트 메시지를 보냅니다.");
-    }
-
-    private boolean shouldNotify() {
+    private boolean shouldSend() {
         return slackProperties.isEnabled()
-                && slackProperties.isNotifyPropertyCreated()
                 && slackProperties.getWebhookUrl() != null
                 && !slackProperties.getWebhookUrl().isBlank();
     }

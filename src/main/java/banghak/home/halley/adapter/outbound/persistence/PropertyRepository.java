@@ -11,6 +11,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -187,6 +188,26 @@ public class PropertyRepository {
                 .where(DEAL_TYPE.eq(dealType.name()))
                 .fetch()
                 .map(this::map);
+    }
+
+    public List<Property> findBatchTargets() {
+        return dsl.selectFrom(TABLE)
+                .where(SOURCE_URL.isNotNull())
+                .and(LISTING_STATUS.in("ACTIVE", "UNREACHABLE"))
+                .and(IS_DRAFT.eq(false))
+                .fetch()
+                .map(this::map);
+    }
+
+    public void updateListingStatus(Long id, ListingStatus status, boolean active,
+                                    Integer checkFailStreak, Instant soldDetectedAt) {
+        dsl.update(TABLE)
+                .set(LISTING_STATUS, status.name())
+                .set(ACTIVE, active)
+                .set(CHECK_FAIL_STREAK, checkFailStreak)
+                .set(SOLD_DETECTED_AT, toOffset(soldDetectedAt))
+                .where(ID.eq(id))
+                .execute();
     }
 
     public void delete(Long id) {

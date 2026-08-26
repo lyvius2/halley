@@ -58,3 +58,4 @@ slack:
   webhook-url: ${SLACK_WEBHOOK_URL:}
   notify:
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
+    sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
