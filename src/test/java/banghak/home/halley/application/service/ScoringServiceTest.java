@@ -6,13 +6,21 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
+import banghak.home.halley.application.port.out.external.KakaoLocalPort;
+import banghak.home.halley.application.port.out.external.OdsayTransitPort;
 import banghak.home.halley.config.exception.InvalidScoreException;
+import banghak.home.halley.domain.geo.GeoSearchResult;
+import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.scoring.TransitResult;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -25,6 +33,32 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @SpringBootTest
 @ActiveProfiles("local")
 class ScoringServiceTest {
+
+    @TestConfiguration
+    static class StubConfig {
+
+        @Bean
+        @Primary
+        KakaoLocalPort kakaoLocalPort() {
+            return new KakaoLocalPort() {
+                @Override
+                public List<GeoSearchResult> searchAddress(String query) {
+                    return List.of();
+                }
+
+                @Override
+                public List<PoiResult> searchCategory(String categoryGroupCode, double x, double y, int radius) {
+                    return List.of();
+                }
+            };
+        }
+
+        @Bean
+        @Primary
+        OdsayTransitPort odsayTransitPort() {
+            return (startX, startY, endX, endY) -> TransitResult.missing();
+        }
+    }
 
     @Autowired
     private ScoringService scoringService;

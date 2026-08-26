@@ -14,6 +14,7 @@ import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
 import banghak.home.halley.domain.loan.LoanCalculator;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.Criterion;
 import banghak.home.halley.domain.scoring.CriterionWeight;
@@ -54,6 +55,8 @@ public class ScoringService {
     private final CriterionWeightRepository criterionWeightRepository;
     private final PropertyScoreRepository propertyScoreRepository;
     private final UserCriterionScoreRepository userCriterionScoreRepository;
+    private final PoiDataService poiDataService;
+    private final CommuteDataService commuteDataService;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
     private final LoanCalculator loanCalculator;
@@ -64,6 +67,8 @@ public class ScoringService {
                           CriterionWeightRepository criterionWeightRepository,
                           PropertyScoreRepository propertyScoreRepository,
                           UserCriterionScoreRepository userCriterionScoreRepository,
+                          PoiDataService poiDataService,
+                          CommuteDataService commuteDataService,
                           ScoringEngine scoringEngine,
                           List<CriterionScorer> scorers,
                           LoanCalculator loanCalculator) {
@@ -73,6 +78,8 @@ public class ScoringService {
         this.criterionWeightRepository = criterionWeightRepository;
         this.propertyScoreRepository = propertyScoreRepository;
         this.userCriterionScoreRepository = userCriterionScoreRepository;
+        this.poiDataService = poiDataService;
+        this.commuteDataService = commuteDataService;
         this.scoringEngine = scoringEngine;
         this.scorers = scorers;
         this.loanCalculator = loanCalculator;
@@ -229,15 +236,18 @@ public class ScoringService {
     }
 
     private ScoringContext buildContext(Property property) {
-        final long cashBudget = userRepository.findAll().stream()
+        final List<User> activeUsers = userRepository.findAll().stream()
                 .filter(User::enabled)
-                .mapToLong(User::availableBudget)
-                .sum();
+                .toList();
+        final long cashBudget = activeUsers.stream().mapToLong(User::availableBudget).sum();
         final List<Integer> comfortScores = userCriterionScoreRepository.findByPropertyId(property.id()).stream()
                 .filter(s -> COMFORT_CODE.equals(s.criterionCode()))
                 .map(UserCriterionScore::score)
                 .toList();
-        return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loanCalculator);
+        final List<NearbyFacility> nearbyFacilities = poiDataService.ensureNearby(property);
+        final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, activeUsers);
+        return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loanCalculator,
+                nearbyFacilities, commuteMinutes);
     }
 
     private List<CriterionScorer> orderedScorers() {

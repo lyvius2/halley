@@ -12,4 +12,9 @@ public record NearbyFacility(
         Integer walkMinutes,
         Instant fetchedAt
 ) {
+
+    public static NearbyFacility of(Long propertyId, String category, String subCategory, String name,
+                                    Integer distanceM, Integer walkMinutes, Instant fetchedAt) {
+        return new NearbyFacility(null, propertyId, category, subCategory, name, distanceM, walkMinutes, fetchedAt);
+    }
 }

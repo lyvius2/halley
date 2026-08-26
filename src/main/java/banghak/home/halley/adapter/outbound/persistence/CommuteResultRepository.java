@@ -44,6 +44,23 @@ public class CommuteResultRepository {
         return findById(commuteResult.propertyId(), commuteResult.userId()).orElseThrow();
     }
 
+    public void upsert(CommuteResult commuteResult) {
+        dsl.insertInto(TABLE)
+                .set(PROPERTY_ID, commuteResult.propertyId())
+                .set(USER_ID, commuteResult.userId())
+                .set(TOTAL_MINUTES, commuteResult.totalMinutes())
+                .set(TRANSFER_COUNT, commuteResult.transferCount())
+                .set(WALK_MINUTES, commuteResult.walkMinutes())
+                .set(PATH_SUMMARY, toJson(commuteResult.pathSummary(), objectMapper))
+                .onConflict(PROPERTY_ID, USER_ID)
+                .doUpdate()
+                .set(TOTAL_MINUTES, commuteResult.totalMinutes())
+                .set(TRANSFER_COUNT, commuteResult.transferCount())
+                .set(WALK_MINUTES, commuteResult.walkMinutes())
+                .set(PATH_SUMMARY, toJson(commuteResult.pathSummary(), objectMapper))
+                .execute();
+    }
+
     public Optional<CommuteResult> findById(Long propertyId, Long userId) {
         return dsl.selectFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId).and(USER_ID.eq(userId)))
