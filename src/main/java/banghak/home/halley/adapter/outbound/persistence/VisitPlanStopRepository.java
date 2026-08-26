@@ -5,6 +5,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -62,6 +63,20 @@ public class VisitPlanStopRepository {
                 .where(PLAN_ID.eq(planId))
                 .fetch()
                 .map(this::map);
+    }
+
+    public void deleteByPlanId(Long planId) {
+        dsl.deleteFrom(TABLE)
+                .where(PLAN_ID.eq(planId))
+                .execute();
+    }
+
+    public void updateVisited(Long id, boolean visited, Instant visitedAt) {
+        dsl.update(TABLE)
+                .set(VISITED, visited)
+                .set(VISITED_AT, toOffset(visitedAt))
+                .where(ID.eq(id))
+                .execute();
     }
 
     public void delete(Long id) {

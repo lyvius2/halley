@@ -403,6 +403,32 @@ td.num {
 .ref-gap b { font-family: 'JetBrains Mono', monospace; }
 .ref-empty { font-size: 12px; color: var(--ink3); padding: 12px 0; }
 
+/* ── 임장 플래너 (M7) ───────────────────────────────── */
+.itin-panel { padding: 18px; }
+.itin-props { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; margin: 14px 0; }
+.itin-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
+.itin-check small { color: var(--ink3); font-family: 'JetBrains Mono', monospace; margin-left: auto; }
+.itin-result { margin-top: 14px; padding: 16px 18px; }
+.itin-total { font-size: 13px; color: var(--ink2); margin-bottom: 10px; }
+.itin-total b { color: var(--ocean); font-family: 'JetBrains Mono', monospace; }
+.itin-stop {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 4px; border-bottom: 1px solid var(--line2);
+    font-size: 12.5px; cursor: pointer;
+}
+.itin-stop:last-child { border-bottom: none; }
+.itin-stop.done { opacity: .5; text-decoration: line-through; }
+.itin-num {
+    font-family: 'JetBrains Mono', monospace;
+    min-width: 22px; height: 22px; border-radius: 50%;
+    background: var(--ink); color: #fff;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 11px;
+}
+.itin-time { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
+.itin-stop small { color: var(--ink3); margin-left: auto; }
+.itin-stop input[type=checkbox] { margin-left: 6px; }
+
 /* ── 등록 방식 선택 (D8) ────────────────────────────── */.add-choices { display: flex; flex-direction: column; gap: 10px; }
 .add-choice {
     display: flex;

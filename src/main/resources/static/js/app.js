@@ -46,6 +46,13 @@ function halley() {
         refProperty: null,
         refForm: { legalDongCode: '', dealMonth: '' },
         refCard: null,
+        itinProperties: [],
+        itinMode: 'DRIVING',
+        itinStart: { address: '', lat: '', lng: '' },
+        itinWindowStart: '09:00',
+        itinStay: 25,
+        itinResult: null,
+        itinPlan: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -361,6 +368,110 @@ function halley() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        toggleItineraryProperty(id) {
+            const idx = this.itinProperties.indexOf(id);
+            if (idx >= 0) {
+                this.itinProperties.splice(idx, 1);
+            } else {
+                if (this.itinProperties.length >= 12) {
+                    alert('하루 임장은 최대 12건입니다.');
+                    return;
+                }
+                this.itinProperties.push(id);
+            }
+            this.itinResult = null;
+            this.itinPlan = null;
+        },
+
+        async optimizeItinerary() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/itinerary/optimize', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        propertyIds: this.itinProperties,
+                        travelMode: this.itinMode,
+                        startLat: toNum(this.itinStart.lat),
+                        startLng: toNum(this.itinStart.lng)
+                    })
+                });
+                if (ok) {
+                    this.itinResult = body;
+                    this.itinPlan = null;
+                } else {
+                    this.error = (body && body.message) || '경로 계산에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async savePlan() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/itinerary/plans', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        propertyIds: this.itinProperties,
+                        travelMode: this.itinMode,
+                        startLat: toNum(this.itinStart.lat),
+                        startLng: toNum(this.itinStart.lng),
+                        startAddress: this.itinStart.address || null,
+                        windowStart: this.itinWindowStart || null,
+                        stayMinutesDefault: toNum(this.itinStay)
+                    })
+                });
+                if (ok) {
+                    this.itinPlan = body;
+                } else {
+                    this.error = (body && body.message) || '계획 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async toggleItineraryStop(stopId, visited) {
+            if (!this.itinPlan) {
+                return;
+            }
+            const { ok, body } = await this.request(
+                `/api/itinerary/plans/${this.itinPlan.id}/stops/${stopId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ visited })
+                });
+            if (ok) {
+                this.itinPlan = body;
+            }
+        },
+
+        async recomputePlan() {
+            if (!this.itinPlan) {
+                return;
+            }
+            this.loading = true;
+            const { ok, body } = await this.request(
+                `/api/itinerary/plans/${this.itinPlan.id}/recompute`, { method: 'POST' });
+            this.loading = false;
+            if (ok) {
+                this.itinPlan = body;
+            }
+        },
+
+        propertyName(id) {
+            const item = this.visibleProperties.find(x => x.property.id === id);
+            return item ? item.property.name : '#' + id;
         },
 
         openAddProperty() {
