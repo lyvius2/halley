@@ -25,6 +25,7 @@
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
                     <button class="nav-btn" :class="{on: view==='users'}" x-show="session.role==='ADMIN'" @click="setView('users')">사용자</button>
+                    <button class="nav-btn" :class="{on: view==='me'}" @click="setView('me')">프로필</button>
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn" :class="{on: view==='settings'}" x-show="session.role==='ADMIN'" @click="setView('settings')">설정</button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
@@ -41,6 +42,34 @@
                 <div class="empty-ic">◌</div>
                 <h4>카카오맵 대기 중</h4>
                 <p>로그인 후 매물 좌표가 마커로 표시됩니다.</p>
+            </div>
+            <div class="m2-panel" x-show="showM2" x-cloak>
+                <button class="m2-close" @click="closeDetail()">×</button>
+                <template x-if="detailItem">
+                    <div>
+                        <h3 class="m2-name" x-text="detailItem.property.name"></h3>
+                        <div class="m2-meta">
+                            <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
+                            <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
+                        </div>
+                        <div class="m2-rows">
+                            <div class="m2-row"><span>총점</span><b x-text="fmtScore(detailItem.totalScore)"></b></div>
+                            <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
+                            <div class="m2-row"><span>전용면적</span><b x-text="detailItem.property.areaExclusiveM2 ? detailItem.property.areaExclusiveM2 + '㎡' : '-'"></b></div>
+                            <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
+                            <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
+                            <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
+                            <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+                        </div>
+                        <div class="m2-actions">
+                            <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
+                            <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
+                            <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
+                            <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
+                            <button class="btn btn-sm" @click="openEditProperty(detailItem)">수정</button>
+                        </div>
+                    </div>
+                </template>
             </div>
         </section>
 
@@ -85,6 +114,7 @@
                                         </span>
                                     </div>
                                     <div class="property-card-actions" @click.stop>
+                                        <button class="btn-link" @click="openDetail(r)">상세</button>
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
@@ -106,8 +136,9 @@
                                 </thead>
                                 <tbody>
                                 <template x-for="(w, i) in weights" :key="w.criterionCode">
-                                    <tr>
-                                        <td class="num" x-text="i + 1"></td>
+                                    <tr draggable="true" @dragstart="dragStartWeight(i)" @dragover.prevent="dragOverWeight(i)"
+                                        @dragend="dragEndWeight()" :class="{dragging: _dragIndex === i}">
+                                        <td class="num drag-handle" x-text="i + 1"></td>
                                         <td class="strong" x-text="w.name"></td>
                                         <td>
                                             <span class="badge" :class="w.scoringType==='AUTO' ? 'b-mem' : 'b-admin'"
@@ -202,11 +233,13 @@
                     </div>
 
                     <div x-show="view==='users'">
-                        <div class="sec-head"><span class="sec-num">02</span><h2>사용자 관리</h2><span class="sec-sub" x-text="users.length + '명'"></span></div>
+                        <div class="sec-head"><span class="sec-num">02</span><h2>사용자 관리</h2><span class="sec-sub" x-text="users.length + '명'"></span>
+                            <button class="btn btn-primary btn-sm" @click="openAddUser()">+ 사용자 추가</button>
+                        </div>
                         <div class="card table-wrap">
                             <table>
                                 <thead>
-                                <tr><th>닉네임</th><th>이메일</th><th>역할</th><th>가용 예산</th><th>상태</th></tr>
+                                <tr><th>닉네임</th><th>이메일</th><th>역할</th><th>가용 예산</th><th>상태</th><th>관리</th></tr>
                                 </thead>
                                 <tbody>
                                 <template x-for="u in users" :key="u.id">
@@ -216,10 +249,70 @@
                                         <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
                                         <td class="num" x-text="fmtWon(u.availableBudget)"></td>
                                         <td><span class="badge" :class="u.enabled ? 'b-on' : 'b-off'" x-text="u.enabled ? '활성' : '비활성'"></span></td>
+                                        <td>
+                                            <button class="btn-link" @click="openEditUser(u)">수정</button>
+                                            <button class="btn-link" @click="resetUserPassword(u)">비번 리셋</button>
+                                            <button class="btn-link danger" @click="removeUser(u)">삭제</button>
+                                        </td>
                                     </tr>
                                 </template>
                                 </tbody>
                             </table>
+                        </div>
+                        <div class="card temp-pw" x-show="tempPassword" style="margin-top:14px;">
+                            <p class="temp-pw-label">임시 비밀번호 (1회 표시)</p>
+                            <p class="temp-pw-value" x-text="tempPassword"></p>
+                            <button class="btn btn-ghost" @click="tempPassword = null">닫기</button>
+                        </div>
+                    </div>
+
+                    <div x-show="view==='me'">
+                        <div class="sec-head"><span class="sec-num">06</span><h2>내 프로필</h2></div>
+                        <template x-if="profile">
+                            <div class="card profile-panel">
+                                <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
+                                <div class="profile-row"><span>이메일</span><b x-text="profile.email"></b></div>
+                                <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
+                                <div class="profile-row"><span>가용 예산</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
+                                <div class="profile-row"><span>직장</span><b x-text="profile.workplaceName || '미설정'"></b></div>
+                                <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
+                            </div>
+                        </template>
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">직장 위치 지정</h4>
+                            <div class="form-grid">
+                                <label class="span2">주소 검색
+                                    <div class="workplace-search">
+                                        <input type="text" x-model="workplaceQuery" placeholder="회사 주소 검색" @keyup.enter="searchWorkplace()">
+                                        <button class="btn" @click="searchWorkplace()">검색</button>
+                                    </div>
+                                </label>
+                                <template x-if="workplaceResults.length > 0">
+                                    <div class="workplace-results span2">
+                                        <template x-for="(r, i) in workplaceResults" :key="i">
+                                            <button class="workplace-result" @click="selectWorkplace(r)">
+                                                <span x-text="r.addressName"></span>
+                                                <small x-text="r.roadAddressName"></small>
+                                            </button>
+                                        </template>
+                                    </div>
+                                </template>
+                                <label>직장명
+                                    <input type="text" x-model="profile.workplaceName">
+                                </label>
+                                <label>위도/경도
+                                    <div class="workplace-latlng">
+                                        <input type="number" step="0.000001" x-model="profile.workplaceLat">
+                                        <input type="number" step="0.000001" x-model="profile.workplaceLng">
+                                    </div>
+                                </label>
+                            </div>
+                            <p class="form-error" x-show="error" x-text="error"></p>
+                            <button class="btn btn-primary" @click="saveWorkplace()" :disabled="loading">직장 위치 저장</button>
+                        </div>
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">비밀번호 변경</h4>
+                            <button class="btn" @click="openChangePw()">비밀번호 변경</button>
                         </div>
                     </div>
 
@@ -394,6 +487,107 @@
                 </div>
             </div>
         </template>
+    </div>
+</div>
+
+<!-- D3 세션 만료 경고 모달 -->
+<div class="modal" x-show="showSessionWarn" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">세션</span>
+            <h3>세션이 곧 만료됩니다</h3>
+            <p>3분 후 자동 로그아웃됩니다. 계속 사용하려면 연장하세요.</p>
+        </div>
+        <div class="paste-actions">
+            <button class="btn btn-ghost" @click="logout()">로그아웃</button>
+            <button class="btn btn-primary" @click="extendSession()">연장</button>
+        </div>
+    </div>
+</div>
+
+<!-- 비밀번호 변경 (자발) 모달 -->
+<div class="modal" x-show="showChangePw" x-cloak>
+    <div class="modal-backdrop" @click="closeChangePw()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">보안</span>
+            <h3>비밀번호 변경</h3>
+        </div>
+        <form class="form" @submit.prevent="changeMyPassword()">
+            <label>현재 비밀번호
+                <input type="password" x-model="changePwForm.currentPassword" required>
+            </label>
+            <label>새 비밀번호
+                <input type="password" x-model="changePwForm.newPassword" minlength="8" required>
+            </label>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">변경</button>
+        </form>
+    </div>
+</div>
+
+<!-- D4/D5 사용자 생성·수정 모달 -->
+<div class="modal" x-show="showUserForm" x-cloak>
+    <div class="modal-backdrop" @click="closeUserForm()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">사용자 관리</span>
+            <h3 x-text="editingUserId ? '사용자 수정' : '사용자 생성'"></h3>
+        </div>
+        <form class="form" @submit.prevent="saveUser()">
+            <div class="form-grid">
+                <label>닉네임
+                    <input type="text" x-model="userForm.nickname" required>
+                </label>
+                <label>이메일
+                    <input type="email" x-model="userForm.email" required>
+                </label>
+                <template x-if="!editingUserId">
+                    <label>비밀번호
+                        <input type="password" x-model="userForm.password" minlength="8" required>
+                    </label>
+                    <label>역할
+                        <select x-model="userForm.role">
+                            <option value="MEMBER">회원</option>
+                            <option value="ADMIN">관리자</option>
+                        </select>
+                    </label>
+                </template>
+                <label>직장명
+                    <input type="text" x-model="userForm.workplaceName">
+                </label>
+                <label>가용 예산
+                    <input type="number" min="0" x-model="userForm.availableBudget">
+                </label>
+                <label>직장 위도
+                    <input type="number" step="0.000001" x-model="userForm.workplaceLat">
+                </label>
+                <label>직장 경도
+                    <input type="number" step="0.000001" x-model="userForm.workplaceLng">
+                </label>
+            </div>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="editingUserId ? '저장' : '생성'"></span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- D17 확인 모달 -->
+<div class="modal" x-show="confirmState" x-cloak>
+    <div class="modal-backdrop" @click="confirmNo()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">확인</span>
+            <h3 x-text="confirmState.title"></h3>
+            <p x-text="confirmState.message"></p>
+        </div>
+        <div class="paste-actions">
+            <button class="btn btn-ghost" @click="confirmNo()">취소</button>
+            <button class="btn btn-primary" @click="confirmYes()">확인</button>
+        </div>
     </div>
 </div>
 

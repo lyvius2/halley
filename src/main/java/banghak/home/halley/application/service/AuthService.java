@@ -22,6 +22,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Service;
 
+import java.util.Objects;
+
 @Service
 public class AuthService {
 
@@ -37,12 +39,12 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public AuthResponse login(String email, String password) {
+    public AuthResponse login(String email, String password, HttpServletRequest request) {
         try {
             final Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password));
             SecurityContextHolder.getContext().setAuthentication(auth);
-            return toAuthResponse((HalleyUserDetails) auth.getPrincipal());
+            return toAuthResponse((HalleyUserDetails) Objects.requireNonNull(auth.getPrincipal()), request);
         } catch (DisabledException e) {
             throw new AccountDisabledException();
         } catch (AuthenticationException e) {
@@ -50,8 +52,8 @@ public class AuthService {
         }
     }
 
-    public AuthResponse session() {
-        return toAuthResponse(current());
+    public AuthResponse session(HttpServletRequest request) {
+        return toAuthResponse(current(), request);
     }
 
     public void changePassword(String currentPassword, String newPassword) {
@@ -84,11 +86,22 @@ public class AuthService {
         return principal;
     }
 
-    private AuthResponse toAuthResponse(HalleyUserDetails principal) {
+    private AuthResponse toAuthResponse(HalleyUserDetails principal, HttpServletRequest request) {
         return new AuthResponse(
                 principal.getId(),
                 principal.getNickname(),
                 UserRole.valueOf(principal.getRole()),
-                principal.isMustChangePassword());
+                principal.isMustChangePassword(),
+                remainingSessionSeconds(request));
+    }
+
+    private Integer remainingSessionSeconds(HttpServletRequest request) {
+        final jakarta.servlet.http.HttpSession session = request.getSession(false);
+        if (session == null) {
+            return null;
+        }
+        final long remaining = (session.getLastAccessedTime() + session.getMaxInactiveInterval() * 1000L)
+                - System.currentTimeMillis();
+        return (int) Math.max(0, remaining / 1000);
     }
 }

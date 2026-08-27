@@ -429,6 +429,68 @@ td.num {
 .itin-stop small { color: var(--ink3); margin-left: auto; }
 .itin-stop input[type=checkbox] { margin-left: 6px; }
 
+/* ── M2 매물 상세 패널 ─────────────────────────────── */
+.m2-panel {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    bottom: 16px;
+    width: 300px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, .2);
+    padding: 20px;
+    overflow-y: auto;
+    z-index: 20;
+}
+.m2-close {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 26px; height: 26px;
+    border: none; border-radius: 50%;
+    background: var(--line2); color: var(--ink2);
+    font-size: 15px; cursor: pointer;
+}
+.m2-name { font-family: 'Noto Serif KR', serif; font-size: 18px; margin-bottom: 8px; }
+.m2-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.m2-price { font-family: 'JetBrains Mono', monospace; color: var(--ocean); font-weight: 700; }
+.m2-rows { border-top: 1px solid var(--line2); }
+.m2-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
+.m2-row span { color: var(--ink2); }
+.m2-row b { font-family: 'JetBrains Mono', monospace; font-weight: 500; text-align: right; }
+.m2-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+
+/* ── 프로필 (M5) ───────────────────────────────────── */
+.profile-panel { padding: 18px; }
+.profile-title { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 12px; color: var(--ink2); }
+.profile-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
+.profile-row span { color: var(--ink2); }
+.profile-row b { font-weight: 500; }
+.workplace-search { display: flex; gap: 8px; }
+.workplace-search input { flex: 1; }
+.workplace-latlng { display: flex; gap: 8px; }
+.workplace-latlng input { flex: 1; }
+.workplace-results { display: flex; flex-direction: column; gap: 6px; }
+.workplace-result {
+    display: flex; flex-direction: column; gap: 2px; text-align: left;
+    font-family: inherit; padding: 8px 10px;
+    border: 1px solid var(--line2); border-radius: 8px;
+    background: var(--paper); cursor: pointer; font-size: 12px;
+}
+.workplace-result:hover { border-color: var(--ocean); }
+.workplace-result small { color: var(--ink3); }
+
+/* ── 임시 비밀번호 (D24) ───────────────────────────── */
+.temp-pw { padding: 16px 18px; }
+.temp-pw-label { font-size: 11px; color: var(--ink3); margin-bottom: 4px; }
+.temp-pw-value { font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--ocean); margin-bottom: 10px; }
+
+/* ── 드래그 행 ─────────────────────────────────────── */
+.drag-handle { cursor: grab; }
+tr.dragging { opacity: .5; background: var(--line2); }
+
 /* ── 등록 방식 선택 (D8) ────────────────────────────── */.add-choices { display: flex; flex-direction: column; gap: 10px; }
 .add-choice {
     display: flex;

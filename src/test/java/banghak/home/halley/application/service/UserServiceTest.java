@@ -4,13 +4,18 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
+import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
@@ -91,6 +96,30 @@ class UserServiceTest {
         // then
         assertThat(reset.temporaryPassword()).hasSize(12);
         assertThat(userRepository.findByEmail("reset@example.com").get().mustChangePassword()).isTrue();
+    }
+
+    @Test
+    @DisplayName("내 프로필을 조회하고 직장 위치를 수정한다")
+    void meAndWorkplace() {
+        // given
+        userService.create(new CreateUserRequest(
+                "프로필", "me@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+        final User user = userRepository.findByEmail("me@example.com").orElseThrow();
+        final HalleyUserDetails details = new HalleyUserDetails(user);
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));
+
+        // when
+        final UserResponse me = userService.me();
+        final UserResponse updated = userService.updateWorkplace(
+                new WorkplaceRequest("회사", new BigDecimal("37.5"), new BigDecimal("126.9")));
+
+        // then
+        assertThat(me.email()).isEqualTo("me@example.com");
+        assertThat(updated.workplaceName()).isEqualTo("회사");
+        assertThat(updated.workplaceLat()).isEqualByComparingTo("37.5");
+
+        SecurityContextHolder.clearContext();
     }
 
     @Test

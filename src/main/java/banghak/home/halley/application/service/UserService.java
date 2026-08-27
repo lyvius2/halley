@@ -4,6 +4,8 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
+import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.config.exception.AuthenticationRequiredException;
 import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.config.exception.DuplicateNicknameException;
 import banghak.home.halley.config.exception.LastAdminException;
@@ -39,6 +41,28 @@ public class UserService {
 
     public List<UserResponse> list() {
         return userRepository.findAll().stream().map(this::toResponse).toList();
+    }
+
+    public UserResponse me() {
+        return toResponse(get(currentUserId()));
+    }
+
+    public UserResponse updateWorkplace(WorkplaceRequest request) {
+        final User user = get(currentUserId());
+        final User updated = userRepository.update(new User(
+                user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
+                user.mustChangePassword(), user.availableBudget(), user.enabled(),
+                user.disabledAt(), user.disabledBy(), user.createdAt()));
+        return toResponse(updated);
+    }
+
+    private Long currentUserId() {
+        final Long id = currentAdminId();
+        if (id == null) {
+            throw new AuthenticationRequiredException();
+        }
+        return id;
     }
 
     public UserResponse create(CreateUserRequest request) {

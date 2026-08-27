@@ -23,6 +23,19 @@ function emptyPropertyForm() {
     };
 }
 
+function emptyUserForm() {
+    return {
+        nickname: '',
+        email: '',
+        password: '',
+        role: 'MEMBER',
+        workplaceName: '',
+        workplaceLat: '',
+        workplaceLng: '',
+        availableBudget: ''
+    };
+}
+
 function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
@@ -53,6 +66,21 @@ function halley() {
         itinStay: 25,
         itinResult: null,
         itinPlan: null,
+        sessionExpiresAt: 0,
+        _sessionTimer: null,
+        showSessionWarn: false,
+        showUserForm: false,
+        userForm: emptyUserForm(),
+        editingUserId: null,
+        tempPassword: null,
+        confirmState: null,
+        profile: null,
+        workplaceQuery: '',
+        workplaceResults: [],
+        showChangePw: false,
+        changePwForm: { currentPassword: '', newPassword: '' },
+        showM2: false,
+        detailItem: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -103,6 +131,9 @@ function halley() {
             const { ok, body } = await this.request('/api/auth/session');
             if (ok) {
                 this.session = Object.assign({ authenticated: true }, body);
+                this.sessionExpiresAt = body.expiresInSeconds != null
+                    ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
                 if (this.session.role === 'ADMIN' && !this.showPassword) {
@@ -130,6 +161,9 @@ function halley() {
                 this.loadSettings();
                 this.loadNotifications();
             }
+            if (view === 'me') {
+                this.loadProfile();
+            }
         },
 
         async loadUsers() {
@@ -137,6 +171,217 @@ function halley() {
             if (ok) {
                 this.users = body || [];
             }
+        },
+
+        openAddUser() {
+            this.editingUserId = null;
+            this.userForm = emptyUserForm();
+            this.error = null;
+            this.showUserForm = true;
+        },
+
+        openEditUser(u) {
+            this.editingUserId = u.id;
+            this.userForm = {
+                nickname: u.nickname,
+                email: u.email,
+                password: '',
+                role: u.role,
+                workplaceName: u.workplaceName || '',
+                workplaceLat: u.workplaceLat ?? '',
+                workplaceLng: u.workplaceLng ?? '',
+                availableBudget: u.availableBudget ?? ''
+            };
+            this.error = null;
+            this.showUserForm = true;
+        },
+
+        closeUserForm() {
+            this.showUserForm = false;
+            this.userForm = emptyUserForm();
+            this.editingUserId = null;
+            this.error = null;
+        },
+
+        async saveUser() {
+            this.loading = true;
+            this.error = null;
+            const editing = this.editingUserId;
+            const body = {
+                nickname: this.userForm.nickname,
+                email: this.userForm.email,
+                workplaceName: this.userForm.workplaceName || null,
+                workplaceLat: toNum(this.userForm.workplaceLat),
+                workplaceLng: toNum(this.userForm.workplaceLng),
+                availableBudget: toNum(this.userForm.availableBudget)
+            };
+            if (!editing) {
+                body.password = this.userForm.password;
+                body.role = this.userForm.role;
+            }
+            try {
+                const { ok, body: resBody } = await this.request(
+                    editing ? `/api/users/${editing}` : '/api/users', {
+                        method: editing ? 'PUT' : 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                if (ok) {
+                    this.closeUserForm();
+                    await this.loadUsers();
+                } else {
+                    this.error = (resBody && resBody.message) || '저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        removeUser(u) {
+            this.askConfirm('사용자 삭제', `'${u.nickname}' 사용자를 삭제할까요?`, async () => {
+                await this.request(`/api/users/${u.id}`, { method: 'DELETE' });
+                await this.loadUsers();
+            });
+        },
+
+        resetUserPassword(u) {
+            this.askConfirm('비밀번호 리셋', `'${u.nickname}'의 임시 비밀번호를 발급할까요?`, async () => {
+                const { ok, body } = await this.request(`/api/users/${u.id}/reset-password`, { method: 'POST' });
+                if (ok) {
+                    this.tempPassword = body.temporaryPassword;
+                }
+                await this.loadUsers();
+            });
+        },
+
+        askConfirm(title, message, action) {
+            this.confirmState = { title, message, action };
+        },
+
+        confirmYes() {
+            const state = this.confirmState;
+            this.confirmState = null;
+            if (state && state.action) {
+                state.action();
+            }
+        },
+
+        confirmNo() {
+            this.confirmState = null;
+        },
+
+        async loadProfile() {
+            const { ok, body } = await this.request('/api/users/me');
+            if (ok) {
+                this.profile = body;
+                this.workplaceQuery = body.workplaceName || '';
+            }
+        },
+
+        async searchWorkplace() {
+            const query = this.workplaceQuery;
+            if (!query || !query.trim()) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
+            this.workplaceResults = ok ? (body || []) : [];
+        },
+
+        selectWorkplace(r) {
+            this.profile.workplaceName = r.addressName;
+            this.profile.workplaceLat = r.lat;
+            this.profile.workplaceLng = r.lng;
+            this.workplaceQuery = r.addressName;
+            this.workplaceResults = [];
+        },
+
+        async saveWorkplace() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/users/me/workplace', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workplaceName: this.profile.workplaceName || null,
+                        workplaceLat: toNum(this.profile.workplaceLat),
+                        workplaceLng: toNum(this.profile.workplaceLng)
+                    })
+                });
+                if (ok) {
+                    this.profile = body;
+                } else {
+                    this.error = (body && body.message) || '직장 위치 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        openChangePw() {
+            this.changePwForm = { currentPassword: '', newPassword: '' };
+            this.error = null;
+            this.showChangePw = true;
+        },
+
+        closeChangePw() {
+            this.showChangePw = false;
+            this.changePwForm = { currentPassword: '', newPassword: '' };
+            this.error = null;
+        },
+
+        async changeMyPassword() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/auth/password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.changePwForm)
+                });
+                if (ok) {
+                    this.closeChangePw();
+                } else {
+                    this.error = (body && body.message) || '비밀번호 변경에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        openDetail(item) {
+            this.detailItem = item;
+            this.showM2 = true;
+        },
+
+        closeDetail() {
+            this.showM2 = false;
+            this.detailItem = null;
+        },
+
+        dragStartWeight(index) {
+            this._dragIndex = index;
+        },
+
+        dragOverWeight(index) {
+            if (this._dragIndex == null || this._dragIndex === index) {
+                return;
+            }
+            const arr = this.weights.slice();
+            const [moved] = arr.splice(this._dragIndex, 1);
+            arr.splice(index, 0, moved);
+            this.weights = arr;
+            this._dragIndex = index;
+        },
+
+        dragEndWeight() {
+            this._dragIndex = null;
         },
 
         async login() {
@@ -150,6 +395,9 @@ function halley() {
                 });
                 if (ok) {
                     this.session = Object.assign({ authenticated: true }, body);
+                    this.sessionExpiresAt = body.expiresInSeconds != null
+                        ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                    this.startSessionTimer();
                     this.loginForm = { email: '', password: '' };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
@@ -204,7 +452,9 @@ function halley() {
             } catch (e) {
                 // ignore
             }
+            this.stopSessionTimer();
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
+            this.sessionExpiresAt = 0;
             this.users = [];
             this.properties = [];
             this.visibleProperties = [];
@@ -214,6 +464,39 @@ function halley() {
             this.soldOutAlertShown = false;
             this.showLogin = true;
             this.showPassword = false;
+            this.showSessionWarn = false;
+        },
+
+        startSessionTimer() {
+            if (!this._sessionTimer) {
+                this._sessionTimer = setInterval(() => this.tickSession(), 15000);
+            }
+        },
+
+        stopSessionTimer() {
+            if (this._sessionTimer) {
+                clearInterval(this._sessionTimer);
+                this._sessionTimer = null;
+            }
+        },
+
+        tickSession() {
+            if (!this.session.authenticated) {
+                return;
+            }
+            const remain = this.sessionExpiresAt - Date.now();
+            if (remain <= 0) {
+                this.logout();
+                return;
+            }
+            if (remain < 180000 && !this.showSessionWarn) {
+                this.showSessionWarn = true;
+            }
+        },
+
+        async extendSession() {
+            await this.checkSession();
+            this.showSessionWarn = false;
         },
 
         async loadProperties() {
@@ -273,19 +556,16 @@ function halley() {
             this.checkLogProperty = null;
         },
 
-        async restoreListing(item) {
-            if (!confirm(`'${item.property.name}' 매물을 판매중으로 복구할까요?`)) {
-                return;
-            }
-            const { ok } = await this.request(`/api/properties/${item.property.id}/status`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ listingStatus: 'ACTIVE' })
-            });
-            if (ok) {
+        restoreListing(item) {
+            this.askConfirm('판매중 복구', `'${item.property.name}' 매물을 판매중으로 복구할까요?`, async () => {
+                await this.request(`/api/properties/${item.property.id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ listingStatus: 'ACTIVE' })
+                });
                 this.closeCheckLogs();
                 await this.loadProperties();
-            }
+            });
         },
 
         verdictLabel(verdict) {
@@ -715,15 +995,12 @@ function halley() {
             }
         },
 
-        async removeProperty(item) {
+        removeProperty(item) {
             const p = item.property;
-            if (!confirm(`'${p.name}' 매물을 삭제할까요?`)) {
-                return;
-            }
-            const { ok } = await this.request(`/api/properties/${p.id}`, { method: 'DELETE' });
-            if (ok) {
+            this.askConfirm('매물 삭제', `'${p.name}' 매물을 삭제할까요?`, async () => {
+                await this.request(`/api/properties/${p.id}`, { method: 'DELETE' });
                 await this.loadProperties();
-            }
+            });
         },
 
         openScoreModal(item) {

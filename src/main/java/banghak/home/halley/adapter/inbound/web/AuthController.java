@@ -25,8 +25,8 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest request) {
-        return authService.login(request.email(), request.password());
+    public AuthResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
+        return authService.login(request.email(), request.password(), httpRequest);
     }
 
     @PostMapping("/logout")
@@ -42,7 +42,7 @@ public class AuthController {
     }
 
     @GetMapping("/session")
-    public AuthResponse session() {
-        return authService.session();
+    public AuthResponse session(HttpServletRequest request) {
+        return authService.session(request);
     }
 }
