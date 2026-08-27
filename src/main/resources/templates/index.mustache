@@ -770,7 +770,7 @@
                 </label>
                 <label class="span2">주소로 좌표 검색
                     <div class="workplace-search">
-                        <input type="text" x-model="propertyQuery" placeholder="예: 서울 성북구 석관동 407" @keyup.enter="searchPropertyAddress()">
+                        <input type="text" x-model="propertyQuery" placeholder="예: 서울 노원구 상계동 692" @keyup.enter.prevent="searchPropertyAddress()">
                         <button class="btn" type="button" @click="searchPropertyAddress()">검색</button>
                     </div>
                 </label>
