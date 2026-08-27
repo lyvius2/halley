@@ -1,6 +1,7 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
@@ -17,6 +18,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -26,6 +28,7 @@ public class NotificationService {
     private final SlackProperties slackProperties;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final ScoringService scoringService;
     private final NotificationLogRepository notificationLogRepository;
     private final ObjectMapper objectMapper;
 
@@ -33,12 +36,14 @@ public class NotificationService {
                                SlackProperties slackProperties,
                                PropertyRepository propertyRepository,
                                UserRepository userRepository,
+                               ScoringService scoringService,
                                NotificationLogRepository notificationLogRepository,
                                ObjectMapper objectMapper) {
         this.slackPort = slackPort;
         this.slackProperties = slackProperties;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
+        this.scoringService = scoringService;
         this.notificationLogRepository = notificationLogRepository;
         this.objectMapper = objectMapper;
     }
@@ -58,11 +63,21 @@ public class NotificationService {
         if (!shouldSend() || !slackProperties.isNotifySoldOut()) {
             return;
         }
+        final List<ScoredPropertyResponse> scored = soldOut.stream()
+                .map(p -> scoringService.getScored(p.id()))
+                .sorted(Comparator.comparing((ScoredPropertyResponse r) ->
+                        r.totalScore() == null ? BigDecimal.valueOf(-1) : r.totalScore()).reversed())
+                .toList();
         final StringBuilder sb = new StringBuilder(":house: 판매완료 감지\n\n");
-        for (final Property p : soldOut) {
-            sb.append("• ").append(p.name()).append("  ")
-                    .append(p.priceDeposit() == null ? "" : fmtWon(p.priceDeposit()))
-                    .append('\n');
+        for (int i = 0; i < scored.size(); i++) {
+            final ScoredPropertyResponse item = scored.get(i);
+            sb.append("• ").append(item.property().name())
+                    .append("  ").append(item.property().priceDeposit() == null ? "" : fmtWon(item.property().priceDeposit()))
+                    .append("  (총점 ").append(fmtScore(item.totalScore())).append(" · ").append(i + 1).append("위)");
+            if (i < 3) {
+                sb.append("  ← @channel");
+            }
+            sb.append('\n');
         }
         sendEvent(NotificationEventType.LISTING_SOLD_OUT, null, sb.toString());
     }
@@ -206,6 +221,10 @@ public class NotificationService {
 
     private String plain(BigDecimal value) {
         return value.stripTrailingZeros().toPlainString();
+    }
+
+    private long fmtScore(BigDecimal score) {
+        return score == null ? 0 : score.setScale(0, java.math.RoundingMode.HALF_UP).longValue();
     }
 
     private String fmtWon(Long won) {
