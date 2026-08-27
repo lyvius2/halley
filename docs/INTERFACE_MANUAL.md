@@ -158,7 +158,7 @@ sequenceDiagram
 |---|---|---|---|
 | `odsay.api-key` | `ODSAY_API_KEY` | (없음) | 요청 `apiKey` 파라미터 |
 | `odsay.base-url` | — | `https://api.odsay.com` | API 베이스 |
-| `odsay.transit-path` | — | `/v2/api/search/pubtransPath` | 경로 조회 엔드포인트 |
+| `odsay.transit-path` | — | `/v1/api/searchPubTransPathT` | 경로 조회 엔드포인트 (v1, `T` 포함) |
 
 **서킷브레이커/타임아웃**: `odsay` connect 5s / read 15s, 실패율 30%, open 60s
 
@@ -176,8 +176,8 @@ sequenceDiagram
         alt 캐시 존재
             R-->>S: totalMinutes
         else 캐시 없음
-            S->>O: GET /v2/api/search/pubtransPath?SX&SY&EX&EY&apiKey
-            O-->>S: path[0].info (totalTime/walkTime/환승수)
+            S->>O: GET /v1/api/searchPubTransPathT?SX&SY&EX&EY&apiKey
+            O-->>S: path[0].info (totalTime(분)/totalWalk(미터)/환승수)
             S->>R: upsert (분 단위 환산)
         end
     end

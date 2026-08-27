@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
         fallbackFactory = OdsayTransitFallbackFactory.class)
 public interface OdsayTransitFeignClient {
 
-    @GetMapping("${odsay.transit-path:/v2/api/search/pubtransPath}")
+    @GetMapping("${odsay.transit-path:/v1/api/searchPubTransPathT}")
     String findTransit(@RequestParam("apiKey") String apiKey,
                        @RequestParam("SX") double startX,
                        @RequestParam("SY") double startY,

@@ -11,7 +11,12 @@ class OdsayTransitAdapterTest {
 
     private static final String TRANSIT_JSON = """
             {"result":{"path":[{"info":{
-                "totalTime":5400,"walkTime":600,"subwayTransitCount":1,"busTransitCount":1
+                "totalTime":31,"totalWalk":680,"totalWalkTime":-1,"subwayTransitCount":1,"busTransitCount":0
+            }}]}}
+            """;
+    private static final String TRANSIT_WITH_WALK_TIME_JSON = """
+            {"result":{"path":[{"info":{
+                "totalTime":25,"totalWalk":1200,"totalWalkTime":15,"subwayTransitCount":0,"busTransitCount":1
             }}]}}
             """;
     private static final String EMPTY_PATH_JSON = "{\"result\":{\"path\":[]}}";
@@ -19,7 +24,7 @@ class OdsayTransitAdapterTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    @DisplayName("대중교통 조회는 Feign 응답을 분 단위 TransitResult로 변환해 반환한다")
+    @DisplayName("대중교통 조회는 ODsay 응답(totalTime 분 단위)을 TransitResult로 변환해 반환한다")
     void findTransitReturnsParsedResult() {
         // given
         final OdsayTransitFeignClient client = stubClient(TRANSIT_JSON);
@@ -30,9 +35,24 @@ class OdsayTransitAdapterTest {
 
         // then
         assertThat(result.isComputed()).isTrue();
-        assertThat(result.totalMinutes()).isEqualTo(90);
-        assertThat(result.walkMinutes()).isEqualTo(10);
-        assertThat(result.transferCount()).isEqualTo(2);
+        assertThat(result.totalMinutes()).isEqualTo(31);
+        assertThat(result.walkMinutes()).isEqualTo(9);
+        assertThat(result.transferCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("totalWalkTime이 제공되면 그 값을 도보분으로 사용하고, 없으면 totalWalk(미터)로 환산한다")
+    void walkMinutesUsesWalkTimeOrMeters() {
+        // given
+        final OdsayTransitFeignClient client = stubClient(TRANSIT_WITH_WALK_TIME_JSON);
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(client, "key", objectMapper);
+
+        // when
+        final TransitResult result = adapter.findTransit(126.9, 37.5, 127.0, 37.5);
+
+        // then
+        assertThat(result.totalMinutes()).isEqualTo(25);
+        assertThat(result.walkMinutes()).isEqualTo(15);
     }
 
     @Test
