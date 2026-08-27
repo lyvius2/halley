@@ -88,6 +88,7 @@ function halley() {
         photoImages: [],
         photoType: 'PHOTO',
         photoFile: null,
+        photoViewerIndex: -1,
         showAgentModal: false,
         agentProperty: null,
         agentLinks: [],
@@ -408,6 +409,27 @@ function halley() {
             this.photoProperty = null;
             this.photoImages = [];
             this.photoFile = null;
+            this.photoViewerIndex = -1;
+        },
+
+        openPhotoViewer(index) {
+            this.photoViewerIndex = index;
+        },
+
+        closePhotoViewer() {
+            this.photoViewerIndex = -1;
+        },
+
+        photoPrev() {
+            if (this.photoViewerIndex > 0) {
+                this.photoViewerIndex--;
+            }
+        },
+
+        photoNext() {
+            if (this.photoViewerIndex < this.photoImages.length - 1) {
+                this.photoViewerIndex++;
+            }
         },
 
         onPhotoFile(e) {

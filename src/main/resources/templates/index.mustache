@@ -699,17 +699,25 @@
             <button class="btn btn-primary" @click="uploadPhoto()" :disabled="loading || !photoFile">업로드</button>
         </div>
         <div class="photo-grid">
-            <template x-for="img in photoImages" :key="img.id">
-                <a class="photo-item" :href="img.storagePath" target="_blank">
+            <template x-for="(img, i) in photoImages" :key="img.id">
+                <button class="photo-item" @click="openPhotoViewer(i)">
                     <img :src="img.storagePath" alt="">
                     <span class="photo-type" x-text="img.imageType === 'FLOOR_PLAN' ? '도면' : '실사'"></span>
-                </a>
+                </button>
             </template>
             <template x-if="photoImages.length === 0">
                 <p class="photo-empty">등록된 사진이 없습니다.</p>
             </template>
         </div>
     </div>
+</div>
+
+<!-- D13 사진 뷰어 라이트박스 -->
+<div class="lightbox" x-show="photoViewerIndex >= 0" x-cloak @click.self="closePhotoViewer()">
+    <button class="lightbox-close" @click="closePhotoViewer()">×</button>
+    <button class="lightbox-nav prev" @click="photoPrev()" x-show="photoViewerIndex > 0">‹</button>
+    <img :src="photoViewerIndex >= 0 && photoImages[photoViewerIndex] ? photoImages[photoViewerIndex].storagePath : ''" alt="">
+    <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < photoImages.length - 1">›</button>
 </div>
 
 <!-- D17 확인 모달 -->
