@@ -429,6 +429,15 @@ td.num {
 .itin-time { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
 .itin-stop small { color: var(--ink3); margin-left: auto; }
 .itin-stop input[type=checkbox] { margin-left: 6px; }
+.itin-marker {
+    font-family: 'JetBrains Mono', monospace;
+    min-width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; color: var(--ocean);
+    border: 2px solid var(--ocean);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    box-shadow: 0 2px 6px rgba(0,0,0,.3);
+}
 
 /* ── M2 매물 상세 패널 ─────────────────────────────── */
 .m2-panel {

@@ -68,6 +68,8 @@ function halley() {
         itinStay: 25,
         itinResult: null,
         itinPlan: null,
+        _itinMarkers: {},
+        _itinPolyline: null,
         sessionExpiresAt: 0,
         _sessionTimer: null,
         showSessionWarn: false,
@@ -194,14 +196,19 @@ function halley() {
             if (view === 'me') {
                 this.loadProfile();
             }
+            if (view === 'itinerary') {
+                this.renderItinerary();
+            }
         },
 
         async loadUsers() {
             const { ok, body } = await this.request('/api/users');
             if (ok) {
-                this.users = body || [];
+                this.itinPlan = body;
+                this.renderItinerary();
             }
         },
+
 
         openAddUser() {
             this.editingUserId = null;
@@ -668,6 +675,7 @@ function halley() {
             this.showLogin = true;
             this.showPassword = false;
             this.showSessionWarn = false;
+            this.clearItinerary();
         },
 
         startSessionTimer() {
@@ -885,6 +893,7 @@ function halley() {
                 if (ok) {
                     this.itinResult = body;
                     this.itinPlan = null;
+                    this.renderItinerary();
                 } else {
                     this.error = (body && body.message) || '경로 계산에 실패했습니다';
                 }
@@ -914,6 +923,7 @@ function halley() {
                 });
                 if (ok) {
                     this.itinPlan = body;
+                    this.renderItinerary();
                 } else {
                     this.error = (body && body.message) || '계획 저장에 실패했습니다';
                 }
@@ -949,12 +959,72 @@ function halley() {
             this.loading = false;
             if (ok) {
                 this.itinPlan = body;
+                this.renderItinerary();
             }
         },
 
         propertyName(id) {
-            const item = this.visibleProperties.find(x => x.property.id === id);
+            const item = this.properties.find(x => x.property.id === id);
             return item ? item.property.name : '#' + id;
+        },
+
+        renderItinerary() {
+            if (typeof kakao === 'undefined' || !kakao.maps || !this.map) {
+                return;
+            }
+            this.clearItinerary();
+            const ids = this.itinPlan
+                ? this.itinPlan.stops.map(s => s.propertyId)
+                : (this.itinResult ? this.itinResult.orderedPropertyIds : []);
+            if (ids.length === 0) {
+                return;
+            }
+            const points = [];
+            const startLat = toNum(this.itinStart.lat);
+            const startLng = toNum(this.itinStart.lng);
+            if (startLat != null && startLng != null) {
+                points.push(new kakao.maps.LatLng(startLat, startLng));
+            }
+            this._itinMarkers = {};
+            ids.forEach((id, i) => {
+                const item = this.properties.find(x => x.property.id === id);
+                if (!item || !item.property.lat || !item.property.lng) {
+                    return;
+                }
+                const position = new kakao.maps.LatLng(item.property.lat, item.property.lng);
+                const overlay = new kakao.maps.CustomOverlay({
+                    position,
+                    content: `<div class="itin-marker">${i + 1}</div>`,
+                    yAnchor: 1
+                });
+                overlay.setMap(this.map);
+                this._itinMarkers[id] = overlay;
+                points.push(position);
+            });
+            if (points.length >= 2) {
+                this._itinPolyline = new kakao.maps.Polyline({
+                    path: points,
+                    strokeWeight: 4,
+                    strokeColor: '#2d8ba8',
+                    strokeOpacity: 0.85,
+                    strokeStyle: 'solid'
+                });
+                this._itinPolyline.setMap(this.map);
+                const bounds = new kakao.maps.LatLngBounds();
+                points.forEach(p => bounds.extend(p));
+                this.map.setBounds(bounds);
+            }
+        },
+
+        clearItinerary() {
+            if (this._itinPolyline) {
+                this._itinPolyline.setMap(null);
+                this._itinPolyline = null;
+            }
+            if (this._itinMarkers) {
+                Object.values(this._itinMarkers).forEach(m => m.setMap(null));
+            }
+            this._itinMarkers = {};
         },
 
         openAddProperty() {
