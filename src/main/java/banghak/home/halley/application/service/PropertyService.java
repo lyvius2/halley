@@ -16,30 +16,38 @@ import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SourceType;
+import banghak.home.halley.domain.geo.GeoSearchResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
+@Slf4j
 @Service
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final ListingCheckLogRepository listingCheckLogRepository;
     private final EditVersionStore editVersionStore;
+    private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
 
     public PropertyService(PropertyRepository propertyRepository,
                            ListingCheckLogRepository listingCheckLogRepository,
                            EditVersionStore editVersionStore,
+                           GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
         this.listingCheckLogRepository = listingCheckLogRepository;
         this.editVersionStore = editVersionStore;
+        this.geoService = geoService;
         this.eventPublisher = eventPublisher;
     }
 
@@ -55,6 +63,7 @@ public class PropertyService {
     @Transactional
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
+        final Coordinates coords = resolveCoordinates(request);
         final boolean fromPaste = request.rawPasteText() != null && !request.rawPasteText().isBlank();
         final Property saved = propertyRepository.save(new Property(
                 null,
@@ -66,8 +75,8 @@ public class PropertyService {
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),
-                request.lat(),
-                request.lng(),
+                coords.lat(),
+                coords.lng(),
                 request.areaSupplyM2(),
                 request.areaExclusiveM2(),
                 request.floorRaw(),
@@ -124,6 +133,7 @@ public class PropertyService {
         final Property existing = propertyRepository.findById(id)
                 .orElseThrow(NotFoundListingsException::new);
         checkEditVersion(id, editVersion);
+        final Coordinates coords = resolveCoordinates(request);
         final Property updated = propertyRepository.update(new Property(
                 existing.id(),
                 request.name(),
@@ -134,8 +144,8 @@ public class PropertyService {
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),
-                request.lat(),
-                request.lng(),
+                coords.lat(),
+                coords.lng(),
                 request.areaSupplyM2(),
                 request.areaExclusiveM2(),
                 request.floorRaw(),
@@ -219,6 +229,37 @@ public class PropertyService {
         if (request.name() == null || request.name().isBlank()) {
             throw new InvalidPropertyRequestException("매물명은 필수입니다");
         }
+    }
+
+    /**
+     * 좌표가 요청에 명시돼 있으면 그대로 쓰고, 없으면 주소(도로명 우선)로 지오코딩해 채운다.
+     */
+    private Coordinates resolveCoordinates(PropertyRequest request) {
+        if (request.lat() != null && request.lng() != null) {
+            return new Coordinates(request.lat(), request.lng());
+        }
+        final String address = firstNonBlank(request.addressRoad(), request.addressJibun());
+        if (address == null) {
+            return new Coordinates(null, null);
+        }
+        final Optional<GeoSearchResult> geo = geoService.geocode(address);
+        if (geo.isEmpty()) {
+            log.warn("주소 좌표 변환 실패, 좌표 없이 등록: {}", address);
+            return new Coordinates(null, null);
+        }
+        return new Coordinates(geo.get().lat(), geo.get().lng());
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (final String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
+        }
+        return null;
+    }
+
+    private record Coordinates(BigDecimal lat, BigDecimal lng) {
     }
 
     private Long currentUserId() {
