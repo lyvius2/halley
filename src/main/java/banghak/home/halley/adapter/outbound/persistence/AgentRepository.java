@@ -51,6 +51,21 @@ public class AgentRepository {
                 .map(this::map);
     }
 
+    public Agent update(Agent agent) {
+        dsl.update(TABLE)
+                .set(OFFICE_NAME, agent.officeName())
+                .set(AGENT_NAME, agent.agentName())
+                .set(PHONE, agent.phone())
+                .set(MOBILE, agent.mobile())
+                .set(REGISTRATION_NO, agent.registrationNo())
+                .set(ADDRESS, agent.address())
+                .set(LAT, agent.lat())
+                .set(LNG, agent.lng())
+                .where(ID.eq(agent.id()))
+                .execute();
+        return findById(agent.id()).orElseThrow();
+    }
+
     public List<Agent> findAll() {
         return dsl.selectFrom(TABLE)
                 .fetch()

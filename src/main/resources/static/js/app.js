@@ -88,6 +88,12 @@ function halley() {
         photoImages: [],
         photoType: 'PHOTO',
         photoFile: null,
+        showAgentModal: false,
+        agentProperty: null,
+        agentLinks: [],
+        agentQuery: '',
+        agentResults: [],
+        newAgentForm: { officeName: '', agentName: '', phone: '', mobile: '' },
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -435,6 +441,101 @@ function halley() {
                     await this.loadPhotoImages();
                 } else {
                     this.error = '업로드에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async openAgentModal(item) {
+            this.agentProperty = item;
+            this.agentLinks = [];
+            this.agentQuery = '';
+            this.agentResults = [];
+            this.error = null;
+            this.showAgentModal = true;
+            await this.loadAgentLinks();
+        },
+
+        closeAgentModal() {
+            this.showAgentModal = false;
+            this.agentProperty = null;
+            this.agentLinks = [];
+            this.agentResults = [];
+            this.error = null;
+        },
+
+        async loadAgentLinks() {
+            const { ok, body } = await this.request(`/api/properties/${this.agentProperty.property.id}/agents`);
+            if (ok) {
+                this.agentLinks = body || [];
+            }
+        },
+
+        async persistAgentLinks() {
+            const body = this.agentLinks.map(l => ({ agentId: l.agentId, isPrimary: l.isPrimary }));
+            const { ok, body: resBody } = await this.request(
+                `/api/properties/${this.agentProperty.property.id}/agents`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+            if (ok) {
+                this.agentLinks = resBody || [];
+            } else {
+                this.error = (resBody && resBody.message) || '저장에 실패했습니다';
+            }
+        },
+
+        async addLinkedAgent(agentId) {
+            this.agentLinks.push({ agentId, isPrimary: this.agentLinks.length === 0 });
+            this.agentQuery = '';
+            this.agentResults = [];
+            await this.persistAgentLinks();
+        },
+
+        async unlinkAgent(agentId) {
+            this.agentLinks = this.agentLinks.filter(l => l.agentId !== agentId);
+            await this.persistAgentLinks();
+        },
+
+        async setPrimaryAgent(agentId) {
+            this.agentLinks = this.agentLinks.map(l => ({ ...l, isPrimary: l.agentId === agentId }));
+            await this.persistAgentLinks();
+        },
+
+        async searchAgents() {
+            const query = this.agentQuery;
+            if (!query || !query.trim()) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/agents?query=' + encodeURIComponent(query));
+            if (ok) {
+                this.agentResults = (body || []).filter(a => !this.agentLinks.some(l => l.agentId === a.id));
+            }
+        },
+
+        async createNewAgent() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/agents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        officeName: this.newAgentForm.officeName,
+                        agentName: this.newAgentForm.agentName,
+                        phone: this.newAgentForm.phone,
+                        mobile: this.newAgentForm.mobile
+                    })
+                });
+                if (ok) {
+                    this.newAgentForm = { officeName: '', agentName: '', phone: '', mobile: '' };
+                    await this.addLinkedAgent(body.id);
+                } else {
+                    this.error = (body && body.message) || '중개인 등록에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

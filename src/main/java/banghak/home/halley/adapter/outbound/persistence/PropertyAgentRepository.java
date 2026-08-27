@@ -51,6 +51,12 @@ public class PropertyAgentRepository {
                 .execute();
     }
 
+    public void deleteByPropertyId(Long propertyId) {
+        dsl.deleteFrom(TABLE)
+                .where(PROPERTY_ID.eq(propertyId))
+                .execute();
+    }
+
     private PropertyAgent map(Record r) {
         return new PropertyAgent(
                 r.get(PROPERTY_ID),

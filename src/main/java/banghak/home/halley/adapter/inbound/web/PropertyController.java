@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
@@ -7,6 +8,8 @@ import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
+import banghak.home.halley.adapter.inbound.web.dto.PropertyAgentLink;
+import banghak.home.halley.adapter.inbound.web.dto.PropertyAgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
@@ -14,6 +17,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
+import banghak.home.halley.application.service.AgentService;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyImageService;
@@ -50,19 +54,32 @@ public class PropertyController {
     private final LoanEstimateService loanEstimateService;
     private final ReferenceTransactionService referenceTransactionService;
     private final PropertyImageService propertyImageService;
+    private final AgentService agentService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
                               ParsePreviewService parsePreviewService,
                               LoanEstimateService loanEstimateService,
                               ReferenceTransactionService referenceTransactionService,
-                              PropertyImageService propertyImageService) {
+                              PropertyImageService propertyImageService,
+                              AgentService agentService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
         this.loanEstimateService = loanEstimateService;
         this.referenceTransactionService = referenceTransactionService;
         this.propertyImageService = propertyImageService;
+        this.agentService = agentService;
+    }
+
+    @GetMapping("/{id}/agents")
+    public List<PropertyAgentResponse> propertyAgents(@PathVariable Long id) {
+        return agentService.propertyAgents(id);
+    }
+
+    @PutMapping("/{id}/agents")
+    public List<PropertyAgentResponse> linkAgents(@PathVariable Long id, @RequestBody List<PropertyAgentLink> links) {
+        return agentService.linkAgents(id, links);
     }
 
     @PostMapping("/{id}/images")

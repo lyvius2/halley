@@ -71,6 +71,7 @@
                             <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
                             <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
                                         <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
+                                        <button class="btn btn-sm" @click="openAgentModal(detailItem)">중개인</button>
                                         <button class="btn btn-sm" @click="openEditProperty(detailItem)">수정</button>
                         </div>
                     </div>
@@ -604,6 +605,64 @@
                 <span x-text="editingUserId ? '저장' : '생성'"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D11 중개인 관리 모달 -->
+<div class="modal" x-show="showAgentModal" x-cloak>
+    <div class="modal-backdrop" @click="closeAgentModal()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">중개인</span>
+            <h3 x-text="agentProperty.property.name"></h3>
+            <p>이 매물을 담당하는 중개인을 연결합니다. 대표(1순위) 중개인은 1명입니다.</p>
+        </div>
+        <div class="card table-wrap">
+            <table>
+                <thead><tr><th>사무소</th><th>담당</th><th>연락처</th><th>대표</th><th></th></tr></thead>
+                <tbody>
+                <template x-if="agentLinks.length === 0">
+                    <tr><td colspan="5" class="empty-cell">연결된 중개인이 없습니다</td></tr>
+                </template>
+                <template x-for="a in agentLinks" :key="a.agentId">
+                    <tr>
+                        <td class="strong" x-text="a.officeName || '-'"></td>
+                        <td x-text="a.agentName || '-'"></td>
+                        <td x-text="a.phone || a.mobile || '-'"></td>
+                        <td><input type="radio" :checked="a.isPrimary" @change="setPrimaryAgent(a.agentId)"></td>
+                        <td><button class="btn-link danger" @click="unlinkAgent(a.agentId)">해제</button></td>
+                    </tr>
+                </template>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="form-grid" style="margin-top:14px;">
+            <label class="span2">기존 중개인 검색
+                <div class="workplace-search">
+                    <input type="text" x-model="agentQuery" placeholder="사무소/담당명 검색" @keyup.enter="searchAgents()">
+                    <button class="btn" @click="searchAgents()">검색</button>
+                </div>
+            </label>
+            <template x-if="agentResults.length > 0">
+                <div class="workplace-results span2">
+                    <template x-for="r in agentResults" :key="r.id">
+                        <button class="workplace-result" @click="addLinkedAgent(r.id)">
+                            <span x-text="(r.officeName || '-') + ' · ' + (r.agentName || '-')"></span>
+                            <small x-text="r.phone || r.mobile || ''"></small>
+                        </button>
+                    </template>
+                </div>
+            </template>
+            <label>사무소명 <input type="text" x-model="newAgentForm.officeName"></label>
+            <label>담당 <input type="text" x-model="newAgentForm.agentName"></label>
+            <label>전화 <input type="text" x-model="newAgentForm.phone"></label>
+            <label>휴대폰 <input type="text" x-model="newAgentForm.mobile"></label>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <div class="paste-actions">
+            <button class="btn" @click="createNewAgent()" :disabled="loading">새 중개인 등록 + 연결</button>
+        </div>
     </div>
 </div>
 
