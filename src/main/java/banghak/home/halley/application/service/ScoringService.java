@@ -8,11 +8,14 @@ import banghak.home.halley.adapter.outbound.persistence.CriterionRepository;
 import banghak.home.halley.adapter.outbound.persistence.CriterionWeightRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
+import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepository;
+import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
 import banghak.home.halley.domain.loan.LoanCalculator;
+import banghak.home.halley.domain.loan.RegulationParam;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
@@ -21,6 +24,7 @@ import banghak.home.halley.domain.scoring.CriterionWeight;
 import banghak.home.halley.domain.scoring.PropertyScore;
 import banghak.home.halley.domain.scoring.ScoreSource;
 import banghak.home.halley.domain.scoring.UserCriterionScore;
+import banghak.home.halley.domain.setting.SystemConfig;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.scoring.criterion.CriterionScorer;
 import banghak.home.halley.domain.scoring.criterion.ScoringContext;
@@ -57,9 +61,10 @@ public class ScoringService {
     private final UserCriterionScoreRepository userCriterionScoreRepository;
     private final PoiDataService poiDataService;
     private final CommuteDataService commuteDataService;
+    private final RegulationParamRepository regulationParamRepository;
+    private final SystemConfigRepository systemConfigRepository;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
-    private final LoanCalculator loanCalculator;
 
     public ScoringService(PropertyRepository propertyRepository,
                           UserRepository userRepository,
@@ -69,9 +74,10 @@ public class ScoringService {
                           UserCriterionScoreRepository userCriterionScoreRepository,
                           PoiDataService poiDataService,
                           CommuteDataService commuteDataService,
+                          RegulationParamRepository regulationParamRepository,
+                          SystemConfigRepository systemConfigRepository,
                           ScoringEngine scoringEngine,
-                          List<CriterionScorer> scorers,
-                          LoanCalculator loanCalculator) {
+                          List<CriterionScorer> scorers) {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.criterionRepository = criterionRepository;
@@ -80,9 +86,10 @@ public class ScoringService {
         this.userCriterionScoreRepository = userCriterionScoreRepository;
         this.poiDataService = poiDataService;
         this.commuteDataService = commuteDataService;
+        this.regulationParamRepository = regulationParamRepository;
+        this.systemConfigRepository = systemConfigRepository;
         this.scoringEngine = scoringEngine;
         this.scorers = scorers;
-        this.loanCalculator = loanCalculator;
     }
 
     public List<ScoredPropertyResponse> list(DealType dealType) {
@@ -246,8 +253,46 @@ public class ScoringService {
                 .toList();
         final List<NearbyFacility> nearbyFacilities = poiDataService.ensureNearby(property);
         final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, activeUsers);
-        return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loanCalculator,
+        return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loadLoanCalculator(),
                 nearbyFacilities, commuteMinutes);
+    }
+
+    @Transactional
+    public void rescoreAll() {
+        for (final Property property : propertyRepository.findAll()) {
+            rescore(property);
+        }
+    }
+
+    /**
+     * 규제 파라미터(regulation_param)에서 LTV·상한을 읽어 채점용 LoanCalculator를 구성한다 (설계 I28).
+     */
+    private LoanCalculator loadLoanCalculator() {
+        final String profile = systemConfigRepository.findById("loan.regulation.profile")
+                .map(SystemConfig::configValue)
+                .filter(value -> value != null && !value.isBlank())
+                .orElse("2025-10-15");
+        final Map<String, String> values = regulationParamRepository.findByProfile(profile).stream()
+                .collect(Collectors.toMap(RegulationParam::paramKey, RegulationParam::paramValue));
+        final BigDecimal ltv = decimal(values, "ltv.rate", new BigDecimal("0.4"));
+        final long cap = longValue(values, "ltv.totalCap", 1_000_000_000L);
+        return new LoanCalculator(ltv, cap);
+    }
+
+    private static BigDecimal decimal(Map<String, String> values, String key, BigDecimal fallback) {
+        try {
+            return values.containsKey(key) ? new BigDecimal(values.get(key)) : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
+    }
+
+    private static long longValue(Map<String, String> values, String key, long fallback) {
+        try {
+            return values.containsKey(key) ? Long.parseLong(values.get(key)) : fallback;
+        } catch (NumberFormatException e) {
+            return fallback;
+        }
     }
 
     private List<CriterionScorer> orderedScorers() {

@@ -76,6 +76,7 @@ class CommuteDataServiceTest {
         userService.create(new CreateUserRequest(
                 "직장인", "worker@example.com", "pw12345!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("126.9"), 0L));
+        stubConfig.calls.set(0); // 사용자 생성 시 rescoreAll 호출분 제외
         final User user = userRepository.findByEmail("worker@example.com").orElseThrow();
         final Property property = propertyWithCoords();
 
@@ -95,6 +96,7 @@ class CommuteDataServiceTest {
         // given
         userService.create(new CreateUserRequest(
                 "무직장", "no-worker@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+        stubConfig.calls.set(0); // 사용자 생성 시 rescoreAll 호출분 제외
         final User user = userRepository.findByEmail("no-worker@example.com").orElseThrow();
         final Property property = propertyWithCoords();
 

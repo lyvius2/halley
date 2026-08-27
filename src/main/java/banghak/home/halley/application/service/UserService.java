@@ -33,10 +33,13 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ScoringService scoringService;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+                       ScoringService scoringService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.scoringService = scoringService;
     }
 
     public List<UserResponse> list() {
@@ -85,6 +88,7 @@ public class UserService {
                 request.availableBudget() == null ? 0L : request.availableBudget(),
                 true,
                 null, null, null));
+        scoringService.rescoreAll();
         return toResponse(saved);
     }
 
@@ -109,6 +113,10 @@ public class UserService {
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
                 user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
+        final long newBudget = request.availableBudget() == null ? user.availableBudget() : request.availableBudget();
+        if (newBudget != user.availableBudget()) {
+            scoringService.rescoreAll();
+        }
         return toResponse(updated);
     }
 
@@ -141,6 +149,9 @@ public class UserService {
                 enabled ? null : now,
                 enabled ? null : currentAdminId(),
                 user.createdAt()));
+        if (enabled != user.enabled()) {
+            scoringService.rescoreAll();
+        }
         return toResponse(updated);
     }
 
