@@ -34,7 +34,7 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("heatingType").value()).isEqualTo("지역난방");
         assertThat(parsed.field("subway").value()).isEqualTo("독립문역 7분");
         assertThat(parsed.field("subwayMinutes").value()).isEqualTo(7);
-        assertThat(parsed.field("school").value()).isEqualTo("독립문초등학교 5분");
+        assertThat(parsed.field("school").value()).isEqualTo("독립문초등학교");
         assertThat(parsed.field("schoolMinutes").value()).isEqualTo(5);
         assertThat(String.valueOf(parsed.field("areaExclusiveM2").value())).isEqualTo("84.98");
         assertThat(parsed.field("floor").value()).isEqualTo("12/24");
@@ -119,6 +119,7 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("totalHouseholds").value()).isEqualTo(580);
         assertThat(String.valueOf(parsed.field("parkingPerHousehold").value())).isEqualTo("1.17");
         assertThat(parsed.field("subwayMinutes").value()).isEqualTo(5);
+        assertThat(parsed.field("school").value()).isEqualTo("서울석관초등학교");
         assertThat(parsed.field("schoolMinutes").value()).isEqualTo(7);
         assertThat(parsed.field("naverArticleNo").value()).isEqualTo("2645869065");
     }

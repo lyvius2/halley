@@ -12,6 +12,7 @@ import banghak.home.halley.ingest.parser.extractor.MonthlyRentExtractor;
 import banghak.home.halley.ingest.parser.extractor.MoveInExtractor;
 import banghak.home.halley.ingest.parser.extractor.NameExtractor;
 import banghak.home.halley.ingest.parser.extractor.ParkingExtractor;
+import banghak.home.halley.ingest.parser.extractor.SchoolExtractor;
 import banghak.home.halley.ingest.parser.extractor.WalkMinutesExtractor;
 import banghak.home.halley.ingest.parser.extractor.WonValueExtractor;
 
@@ -46,7 +47,7 @@ public class NaverListingTextParser {
                 new LabelValueExtractor("addressJibun", "지번주소", "위치"),
                 new LabelValueExtractor("subway", "지하철"),
                 new WalkMinutesExtractor("subwayMinutes", "지하철"),
-                new LabelValueExtractor("school", "배정 초등학교", "초등학교"),
+                new SchoolExtractor("school", "배정 초등학교", "초등학교"),
                 new WalkMinutesExtractor("schoolMinutes", "배정 초등학교", "초등학교"),
                 new ApprovalYearExtractor("approvalYear", "사용승인일"),
                 new IntegerValueExtractor("totalHouseholds", "세대수"),
