@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
+@Transactional
 class PropertyServiceTest {
 
     @Autowired
@@ -136,6 +138,23 @@ class PropertyServiceTest {
 
         // then
         assertThat(ex.getCode()).isEqualTo("CONCURRENT_EDIT");
+    }
+
+    @Test
+    @DisplayName("DRAFT 매물을 수정하면 정식(is_draft=false)으로 승격된다")
+    void updatePromotesDraft() {
+        // given
+        final PropertyResponse draft = propertyService.createDraft(
+                new CreateDraftRequest("https://fin.land.naver.com/articles/99", "초안"));
+        assertThat(draft.isDraft()).isTrue();
+
+        // when
+        final PropertyResponse promoted = propertyService.update(
+                draft.id(), request("정식", DealType.SALE, 400_000_000L), null);
+
+        // then
+        assertThat(promoted.isDraft()).isFalse();
+        assertThat(propertyRepository.findById(draft.id()).orElseThrow().isDraft()).isFalse();
     }
 
     @Test

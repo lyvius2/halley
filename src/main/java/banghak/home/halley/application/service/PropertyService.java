@@ -158,7 +158,7 @@ public class PropertyService {
                 existing.rawPasteText(),
                 existing.parserVersion(),
                 existing.parseConfidence(),
-                existing.isDraft(),
+                false,
                 existing.listingStatus(),
                 existing.active(),
                 existing.lastCheckedAt(),

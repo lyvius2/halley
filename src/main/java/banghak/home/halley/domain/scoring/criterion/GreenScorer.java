@@ -17,7 +17,7 @@ public class GreenScorer implements CriterionScorer {
 
     @Override
     public ScoringType type() {
-        return ScoringType.AUTO;
+        return ScoringType.HYBRID;
     }
 
     @Override

@@ -17,7 +17,7 @@ public class EducationScorer implements CriterionScorer {
 
     @Override
     public ScoringType type() {
-        return ScoringType.AUTO;
+        return ScoringType.HYBRID;
     }
 
     @Override

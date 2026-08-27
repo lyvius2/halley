@@ -108,6 +108,8 @@ function halley() {
         _pasteTimer: null,
         showDraftModal: false,
         draftForm: { sourceUrl: '', memo: '' },
+        pasteDraftId: null,
+        pasteDraftName: null,
         showScoreModal: false,
         scoreProperty: null,
         scoreForm: {},
@@ -990,8 +992,10 @@ function halley() {
             }
         },
 
-        openPasteModal() {
+        openPasteModal(item) {
             this.closeAddMenu();
+            this.pasteDraftId = item ? item.property.id : null;
+            this.pasteDraftName = item ? item.property.name : null;
             this.showPasteModal = true;
             this.pasteText = '';
             this.pastePreview = null;
@@ -1011,6 +1015,8 @@ function halley() {
             this.pastePreview = null;
             this.pasteForm = {};
             this.pasteError = null;
+            this.pasteDraftId = null;
+            this.pasteDraftName = null;
             clearTimeout(this._pasteTimer);
         },
 
@@ -1049,8 +1055,10 @@ function halley() {
             this.pasteParsing = true;
             this.pasteError = null;
             try {
-                const { ok, body } = await this.request('/api/properties', {
-                    method: 'POST',
+                const url = this.pasteDraftId ? `/api/properties/${this.pasteDraftId}` : '/api/properties';
+                const method = this.pasteDraftId ? 'PUT' : 'POST';
+                const { ok, body } = await this.request(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(this.buildPasteRequest())
                 });
@@ -1059,6 +1067,8 @@ function halley() {
                     this.pasteText = '';
                     this.pastePreview = null;
                     this.pasteForm = {};
+                    this.pasteDraftId = null;
+                    this.pasteDraftName = null;
                     await this.loadProperties();
                 } else {
                     this.pasteError = (body && body.message) || '등록에 실패했습니다';
@@ -1241,6 +1251,13 @@ function halley() {
             this.scoreProperty = null;
             this.scoreForm = {};
             this.error = null;
+        },
+
+        confirmHybridScore(code) {
+            const score = (this.scoreProperty.scores || []).find(s => s.code === code);
+            if (score && score.effectiveScore != null) {
+                this.scoreForm[code] = String(score.effectiveScore);
+            }
         },
 
         async saveScore() {

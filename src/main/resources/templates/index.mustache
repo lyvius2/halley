@@ -122,6 +122,7 @@
                                     </div>
                                     <div class="property-card-actions" @click.stop>
                                         <button class="btn-link" @click="openDetail(r)">상세</button>
+                                        <button class="btn-link" x-show="r.property.isDraft" @click="openPasteModal(r)">완성</button>
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
@@ -148,8 +149,8 @@
                                         <td class="num drag-handle" x-text="i + 1"></td>
                                         <td class="strong" x-text="w.name"></td>
                                         <td>
-                                            <span class="badge" :class="w.scoringType==='AUTO' ? 'b-mem' : 'b-admin'"
-                                                  x-text="w.scoringType==='AUTO' ? '자동' : '수동'"></span>
+                                            <span class="badge" :class="w.scoringType==='AUTO' ? 'b-mem' : (w.scoringType==='HYBRID' ? 'b-jeonse' : 'b-admin')"
+                                                  x-text="w.scoringType==='AUTO' ? '자동' : (w.scoringType==='HYBRID' ? '추정' : '수동')"></span>
                                         </td>
                                         <td class="num" x-text="w.weight"></td>
                                         <td>
@@ -483,8 +484,9 @@
     <div class="modal-card modal-wide modal-tall">
         <div class="modal-head">
             <span class="modal-kicker">붙여넣기 등록</span>
-            <h3 x-text="pastePreview ? '파싱 프리뷰' : '네이버 매물 상세 붙여넣기'"></h3>
-            <p>네이버 부동산 매물 상세에서 전체 선택 → 복사 → 여기에 붙여넣으세요.</p>
+            <h3 x-text="pastePreview ? '파싱 프리뷰' : (pasteDraftId ? 'DRAFT 완성하기' : '네이버 매물 상세 붙여넣기')"></h3>
+            <p x-show="pasteDraftId">'<b x-text="pasteDraftName"></b>' 작성 중 매물을 텍스트로 완성합니다.</p>
+            <p x-show="!pasteDraftId">네이버 부동산 매물 상세에서 전체 선택 → 복사 → 여기에 붙여넣으세요.</p>
         </div>
         <template x-if="!pastePreview">
             <div class="paste-step">
@@ -818,7 +820,9 @@
                     <span class="score-name">
                         <b x-text="s.name"></b>
                         <span class="score-source" x-text="scoreSourceLabel(s.scoreSource)"></span>
+                        <span class="score-source" x-show="s.scoringType==='HYBRID'">추정</span>
                     </span>
+                    <button class="btn-link" x-show="s.scoringType==='HYBRID'" @click="confirmHybridScore(s.code)">추정값 확정</button>
                     <span class="score-auto" x-text="'유효 ' + fmtScore(s.effectiveScore)"></span>
                     <input type="number" x-model="scoreForm[s.code]"
                            :min="s.code === 'COMFORT' ? 1 : 0"

@@ -217,6 +217,7 @@ public class ScoringService {
             views.add(new CriterionScoreView(
                     s.criterionCode(),
                     criterion == null ? s.criterionCode() : criterion.name(),
+                    criterion == null ? null : criterion.scoringType(),
                     s.autoScore(),
                     s.manualScore(),
                     s.effectiveScore(),
@@ -237,6 +238,7 @@ public class ScoringService {
                 .map(c -> new CriterionScoreView(
                         c.code(),
                         criteria.containsKey(c.code()) ? criteria.get(c.code()).name() : c.code(),
+                        criteria.get(c.code()) == null ? null : criteria.get(c.code()).scoringType(),
                         c.autoScore(),
                         c.manualScore(),
                         c.effectiveScore(),
