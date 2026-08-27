@@ -40,6 +40,7 @@ function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
         view: 'list',
+        mobileTab: 'map',
         dealTypeFilter: 'ALL',
         properties: [],
         visibleProperties: [],
@@ -115,7 +116,19 @@ function halley() {
         loading: false,
 
         async init() {
+            window.addEventListener('resize', () => {
+                if (this.map) {
+                    this.map.relayout();
+                }
+            });
             await this.checkSession();
+        },
+
+        setMobileTab(tab) {
+            this.mobileTab = tab;
+            if (tab === 'map') {
+                this.renderMap();
+            }
         },
 
         async request(url, options) {

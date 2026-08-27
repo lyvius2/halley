@@ -35,7 +35,11 @@
         </div>
     </div>
 
-    <main class="main-grid">
+    <main class="main-grid" :class="mobileTab">
+        <div class="mobile-tabs">
+            <button :class="{on: mobileTab==='map'}" @click="setMobileTab('map')">지도</button>
+            <button :class="{on: mobileTab==='list'}" @click="setMobileTab('list')">리스트</button>
+        </div>
         <section class="map-panel">
             <div id="map" class="map-canvas"></div>
             <div class="map-empty" x-show="!session.authenticated || session.mustChangePassword">
