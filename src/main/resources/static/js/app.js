@@ -1546,6 +1546,7 @@ function halley() {
 
         renderMap() {
             if (typeof kakao === 'undefined' || !kakao.maps) {
+                setTimeout(() => this.renderMap(), 300);
                 return;
             }
             kakao.maps.load(() => {
