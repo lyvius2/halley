@@ -45,7 +45,7 @@ class LoanEstimateServiceTest {
         assertThat(result.ltvLimit()).isEqualTo(320_000_000L);
         assertThat(result.finalLimit()).isLessThanOrEqualTo(result.ltvLimit());
         assertThat(result.requiredCash()).isEqualTo(800_000_000L - result.finalLimit());
-        assertThat(result.acquisitionTax()).isEqualTo(4_000_000L);
+        assertThat(result.acquisitionTax()).isEqualTo(9_333_333L);
         assertThat(loanEstimateRepository.findByPropertyId(property.id())).isNotEmpty();
 
         // history
