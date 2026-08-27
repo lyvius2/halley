@@ -11,7 +11,8 @@ import java.util.regex.Pattern;
 
 public class ParkingExtractor implements FieldExtractor<BigDecimal> {
 
-    private static final Pattern PER_HOUSEHOLD = Pattern.compile("([\\d.]+)\\s*대");
+    private static final Pattern PER_HOUSEHOLD = Pattern.compile("세대당\\s*([\\d.]+)\\s*대");
+    private static final Pattern ANY_RATIO = Pattern.compile("([\\d.]+)\\s*대");
 
     @Override
     public String key() {
@@ -24,10 +25,14 @@ public class ParkingExtractor implements FieldExtractor<BigDecimal> {
         if (value.isEmpty()) {
             return ParseResult.missing();
         }
-        final Matcher matcher = PER_HOUSEHOLD.matcher(value.get());
-        if (!matcher.find()) {
-            return ParseResult.missing();
+        final Matcher per = PER_HOUSEHOLD.matcher(value.get());
+        final Matcher fallback = ANY_RATIO.matcher(value.get());
+        if (per.find()) {
+            return ParseResult.of(new BigDecimal(per.group(1)), "주차: " + value.get());
         }
-        return ParseResult.of(new BigDecimal(matcher.group(1)), "주차: " + value.get());
+        if (fallback.find()) {
+            return ParseResult.of(new BigDecimal(fallback.group(1)), "주차: " + value.get());
+        }
+        return ParseResult.missing();
     }
 }

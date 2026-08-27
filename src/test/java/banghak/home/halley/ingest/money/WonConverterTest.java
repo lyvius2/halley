@@ -11,6 +11,7 @@ class WonConverterTest {
     @DisplayName("억/만/원 조합을 원 단위로 변환한다")
     void toWon() {
         assertThat(WonConverter.toWon("15억")).isEqualTo(1_500_000_000L);
+        assertThat(WonConverter.toWon("10억원")).isEqualTo(1_000_000_000L);
         assertThat(WonConverter.toWon("13억 5,000만원")).isEqualTo(1_350_000_000L);
         assertThat(WonConverter.toWon("4,950만원")).isEqualTo(49_500_000L);
         assertThat(WonConverter.toWon("17만 4,081원")).isEqualTo(174_081L);

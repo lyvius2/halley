@@ -1223,11 +1223,15 @@ function halley() {
 
         fieldLabel(key) {
             return {
-                name: '단지명', naverArticleNo: '매물번호', dealType: '거래유형',
+                name: '단지명', naverArticleNo: '매물번호', dongHo: '동/호', dealType: '거래유형',
                 priceDeposit: '매매가/보증금', priceMonthly: '월세', kbPrice: 'KB시세',
+                maintenanceFee: '관리비',
                 areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
-                direction: '향', addressJibun: '지번주소', approvalYear: '사용승인년도',
-                totalHouseholds: '세대수', parkingPerHousehold: '주차(세대당)', moveIn: '입주가능일'
+                roomBath: '방/욕실', direction: '향', heatingType: '난방',
+                addressJibun: '지번주소', approvalYear: '사용승인년도',
+                totalHouseholds: '세대수', parkingPerHousehold: '주차(세대당)', moveIn: '입주가능일',
+                subway: '지하철', subwayMinutes: '역 도보(분)',
+                school: '배정 초등학교', schoolMinutes: '학교 도보(분)'
             }[key] || key;
         },
 

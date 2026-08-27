@@ -6,7 +6,7 @@ import banghak.home.halley.ingest.parser.TextDocument;
 
 public class DealTypeExtractor implements FieldExtractor<String> {
 
-    private static final String DEAL_TYPE_PATTERN = "(?m)^\\s*(매매|전세|월세)\\s*$";
+    private static final String DEAL_TYPE_PATTERN = "(?m)^\\s*(매매|전세|월세)(?:\\s|$)";
 
     @Override
     public String key() {

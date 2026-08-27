@@ -6,7 +6,7 @@ import java.util.regex.Pattern;
 public final class WonConverter {
 
     private static final Pattern WON = Pattern.compile(
-            "^\\s*(?:(\\d+)\\s*억)?\\s*(?:([\\d,]+)\\s*만(?:원)?)?\\s*(?:([\\d,]+)\\s*원)?\\s*$");
+            "^\\s*(?:(\\d+)\\s*억(?:원)?)?\\s*(?:([\\d,]+)\\s*만(?:원)?)?\\s*(?:([\\d,]+)\\s*원)?\\s*$");
 
     private WonConverter() {
     }

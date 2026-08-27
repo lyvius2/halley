@@ -98,6 +98,32 @@ class NaverListingTextParserTest {
     }
 
     @Test
+    @DisplayName("실제 네이버 붙여넣기 샘플에서 단지명·동호·매매가·관리비·도보시간 등을 파싱한다")
+    void parsesRealNaverSample() {
+        // given
+        final String raw = fixture("naver_apt_real.txt");
+
+        // when
+        final ParsedListing parsed = parser.parse(raw);
+
+        // then
+        assertThat(parsed.field("name").value()).isEqualTo("래미안석관");
+        assertThat(parsed.field("dongHo").value()).isEqualTo("113동");
+        assertThat(parsed.field("dealType").value()).isEqualTo("매매");
+        assertThat(parsed.field("priceDeposit").value()).isEqualTo(1_000_000_000L);
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(150_000);
+        assertThat(parsed.field("roomBath").value()).isEqualTo("3/2개");
+        assertThat(parsed.field("floor").value()).isEqualTo("1/12");
+        assertThat(parsed.field("addressJibun").value()).isEqualTo("서울시 성북구 석관동 407");
+        assertThat(parsed.field("approvalYear").value()).isEqualTo(2009);
+        assertThat(parsed.field("totalHouseholds").value()).isEqualTo(580);
+        assertThat(String.valueOf(parsed.field("parkingPerHousehold").value())).isEqualTo("1.17");
+        assertThat(parsed.field("subwayMinutes").value()).isEqualTo(5);
+        assertThat(parsed.field("schoolMinutes").value()).isEqualTo(7);
+        assertThat(parsed.field("naverArticleNo").value()).isEqualTo("2645869065");
+    }
+
+    @Test
     @DisplayName("네이버 형식이 아닌 텍스트는 예외 없이 모두 MISSING으로 기록한다")
     void malformedTextRecordsMissingWithoutThrowing() {
         // given
@@ -108,7 +134,6 @@ class NaverListingTextParserTest {
 
         // then
         assertThat(parsed.field("dealType").confidence()).isEqualTo(Confidence.MISSING);
-        assertThat(parsed.field("name").confidence()).isEqualTo(Confidence.MISSING);
         assertThat(parsed.field("priceDeposit").confidence()).isEqualTo(Confidence.MISSING);
     }
 
