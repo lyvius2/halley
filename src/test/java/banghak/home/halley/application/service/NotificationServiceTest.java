@@ -32,12 +32,17 @@ class NotificationServiceTest {
     @TestConfiguration
     static class StubConfig {
 
+        final java.util.concurrent.atomic.AtomicBoolean fail = new java.util.concurrent.atomic.AtomicBoolean(false);
+
         @Bean
         @Primary
         SlackPort slackPort() {
-            return text -> true;
+            return text -> !fail.get();
         }
     }
+
+    @Autowired
+    private StubConfig stubConfig;
 
     @Autowired
     private NotificationService notificationService;
@@ -59,6 +64,7 @@ class NotificationServiceTest {
 
     @BeforeEach
     void enableSlack() {
+        stubConfig.fail.set(false);
         slackProperties.setEnabled(true);
         slackProperties.setNotifyPropertyCreated(true);
         slackProperties.setWebhookUrl("https://hooks.slack.com/services/T");
@@ -107,6 +113,42 @@ class NotificationServiceTest {
         // then
         assertThat(notificationLogRepository.findById(retrying.id()).orElseThrow().status())
                 .isEqualTo(NotificationStatus.SENT);
+    }
+
+    @Test
+    @DisplayName("재시도 실패는 retryCount를 올리고 3회 미만이면 RETRYING을 유지한다")
+    void retryFailureKeepsRetrying() {
+        // given
+        stubConfig.fail.set(true);
+        final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
+                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                NotificationStatus.RETRYING, 0, null, objectMapper.createObjectNode(), null, null));
+
+        // when
+        notificationService.resendRetrying();
+
+        // then
+        final NotificationLog after = notificationLogRepository.findById(retrying.id()).orElseThrow();
+        assertThat(after.status()).isEqualTo(NotificationStatus.RETRYING);
+        assertThat(after.retryCount()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("재시도 3회 이상 실패하면 FAILED로 확정된다")
+    void retryExhaustedMarksFailed() {
+        // given
+        stubConfig.fail.set(true);
+        final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
+                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                NotificationStatus.RETRYING, 2, null, objectMapper.createObjectNode(), null, null));
+
+        // when
+        notificationService.resendRetrying();
+
+        // then
+        final NotificationLog after = notificationLogRepository.findById(retrying.id()).orElseThrow();
+        assertThat(after.status()).isEqualTo(NotificationStatus.FAILED);
+        assertThat(after.retryCount()).isEqualTo(3);
     }
 
     private PropertyRequest request(String name) {

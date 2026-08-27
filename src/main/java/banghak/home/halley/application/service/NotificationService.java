@@ -118,7 +118,7 @@ public class NotificationService {
             if (sent) {
                 notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
             } else {
-                notificationLogRepository.updateStatus(log.id(), NotificationStatus.FAILED, "Slack 전송 실패", null);
+                notificationLogRepository.markRetry(log.id(), log.retryCount() + 1, "Slack 전송 실패");
             }
         }
     }
@@ -144,7 +144,7 @@ public class NotificationService {
         if (sent) {
             notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
         } else {
-            notificationLogRepository.updateStatus(log.id(), NotificationStatus.FAILED, "Slack 전송 실패", null);
+            notificationLogRepository.markRetry(log.id(), log.retryCount(), "Slack 전송 실패");
         }
     }
 
