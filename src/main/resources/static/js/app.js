@@ -101,6 +101,8 @@ function halley() {
         showPassword: false,
         showPropertyForm: false,
         propertyForm: emptyPropertyForm(),
+        propertyQuery: '',
+        propertyAddrResults: [],
         showAddMenu: false,
         showPasteModal: false,
         pasteText: '',
@@ -1029,6 +1031,8 @@ function halley() {
 
         openAddProperty() {
             this.propertyForm = emptyPropertyForm();
+            this.propertyQuery = '';
+            this.propertyAddrResults = [];
             this.error = null;
             this.showPropertyForm = true;
         },
@@ -1264,8 +1268,28 @@ function halley() {
                 moveInDate: p.moveInDate || '',
                 editVersion: p.editVersion ?? null
             };
+            this.propertyQuery = '';
+            this.propertyAddrResults = [];
             this.error = null;
             this.showPropertyForm = true;
+        },
+
+        async searchPropertyAddress() {
+            const query = this.propertyQuery;
+            if (!query || !query.trim()) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
+            this.propertyAddrResults = ok ? (body || []) : [];
+        },
+
+        selectPropertyAddress(r) {
+            this.propertyForm.addressRoad = r.roadAddressName || r.addressName || '';
+            this.propertyForm.addressJibun = r.addressName || '';
+            this.propertyForm.lat = r.lat != null ? String(r.lat) : '';
+            this.propertyForm.lng = r.lng != null ? String(r.lng) : '';
+            this.propertyQuery = r.addressName || '';
+            this.propertyAddrResults = [];
         },
 
         closePropertyForm() {

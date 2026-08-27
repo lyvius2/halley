@@ -768,6 +768,22 @@
                 <label>관리비 (원/월)
                     <input type="number" min="0" x-model="propertyForm.maintenanceFee" placeholder="0">
                 </label>
+                <label class="span2">주소로 좌표 검색
+                    <div class="workplace-search">
+                        <input type="text" x-model="propertyQuery" placeholder="예: 서울 성북구 석관동 407" @keyup.enter="searchPropertyAddress()">
+                        <button class="btn" type="button" @click="searchPropertyAddress()">검색</button>
+                    </div>
+                </label>
+                <template x-if="propertyAddrResults.length > 0">
+                    <div class="workplace-results span2">
+                        <template x-for="(r, i) in propertyAddrResults" :key="i">
+                            <button class="workplace-result" type="button" @click="selectPropertyAddress(r)">
+                                <span x-text="r.addressName"></span>
+                                <small x-text="r.roadAddressName"></small>
+                            </button>
+                        </template>
+                    </div>
+                </template>
                 <label class="span2">도로명주소
                     <input type="text" x-model="propertyForm.addressRoad" placeholder="서울시 ...">
                 </label>
