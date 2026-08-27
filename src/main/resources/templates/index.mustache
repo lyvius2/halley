@@ -226,8 +226,8 @@
 
                         <template x-if="itinPlan">
                             <div class="itin-result card">
-                                <p class="itin-total">총 이동 <b x-text="itinPlan.totalMinutes + '분'"></b> · <b x-text="itinPlan.stops.length + '곳'"></b></p>
-                                <template x-for="s in itinPlan.stops" :key="s.id">
+                                <p class="itin-total">총 이동 <b x-text="(itinPlan?.totalMinutes ?? 0) + '분'"></b> · <b x-text="(itinPlan?.stops?.length ?? 0) + '곳'"></b></p>
+                                <template x-for="s in (itinPlan?.stops || [])" :key="s.id">
                                     <label class="itin-stop" :class="{done: s.visited}">
                                         <span class="itin-num" x-text="s.stopOrder + 1"></span>
                                         <span class="itin-time" x-text="s.estimatedArrival"></span>
@@ -286,8 +286,9 @@
                                 <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
                             </div>
                         </template>
-                        <div class="card profile-panel" style="margin-top:14px;">
-                            <h4 class="profile-title">직장 위치 지정</h4>
+                         <template x-if="profile">
+                         <div class="card profile-panel" style="margin-top:14px;">
+                             <h4 class="profile-title">직장 위치 지정</h4>
                             <div class="form-grid">
                                 <label class="span2">주소 검색
                                     <div class="workplace-search">
@@ -318,6 +319,7 @@
                             <p class="form-error" x-show="error" x-text="error"></p>
                             <button class="btn btn-primary" @click="saveWorkplace()" :disabled="loading">직장 위치 저장</button>
                         </div>
+                        </template>
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">비밀번호 변경</h4>
                             <button class="btn" @click="openChangePw()">비밀번호 변경</button>
@@ -622,7 +624,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">중개인</span>
-            <h3 x-text="agentProperty.property.name"></h3>
+            <h3 x-text="agentProperty?.property?.name"></h3>
             <p>이 매물을 담당하는 중개인을 연결합니다. 대표(1순위) 중개인은 1명입니다.</p>
         </div>
         <div class="card table-wrap">
@@ -680,7 +682,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">사진</span>
-            <h3 x-text="photoProperty.property.name"></h3>
+            <h3 x-text="photoProperty?.property?.name"></h3>
             <p>도면 1장 + 실사 N장. 업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
         </div>
         <div class="form-grid">
@@ -726,8 +728,8 @@
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">확인</span>
-            <h3 x-text="confirmState.title"></h3>
-            <p x-text="confirmState.message"></p>
+            <h3 x-text="confirmState?.title"></h3>
+            <p x-text="confirmState?.message"></p>
         </div>
         <div class="paste-actions">
             <button class="btn btn-ghost" @click="confirmNo()">취소</button>
@@ -825,11 +827,11 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">평가 채점</span>
-            <h3 x-text="scoreProperty.property.name"></h3>
+            <h3 x-text="scoreProperty?.property?.name"></h3>
             <p>항목별 수동 점수를 입력하면 자동 점수를 덮어씁니다. 쾌적함은 사용자별 1~5로 평가합니다.</p>
         </div>
         <div class="score-list">
-            <template x-for="s in scoreProperty.scores" :key="s.code">
+            <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
                 <label class="score-row">
                     <span class="score-name">
                         <b x-text="s.name"></b>
@@ -858,7 +860,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">최근 실거래</span>
-            <h3 x-text="refProperty.property.name"></h3>
+            <h3 x-text="refProperty?.property?.name"></h3>
             <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
         </div>
         <div class="form-grid">
@@ -899,7 +901,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">대출 한도</span>
-            <h3 x-text="loanProperty.property.name"></h3>
+            <h3 x-text="loanProperty?.property?.name"></h3>
             <p>LTV·DSR 기반 자체 계산입니다. 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
         <form class="form" @submit.prevent="runLoanEstimate()">
@@ -939,7 +941,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">점검 이력</span>
-            <h3 x-text="checkLogProperty.property.name"></h3>
+            <h3 x-text="checkLogProperty?.property?.name"></h3>
             <p>생존 확인 배치의 판정 기록입니다.</p>
         </div>
         <div class="card table-wrap">
@@ -962,7 +964,7 @@
         </div>
         <div class="paste-actions">
             <button class="btn btn-ghost" @click="closeCheckLogs()">닫기</button>
-            <button class="btn btn-primary" x-show="checkLogProperty.property.listingStatus==='SOLD_OUT'"
+            <button class="btn btn-primary" x-show="checkLogProperty?.property?.listingStatus==='SOLD_OUT'"
                     @click="restoreListing(checkLogProperty)">판매중으로 복구</button>
         </div>
     </div>
@@ -1007,10 +1009,10 @@
     </div>
     <div class="rv-top" x-show="roadviewProperty">
         <div class="rv-info">
-            <span class="rv-name" x-text="roadviewProperty.name"></span>
+            <span class="rv-name" x-text="roadviewProperty?.name"></span>
             <span class="rv-meta">
-                <span class="badge" :class="dealBadge(roadviewProperty.dealType)" x-text="dealLabel(roadviewProperty.dealType)"></span>
-                <span x-text="fmtWon(roadviewProperty.priceDeposit)"></span>
+                <span class="badge" :class="roadviewProperty ? dealBadge(roadviewProperty.dealType) : ''" x-text="roadviewProperty ? dealLabel(roadviewProperty.dealType) : ''"></span>
+                <span x-text="roadviewProperty ? fmtWon(roadviewProperty.priceDeposit) : ''"></span>
             </span>
         </div>
         <button class="btn btn-ghost" @click="closeRoadview()">닫기</button>
