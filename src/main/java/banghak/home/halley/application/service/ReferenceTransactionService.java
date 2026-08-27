@@ -16,8 +16,11 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ReferenceTransactionService {
@@ -25,13 +28,16 @@ public class ReferenceTransactionService {
     private final PropertyRepository propertyRepository;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final MinistryReferencePort ministryReferencePort;
+    private final LegalDongCodeService legalDongCodeService;
 
     public ReferenceTransactionService(PropertyRepository propertyRepository,
                                        ReferenceTransactionRepository referenceTransactionRepository,
-                                       MinistryReferencePort ministryReferencePort) {
+                                       MinistryReferencePort ministryReferencePort,
+                                       LegalDongCodeService legalDongCodeService) {
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.ministryReferencePort = ministryReferencePort;
+        this.legalDongCodeService = legalDongCodeService;
     }
 
     public ReferenceCardResponse getReferences(Long propertyId, String legalDongCode, String dealMonth) {
@@ -42,12 +48,19 @@ public class ReferenceTransactionService {
         if (!cached.isEmpty()) {
             return toCard(property, cached);
         }
-        if (legalDongCode == null || legalDongCode.isBlank()
-                || dealMonth == null || dealMonth.isBlank()) {
+
+        // 법정동코드가 없으면 지번주소에서 역매핑, 계약년월이 없으면 현재 월 사용
+        final String lawdCd = blankToNull(legalDongCode) != null
+                ? legalDongCode
+                : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null);
+        final String month = blankToNull(dealMonth) != null
+                ? dealMonth
+                : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
+        if (lawdCd == null) {
             return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null);
         }
 
-        final List<ReferenceTrade> trades = ministryReferencePort.fetchTrades(legalDongCode, dealMonth);
+        final List<ReferenceTrade> trades = ministryReferencePort.fetchTrades(lawdCd, month);
         final List<ReferenceTransaction> saved = trades.stream()
                 .filter(trade -> matches(property, trade))
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -57,6 +70,10 @@ public class ReferenceTransactionService {
                         trade.dealAmount(), trade.floorNo(), ReferenceSource.MINISTRY_TRADE, Instant.now())))
                 .toList();
         return toCard(property, saved);
+    }
+
+    private String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     private boolean matches(Property property, ReferenceTrade trade) {

@@ -45,6 +45,13 @@ public class LegalDongCodeRepository {
                 .map(this::map);
     }
 
+    public Optional<LegalDongCode> findBySigunguAndDong(String sigungu, String dongName) {
+        return dsl.selectFrom(TABLE)
+                .where(SIGUNGU.eq(sigungu).and(DONG_NAME.eq(dongName)).and(IS_ACTIVE.eq(true)))
+                .fetchOptional()
+                .map(this::map);
+    }
+
     public void delete(String code) {
         dsl.deleteFrom(TABLE)
                 .where(CODE.eq(code))
