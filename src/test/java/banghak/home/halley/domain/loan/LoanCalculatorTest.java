@@ -36,6 +36,21 @@ class LoanCalculatorTest {
     }
 
     @Test
+    @DisplayName("취득세는 구간별 세율(6억↓1%, 9억↑3%)을 적용한다")
+    void acquisitionTaxBrackets() {
+        // given
+        final RegulationParams params = RegulationParams.defaults();
+
+        // when / then
+        assertThat(calculator.estimate(600_000_000L, 50_000_000L, 0L, false, params).acquisitionTax())
+                .isEqualTo(6_000_000L);
+        assertThat(calculator.estimate(1_000_000_000L, 50_000_000L, 0L, false, params).acquisitionTax())
+                .isEqualTo(30_000_000L);
+        final long middle = calculator.estimate(700_000_000L, 50_000_000L, 0L, false, params).acquisitionTax();
+        assertThat(middle).isBetween(6_000_000L, 30_000_000L);
+    }
+
+    @Test
     @DisplayName("생애최초는 취득세를 감면한다")
     void firstHomeDiscount() {
         // given

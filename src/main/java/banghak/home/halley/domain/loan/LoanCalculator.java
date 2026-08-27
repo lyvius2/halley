@@ -36,7 +36,7 @@ public final class LoanCalculator {
 
         final long finalLimit = Math.min(ltvLimit, dsrLimit);
         final long requiredCash = Math.max(0L, askingPrice - finalLimit);
-        final long acquisitionTax = (long) (askingPrice * params.acquisitionTaxRate().doubleValue()
+        final long acquisitionTax = (long) (askingPrice * acquisitionTaxRate(askingPrice)
                 * (firstHome ? (1 - params.firstHomeDiscount().doubleValue()) : 1.0));
 
         final double monthlyPayment = monthlyRate == 0.0
@@ -45,5 +45,18 @@ public final class LoanCalculator {
 
         return new LoanEstimateResult(
                 ltvLimit, dsrLimit, finalLimit, requiredCash, acquisitionTax, (long) monthlyPayment);
+    }
+
+    /**
+     * 취득세율 구간: 6억 이하 1%, 6~9억 1→3% 구간, 9억 초과 3%.
+     */
+    private double acquisitionTaxRate(long price) {
+        if (price <= 600_000_000L) {
+            return 0.01;
+        }
+        if (price <= 900_000_000L) {
+            return 0.01 + 0.02 * (price - 600_000_000L) / 300_000_000L;
+        }
+        return 0.03;
     }
 }
