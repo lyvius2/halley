@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
@@ -70,6 +71,12 @@ public class PropertyController {
     @PostMapping("/parse-preview")
     public ParsePreviewResponse parsePreview(@RequestBody ParsePreviewRequest request) {
         return parsePreviewService.preview(request.text());
+    }
+
+    @PostMapping("/draft")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PropertyResponse createDraft(@RequestBody CreateDraftRequest request) {
+        return propertyService.createDraft(request);
     }
 
     @GetMapping

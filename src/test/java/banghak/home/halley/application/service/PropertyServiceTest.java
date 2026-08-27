@@ -1,5 +1,6 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
@@ -104,6 +105,20 @@ class PropertyServiceTest {
         // then
         assertThat(logs).isEmpty();
         assertThat(recent).extracting(PropertyResponse::id).contains(created.id());
+    }
+
+    @Test
+    @DisplayName("DRAFT 빠른 저장은 is_draft=true로 원본 URL을 보존한다")
+    void createDraft() {
+        // when
+        final PropertyResponse draft = propertyService.createDraft(
+                new CreateDraftRequest("https://fin.land.naver.com/articles/123", "마포역 근처"));
+
+        // then
+        assertThat(draft.isDraft()).isTrue();
+        assertThat(draft.name()).isEqualTo("마포역 근처");
+        assertThat(propertyRepository.findById(draft.id()).orElseThrow().sourceUrl())
+                .isEqualTo("https://fin.land.naver.com/articles/123");
     }
 
     @Test

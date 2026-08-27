@@ -25,9 +25,15 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("name").value()).isEqualTo("독립문삼호");
         assertThat(parsed.field("naverArticleNo").value()).isEqualTo("A12345678");
         assertThat(parsed.field("dealType").value()).isEqualTo("매매");
+        assertThat(parsed.field("dongHo").value()).isEqualTo("101동 501호");
         assertThat(parsed.field("priceDeposit").value()).isEqualTo(1_500_000_000L);
         assertThat(parsed.field("kbPrice").value()).isEqualTo(1_350_000_000L);
         assertThat(parsed.field("priceMonthly").confidence()).isEqualTo(Confidence.MISSING);
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(300_000);
+        assertThat(parsed.field("roomBath").value()).isEqualTo("3/2");
+        assertThat(parsed.field("heatingType").value()).isEqualTo("지역난방");
+        assertThat(parsed.field("subway").value()).isEqualTo("독립문역 7분");
+        assertThat(parsed.field("school").value()).isEqualTo("독립문초등학교 5분");
         assertThat(String.valueOf(parsed.field("areaExclusiveM2").value())).isEqualTo("84.98");
         assertThat(parsed.field("floor").value()).isEqualTo("12/24");
         assertThat(parsed.field("approvalYear").value()).isEqualTo(2020);
@@ -49,6 +55,22 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("priceDeposit").value()).isEqualTo(400_000_000L);
         assertThat(parsed.field("moveIn").value()).isEqualTo("즉시입주");
         assertThat(parsed.field("moveIn").confidence()).isEqualTo(Confidence.EXACT);
+    }
+
+    @Test
+    @DisplayName("월세 오피스텔 샘플에서 보증금/월세 슬래시 표기를 파싱한다")
+    void parsesMonthlyOfficetelFixture() {
+        // given
+        final String raw = fixture("naver_officetel_monthly.txt");
+
+        // when
+        final ParsedListing parsed = parser.parse(raw);
+
+        // then
+        assertThat(parsed.field("dealType").value()).isEqualTo("월세");
+        assertThat(parsed.field("priceDeposit").value()).isEqualTo(50_000_000L);
+        assertThat(parsed.field("priceMonthly").value()).isEqualTo(800_000L);
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(100_000);
     }
 
     @Test

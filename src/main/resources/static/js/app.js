@@ -93,6 +93,8 @@ function halley() {
         pasteForm: {},
         pasteError: null,
         _pasteTimer: null,
+        showDraftModal: false,
+        draftForm: { sourceUrl: '', memo: '' },
         showScoreModal: false,
         scoreProperty: null,
         scoreForm: {},
@@ -771,6 +773,44 @@ function halley() {
         startManual() {
             this.closeAddMenu();
             this.openAddProperty();
+        },
+
+        openDraftModal() {
+            this.closeAddMenu();
+            this.draftForm = { sourceUrl: '', memo: '' };
+            this.error = null;
+            this.showDraftModal = true;
+        },
+
+        closeDraftModal() {
+            this.showDraftModal = false;
+            this.draftForm = { sourceUrl: '', memo: '' };
+            this.error = null;
+        },
+
+        async saveDraft() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/properties/draft', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        sourceUrl: this.draftForm.sourceUrl,
+                        memo: this.draftForm.memo
+                    })
+                });
+                if (ok) {
+                    this.closeDraftModal();
+                    await this.loadProperties();
+                } else {
+                    this.error = (body && body.message) || '저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         openPasteModal() {

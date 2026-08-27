@@ -1,8 +1,9 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
@@ -91,6 +92,24 @@ public class PropertyService {
                 currentUserId(),
                 Instant.now()));
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public PropertyResponse createDraft(CreateDraftRequest request) {
+        if (request.sourceUrl() == null || request.sourceUrl().isBlank()) {
+            throw new InvalidPropertyRequestException("원본 URL은 필수입니다");
+        }
+        final String name = request.memo() == null || request.memo().isBlank()
+                ? "작성 중" : request.memo().trim();
+        final Property saved = propertyRepository.save(new Property(
+                null, name, null, null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                SourceType.PASTE, request.sourceUrl(), null, null, null, null,
+                true, ListingStatus.ACTIVE, true,
+                null, 0, null, currentUserId(), Instant.now()));
         return toResponse(saved);
     }
 

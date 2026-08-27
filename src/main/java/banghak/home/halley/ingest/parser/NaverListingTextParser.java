@@ -6,6 +6,8 @@ import banghak.home.halley.ingest.parser.extractor.DealTypeExtractor;
 import banghak.home.halley.ingest.parser.extractor.FloorExtractor;
 import banghak.home.halley.ingest.parser.extractor.IntegerValueExtractor;
 import banghak.home.halley.ingest.parser.extractor.LabelValueExtractor;
+import banghak.home.halley.ingest.parser.extractor.MaintenanceFeeExtractor;
+import banghak.home.halley.ingest.parser.extractor.MonthlyRentExtractor;
 import banghak.home.halley.ingest.parser.extractor.MoveInExtractor;
 import banghak.home.halley.ingest.parser.extractor.ParkingExtractor;
 import banghak.home.halley.ingest.parser.extractor.WonValueExtractor;
@@ -26,15 +28,21 @@ public class NaverListingTextParser {
         return List.of(
                 new LabelValueExtractor("name", "단지명"),
                 new LabelValueExtractor("naverArticleNo", "매물번호"),
+                new LabelValueExtractor("dongHo", "동/호"),
                 new DealTypeExtractor(),
                 new WonValueExtractor("priceDeposit", true, "매매가", "보증금"),
-                new WonValueExtractor("priceMonthly", false, "월세"),
+                new MonthlyRentExtractor(),
                 new WonValueExtractor("kbPrice", false, "KB시세"),
+                new MaintenanceFeeExtractor(),
                 new AreaValueExtractor("areaSupplyM2", "공급면적"),
                 new AreaValueExtractor("areaExclusiveM2", "전용면적"),
                 new FloorExtractor(),
+                new LabelValueExtractor("roomBath", "방/욕실"),
                 new LabelValueExtractor("direction", "향"),
+                new LabelValueExtractor("heatingType", "난방"),
                 new LabelValueExtractor("addressJibun", "지번주소"),
+                new LabelValueExtractor("subway", "지하철"),
+                new LabelValueExtractor("school", "초등학교"),
                 new ApprovalYearExtractor("approvalYear", "사용승인일"),
                 new IntegerValueExtractor("totalHouseholds", "세대수"),
                 new ParkingExtractor(),

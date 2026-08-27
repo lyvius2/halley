@@ -105,6 +105,7 @@
                                     </div>
                                     <div class="property-card-meta">
                                         <span class="badge" :class="dealBadge(r.property.dealType)" x-text="dealLabel(r.property.dealType)"></span>
+                                        <span class="badge b-admin" x-show="r.property.isDraft">작성 중</span>
                                         <span class="badge b-off" x-show="r.property.listingStatus==='SOLD_OUT'">판매완료</span>
                                         <span x-text="r.property.addressRoad"></span>
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
@@ -440,7 +441,33 @@
                 <b>직접 입력</b>
                 <span>빈 폼에 직접 입력합니다.</span>
             </button>
+            <button class="add-choice" @click="openDraftModal()">
+                <b>빠른 저장</b>
+                <span>URL만 던져두고 나중에 완성합니다 (DRAFT).</span>
+            </button>
         </div>
+    </div>
+</div>
+
+<!-- DRAFT 빠른 저장 모달 -->
+<div class="modal" x-show="showDraftModal" x-cloak>
+    <div class="modal-backdrop" @click="closeDraftModal()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">빠른 저장</span>
+            <h3>DRAFT 등록</h3>
+            <p>네이버 매물 URL을 저장해 두고, 나중에 PC에서 붙여넣기로 완성합니다.</p>
+        </div>
+        <form class="form" @submit.prevent="saveDraft()">
+            <label>원본 URL
+                <input type="text" x-model="draftForm.sourceUrl" placeholder="https://fin.land.naver.com/articles/..." required>
+            </label>
+            <label>메모
+                <input type="text" x-model="draftForm.memo" placeholder="마포역 근처 3호선">
+            </label>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">저장</button>
+        </form>
     </div>
 </div>
 
