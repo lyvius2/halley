@@ -1,5 +1,6 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.outbound.persistence.LoanEstimateRepository;
@@ -21,6 +22,7 @@ import tools.jackson.databind.node.ObjectNode;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -69,6 +71,16 @@ public class LoanEstimateService {
         return new LoanEstimateResponse(
                 propertyId, result.ltvLimit(), result.dsrLimit(), result.finalLimit(),
                 result.requiredCash(), result.acquisitionTax(), result.monthlyPayment());
+    }
+
+    public List<LoanEstimateHistoryResponse> history(Long propertyId) {
+        propertyRepository.findById(propertyId)
+                .orElseThrow(NotFoundListingsException::new);
+        return loanEstimateRepository.findByPropertyId(propertyId).stream()
+                .map(e -> new LoanEstimateHistoryResponse(
+                        e.propertyId(), e.ltvLimit(), e.dsrLimit(), e.finalLimit(),
+                        e.requiredCash(), e.acquisitionTax(), e.computedAt()))
+                .toList();
     }
 
     private RegulationParams loadParams() {

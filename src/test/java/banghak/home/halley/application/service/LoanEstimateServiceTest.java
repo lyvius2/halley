@@ -1,5 +1,6 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
@@ -13,6 +14,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,6 +47,11 @@ class LoanEstimateServiceTest {
         assertThat(result.requiredCash()).isEqualTo(800_000_000L - result.finalLimit());
         assertThat(result.acquisitionTax()).isEqualTo(4_000_000L);
         assertThat(loanEstimateRepository.findByPropertyId(property.id())).isNotEmpty();
+
+        // history
+        final List<LoanEstimateHistoryResponse> history = loanEstimateService.history(property.id());
+        assertThat(history).hasSize(1);
+        assertThat(history.getFirst().finalLimit()).isEqualTo(result.finalLimit());
     }
 
     private PropertyRequest request(String name, Long priceDeposit) {
