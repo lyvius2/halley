@@ -9,7 +9,9 @@ import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.config.exception.ConcurrentEditException;
 import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
@@ -28,13 +30,16 @@ public class PropertyService {
 
     private final PropertyRepository propertyRepository;
     private final ListingCheckLogRepository listingCheckLogRepository;
+    private final EditVersionStore editVersionStore;
     private final ApplicationEventPublisher eventPublisher;
 
     public PropertyService(PropertyRepository propertyRepository,
                            ListingCheckLogRepository listingCheckLogRepository,
+                           EditVersionStore editVersionStore,
                            ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
         this.listingCheckLogRepository = listingCheckLogRepository;
+        this.editVersionStore = editVersionStore;
         this.eventPublisher = eventPublisher;
     }
 
@@ -92,6 +97,7 @@ public class PropertyService {
                 currentUserId(),
                 Instant.now()));
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
+        editVersionStore.bump(versionKey(saved.id()));
         return toResponse(saved);
     }
 
@@ -113,10 +119,11 @@ public class PropertyService {
         return toResponse(saved);
     }
 
-    public PropertyResponse update(Long id, PropertyRequest request) {
+    public PropertyResponse update(Long id, PropertyRequest request, Long editVersion) {
         validate(request);
         final Property existing = propertyRepository.findById(id)
                 .orElseThrow(NotFoundListingsException::new);
+        checkEditVersion(id, editVersion);
         final Property updated = propertyRepository.update(new Property(
                 existing.id(),
                 request.name(),
@@ -159,6 +166,7 @@ public class PropertyService {
                 existing.soldDetectedAt(),
                 existing.createdBy(),
                 existing.createdAt()));
+        editVersionStore.bump(versionKey(id));
         return toResponse(updated);
     }
 
@@ -221,7 +229,21 @@ public class PropertyService {
         return null;
     }
 
+    private void checkEditVersion(Long id, Long sentVersion) {
+        if (sentVersion == null) {
+            return;
+        }
+        final long current = editVersionStore.current(versionKey(id));
+        if (sentVersion != current) {
+            throw new ConcurrentEditException();
+        }
+    }
+
+    private String versionKey(Long id) {
+        return "property:" + id;
+    }
+
     private PropertyResponse toResponse(Property p) {
-        return PropertyResponse.from(p);
+        return PropertyResponse.from(p, editVersionStore.current(versionKey(p.id())));
     }
 }

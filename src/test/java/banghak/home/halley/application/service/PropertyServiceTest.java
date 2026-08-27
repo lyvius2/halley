@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.config.exception.ConcurrentEditException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
@@ -122,6 +123,22 @@ class PropertyServiceTest {
     }
 
     @Test
+    @DisplayName("버전이 다르면 동시 편집으로 CONFLICT가 발생한다")
+    void concurrentEditConflict() {
+        // given
+        final PropertyResponse created = propertyService.create(request("락 테스트", DealType.SALE, 400_000_000L));
+        final long version = propertyService.get(created.id()).editVersion();
+        propertyService.update(created.id(), request("락 테스트2", DealType.SALE, 500_000_000L), version);
+
+        // when — 이전 버전으로 재수정
+        final ConcurrentEditException ex = assertThrows(ConcurrentEditException.class,
+                () -> propertyService.update(created.id(), request("락 테스트3", DealType.SALE, 600_000_000L), version));
+
+        // then
+        assertThat(ex.getCode()).isEqualTo("CONCURRENT_EDIT");
+    }
+
+    @Test
     @DisplayName("매물명이 공백이면 InvalidPropertyRequestException이 발생한다")
     void createRequiresName() {
         // when
@@ -148,7 +165,7 @@ class PropertyServiceTest {
                 null, null, null);
 
         // when
-        final PropertyResponse updated = propertyService.update(created.id(), updateRequest);
+        final PropertyResponse updated = propertyService.update(created.id(), updateRequest, null);
 
         // then
         assertThat(updated.name()).isEqualTo("수정 후");
@@ -163,7 +180,7 @@ class PropertyServiceTest {
         // when
         final NotFoundListingsException ex = assertThrows(
                 NotFoundListingsException.class,
-                () -> propertyService.update(999_999L, request("없음", DealType.SALE, 100_000_000L)));
+                () -> propertyService.update(999_999L, request("없음", DealType.SALE, 100_000_000L), null));
 
         // then
         assertThat(ex).isNotNull();

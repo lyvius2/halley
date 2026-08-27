@@ -70,7 +70,8 @@
                             <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
                             <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
                             <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
-                            <button class="btn btn-sm" @click="openEditProperty(detailItem)">수정</button>
+                                        <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
+                                        <button class="btn btn-sm" @click="openEditProperty(detailItem)">수정</button>
                         </div>
                     </div>
                 </template>
@@ -603,6 +604,44 @@
                 <span x-text="editingUserId ? '저장' : '생성'"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D12 사진 업로드 모달 -->
+<div class="modal" x-show="showPhotoModal" x-cloak>
+    <div class="modal-backdrop" @click="closePhotoModal()"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">사진</span>
+            <h3 x-text="photoProperty.property.name"></h3>
+            <p>도면 1장 + 실사 N장. 업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
+        </div>
+        <div class="form-grid">
+            <label>종류
+                <select x-model="photoType">
+                    <option value="PHOTO">실사</option>
+                    <option value="FLOOR_PLAN">도면</option>
+                </select>
+            </label>
+            <label>파일
+                <input type="file" accept="image/*" @change="onPhotoFile($event)">
+            </label>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <div class="paste-actions">
+            <button class="btn btn-primary" @click="uploadPhoto()" :disabled="loading || !photoFile">업로드</button>
+        </div>
+        <div class="photo-grid">
+            <template x-for="img in photoImages" :key="img.id">
+                <a class="photo-item" :href="img.storagePath" target="_blank">
+                    <img :src="img.storagePath" alt="">
+                    <span class="photo-type" x-text="img.imageType === 'FLOOR_PLAN' ? '도면' : '실사'"></span>
+                </a>
+            </template>
+            <template x-if="photoImages.length === 0">
+                <p class="photo-empty">등록된 사진이 없습니다.</p>
+            </template>
+        </div>
     </div>
 </div>
 

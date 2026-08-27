@@ -12,6 +12,7 @@ import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepositor
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
 import banghak.home.halley.domain.loan.LoanCalculator;
@@ -61,6 +62,7 @@ public class ScoringService {
     private final UserCriterionScoreRepository userCriterionScoreRepository;
     private final PoiDataService poiDataService;
     private final CommuteDataService commuteDataService;
+    private final EditVersionStore editVersionStore;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
     private final ScoringEngine scoringEngine;
@@ -74,6 +76,7 @@ public class ScoringService {
                           UserCriterionScoreRepository userCriterionScoreRepository,
                           PoiDataService poiDataService,
                           CommuteDataService commuteDataService,
+                          EditVersionStore editVersionStore,
                           RegulationParamRepository regulationParamRepository,
                           SystemConfigRepository systemConfigRepository,
                           ScoringEngine scoringEngine,
@@ -86,6 +89,7 @@ public class ScoringService {
         this.userCriterionScoreRepository = userCriterionScoreRepository;
         this.poiDataService = poiDataService;
         this.commuteDataService = commuteDataService;
+        this.editVersionStore = editVersionStore;
         this.regulationParamRepository = regulationParamRepository;
         this.systemConfigRepository = systemConfigRepository;
         this.scoringEngine = scoringEngine;
@@ -222,7 +226,7 @@ public class ScoringService {
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
-        return new ScoredPropertyResponse(PropertyResponse.from(property), total, views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), total, views);
     }
 
     private ScoredPropertyResponse toResponse(Property property, PropertyScoringResult result,
@@ -239,20 +243,20 @@ public class ScoringService {
                         sourceOf(c).name(),
                         c.fallbackReason()))
                 .toList();
-        return new ScoredPropertyResponse(PropertyResponse.from(property), result.totalScore(), views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
     }
 
     private ScoringContext buildContext(Property property) {
-        final List<User> activeUsers = userRepository.findAll().stream()
-                .filter(User::enabled)
-                .toList();
+        final List<User> allUsers = userRepository.findAll();
+        final List<User> activeUsers = allUsers.stream().filter(User::enabled).toList();
         final long cashBudget = activeUsers.stream().mapToLong(User::availableBudget).sum();
         final List<Integer> comfortScores = userCriterionScoreRepository.findByPropertyId(property.id()).stream()
                 .filter(s -> COMFORT_CODE.equals(s.criterionCode()))
                 .map(UserCriterionScore::score)
                 .toList();
         final List<NearbyFacility> nearbyFacilities = poiDataService.ensureNearby(property);
-        final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, activeUsers);
+        // I13: 비활성 사용자도 채점 반영 (I10과 동일) — 통근은 전 사용자 기준
+        final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, allUsers);
         return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loadLoanCalculator(),
                 nearbyFacilities, commuteMinutes);
     }
@@ -338,6 +342,10 @@ public class ScoringService {
             return 1;
         }
         return a.compareTo(b);
+    }
+
+    private String versionKey(Long id) {
+        return "property:" + id;
     }
 
     private Long currentUserId() {

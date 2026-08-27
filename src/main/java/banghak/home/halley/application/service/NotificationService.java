@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.external.SlackPort;
 import banghak.home.halley.config.SlackProperties;
 import banghak.home.halley.domain.notification.NotificationEventType;
@@ -24,17 +25,20 @@ public class NotificationService {
     private final SlackPort slackPort;
     private final SlackProperties slackProperties;
     private final PropertyRepository propertyRepository;
+    private final UserRepository userRepository;
     private final NotificationLogRepository notificationLogRepository;
     private final ObjectMapper objectMapper;
 
     public NotificationService(SlackPort slackPort,
                                SlackProperties slackProperties,
                                PropertyRepository propertyRepository,
+                               UserRepository userRepository,
                                NotificationLogRepository notificationLogRepository,
                                ObjectMapper objectMapper) {
         this.slackPort = slackPort;
         this.slackProperties = slackProperties;
         this.propertyRepository = propertyRepository;
+        this.userRepository = userRepository;
         this.notificationLogRepository = notificationLogRepository;
         this.objectMapper = objectMapper;
     }
@@ -178,6 +182,13 @@ public class NotificationService {
         sb.append('\n');
         if (p.addressJibun() != null) {
             sb.append(p.addressJibun()).append('\n');
+        }
+        if (p.createdBy() != null) {
+            final String nickname = userRepository.findById(p.createdBy())
+                    .map(u -> u.nickname()).orElse(null);
+            if (nickname != null) {
+                sb.append("등록: ").append(nickname).append('\n');
+            }
         }
         return sb.toString();
     }

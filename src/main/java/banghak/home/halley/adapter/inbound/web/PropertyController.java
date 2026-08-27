@@ -9,16 +9,19 @@ import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
+import banghak.home.halley.application.service.PropertyImageService;
 import banghak.home.halley.application.service.PropertyService;
 import banghak.home.halley.application.service.ReferenceTransactionService;
 import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.ImageType;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,10 +30,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -43,17 +49,33 @@ public class PropertyController {
     private final ParsePreviewService parsePreviewService;
     private final LoanEstimateService loanEstimateService;
     private final ReferenceTransactionService referenceTransactionService;
+    private final PropertyImageService propertyImageService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
                               ParsePreviewService parsePreviewService,
                               LoanEstimateService loanEstimateService,
-                              ReferenceTransactionService referenceTransactionService) {
+                              ReferenceTransactionService referenceTransactionService,
+                              PropertyImageService propertyImageService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
         this.loanEstimateService = loanEstimateService;
         this.referenceTransactionService = referenceTransactionService;
+        this.propertyImageService = propertyImageService;
+    }
+
+    @PostMapping("/{id}/images")
+    @ResponseStatus(HttpStatus.CREATED)
+    public PropertyImageResponse uploadImage(@PathVariable Long id,
+                                             @RequestPart("file") MultipartFile file,
+                                             @RequestParam("imageType") ImageType imageType) {
+        return propertyImageService.upload(id, file, imageType);
+    }
+
+    @GetMapping("/{id}/images")
+    public List<PropertyImageResponse> images(@PathVariable Long id) {
+        return propertyImageService.list(id);
     }
 
     @GetMapping("/{id}/reference-transactions")
@@ -118,8 +140,9 @@ public class PropertyController {
     }
 
     @PutMapping("/{id}")
-    public ScoredPropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request) {
-        final PropertyResponse updated = propertyService.update(id, request);
+    public ScoredPropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request,
+                                         @RequestHeader(value = "X-Edit-Version", required = false) Long editVersion) {
+        final PropertyResponse updated = propertyService.update(id, request, editVersion);
         return scoringService.rescore(id);
     }
 

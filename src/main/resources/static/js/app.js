@@ -19,7 +19,8 @@ function emptyPropertyForm() {
         buildingCount: '',
         totalHouseholds: '',
         moveInType: '',
-        moveInDate: ''
+        moveInDate: '',
+        editVersion: null
     };
 }
 
@@ -82,6 +83,11 @@ function halley() {
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        showPhotoModal: false,
+        photoProperty: null,
+        photoImages: [],
+        photoType: 'PHOTO',
+        photoFile: null,
         showLogin: false,
         showPassword: false,
         showPropertyForm: false,
@@ -378,6 +384,63 @@ function halley() {
         closeDetail() {
             this.showM2 = false;
             this.detailItem = null;
+        },
+
+        async openPhotoModal(item) {
+            this.photoProperty = item;
+            this.photoImages = [];
+            this.photoType = 'PHOTO';
+            this.photoFile = null;
+            this.showPhotoModal = true;
+            await this.loadPhotoImages();
+        },
+
+        closePhotoModal() {
+            this.showPhotoModal = false;
+            this.photoProperty = null;
+            this.photoImages = [];
+            this.photoFile = null;
+        },
+
+        onPhotoFile(e) {
+            this.photoFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+        },
+
+        async loadPhotoImages() {
+            if (!this.photoProperty) {
+                return;
+            }
+            const { ok, body } = await this.request(`/api/properties/${this.photoProperty.property.id}/images`);
+            if (ok) {
+                this.photoImages = body || [];
+            }
+        },
+
+        async uploadPhoto() {
+            if (!this.photoFile) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const form = new FormData();
+                form.append('file', this.photoFile);
+                form.append('imageType', this.photoType);
+                const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
+                    method: 'POST',
+                    body: form
+                });
+                if (res.ok) {
+                    this.photoFile = null;
+                    await this.loadPhotoImages();
+                } else {
+                    this.error = '업로드에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         dragStartWeight(index) {
@@ -991,7 +1054,8 @@ function halley() {
                 buildingCount: p.buildingCount ?? '',
                 totalHouseholds: p.totalHouseholds ?? '',
                 moveInType: p.moveInType || '',
-                moveInDate: p.moveInDate || ''
+                moveInDate: p.moveInDate || '',
+                editVersion: p.editVersion ?? null
             };
             this.error = null;
             this.showPropertyForm = true;
@@ -1030,9 +1094,13 @@ function halley() {
                 const id = this.propertyForm.id;
                 const url = id ? `/api/properties/${id}` : '/api/properties';
                 const method = id ? 'PUT' : 'POST';
+                const headers = { 'Content-Type': 'application/json' };
+                if (id && this.propertyForm.editVersion != null) {
+                    headers['X-Edit-Version'] = String(this.propertyForm.editVersion);
+                }
                 const { ok, body: resBody } = await this.request(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(body)
                 });
                 if (ok) {
