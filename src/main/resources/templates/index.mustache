@@ -354,6 +354,12 @@
                         </div>
 
                         <div class="settings-section">
+                            <h4>생존 확인 배치</h4>
+                            <p class="settings-note">매일 09:00 스케줄로 자동 실행됩니다. 즉시 수동 실행하려면 아래 버튼을 누르세요.</p>
+                            <button class="btn" @click="runListingCheck()" :disabled="loading">배치 수동 실행</button>
+                        </div>
+
+                        <div class="settings-section">
                             <h4>알림 이력</h4>
                             <div class="card table-wrap">
                                 <table>

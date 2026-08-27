@@ -1385,6 +1385,23 @@ function halley() {
             }
         },
 
+        async runListingCheck() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/listing-check/run', { method: 'POST' });
+                if (!ok) {
+                    this.error = (body && body.message) || '배치 실행에 실패했습니다';
+                } else {
+                    this.error = '생존 확인 배치를 실행했습니다.';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
         async loadNotifications() {
             const { ok, body } = await this.request('/api/admin/notifications');
             if (ok) {
