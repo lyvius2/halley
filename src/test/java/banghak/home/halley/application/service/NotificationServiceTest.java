@@ -5,6 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.application.port.out.external.SlackPort;
 import banghak.home.halley.config.SlackProperties;
+import banghak.home.halley.domain.notification.NotificationEventType;
 import banghak.home.halley.domain.notification.NotificationLog;
 import banghak.home.halley.domain.notification.NotificationStatus;
 import banghak.home.halley.domain.property.DealType;
@@ -18,6 +19,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
@@ -52,6 +54,9 @@ class NotificationServiceTest {
     @Autowired
     private SlackProperties slackProperties;
 
+    @Autowired
+    private ObjectMapper objectMapper;
+
     @BeforeEach
     void enableSlack() {
         slackProperties.setEnabled(true);
@@ -85,7 +90,23 @@ class NotificationServiceTest {
 
         // then
         assertThat(notificationLogRepository.findLatest(50))
-                .noneMatch(log -> log.propertyId().equals(999_999L));
+                .noneMatch(log -> log.propertyId() != null && log.propertyId().equals(999_999L));
+    }
+
+    @Test
+    @DisplayName("재시도 대상(RETRYING) 알림을 재발송해 SENT로 만든다")
+    void resendRetrying() {
+        // given
+        final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
+                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                NotificationStatus.RETRYING, 1, null, objectMapper.createObjectNode(), null, null));
+
+        // when
+        notificationService.resendRetrying();
+
+        // then
+        assertThat(notificationLogRepository.findById(retrying.id()).orElseThrow().status())
+                .isEqualTo(NotificationStatus.SENT);
     }
 
     private PropertyRequest request(String name) {

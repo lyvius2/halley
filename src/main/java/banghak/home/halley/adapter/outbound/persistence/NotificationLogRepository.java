@@ -78,6 +78,14 @@ public class NotificationLogRepository {
                 .map(this::map);
     }
 
+    public List<NotificationLog> findRetrying(int limit) {
+        return dsl.selectFrom(TABLE)
+                .where(STATUS.eq("RETRYING").and(RETRY_COUNT.lt(3)))
+                .limit(limit)
+                .fetch()
+                .map(this::map);
+    }
+
     public void updateStatus(Long id, NotificationStatus status, String errorMessage, Instant sentAt) {
         dsl.update(TABLE)
                 .set(STATUS, status.name())

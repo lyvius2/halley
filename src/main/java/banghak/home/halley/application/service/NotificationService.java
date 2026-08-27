@@ -98,6 +98,39 @@ public class NotificationService {
                 .toList();
     }
 
+    /**
+     * 재시도 대상(RETRYING, 3회 미만) 알림을 5분 주기 스케줄러가 재발송한다 (설계 12.2).
+     */
+    public void resendRetrying() {
+        for (final NotificationLog log : notificationLogRepository.findRetrying(50)) {
+            if (!shouldSend()) {
+                return;
+            }
+            final String text = rebuildText(log);
+            if (text == null) {
+                continue;
+            }
+            final boolean sent = slackPort.send(text);
+            if (sent) {
+                notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
+            } else {
+                notificationLogRepository.updateStatus(log.id(), NotificationStatus.FAILED, "Slack 전송 실패", null);
+            }
+        }
+    }
+
+    private String rebuildText(NotificationLog log) {
+        return switch (log.eventType()) {
+            case PROPERTY_CREATED -> log.propertyId() == null ? null
+                    : propertyRepository.findById(log.propertyId()).map(this::buildCreatedMessage).orElse(null);
+            case LISTING_SOLD_OUT -> "판매완료 알림 (재전송)";
+            case BATCH_BLOCKED -> ":no_entry: 생존 확인 배치가 봇 차단으로 중단되었습니다. (재전송)";
+            case BATCH_CIRCUIT_OPEN -> ":warning: 과반 GONE — 배치 서킷 개방. (재전송)";
+            case BATCH_SUMMARY -> "배치 요약 (재전송)";
+            case BATCH_ERROR -> "배치 오류 (재전송)";
+        };
+    }
+
     private void sendEvent(NotificationEventType eventType, Long propertyId, String text) {
         final NotificationLog log = notificationLogRepository.save(new NotificationLog(
                 null, eventType, propertyId, "slack",

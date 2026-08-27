@@ -5,6 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.SystemConfigResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateConfigRequest;
 import banghak.home.halley.application.service.NotificationService;
 import banghak.home.halley.application.service.SystemConfigService;
+import banghak.home.halley.batch.ListingCheckJob;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -21,11 +22,14 @@ public class AdminSettingsController {
 
     private final SystemConfigService systemConfigService;
     private final NotificationService notificationService;
+    private final ListingCheckJob listingCheckJob;
 
     public AdminSettingsController(SystemConfigService systemConfigService,
-                                   NotificationService notificationService) {
+                                   NotificationService notificationService,
+                                   ListingCheckJob listingCheckJob) {
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
+        this.listingCheckJob = listingCheckJob;
     }
 
     @GetMapping("/settings")
@@ -46,5 +50,11 @@ public class AdminSettingsController {
     @GetMapping("/notifications")
     public List<NotificationLogResponse> notifications() {
         return notificationService.recentNotifications();
+    }
+
+    @PostMapping("/listing-check/run")
+    public Map<String, Object> runListingCheck() {
+        listingCheckJob.run();
+        return Map.of("done", true);
     }
 }
