@@ -85,6 +85,7 @@ function halley() {
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        showSettings: false,
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
@@ -191,16 +192,28 @@ function halley() {
             if (view === 'weights') {
                 this.loadWeights();
             }
-            if (view === 'settings') {
-                this.loadSettings();
-                this.loadNotifications();
-            }
             if (view === 'me') {
                 this.loadProfile();
             }
             if (view === 'itinerary') {
                 this.renderItinerary();
             }
+        },
+
+        /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */
+        openSettings() {
+            if (this.session.role !== 'ADMIN') {
+                return;
+            }
+            this.showSettings = true;
+            this.error = null;
+            this.loadSettings();
+            this.loadNotifications();
+        },
+
+        closeSettings() {
+            this.showSettings = false;
+            this.error = null;
         },
 
         async loadUsers() {
