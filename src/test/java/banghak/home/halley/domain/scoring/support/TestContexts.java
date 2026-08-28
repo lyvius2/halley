@@ -22,21 +22,27 @@ public final class TestContexts {
 
     public static ScoringContext context() {
         return new ScoringContext(500_000_000L, List.of(), REFERENCE_DATE, loanCalculator(),
-                List.of(), Map.of());
+                List.of(), Map.of(), null, null);
     }
 
     public static ScoringContext context(long cashBudget, List<Integer> comfortScores) {
         return new ScoringContext(cashBudget, comfortScores, REFERENCE_DATE, loanCalculator(),
-                List.of(), Map.of());
+                List.of(), Map.of(), null, null);
     }
 
     public static ScoringContext context(List<NearbyFacility> nearbyFacilities) {
         return new ScoringContext(500_000_000L, List.of(), REFERENCE_DATE, loanCalculator(),
-                nearbyFacilities, Map.of());
+                nearbyFacilities, Map.of(), null, null);
+    }
+
+    /** AI 추천도가 이미 산출된 상태 (설계 I59). */
+    public static ScoringContext contextWithLlm(BigDecimal llmScore, String llmReason) {
+        return new ScoringContext(500_000_000L, List.of(), REFERENCE_DATE, loanCalculator(),
+                List.of(), Map.of(), llmScore, llmReason);
     }
 
     public static ScoringContext context(Map<Long, Integer> commuteMinutes) {
         return new ScoringContext(500_000_000L, List.of(), REFERENCE_DATE, loanCalculator(),
-                List.of(), commuteMinutes);
+                List.of(), commuteMinutes, null, null);
     }
 }

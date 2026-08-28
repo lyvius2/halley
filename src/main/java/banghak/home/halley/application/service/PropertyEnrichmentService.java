@@ -43,17 +43,20 @@ public class PropertyEnrichmentService {
     private final HousingPricePort housingPricePort;
     private final GeoService geoService;
     private final ReferenceTransactionService referenceTransactionService;
+    private final LlmRecommendationService llmRecommendationService;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
                                      HousingPricePort housingPricePort,
                                      GeoService geoService,
-                                     ReferenceTransactionService referenceTransactionService) {
+                                     ReferenceTransactionService referenceTransactionService,
+                                     LlmRecommendationService llmRecommendationService) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
         this.geoService = geoService;
         this.referenceTransactionService = referenceTransactionService;
+        this.llmRecommendationService = llmRecommendationService;
     }
 
     /**
@@ -71,6 +74,7 @@ public class PropertyEnrichmentService {
             propertyRepository.update(enriched);
         }
         fetchReferenceTrades(propertyId);
+        fetchLlmRecommendation(propertyId);
     }
 
     /** 붙여넣기 원문에 배정 초등학교가 없으면 카카오로 가장 가까운 초등학교를 찾아 채운다 (설계 I53). */
@@ -214,6 +218,18 @@ public class PropertyEnrichmentService {
             referenceTransactionService.getReferences(propertyId, null, null);
         } catch (RuntimeException e) {
             log.warn("Reference trade prefetch failed. propertyId={}, cause={}", propertyId, e.getMessage());
+        }
+    }
+
+    /**
+     * AI 추천도 (설계 I59). 보정의 마지막에 둔다 — 공시가격·초등학교가 채워진 뒤라야
+     * 프롬프트에 그 값들이 실려 판단이 나아진다.
+     */
+    private void fetchLlmRecommendation(Long propertyId) {
+        try {
+            llmRecommendationService.ensureRecommendation(propertyId);
+        } catch (RuntimeException e) {
+            log.warn("LLM recommendation failed. propertyId={}, cause={}", propertyId, e.getMessage());
         }
     }
 

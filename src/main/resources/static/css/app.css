@@ -1191,3 +1191,32 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 이름 · 배지 · 가격이 한 줄에서 자연스럽게 나뉘도록 */
 .property-card-header .property-card-name { flex: 0 1 auto; min-width: 0; }
 .property-card-header .property-card-price { margin-left: auto; }
+
+/* ── AI 추천도 (설계 I59) ────────────────────────
+   점수를 왼쪽에 크게 두고 이유를 옆에 붙인다. 근거를 못 읽으면 점수만 남아 오해를 부른다. */
+.llm-box { display: flex; gap: 14px; align-items: flex-start; }
+.llm-score {
+    display: flex;
+    align-items: baseline;
+    gap: 1px;
+    flex-shrink: 0;
+    min-width: 78px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2d3f52 0%, #1b2a38 100%);
+    color: #f2f6f8;
+}
+.llm-score b { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; }
+.llm-score i { font-style: normal; font-size: 10px; opacity: .7; }
+.llm-body { flex: 1; min-width: 0; }
+.llm-body > p { font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; }
+.llm-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--ink3);
+    font-family: 'JetBrains Mono', monospace;
+}
+.llm-meta .btn-xs { margin-left: auto; font-family: inherit; }

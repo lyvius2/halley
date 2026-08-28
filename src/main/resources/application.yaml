@@ -59,6 +59,10 @@ feign:
       vworld-housing-price:
         connectTimeout: 3000
         readTimeout: 8000
+      claude-llm:
+        connectTimeout: 5000
+        # LLM은 생성에 시간이 걸린다. 비동기 보정에서만 부르므로 길게 잡아도 화면을 막지 않는다
+        readTimeout: 60000
 
 resilience4j:
   circuitbreaker:
@@ -97,6 +101,21 @@ resilience4j:
         baseConfig: default
         failureRateThreshold: 40
         waitDurationInOpenState: 30s
+      claude-llm:
+        baseConfig: default
+        slidingWindowSize: 5
+        failureRateThreshold: 40
+        waitDurationInOpenState: 60s
+        permittedNumberOfCallsInHalfOpenState: 2
+
+# LLM 추천도 (설계 I58 · I59). 지금 구현체는 Claude 하나 — 나중에 Ollama 등을 붙일 수 있게 포트로 뺐다
+llm:
+  enabled: ${LLM_ENABLED:true}
+  provider: ${LLM_PROVIDER:claude}
+  claude:
+    api-key: ${ANTHROPIC_API_KEY:}
+    base-url: https://api.anthropic.com
+    model: ${LLM_CLAUDE_MODEL:claude-sonnet-4-5-20250929}
 
 slack:
   enabled: ${SLACK_ENABLED:false}

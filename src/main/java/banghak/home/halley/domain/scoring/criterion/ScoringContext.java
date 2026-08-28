@@ -3,6 +3,7 @@ package banghak.home.halley.domain.scoring.criterion;
 import banghak.home.halley.domain.loan.LoanCalculator;
 import banghak.home.halley.domain.property.NearbyFacility;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -13,7 +14,9 @@ public record ScoringContext(
         LocalDate referenceDate,
         LoanCalculator loanCalculator,
         List<NearbyFacility> nearbyFacilities,
-        Map<Long, Integer> commuteMinutes
+        Map<Long, Integer> commuteMinutes,
+        BigDecimal llmScore,
+        String llmReason
 ) {
 
     public ScoringContext {

@@ -1,6 +1,6 @@
 # Halley 외부 인터페이스 매뉴얼
 
-> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
+> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, Claude)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
 > 수치는 실제 코드(`src/main/resources/application.yaml`, 각 `@FeignClient`, `config/`)와 정합합니다.
 > 인터페이스 아키텍처 원칙은 `docs/DESIGN.md` 2.5(외부 연동은 port/어댑터)를 따릅니다.
 
@@ -17,6 +17,7 @@
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
 | **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
 | **V-World 공시가격** | 공동주택·개별주택 공시가격(M2) — **채점 미반영** | 서버(Feign) | 인증키(`key`) | `HOUSING_PRICE_API_KEY` | `VworldHousingPriceFeignClient` | 사용 중(참고 전용) |
+| **Claude (LLM)** | AI 추천도 — **채점 반영** | 서버(Feign) | `x-api-key` 헤더 | `ANTHROPIC_API_KEY` | `ClaudeFeignClient` | 사용 중 |
 
 > **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL·국토부 키는 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
 
@@ -467,6 +468,66 @@ sequenceDiagram
 
 ---
 
+## 5.7 Claude (LLM) — AI 추천도
+
+### 5.7.1 역할
+
+**AI 추천도** — 매물 정보와 구매자들의 직장 위치를 Anthropic Claude에 보내 0~100의 추천도와
+그 이유를 받습니다. 결과는 `llm_recommendation`에 저장되고 `LLM_RECOMMENDATION` 채점 항목으로
+총점에 반영됩니다(설계 I59).
+
+공급자는 `LlmPort`로 추상화돼 있어 나중에 Ollama 같은 로컬 모델을 붙일 수 있습니다(설계 I58).
+
+### 5.7.2 키 발급 절차
+
+1. [Anthropic Console](https://console.anthropic.com) 가입/로그인
+2. **API Keys → Create Key** 로 키 발급 (`sk-ant-…`)
+3. **Billing** 에서 결제 수단 등록 — 무료 크레딧이 없으면 401이 아니라 429/400으로 거절됩니다
+4. `ANTHROPIC_API_KEY` 환경변수로 주입
+
+> 키를 넣지 않으면 `LlmPort.isEnabled()`가 false가 되어 **호출 자체를 건너뜁니다.**
+> AI 추천도만 미산출로 남고 나머지 채점은 그대로 나옵니다.
+
+### 5.7.3 설정 키
+
+| application.yaml 키 | 환경변수 | 기본값 | 설명 |
+|---|---|---|---|
+| `llm.enabled` | `LLM_ENABLED` | `true` | 전체 스위치 |
+| `llm.provider` | `LLM_PROVIDER` | `claude` | 구현체가 여럿일 때 선택 |
+| `llm.claude.api-key` | `ANTHROPIC_API_KEY` | (없음) | `x-api-key` 헤더 |
+| `llm.claude.model` | `LLM_CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` | |
+| `llm.claude.base-url` | — | `https://api.anthropic.com` | |
+
+**서킷브레이커/타임아웃**: `claude-llm` connect 5s / **read 60s**, 실패율 40%, open 60s.
+생성에 시간이 걸리고 비동기 보정에서만 부르므로 read timeout을 길게 잡아도 화면을 막지 않습니다.
+
+기동 로그의 `External API key llm.claude.api-key : set (…)` 줄로 주입 여부를 확인할 수 있습니다.
+
+### 5.7.4 호출 형식
+
+```
+POST https://api.anthropic.com/v1/messages
+x-api-key: <ANTHROPIC_API_KEY>
+anthropic-version: 2023-06-01
+Content-Type: application/json
+
+{"model": "...", "max_tokens": 1024, "system": "...",
+ "messages": [{"role": "user", "content": "..."}]}
+```
+
+응답의 `content`는 블록 배열이며 `type: "text"`인 블록의 `text`만 이어 붙입니다.
+오류는 `{"type": "error", "error": {"message": "..."}}` 형태입니다.
+
+### 5.7.5 비용 관리
+
+- **입력이 그대로면 다시 부르지 않습니다.** 프롬프트의 SHA-256을 `prompt_hash`에 저장해 두고
+  같으면 저장된 값을 그대로 씁니다. 매물을 열 때마다 부르면 비용이 선형으로 늘어납니다.
+- `max_tokens`는 **1024**로 묶습니다. 점수와 두세 문장이면 충분합니다.
+- 호출 시점은 **매물 등록 후 비동기 1회** + 사용자가 "다시 물어보기"를 누를 때뿐입니다.
+  재채점(`POST /{id}/rescore`)은 LLM을 부르지 않습니다.
+
+---
+
 ## 6. 공통 · 운영 메모
 
 ### 6.1 로컬 개발 시 키 없이 동작하는 방식
@@ -476,6 +537,7 @@ sequenceDiagram
 | 카카오 REST | `KakaoApiKeyMissingException`(503) 또는 POI 빈 목록 → 채점 `MISSING` |
 | ODsay | `TransitResult.missing()` → `COMMUTE` MISSING |
 | V-World | 조회 skip(INFO 로그) → 공시가격 빈 값. 채점 영향 없음 |
+| Claude | `isEnabled()=false` → 호출 skip. AI 추천도만 미산출 |
 | Slack | `slack.enabled=false`(기본) → 알림 skip |
 
 ### 6.2 Feign 공통 규칙 (코딩 규칙)
@@ -493,6 +555,7 @@ sequenceDiagram
 | `OdsayTransitPort` | `OdsayTransitAdapter` | `OdsayTransitFeignClient` |
 | `MinistryReferencePort` | `MinistryReferenceAdapter` | `MinistryReferenceFeignClient` |
 | `HousingPricePort` | `VworldHousingPriceAdapter` | `VworldHousingPriceFeignClient` |
+| `LlmPort` | `ClaudeLlmAdapter` | `ClaudeFeignClient` |
 | `SlackPort` | `SlackWebhookAdapter` | `SlackWebhookClient` |
 
 **캐시 포트** (프로파일로 구현 교체 — 설계 2.5)

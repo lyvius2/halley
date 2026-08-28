@@ -533,6 +533,7 @@ TotalScore = Σ(effective_score_i × weight_i) / Σ(weight_i)
 | `AMENITY` | 편의시설 | AUTO | 도보 20분(≈1.3km) 내 6개 카테고리. 카테고리당 `min(count,3)/3 × 16.67` |
 | `PARKING` | 주차 | AUTO | `clamp(세대당대수 / 1.0 × 100, 0, 100)` |
 | `GREEN` | 녹색환경 | HYBRID | 공원·산·하천 3종을 **최근접 도보시간**으로 채점. 종류별 `33.3 × clamp((20−t)/15, 0, 1)` (Session 16-I42) |
+| `LLM_RECOMMENDATION` | AI 추천도 | AUTO | **LLM이 매물 정보와 구매자 직장 위치를 보고 매긴 0~100점.** 채점 루프에서 호출하지 않고 저장된 값을 쓴다 (I59) |
 | `HOUSEHOLDS` | 세대수 | AUTO | `clamp(세대수 / 350 × 100, 0, 100)` — **350세대 이상은 모두 만점** (Session 16-I49) |
 
 ### 5.2.1 가격 채점 — 예산 절대평가
@@ -2021,6 +2022,61 @@ M6는 별도 Main Frame이었으나 **모달로 변경**합니다. 설정은 매
 - 닉네임 첫 글자를 **원형 이니셜**로 앞세웁니다. 글자보다 먼저 "사람"으로 읽힙니다.
 - 이름이 길면 **이름이 먼저 줄고 배지는 살아남습니다**(`flex-shrink: 0`, 배지 폭은 40% 상한).
 - 상세 모달(M2)도 같은 배지를 쓰되 여백이 넉넉해 한 단계 크게 둡니다.
+
+### I58. LLM 연동 포트 · **[확정 — `LlmPort`, 구현체 Claude]**
+
+LLM 공급자를 `LlmPort`로 추상화합니다. 지금 구현체는 **Claude**(`ClaudeLlmAdapter`) 하나지만,
+나중에 Ollama 같은 로컬 모델을 붙일 수 있게 **공급자에 종속된 개념을 포트에 넣지 않습니다** —
+프롬프트 캐싱·툴 호출·스트리밍은 포트에 없습니다. 여러 구현이 공존하면 `llm.provider`로 고릅니다.
+
+```java
+public interface LlmPort {
+    String provider();          // 로그·설정 매칭용
+    boolean isEnabled();        // 키가 없으면 false
+    LlmResult complete(LlmMessage message);
+}
+```
+
+- **실패를 예외로 던지지 않습니다.** `LlmResult.failed(cause)`로 돌려주고 호출 측은 `isPresent()`만 봅니다.
+  LLM은 없어도 나머지 채점이 돌아야 하는 **보조 입력**이라, 다른 외부 연동의 fallback과 같은 태도입니다.
+- `LlmMessage`는 `system`·`user`·`maxTokens`만 담습니다. Claude는 `system`이 최상위 필드고
+  Ollama는 메시지 배열의 한 역할이라 **변환은 어댑터가** 맡습니다.
+- Claude는 Messages API(`POST /v1/messages`)를 씁니다. 인증은 `x-api-key`, `anthropic-version` 헤더가 필수이며
+  응답의 `content` 배열에서 텍스트 블록만 이어 붙입니다.
+- 다른 연동과 같이 `FallbackFactory`를 두고, read timeout은 **60초**로 잡습니다(생성에 시간이 걸리고
+  비동기 보정에서만 부르므로 화면을 막지 않습니다).
+
+| 설정 키 | 환경변수 | 기본값 |
+|---|---|---|
+| `llm.enabled` | `LLM_ENABLED` | `true` |
+| `llm.provider` | `LLM_PROVIDER` | `claude` |
+| `llm.claude.api-key` | `ANTHROPIC_API_KEY` | (없음) |
+| `llm.claude.model` | `LLM_CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` |
+
+### I59. AI 추천도 채점 항목 · **[확정]**
+
+매물 정보와 **사용자들의 직장 위치**를 LLM에 던져 0~100의 추천도와 이유를 받아 저장하고,
+`LLM_RECOMMENDATION`(AI 추천도) 채점 항목으로 총점에 반영합니다.
+
+- 저장은 `llm_recommendation`(매물당 1건). `score`·`reason`·`model`·`prompt_hash`를 남깁니다.
+  **어떤 모델이 매긴 점수인지** 남지 않으면 나중에 값을 해석할 수 없습니다.
+- **채점 루프에서 LLM을 부르지 않습니다.** 호출이 느리고 돈이 들어 재채점마다 돌릴 수 없습니다.
+  `LlmRecommendationService`가 미리 저장해 둔 값을 `ScoringContext`로 넘기고, `LlmRecommendationScorer`는
+  그 값을 그대로 씁니다. 없으면 미산출입니다.
+- **입력이 그대로면 다시 부르지 않습니다**(`prompt_hash`). 같은 입력에 같은 답을 다시 사지 않기 위한 것입니다.
+  그래서 프롬프트는 **줄 순서가 안정적**이어야 하고(필드 고정 순서, 사용자 id 정렬),
+  빈 값은 지어내지 말라는 뜻으로 `정보 없음`을 명시합니다.
+- 산출 시점은 **등록 후 비동기 보정의 마지막**입니다(I53). 공시가격·초등학교가 채워진 뒤라야
+  프롬프트에 그 값이 실립니다. 이후에는 상세 모달의 "다시 물어보기"로 갱신합니다.
+- 응답은 JSON(`{"score": 0~100, "reason": "..."}`)만 내도록 지시하되, 모델이 코드펜스나 설명을
+  덧붙이는 경우가 있어 **첫 `{`부터 마지막 `}`까지만** 잘라 읽습니다. 범위를 벗어난 점수는 버립니다.
+- `CriteriaBootstrap`은 이제 **빠진 항목만 채웁니다**. 전량 시드 조건이었던 탓에 기존 설치에서는
+  새 항목이 영영 뜨지 않았습니다. 나중에 추가된 항목은 기존 순위 **뒤에** 붙어 앞 항목의 가중치를 흔들지 않습니다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/properties/{id}/llm-recommendation` | 저장된 추천도 (없으면 204) |
+| POST | `/api/properties/{id}/llm-recommendation` | 다시 산출 — 입력이 그대로면 재호출하지 않음 |
 
 ---
 

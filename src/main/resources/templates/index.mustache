@@ -897,6 +897,30 @@
                 </section>
 
                 <section class="m2-sec m2-sec-wide">
+                    <h4>AI 추천도</h4>
+                    <template x-if="!detailLlm">
+                        <p class="m2-empty">아직 산출되지 않았습니다.
+                            <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">지금 물어보기</button>
+                        </p>
+                    </template>
+                    <template x-if="detailLlm">
+                        <div class="llm-box">
+                            <div class="llm-score">
+                                <b x-text="fmtScore(detailLlm.score)"></b><i>점</i>
+                            </div>
+                            <div class="llm-body">
+                                <p x-text="detailLlm.reason"></p>
+                                <div class="llm-meta">
+                                    <span x-text="detailLlm.model"></span>
+                                    <span x-text="fmtTime(detailLlm.computedAt)"></span>
+                                    <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">다시 물어보기</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
+                <section class="m2-sec m2-sec-wide">
                     <h4>국토교통부 실거래가</h4>
                     <template x-if="!detailRef || detailRef.transactions.length === 0">
                         <p class="m2-empty">조회된 실거래가가 없습니다.</p>

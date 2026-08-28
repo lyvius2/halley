@@ -6,6 +6,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
 import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
+import banghak.home.halley.adapter.inbound.web.dto.LlmRecommendationResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
@@ -20,6 +21,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
+import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
@@ -30,6 +32,7 @@ import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ImageType;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -59,6 +62,7 @@ public class PropertyController {
     private final PropertyImageService propertyImageService;
     private final AgentService agentService;
     private final PropertyCommentService propertyCommentService;
+    private final LlmRecommendationService llmRecommendationService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -67,7 +71,8 @@ public class PropertyController {
                               ReferenceTransactionService referenceTransactionService,
                               PropertyImageService propertyImageService,
                               AgentService agentService,
-                              PropertyCommentService propertyCommentService) {
+                              PropertyCommentService propertyCommentService,
+                              LlmRecommendationService llmRecommendationService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -76,6 +81,26 @@ public class PropertyController {
         this.propertyImageService = propertyImageService;
         this.agentService = agentService;
         this.propertyCommentService = propertyCommentService;
+        this.llmRecommendationService = llmRecommendationService;
+    }
+
+    @GetMapping("/{id}/llm-recommendation")
+    public ResponseEntity<LlmRecommendationResponse> llmRecommendation(@PathVariable Long id) {
+        return llmRecommendationService.find(id)
+                .map(LlmRecommendationResponse::from)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /** 매물 정보나 직장 위치가 바뀐 뒤 다시 물어보고 싶을 때. 입력이 그대로면 재호출하지 않는다. */
+    @PostMapping("/{id}/llm-recommendation")
+    public ResponseEntity<LlmRecommendationResponse> refreshLlmRecommendation(@PathVariable Long id) {
+        final var refreshed = llmRecommendationService.ensureRecommendation(id);
+        refreshed.ifPresent(r -> scoringService.rescore(id));
+        return refreshed
+                .map(LlmRecommendationResponse::from)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
     }
 
     @GetMapping("/{id}/comments")

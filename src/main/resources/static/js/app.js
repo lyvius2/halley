@@ -99,6 +99,7 @@ function halley() {
         commentEditText: '',
         detailAgents: [],
         detailRef: null,
+        detailLlm: null,
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
@@ -679,21 +680,48 @@ function halley() {
             this.detailItem = item;
             this.detailAgents = [];
             this.detailRef = null;
+            this.detailLlm = null;
             this.showM2 = true;
             this.loadDetailExtras(item.property.id);
         },
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
         async loadDetailExtras(propertyId) {
-            const [agents, ref] = await Promise.all([
+            const [agents, ref, llm] = await Promise.all([
                 this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
-                this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false }))
+                this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false }))
             ]);
             if (this.detailItem && this.detailItem.property.id !== propertyId) {
                 return;
             }
             this.detailAgents = agents.ok ? (agents.body || []) : [];
             this.detailRef = ref.ok ? ref.body : null;
+            // 아직 산출 전이면 204라 body가 없다
+            this.detailLlm = llm.ok && llm.body ? llm.body : null;
+        },
+
+        /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */
+        async refreshLlm() {
+            const id = this.detailItem.property.id;
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${id}/llm-recommendation`, { method: 'POST' });
+                if (ok && body) {
+                    this.detailLlm = body;
+                    await this.loadProperties();
+                } else if (ok) {
+                    this.error = 'AI 추천도를 산출하지 못했습니다. LLM 연동 설정을 확인해 주세요';
+                } else {
+                    this.error = (body && body.message) || 'AI 추천도 산출에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         closeDetail() {
