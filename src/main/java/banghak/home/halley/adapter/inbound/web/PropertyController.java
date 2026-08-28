@@ -163,6 +163,16 @@ public class PropertyController {
         return scoringService.rescore(id);
     }
 
+    /**
+     * 자동 재채점 트리거 (설계 8장). 매물을 수정하지 않고 점수만 다시 계산한다 —
+     * 수집 규칙 버전을 올린 뒤(`PoiDataService.POI_SCHEMA_VERSION`, 설계 I44) POI 재수집을 유도하거나,
+     * 외부 API 장애로 폴백된 항목을 복구할 때 쓴다.
+     */
+    @PostMapping("/{id}/rescore")
+    public ScoredPropertyResponse rescore(@PathVariable Long id) {
+        return scoringService.rescore(id);
+    }
+
     @PutMapping("/{id}/scores")
     public ScoredPropertyResponse updateScores(@PathVariable Long id, @RequestBody UpdateScoresRequest request) {
         return scoringService.saveManualScores(id, request.scores());

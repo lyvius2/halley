@@ -73,4 +73,68 @@ class ScoreApiIntegrationTest {
         }
         assertThat(comfortEffective).isEqualTo(100.0);
     }
+
+    @Test
+    @DisplayName("재채점 트리거는 매물을 수정하지 않고 점수를 다시 계산해 반환한다")
+    void rescoreRecomputesScores() throws Exception {
+        // given
+        final MockHttpSession session = login("rescore-user", "rescore@example.com");
+        final String created = mockMvc.perform(post("/api/properties").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"재채점 테스트\",\"dealType\":\"SALE\",\"priceDeposit\":300000000,\"floorNo\":9}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        final String id = objectMapper.readTree(created).get("property").get("id").asString();
+
+        // when
+        final String body = mockMvc.perform(post("/api/properties/" + id + "/rescore").session(session))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // then — 매물은 그대로이고 채점 결과가 다시 계산되어 온다
+        final JsonNode response = objectMapper.readTree(body);
+        assertThat(response.path("property").path("id").asString()).isEqualTo(id);
+        assertThat(response.path("property").path("name").asString()).isEqualTo("재채점 테스트");
+        double floorScore = -1.0;
+        for (final JsonNode s : response.path("scores")) {
+            if ("FLOOR".equals(s.path("code").asString())) {
+                floorScore = s.path("effectiveScore").asDouble();
+            }
+        }
+        assertThat(floorScore).isEqualTo(100.0);
+    }
+
+    @Test
+    @DisplayName("없는 매물을 재채점하면 404를 반환한다")
+    void rescoreUnknownProperty() throws Exception {
+        // given
+        final MockHttpSession session = login("rescore-404", "rescore404@example.com");
+
+        // when · then
+        mockMvc.perform(post("/api/properties/999999/rescore").session(session))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("비인증 요청은 재채점할 수 없다")
+    void rescoreRequiresAuth() throws Exception {
+        // when · then
+        mockMvc.perform(post("/api/properties/1/rescore"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private MockHttpSession login(String nickname, String email) throws Exception {
+        userService.create(new CreateUserRequest(
+                nickname, email, "password1!", UserRole.MEMBER, null, null, null, 0L));
+        final MockHttpSession session = new MockHttpSession();
+        mockMvc.perform(post("/api/auth/login").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + email + "\",\"password\":\"password1!\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/password").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
+                .andExpect(status().isNoContent());
+        return session;
+    }
 }
