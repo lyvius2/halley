@@ -42,7 +42,7 @@ class PropertyServiceGeocodeTest {
         when(geoService.geocode("서울시 성북구 석관동 407"))
                 .thenReturn(Optional.of(new GeoSearchResult(
                         "서울 성북구 석관동 407", "서울시 성북구 석관동 407",
-                        new BigDecimal("37.612345"), new BigDecimal("127.065432"))));
+                        new BigDecimal("37.612345"), new BigDecimal("127.065432"), "1129013600")));
         when(propertyRepository.save(any(Property.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // when

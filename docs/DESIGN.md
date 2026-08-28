@@ -246,7 +246,6 @@ erDiagram
     PROPERTY ||--o{ PROPERTY_SCORE : scored
     PROPERTY ||--o{ USER_CRITERION_SCORE : receives
     PROPERTY ||--o{ COMMUTE_RESULT : produces
-    PROPERTY ||--o{ NEARBY_FACILITY : near
     PROPERTY ||--o{ PROPERTY_OPINION : about
     PROPERTY ||--o| LOAN_ESTIMATE : estimates
     PROPERTY ||--o{ LISTING_CHECK_LOG : "checked by batch"
@@ -384,17 +383,6 @@ erDiagram
         timestamp fetched_at
     }
 
-    NEARBY_FACILITY {
-        bigint id PK
-        bigint property_id FK
-        varchar category "STATION|SCHOOL|CONVENIENCE|MART|..."
-        varchar sub_category
-        varchar name
-        int distance_m
-        int walk_minutes
-        timestamp fetched_at
-    }
-
     PROPERTY_OPINION {
         bigint id PK
         bigint property_id FK
@@ -464,6 +452,9 @@ erDiagram
         timestamp computed_at
     }
 ```
+
+> **`NEARBY_FACILITY`는 테이블이 아닙니다.** 매물 주변 POI는 영속 데이터가 아니라 외부 API 응답 캐시이므로
+> `PoiCache`(live=Redis / local=인메모리, TTL 30일)에 담습니다 — Session 16-I44.
 
 ### 4.1 부동산 필드 정의 (네이버페이 부동산 기준)
 
@@ -626,7 +617,7 @@ stateDiagram-v2
 
 **`RTMSDataSvcAptTradeDev`(매매) / `RTMSDataSvcAptRent`(전월세)** 를 매물 상세 화면(M2)에 **참고용 카드**로만 노출합니다. 채점(`PRICE`)에는 반영하지 않습니다 — 실거래가는 계약 시점 가격이라 현재 호가보다 며칠~몇 달 늦고, 이미 `PRICE`는 호가·예산상한 기준 절대평가로 확정했기 때문에(Session 5.2.1) 두 기준을 섞으면 산식이 다시 모순됩니다.
 
-**조회 조건**: 법정동코드(5자리) + 계약년월(YYYYMM) + 단지명·전용면적 유사도로 필터링. 붙여넣기로 확보한 `address_jibun`에서 법정동코드를 역매핑해야 하므로, **법정동코드 참조 테이블**(행정안전부 공개 데이터, 약 4만 건)을 시드 데이터로 적재합니다.
+**조회 조건**: 법정동코드(5자리) + 계약년월(YYYYMM) + 단지명·전용면적 유사도로 필터링. 붙여넣기로 확보한 `address_jibun`에서 법정동코드를 역매핑해야 하는데, **참조 테이블 4만 건을 적재하는 대신 카카오 주소검색의 `b_code`를 씁니다**(Session 16-I43).
 
 **M2 표시 위치**: 가격 정보 하단에 접이식 카드.
 
@@ -1811,6 +1802,43 @@ I5의 "AT4 + 키워드 검색" 권고가 구현되지 않아 `GREEN`은 `AT4`(�
 
 `scoring_type`은 `HYBRID`를 유지합니다 — "탐방로가 조성된 산"·"산책로가 조성된 하천"은 여전히 POI로 판정할 수 없어(I5), 자동 점수는 초안이고 사용자가 확정·수정할 수 있어야 합니다.
 
+
+### I43. 법정동코드 확보 · **[확정 — 카카오 `b_code` 재사용]**
+
+설계 5.5는 법정동코드 참조 테이블(행정안전부 공개 데이터 약 4만 건)을 시드 적재하기로 했으나, 실제로는 대표 8건만 시드된 상태라 **대부분의 매물에서 실거래가 조회를 시도조차 하지 못하고 있었습니다**(`deriveSigunguCode`가 빈 값 → 호출 생략).
+
+**카카오 주소검색 응답의 `address.b_code`(법정동코드 10자리)를 씁니다.** 이미 쓰고 있는 연동이라 API 키가 늘지 않고, 전국 주소를 커버합니다.
+
+```
+서울 종로구 세종로 1-1   → b_code 1111011900 → LAWD_CD 11110
+서울 노원구 상계동 771    → b_code 1135010500 → LAWD_CD 11350
+부산 해운대구 우동 1408   → b_code 2635010500 → LAWD_CD 26350
+```
+
+`LegalDongCodeService.deriveSigunguCode()` 순서: ① `legal_dong_code` 테이블 → ② 카카오 주소검색(실패 시 동까지만 잘라 재조회) → ③ 확보한 코드를 테이블에 캐시. **테이블은 시드 없이 비어 있는 상태로 시작하며 ③으로만 채워집니다** — 기존 시드 8건은 시군구 코드가 5건이나 틀려(마포구를 강남구 `11680`으로 등) 테이블이 카카오보다 우선하는 구조에서 엉뚱한 구의 실거래가를 가져오고 있었으므로 `LegalDongCodeBootstrap`과 함께 제거했습니다. 실거래 결과가 0건이면 `reference_transaction` 캐시가 생기지 않아 상세를 열 때마다 역매핑이 반복되므로, ③의 캐시가 필요합니다.
+
+**행정안전부 API를 쓰지 않은 이유**: `apis.data.go.kr/1741000/StanReginCd`와 `business.juso.go.kr` 모두 생존을 확인했지만, 각각 새 인증키(활용신청·승인)와 새 FeignClient·FallbackFactory가 필요합니다. 카카오로 같은 결과를 얻으므로 연동을 늘리지 않습니다. 키 발급 절차는 나중에 전환할 경우를 대비해 `docs/INTERFACE_MANUAL.md` 5.5.1에 적어 두었습니다.
+
+**한계**: 카카오 장애 시 실거래가 카드가 비게 됩니다. 다만 실거래가는 참고 표기 전용(5.5)이라 채점·순위에는 영향이 없습니다.
+
+### I44. 매물 주변 POI 저장 위치 · **[확정 — `nearby_facility` 테이블 폐지, Redis 캐시 + 버전 키]**
+
+`nearby_facility`는 ERD의 테이블이었지만 실제로는 **카카오 응답의 캐시**입니다. 영속 데이터가 아니고 화면에도 노출되지 않으며(채점 입력으로만 사용), 설계 2.1.1은 이미 "카카오 POI 캐시"를 Redis 용도로 올려두고 있었습니다. 테이블을 없애고 `PoiCache` 포트로 옮깁니다.
+
+| | 결정 |
+|---|---|
+| 저장소 | `PoiCache` — local `InMemoryPoiCache` / live `RedisPoiCache` (설계 2.5의 프로파일 교체) |
+| TTL | **30일** (설계 2.1.1 값 유지) |
+| 키 | `poi:v{schemaVersion}:{propertyId}` |
+| 테이블 | `nearby_facility` 제거 (schema.sql · ERD · Repository 삭제) |
+
+**핵심은 TTL이 아니라 키의 버전입니다.** 수집 규칙(카테고리·키워드·반경, `sub_category` 분류, 도보시간 환산식)이 바뀌면 `PoiDataService.POI_SCHEMA_VERSION`을 올립니다. 그러면 배포 즉시 옛 캐시가 무시되고 전량 재수집되므로, 규칙 변경 때마다 운영 DB에서 수동으로 지울 필요가 없습니다. 파서의 `parser_version`(I25)과 같은 방식입니다.
+
+**TTL을 짧게 잡지 않은 이유**: 지하철역·학교·공원·하천은 사실상 불변인데 수집 비용은 매물 1건당 외부 호출 13회(카테고리 10 + GREEN 키워드 3)입니다. TTL 1시간이면 매물 30건 기준 시간당 390회를 계속 지불하면서도, 규칙을 바꾼 직후 1시간은 여전히 옛 분류로 채점됩니다 — 비용은 영구적인데 문제는 해결되지 않습니다. 버전 키가 그 문제를 정확히 겨냥합니다.
+
+**현재 버전은 `v2`** 입니다(v1 = AT4만 수집하고 장소명으로 판정하던 규칙, I42 이전).
+
+Redis 장애 시 `RedisPoiCache`는 조회·저장을 조용히 건너뛰고 외부 API를 다시 호출합니다 — 캐시 장애가 채점을 막지 않습니다(설계 2.1.1).
 ---
 
 ## 17. 부록: 패키지 구조 (제안)

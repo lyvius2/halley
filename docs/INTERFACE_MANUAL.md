@@ -30,6 +30,8 @@
 | 지도 표시 | M1 좌측 지도, D23 로드뷰 | `kakao.maps` (JS SDK, `autoload=false` + `kakao.maps.load`) |
 | 주소 검색 프록시 | `GET /api/geo/search` | `GeoController → GeoService → KakaoLocalPort` |
 | POI 반경검색 | 채점 엔진 (P4) | `STATION`·`EDUCATION`·`AMENITY`·`GREEN` 채점용 카테고리 검색 |
+| POI 키워드검색 | 채점 엔진 (P4) | `GREEN` 공원·하천, 그리고 `AT4` 필터를 건 산 검색 (설계 I42) |
+| **법정동코드 조회** | 국토부 실거래가 조회 전 단계 | 주소검색 응답의 `address.b_code`(10자리) 앞 5자리를 `LAWD_CD`로 사용 (설계 I43) |
 
 ### 2.2 키 발급 절차
 
@@ -257,8 +259,12 @@ sequenceDiagram
 
 1. [공공데이터포털 data.go.kr](https://www.data.go.kr) 회원가입/로그인
 2. **국토교통부 부동산 실거래가 정보** 검색 → 원하는 API(매매/전월세) **활용신청**
-3. **마이페이지 → 데이터 활용 → 서비스 키** 발급 (인코딩 키)
+3. **마이페이지 → 데이터 활용 → 서비스 키** 발급
 4. `MINISTRY_API_KEY` 환경변수로 주입
+
+> **Encoding·Decoding 어느 형태를 넣어도 됩니다.** 포털은 인증키를 두 형태로 주는데, Encoding 키(`%2F`·`%3D` 포함)를
+> 그대로 넘기면 Feign이 `%`를 한 번 더 인코딩해 `403 SERVICE_KEY_IS_NOT_REGISTERED_ERROR`가 납니다.
+> `MinistryReferenceAdapter`가 퍼센트 이스케이프를 되돌려 주므로(Base64의 `+`는 보호) 둘 다 동작합니다.
 
 ### 5.3 설정 키
 
@@ -292,6 +298,51 @@ sequenceDiagram
 
 > **동기화 (설계 5.5)**: 등록 시 1회 조회 + 캐시(Redis TTL 7일). 국토부는 월 단위 갱신이므로 실시간 폴링 불필요. 실거래가는 **참고 표기 전용**입니다.
 
+### 5.5 법정동코드(`LAWD_CD`) 확보 — 카카오 주소검색 재사용
+
+국토부 API는 시군구 5자리 법정동코드를 요구합니다. **별도 API 키 없이 카카오 주소검색으로 해결합니다**(설계 I43).
+
+```
+GET /v2/local/search/address.json?query={지번주소}
+  → documents[0].address.b_code = "1135010500"   (법정동코드 10자리)
+  → 앞 5자리 "11350" 이 LAWD_CD (노원구)
+```
+
+`LegalDongCodeService.deriveSigunguCode()`의 순서입니다.
+
+1. `legal_dong_code` 테이블 조회 (부팅 시드 8건 + 아래 3에서 쌓인 캐시)
+2. 미적중이면 카카오 주소검색 → `b_code`. 존재하지 않는 번지로 실패하면 **동까지만 잘라** 재조회
+3. 확보한 코드를 `legal_dong_code`에 캐시 → 같은 동은 다시 묻지 않음
+
+키가 없거나 외부 장애면 예외를 올리지 않고 빈 값을 반환합니다(실거래가는 참고 정보이므로 — 6.1). 이때
+`법정동코드를 찾지 못해 실거래가를 조회하지 않습니다` 로그가 남습니다.
+
+#### 5.5.1 대안 — 행정안전부 API (현재 미사용)
+
+전국 법정동코드를 자체 보유하려면 아래 두 경로가 있습니다. **지금은 쓰지 않습니다**(카카오로 충분하고 키가 하나 늘지 않음).
+나중에 카카오 의존을 줄이거나 오프라인 조회가 필요해지면 이 경로로 전환합니다.
+
+| 제공 | 엔드포인트 | 키 발급처 |
+|---|---|---|
+| 행정안전부 행정표준코드 법정동코드 조회 | `https://apis.data.go.kr/1741000/StanReginCd/getStanReginCdList` | 공공데이터포털 |
+| 행정안전부 도로명주소 주소검색 | `https://business.juso.go.kr/addrlink/addrLinkApi.do` | 도로명주소 개발자센터 |
+
+**공공데이터포털(StanReginCd) 키 발급 절차**
+
+1. [공공데이터포털 data.go.kr](https://www.data.go.kr) 회원가입/로그인
+2. `행정표준코드` 또는 `법정동코드` 검색 → **행정안전부** 제공 오픈 API **활용신청**
+3. **마이페이지 → 데이터 활용 → 개발계정 → 인증키** 확인 (국토부와 **같은 인증키**를 쓰며, 서비스별로 활용신청만 추가하면 됩니다)
+4. 승인 후 `serviceKey`·`pageNo`·`numOfRows`·`type=json`·`locatadd_nm` 파라미터로 호출
+
+**도로명주소 개발자센터(juso.go.kr) 키 발급 절차**
+
+1. [도로명주소 개발자센터](https://business.juso.go.kr) 회원가입/로그인
+2. **오픈API → 주소검색 API 신청** (사용 URL·용도 기재)
+3. 발급된 **승인키(confmKey)** 를 요청 파라미터로 전달
+
+> 두 엔드포인트 모두 생존을 확인했습니다(미등록 키로 호출 시 각각 `SERVICE_KEY_IS_NOT_REGISTERED_ERROR`,
+> `승인되지 않은 KEY 입니다` 응답). **응답 필드 구조는 키 발급 후 확인이 필요합니다** — 미검증 상태로 코드에 반영하지 마세요.
+
 ---
 
 ## 6. 공통 · 운영 메모
@@ -315,7 +366,18 @@ sequenceDiagram
 | Port | 어댑터 | FeignClient |
 |---|---|---|
 | `KakaoLocalPort` | `KakaoLocalAdapter` | `KakaoLocalFeignClient` |
+| `KakaoDirectionsPort` | `KakaoDirectionsAdapter` | `KakaoDirectionsFeignClient` |
 | `OdsayTransitPort` | `OdsayTransitAdapter` | `OdsayTransitFeignClient` |
+| `MinistryReferencePort` | `MinistryReferenceAdapter` | `MinistryReferenceFeignClient` |
 | `SlackPort` | `SlackWebhookAdapter` | `SlackWebhookClient` |
+
+**캐시 포트** (프로파일로 구현 교체 — 설계 2.5)
+
+| Port | local (`@Profile("!live")`) | live (`@Profile("live")`) | TTL |
+|---|---|---|---|
+| `PoiCache` | `InMemoryPoiCache` | `RedisPoiCache` | 30일 (키에 수집 규칙 버전 포함 — 설계 I44) |
+| `TravelTimeCache` | `InMemoryTravelTimeCache` | `RedisTravelTimeCache` | 7일 (TRANSIT만, 설계 10.4) |
+
+> 두 Redis 어댑터 모두 **장애 시 조용히 건너뜁니다**. 캐시가 죽어도 외부 API 재호출로 흡수되어 느려질 뿐 기능은 유지됩니다(설계 2.1.1).
 
 > 이 문서와 코드가 어긋나면 `docs/DESIGN.md`가 최신 확정 사항이므로 그쪽을 따르고 이 문서를 갱신합니다.

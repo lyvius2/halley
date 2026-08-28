@@ -87,7 +87,7 @@ class PoiDataServiceTest {
     }
 
     @Test
-    @DisplayName("최초 조회에서 카테고리별 POI를 수집해 저장하고 이후에는 캐시를 사용한다")
+    @DisplayName("최초 조회에서 카테고리별 POI를 수집해 캐시하고 이후에는 캐시를 사용한다")
     void cachesAfterFirstFetch() {
         // given
         final Property property = propertyWithCoords("POI 테스트");

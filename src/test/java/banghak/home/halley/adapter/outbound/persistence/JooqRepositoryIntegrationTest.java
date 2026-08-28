@@ -7,7 +7,6 @@ import banghak.home.halley.adapter.outbound.persistence.CriterionWeightRepositor
 import banghak.home.halley.adapter.outbound.persistence.LegalDongCodeRepository;
 import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.LoanEstimateRepository;
-import banghak.home.halley.adapter.outbound.persistence.NearbyFacilityRepository;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyAgentRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyImageRepository;
@@ -40,7 +39,6 @@ import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.MoveInType;
-import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.OpinionType;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.PropertyAgent;
@@ -87,7 +85,6 @@ class JooqRepositoryIntegrationTest {
     @Autowired private PropertyScoreRepository propertyScoreRepository;
     @Autowired private UserCriterionScoreRepository userCriterionScoreRepository;
     @Autowired private CommuteResultRepository commuteResultRepository;
-    @Autowired private NearbyFacilityRepository nearbyFacilityRepository;
     @Autowired private PropertyOpinionRepository propertyOpinionRepository;
     @Autowired private ListingCheckLogRepository listingCheckLogRepository;
     @Autowired private SystemConfigRepository systemConfigRepository;
@@ -197,16 +194,6 @@ class JooqRepositoryIntegrationTest {
         CommuteResult found = commuteResultRepository.findById(1L, 2L).orElseThrow();
         assertThat(found.totalMinutes()).isEqualTo(45);
         assertThat(found.pathSummary().get("mode").asString()).isEqualTo("TRANSIT");
-    }
-
-    @Test
-    void nearbyFacilityRoundTrip() {
-        NearbyFacility saved = nearbyFacilityRepository.save(new NearbyFacility(
-                null, 1L, "STATION", null, "무악재역", 300, 11, null));
-
-        NearbyFacility found = nearbyFacilityRepository.findById(saved.id()).orElseThrow();
-        assertThat(found.category()).isEqualTo("STATION");
-        assertThat(found.name()).isEqualTo("무악재역");
     }
 
     @Test

@@ -1,7 +1,7 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.application.port.out.cache.PoiCache;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
-import banghak.home.halley.adapter.outbound.persistence.NearbyFacilityRepository;
 import banghak.home.halley.domain.geo.GreenCategory;
 import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.property.NearbyFacility;
@@ -17,6 +17,18 @@ import java.util.Optional;
 @Slf4j
 @Service
 public class PoiDataService {
+
+    /**
+     * 수집 규칙 버전 — 캐시 키에 포함된다(설계 I44). 아래 중 하나라도 바뀌면 **반드시 올린다**.
+     * 올리고 배포하면 옛 캐시가 즉시 무시되고 전량 재수집되므로 수동 삭제가 필요 없다.
+     * <ul>
+     *   <li>CATEGORIES · GREEN_KEYWORDS (수집 대상·반경)</li>
+     *   <li>sub_category 분류 규칙 (GreenCategory)</li>
+     *   <li>도보시간 환산식</li>
+     * </ul>
+     * v2 — GREEN을 category_name으로 분류하고 공원·하천·산을 키워드로 수집하도록 변경 (설계 I42)
+     */
+    private static final int POI_SCHEMA_VERSION = 2;
 
     private static final List<CategorySpec> CATEGORIES = List.of(
             new CategorySpec("STATION", "SW8", 2000),
@@ -41,21 +53,20 @@ public class PoiDataService {
             new KeywordSpec("산", "AT4", 2000));
 
     private final KakaoLocalPort kakaoLocalPort;
-    private final NearbyFacilityRepository nearbyFacilityRepository;
+    private final PoiCache poiCache;
 
-    public PoiDataService(KakaoLocalPort kakaoLocalPort,
-                          NearbyFacilityRepository nearbyFacilityRepository) {
+    public PoiDataService(KakaoLocalPort kakaoLocalPort, PoiCache poiCache) {
         this.kakaoLocalPort = kakaoLocalPort;
-        this.nearbyFacilityRepository = nearbyFacilityRepository;
+        this.poiCache = poiCache;
     }
 
     public List<NearbyFacility> ensureNearby(Property property) {
         if (property.lat() == null || property.lng() == null) {
             return List.of();
         }
-        final List<NearbyFacility> existing = nearbyFacilityRepository.findByPropertyId(property.id());
-        if (!existing.isEmpty()) {
-            return existing;
+        final List<NearbyFacility> cached = poiCache.get(property.id(), POI_SCHEMA_VERSION);
+        if (!cached.isEmpty()) {
+            return cached;
         }
         return fetchAndStore(property);
     }
@@ -82,9 +93,7 @@ public class PoiDataService {
             log.warn("POI 수집 실패 propertyId={}: {}", property.id(), e.getMessage());
             return List.of();
         }
-        for (final NearbyFacility facility : facilities) {
-            nearbyFacilityRepository.save(facility);
-        }
+        poiCache.put(property.id(), POI_SCHEMA_VERSION, facilities);
         return facilities;
     }
 

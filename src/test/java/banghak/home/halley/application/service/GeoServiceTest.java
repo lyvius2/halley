@@ -35,7 +35,8 @@ class GeoServiceTest {
     void searchReturnsPortResults() {
         // given
         final GeoSearchResult expected = new GeoSearchResult(
-                "서울 마포구 서교동", "서울 마포구 양화로", new BigDecimal("37.55"), new BigDecimal("126.91"));
+                "서울 마포구 서교동", "서울 마포구 양화로", new BigDecimal("37.55"), new BigDecimal("126.91"),
+                "1144012000");
         final GeoService service = new GeoService(stubPort(expected));
 
         // when
