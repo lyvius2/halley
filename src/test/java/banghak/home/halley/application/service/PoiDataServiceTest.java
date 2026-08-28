@@ -157,6 +157,6 @@ class PoiDataServiceTest {
                 null, null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 }

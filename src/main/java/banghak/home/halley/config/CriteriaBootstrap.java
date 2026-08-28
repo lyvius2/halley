@@ -33,7 +33,8 @@ public class CriteriaBootstrap implements ApplicationRunner {
             new Seed("PARKING", "주차", ScoringType.AUTO),
             new Seed("GREEN", "녹색환경", ScoringType.HYBRID),
             new Seed("HOUSEHOLDS", "세대수", ScoringType.AUTO),
-            new Seed("LLM_RECOMMENDATION", "AI 추천도", ScoringType.AUTO));
+            new Seed("LLM_RECOMMENDATION", "AI 추천도", ScoringType.AUTO),
+            new Seed("COMPARATIVE_ADVANTAGE", "비교 우위 추천", ScoringType.AUTO));
 
     private final CriterionRepository criterionRepository;
     private final CriterionWeightRepository criterionWeightRepository;

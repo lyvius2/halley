@@ -16,7 +16,11 @@ public record ScoringContext(
         List<NearbyFacility> nearbyFacilities,
         Map<Long, Integer> commuteMinutes,
         BigDecimal llmScore,
-        String llmReason
+        String llmReason,
+        BigDecimal comparativeScore,
+        String comparativeReason,
+        Integer comparativeRank,
+        Integer comparativeCount
 ) {
 
     public ScoringContext {

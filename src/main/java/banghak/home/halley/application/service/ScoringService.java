@@ -11,8 +11,10 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepository;
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
+import banghak.home.halley.adapter.outbound.persistence.ComparativeAnalysisRepository;
 import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.domain.llm.ComparativeAnalysis;
 import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
@@ -60,6 +62,7 @@ public class ScoringService {
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final LlmRecommendationRepository llmRecommendationRepository;
+    private final ComparativeAnalysisRepository comparativeAnalysisRepository;
     private final CriterionRepository criterionRepository;
     private final CriterionWeightRepository criterionWeightRepository;
     private final PropertyScoreRepository propertyScoreRepository;
@@ -75,6 +78,7 @@ public class ScoringService {
     public ScoringService(PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
+                          ComparativeAnalysisRepository comparativeAnalysisRepository,
                           CriterionRepository criterionRepository,
                           CriterionWeightRepository criterionWeightRepository,
                           PropertyScoreRepository propertyScoreRepository,
@@ -89,6 +93,7 @@ public class ScoringService {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
+        this.comparativeAnalysisRepository = comparativeAnalysisRepository;
         this.criterionRepository = criterionRepository;
         this.criterionWeightRepository = criterionWeightRepository;
         this.propertyScoreRepository = propertyScoreRepository;
@@ -280,10 +285,17 @@ public class ScoringService {
         final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, allUsers);
         // AI 추천도는 채점 루프 안에서 부르지 않는다 — 저장된 값만 읽는다 (설계 I59)
         final Optional<LlmRecommendation> llm = llmRecommendationRepository.findByPropertyId(property.id());
+        // 비교 우위도 마찬가지 — 매물 전체를 한 번에 묻는 무거운 작업이라 저장된 값만 읽는다 (설계 I61)
+        final Optional<ComparativeAnalysis> comparative =
+                comparativeAnalysisRepository.findByPropertyId(property.id());
         return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loadLoanCalculator(),
                 nearbyFacilities, commuteMinutes,
                 llm.map(LlmRecommendation::score).orElse(null),
-                llm.map(LlmRecommendation::reason).orElse(null));
+                llm.map(LlmRecommendation::reason).orElse(null),
+                comparative.map(ComparativeAnalysis::score).orElse(null),
+                comparative.map(ComparativeAnalysis::reason).orElse(null),
+                comparative.map(ComparativeAnalysis::rankNo).orElse(null),
+                comparative.map(ComparativeAnalysis::propertyCount).orElse(null));
     }
 
     @Transactional

@@ -62,7 +62,7 @@ class PropertyImageServiceTest {
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     private byte[] jpegBytes() throws Exception {

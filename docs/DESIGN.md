@@ -316,6 +316,7 @@ erDiagram
         int official_price_year "공시가격 기준연도"
         varchar source_type "MANUAL|PASTE|CRAWL"
         varchar source_url
+        varchar reference_url "참고 URL — 사람이 붙이는 링크 (I62)"
         varchar naver_article_no "매물번호"
         text raw_paste_text "원문 보존 → 재파싱용"
         varchar parser_version
@@ -534,6 +535,7 @@ TotalScore = Σ(effective_score_i × weight_i) / Σ(weight_i)
 | `PARKING` | 주차 | AUTO | `clamp(세대당대수 / 1.0 × 100, 0, 100)` |
 | `GREEN` | 녹색환경 | HYBRID | 공원·산·하천 3종을 **최근접 도보시간**으로 채점. 종류별 `33.3 × clamp((20−t)/15, 0, 1)` (Session 16-I42) |
 | `LLM_RECOMMENDATION` | AI 추천도 | AUTO | **LLM이 매물 정보와 구매자 직장 위치를 보고 매긴 0~100점.** 채점 루프에서 호출하지 않고 저장된 값을 쓴다 (I59) |
+| `COMPARATIVE_ADVANTAGE` | 비교 우위 추천 | AUTO | **등록 매물 전체를 견준 상대적 우위.** 매물 4개 이상일 때만 산출 (I61) |
 | `HOUSEHOLDS` | 세대수 | AUTO | `clamp(세대수 / 350 × 100, 0, 100)` — **350세대 이상은 모두 만점** (Session 16-I49) |
 
 ### 5.2.1 가격 채점 — 예산 절대평가
@@ -2094,6 +2096,41 @@ AI 추천도(I59)의 입력에 **구매자들의 직장 위치**가 들어갑니
 - 매물 자체가 바뀐 경우는 이 규칙과 무관합니다 — `prompt_hash`가 달라지므로 평소대로 다시 뽑습니다.
 - 재추론된 매물이 하나라도 있을 때만 `rescoreAll()`을 부릅니다. 점수가 안 바뀌었는데 전 매물을
   다시 계산할 이유가 없습니다.
+
+### I61. 비교 우위 분석 · **[확정 — 매물 4개 이상, 백엔드 우선]**
+
+등록된 매물 **전체를 한 번에** LLM에 던져 서로 견주게 하고, 순위와 `비교 우위 추천` 점수를 받습니다.
+같은 정보를 봐도 **"이 집이 괜찮은가"(I59 AI 추천도)** 와 **"이 집이 저 집보다 나은가"** 는 다른 질문이라
+항목을 따로 둡니다.
+
+- **매물이 4개 미만이면 실행하지 않습니다**(`COMPARATIVE_NOT_ENOUGH_PROPERTIES`, 409).
+  둘셋으로는 비교 우위라는 말이 성립하지 않고, 순위를 매겨도 정보가 거의 없습니다.
+- **판매완료·초안은 대상에서 뺍니다.** 살 수 없는 집과 견주면 순위가 왜곡됩니다.
+- 결과는 `comparative_analysis`(매물당 1건)에 `rank_no`·`score`·`reason`·`model`·`batch_hash`·
+  `property_count`로 저장합니다. **`property_count`가 없으면 "몇 개 중 몇 위"가 성립하지 않습니다.**
+- **일부 매물만 순위가 매겨지면 결과 전체를 버립니다.** 빠진 매물이 있는 채로 저장하면 순위가 거짓이 됩니다.
+- 매물 집합이 그대로면 다시 부르지 않습니다(`batch_hash`). 이번 분석에 없던 매물의 옛 결과는 지웁니다.
+- `COMPARATIVE_ADVANTAGE`(비교 우위 추천) 채점 항목으로 총점에 반영합니다. AI 추천도와 마찬가지로
+  **채점 루프에서 LLM을 부르지 않고** 저장된 값을 씁니다.
+- 실행 후 `rescoreAll()`로 전 매물을 다시 채점합니다 — 순위가 바뀌면 모든 매물의 점수가 함께 움직입니다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/properties/comparative-analysis` | 현황(실행 가능 여부·매물 수·저장된 순위) |
+| POST | `/api/properties/comparative-analysis` | 분석 실행 — 4개 미만이면 409 |
+
+**화면은 아직 없습니다(백엔드 우선).**
+
+### I62. 참고 URL · **[확정 — `source_url`과 별도]**
+
+매물에 사람이 붙이는 메모성 링크 `property.reference_url`을 신설합니다.
+
+- **기존 `source_url`을 재사용하지 않습니다.** `source_url`은 생존 확인 배치(10장)의 대상 판정에 쓰여
+  값이 있으면 주기적으로 그 URL을 두드립니다. 참고용 링크를 여기 넣으면 엉뚱한 곳에 배치가 붙습니다.
+- 붙여넣기 등록 모달에서 **파싱 결과 격자와 분리된 "직접 입력" 블록**으로 받습니다.
+  파싱되지 않는 항목이라는 걸 화면에서 드러내야 사용자가 빈 칸을 오해하지 않습니다.
+- 화면에서 링크로 열리므로 **`http://`·`https://`만 받습니다.** `javascript:` 같은 스킴이 들어오면
+  링크를 누르는 순간 스크립트가 도는 통로가 됩니다.
 
 ---
 

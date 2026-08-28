@@ -63,7 +63,7 @@ class PropertyServiceTest {
                 null, null, null, null, null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
 
         // when
         final InvalidPropertyRequestException ex = assertThrows(
@@ -181,7 +181,7 @@ class PropertyServiceTest {
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
                 new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
 
         // when
         final PropertyResponse updated = propertyService.update(created.id(), updateRequest, null);
@@ -218,7 +218,7 @@ class PropertyServiceTest {
                 base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
                 base.moveInDate(), base.parkingPerHousehold(), base.totalHouseholds(), base.heatingType(),
                 base.buildingCount(), base.kbPrice(), null, null, null, null, null, null, null, null,
-                null, "A12345678", "매매\n매매가\n15억");
+                null, null, "A12345678", "매매\n매매가\n15억");
 
         // when
         final PropertyResponse created = propertyService.create(pasteRequest);
@@ -251,6 +251,43 @@ class PropertyServiceTest {
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
+    }
+
+    @Test
+    @DisplayName("참고 URL은 저장되고 http/https가 아니면 거부한다 (설계 I62)")
+    void referenceUrlIsStoredAndValidated() {
+        // given
+        final PropertyRequest ok = requestWithReferenceUrl("https://example.com/listing/1");
+
+        // when
+        final PropertyResponse created = propertyService.create(ok);
+
+        // then
+        assertThat(created.referenceUrl()).isEqualTo("https://example.com/listing/1");
+
+        // 링크로 열리는 값이라 javascript: 같은 스킴은 막는다
+        final InvalidPropertyRequestException rejected = assertThrows(
+                InvalidPropertyRequestException.class,
+                () -> propertyService.create(requestWithReferenceUrl("javascript:alert(1)")));
+        assertThat(rejected.getMessage()).contains("http://");
+    }
+
+    @Test
+    @DisplayName("참고 URL이 비어 있으면 null로 저장한다")
+    void blankReferenceUrlBecomesNull() {
+        assertThat(propertyService.create(requestWithReferenceUrl("   ")).referenceUrl()).isNull();
+        assertThat(propertyService.create(requestWithReferenceUrl(null)).referenceUrl()).isNull();
+    }
+
+    private PropertyRequest requestWithReferenceUrl(String referenceUrl) {
+        return new PropertyRequest(
+                "참고URL테스트", null, DealType.SALE, 500_000_000L, null, null,
+                "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, referenceUrl, null, null);
     }
 }

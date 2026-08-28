@@ -29,15 +29,17 @@ class CriteriaServiceTest {
         final List<CriterionWeightResponse> weights = criteriaService.weights();
 
         // then
-        assertThat(weights).hasSize(13);
+        assertThat(weights).hasSize(14);
         assertThat(weights).extracting(CriterionWeightResponse::priorityRank).isSorted();
         assertThat(weights.getFirst().criterionCode()).isEqualTo("COMFORT");
         assertThat(weights.getFirst().weight()).isEqualByComparingTo("3.0");
         assertThat(weights.get(11).criterionCode()).isEqualTo("HOUSEHOLDS");
         assertThat(weights.get(11).weight()).isEqualByComparingTo("0.8");
-        // AI 추천도는 나중에 추가돼 맨 뒤에 붙는다 (설계 I59)
+        // 나중에 추가된 항목은 기존 순위 뒤에 붙는다 (설계 I59 · I61)
         assertThat(weights.get(12).criterionCode()).isEqualTo("LLM_RECOMMENDATION");
         assertThat(weights.get(12).weight()).isEqualByComparingTo("0.6");
+        assertThat(weights.get(13).criterionCode()).isEqualTo("COMPARATIVE_ADVANTAGE");
+        assertThat(weights.get(13).weight()).isEqualByComparingTo("0.4");
     }
 
     @Test

@@ -3,6 +3,7 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
 import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
@@ -21,6 +22,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
+import banghak.home.halley.application.service.ComparativeAnalysisService;
 import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
@@ -63,6 +65,7 @@ public class PropertyController {
     private final AgentService agentService;
     private final PropertyCommentService propertyCommentService;
     private final LlmRecommendationService llmRecommendationService;
+    private final ComparativeAnalysisService comparativeAnalysisService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -72,7 +75,8 @@ public class PropertyController {
                               PropertyImageService propertyImageService,
                               AgentService agentService,
                               PropertyCommentService propertyCommentService,
-                              LlmRecommendationService llmRecommendationService) {
+                              LlmRecommendationService llmRecommendationService,
+                              ComparativeAnalysisService comparativeAnalysisService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -82,6 +86,20 @@ public class PropertyController {
         this.agentService = agentService;
         this.propertyCommentService = propertyCommentService;
         this.llmRecommendationService = llmRecommendationService;
+        this.comparativeAnalysisService = comparativeAnalysisService;
+    }
+
+    /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
+    @GetMapping("/comparative-analysis")
+    public ComparativeAnalysisStatus comparativeAnalysis() {
+        return comparativeAnalysisService.status();
+    }
+
+    /** 등록된 매물 전체를 견주어 순위를 매긴다. 매물이 4개 미만이면 409. */
+    @PostMapping("/comparative-analysis")
+    public ComparativeAnalysisStatus runComparativeAnalysis() {
+        comparativeAnalysisService.analyse();
+        return comparativeAnalysisService.status();
     }
 
     @GetMapping("/{id}/llm-recommendation")

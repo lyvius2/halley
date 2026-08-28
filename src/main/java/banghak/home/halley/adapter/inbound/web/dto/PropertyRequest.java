@@ -43,6 +43,7 @@ public record PropertyRequest(
         Integer schoolWalkMinutes,
         AgentRequest agent,
         String sourceUrl,
+        String referenceUrl,
         String naverArticleNo,
         String rawPasteText
 ) {

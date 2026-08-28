@@ -110,7 +110,7 @@ class PropertyServiceGeocodeTest {
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     private static PropertyRequest requestWithoutCoords(String address) {
@@ -120,6 +120,6 @@ class PropertyServiceGeocodeTest {
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 }

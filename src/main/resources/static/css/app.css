@@ -1220,3 +1220,18 @@ tr.dragging { opacity: .5; background: var(--line2); }
     font-family: 'JetBrains Mono', monospace;
 }
 .llm-meta .btn-xs { margin-left: auto; font-family: inherit; }
+
+/* 붙여넣기 모달의 '직접 입력' 블록 — 파싱 결과 격자와 구분되게 띄운다 (설계 I62) */
+.paste-extra {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+}
+.paste-extra .paste-field { display: block; }
+
+/* 참고 URL은 길어서 줄바꿈시킨다 — 모달 폭을 밀어내면 안 된다 */
+.m2-link {
+    color: var(--ocean);
+    word-break: break-all;
+    text-align: right;
+}

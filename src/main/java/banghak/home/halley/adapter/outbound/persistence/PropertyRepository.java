@@ -61,6 +61,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_MONTHLY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PROPERTY_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.RAW_PASTE_TEXT;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.REFERENCE_URL;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ROOM_BATH;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SCHOOL_NAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SCHOOL_SOURCE;
@@ -130,6 +131,7 @@ public class PropertyRepository {
                         .set(OFFICIAL_PRICE_YEAR, property.officialPriceYear())
                         .set(SOURCE_TYPE, property.sourceType() == null ? null : property.sourceType().name())
                         .set(SOURCE_URL, property.sourceUrl())
+                        .set(REFERENCE_URL, property.referenceUrl())
                         .set(NAVER_ARTICLE_NO, property.naverArticleNo())
                         .set(RAW_PASTE_TEXT, property.rawPasteText())
                         .set(PARSER_VERSION, property.parserVersion())
@@ -188,6 +190,7 @@ public class PropertyRepository {
                 .set(OFFICIAL_PRICE_YEAR, property.officialPriceYear())
                 .set(SOURCE_TYPE, property.sourceType() == null ? null : property.sourceType().name())
                 .set(SOURCE_URL, property.sourceUrl())
+                .set(REFERENCE_URL, property.referenceUrl())
                 .set(NAVER_ARTICLE_NO, property.naverArticleNo())
                 .set(RAW_PASTE_TEXT, property.rawPasteText())
                 .set(PARSER_VERSION, property.parserVersion())
@@ -301,6 +304,7 @@ public class PropertyRepository {
                 r.get(OFFICIAL_PRICE_YEAR),
                 toEnum(SourceType.class, r.get(SOURCE_TYPE)),
                 r.get(SOURCE_URL),
+                r.get(REFERENCE_URL),
                 r.get(NAVER_ARTICLE_NO),
                 r.get(RAW_PASTE_TEXT),
                 r.get(PARSER_VERSION),

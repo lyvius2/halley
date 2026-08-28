@@ -77,7 +77,7 @@ public final class PropertyBuilder {
                 floorNo, null, floorBand,
                 null, null, approvalYear, moveInType, moveInDate,
                 parkingPerHousehold, null, null, buildingCount, null, null, null, null, null, null, null, null, null, null, null, null,
-                SourceType.MANUAL, null, null, null, null, null,
+                SourceType.MANUAL, null, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
                 null, 0, null, null, null);
     }

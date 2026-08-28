@@ -47,6 +47,7 @@ public record Property(
         Integer officialPriceYear,
         SourceType sourceType,
         String sourceUrl,
+        String referenceUrl,
         String naverArticleNo,
         String rawPasteText,
         String parserVersion,

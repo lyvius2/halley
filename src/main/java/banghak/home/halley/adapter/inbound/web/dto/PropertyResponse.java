@@ -51,6 +51,8 @@ public record PropertyResponse(
         Long officialPrice,
         Integer officialPriceYear,
         SourceType sourceType,
+        String sourceUrl,
+        String referenceUrl,
         ListingStatus listingStatus,
         boolean active,
         boolean isDraft,
@@ -71,7 +73,7 @@ public record PropertyResponse(
                 p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
                 p.brokerageFee(), p.brokerageRate(), p.acquisitionTax(), p.propertyTax(), p.comprehensiveTax(),
                 p.schoolName(), p.schoolWalkMinutes(), p.schoolSource(), p.officialPrice(), p.officialPriceYear(),
-                p.sourceType(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
+                p.sourceType(), p.sourceUrl(), p.referenceUrl(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
                 p.createdBy(), createdByNickname, editVersion);
     }
 }

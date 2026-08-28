@@ -106,7 +106,7 @@ class JooqRepositoryIntegrationTest {
                 new BigDecimal("84.93"), new BigDecimal("59.90"),
                 "7", 7, 15, FloorBand.HIGH, "3/2", "남동향", 1995, MoveInType.IMMEDIATE, null,
                 new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L, null, null, null, null, null, null, null, null, null, null, null,
-                SourceType.PASTE, "https://example.com", "12345", "raw", "v1",
+                SourceType.PASTE, null, "https://example.com", "12345", "raw", "v1",
                 objectMapper.createObjectNode().put("price", "EXACT"),
                 false, ListingStatus.ACTIVE, true, null, 0, null, null, null));
 

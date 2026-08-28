@@ -60,6 +60,7 @@ public final class PropertyTable {
     public static final Field<Integer> OFFICIAL_PRICE_YEAR = field(name(T, "official_price_year"), Integer.class);
     public static final Field<String> SOURCE_TYPE = field(name(T, "source_type"), String.class);
     public static final Field<String> SOURCE_URL = field(name(T, "source_url"), String.class);
+    public static final Field<String> REFERENCE_URL = field(name(T, "reference_url"), String.class);
     public static final Field<String> NAVER_ARTICLE_NO = field(name(T, "naver_article_no"), String.class);
     public static final Field<String> RAW_PASTE_TEXT = field(name(T, "raw_paste_text"), String.class);
     public static final Field<String> PARSER_VERSION = field(name(T, "parser_version"), String.class);
