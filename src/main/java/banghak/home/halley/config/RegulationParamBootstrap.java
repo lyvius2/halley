@@ -42,7 +42,7 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     null, PROFILE, seed.key(), seed.value(), seed.valueType(),
                     seed.description(), null, null));
         }
-        log.info("★ 규제 파라미터 {}건 시드 완료 (profile={}) ★", DEFAULTS.size(), PROFILE);
+        log.info("Seeded {} regulation parameters (profile={}).", DEFAULTS.size(), PROFILE);
     }
 
     private record Seed(String key, String value, RegulationValueType valueType, String description) {

@@ -32,10 +32,16 @@ public class AmenityScorer implements CriterionScorer {
                 .filter(f -> f.distanceM() != null && f.distanceM() <= WALK_RANGE_M)
                 .toList();
         double score = 0.0;
+        int fullCategories = 0;
         for (final String group : CATEGORIES) {
             final long count = inRange.stream().filter(f -> group.equals(f.subCategory())).count();
             score += Math.min(count, 3) / 3.0 * POINTS_PER_CATEGORY;
+            if (count >= 3) {
+                fullCategories++;
+            }
         }
-        return ScoreResult.scored(score);
+        return ScoreResult.scored(score, String.format(
+                "도보 20분 내 %d곳 · %d개 카테고리 중 %d개가 3곳 이상(카테고리당 최대 %.1f점)",
+                inRange.size(), CATEGORIES.size(), fullCategories, POINTS_PER_CATEGORY));
     }
 }

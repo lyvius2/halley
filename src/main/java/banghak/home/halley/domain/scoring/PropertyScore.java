@@ -12,6 +12,7 @@ public record PropertyScore(
         BigDecimal effectiveScore,
         ScoreSource scoreSource,
         String fallbackReason,
+        String explanation,
         Instant computedAt
 ) {
 }

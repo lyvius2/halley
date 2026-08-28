@@ -13,7 +13,7 @@ public class KakaoDirectionsFallbackFactory implements FallbackFactory<KakaoDire
     @Override
     public KakaoDirectionsFeignClient create(Throwable cause) {
         return (origin, destination, priority) -> {
-            log.warn("카카오 Directions 실패 — 폴백(이동시간 미상) 반환. origin={}, destination={}, cause={}",
+            log.warn("Kakao Directions failed - returning fallback (travel time unknown). origin={}, destination={}, cause={}",
                     origin, destination, describe(cause));
             return null;
         };

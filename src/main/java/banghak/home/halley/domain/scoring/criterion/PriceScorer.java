@@ -25,7 +25,24 @@ public class PriceScorer implements CriterionScorer {
         if (budget <= 0) {
             return ScoreResult.missing("예산상한을 계산할 수 없습니다");
         }
+        final long loanLimit = ctx.loanCalculator().expectedLoanLimit(askingPrice);
         final double targetValue = 100.0 * (1.0 - (double) askingPrice / budget);
-        return ScoreResult.scored(Math.clamp(targetValue, 0.0, 100.0));
+        return ScoreResult.scored(Math.clamp(targetValue, 0.0, 100.0), String.format(
+                "호가 %s / 예산상한 %s (현금 %s + 예상 대출한도 %s) → 100 × (1 − 호가/예산상한)%s",
+                won(askingPrice), won(budget), won(ctx.cashBudget()), won(loanLimit),
+                targetValue < 0 ? ", 예산상한을 넘어 0점" : ""));
+    }
+
+    /** 억·만원 단위로 읽기 쉽게 — 설명 문구 전용. */
+    private static String won(long amount) {
+        final long eok = amount / 100_000_000L;
+        final long man = (amount % 100_000_000L) / 10_000L;
+        if (eok > 0 && man > 0) {
+            return String.format("%d억 %,d만원", eok, man);
+        }
+        if (eok > 0) {
+            return eok + "억원";
+        }
+        return String.format("%,d만원", man);
     }
 }

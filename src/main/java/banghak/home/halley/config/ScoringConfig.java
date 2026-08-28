@@ -3,7 +3,7 @@ package banghak.home.halley.config;
 import banghak.home.halley.domain.itinerary.ItineraryOptimizer;
 import banghak.home.halley.domain.scoring.criterion.AgeScorer;
 import banghak.home.halley.domain.scoring.criterion.AmenityScorer;
-import banghak.home.halley.domain.scoring.criterion.BuildingCountScorer;
+import banghak.home.halley.domain.scoring.criterion.HouseholdsScorer;
 import banghak.home.halley.domain.scoring.criterion.ComfortScorer;
 import banghak.home.halley.domain.scoring.criterion.CommuteScorer;
 import banghak.home.halley.domain.scoring.criterion.CriterionScorer;
@@ -38,7 +38,7 @@ public class ScoringConfig {
         return List.of(
                 new AgeScorer(),
                 new AmenityScorer(),
-                new BuildingCountScorer(),
+                new HouseholdsScorer(),
                 new CommuteScorer(),
                 new ComfortScorer(),
                 new EducationScorer(),

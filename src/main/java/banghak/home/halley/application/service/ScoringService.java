@@ -194,6 +194,7 @@ public class ScoringService {
                     criterion.effectiveScore(),
                     sourceOf(criterion),
                     criterion.fallbackReason(),
+                    criterion.explanation(),
                     Instant.now()));
         }
         return toResponse(property, result, weights);
@@ -222,7 +223,8 @@ public class ScoringService {
                     s.manualScore(),
                     s.effectiveScore(),
                     s.scoreSource() == null ? null : s.scoreSource().name(),
-                    s.fallbackReason()));
+                    s.fallbackReason(),
+                    s.explanation()));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
@@ -243,7 +245,8 @@ public class ScoringService {
                         c.manualScore(),
                         c.effectiveScore(),
                         sourceOf(c).name(),
-                        c.fallbackReason()))
+                        c.fallbackReason(),
+                        c.explanation()))
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
     }

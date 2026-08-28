@@ -16,10 +16,15 @@ public class FloorScorer implements CriterionScorer {
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
         if (property.floorBand() != null) {
-            return ScoreResult.scored(property.floorBand() == FloorBand.LOW ? 0.0 : 100.0);
+            final boolean low = property.floorBand() == FloorBand.LOW;
+            return ScoreResult.scored(low ? 0.0 : 100.0,
+                    low ? "저층 표기 → 0점" : "중·고층 표기 → 동점 만점");
         }
         if (property.floorNo() != null) {
-            return ScoreResult.scored(scoreFloor(property.floorNo()));
+            final int floor = property.floorNo();
+            return ScoreResult.scored(scoreFloor(floor), floor >= FLOOR_PEAK
+                    ? String.format("%d층 · %d층 이상은 모두 만점", floor, FLOOR_PEAK)
+                    : String.format("%d층 · 1층 0점 ~ 6층 100점 선형", floor));
         }
         return ScoreResult.missing("층 정보 없음");
     }

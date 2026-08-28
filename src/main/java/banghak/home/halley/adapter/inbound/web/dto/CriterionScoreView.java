@@ -12,6 +12,7 @@ public record CriterionScoreView(
         BigDecimal manualScore,
         BigDecimal effectiveScore,
         String scoreSource,
-        String fallbackReason
+        String fallbackReason,
+        String explanation
 ) {
 }

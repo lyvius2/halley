@@ -25,6 +25,10 @@ public class CommuteScorer implements CriterionScorer {
         for (final int minutes : commuteMinutes.values()) {
             sum += Math.clamp(100.0 - (minutes - 20) * 1.43, 0.0, 100.0);
         }
-        return ScoreResult.scored(sum / commuteMinutes.size());
+        final String detail = commuteMinutes.values().stream()
+                .map(m -> m + "분").collect(java.util.stream.Collectors.joining(" · "));
+        return ScoreResult.scored(sum / commuteMinutes.size(), String.format(
+                "사용자 %d명 대중교통 %s → 20분 이내 만점, 90분 0점으로 환산한 평균",
+                commuteMinutes.size(), detail));
     }
 }

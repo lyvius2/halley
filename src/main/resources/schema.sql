@@ -115,6 +115,7 @@ CREATE TABLE IF NOT EXISTS property_score (
     effective_score DECIMAL(6, 2),
     score_source    VARCHAR(20),
     fallback_reason VARCHAR(255),
+    explanation     VARCHAR(500),
     computed_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_property_score UNIQUE (property_id, criterion_code)
 );

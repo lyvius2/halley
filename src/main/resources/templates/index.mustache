@@ -912,17 +912,6 @@
             </div>
         </div>
 
-        <template x-if="scoreBlockers().length > 0">
-            <div class="score-alert">
-                <b>자동 채점이 막혀 있습니다</b>
-                <ul>
-                    <template x-for="reason in scoreBlockers()" :key="reason">
-                        <li x-text="reason"></li>
-                    </template>
-                </ul>
-            </div>
-        </template>
-
         <div class="score-list">
             <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
                 <div class="score-item" :class="{'is-fallback': s.scoreSource==='FALLBACK'}">
@@ -946,11 +935,15 @@
                                :max="s.code === 'COMFORT' ? 5 : 100"
                                :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
                                :aria-label="s.name + ' 점수 입력'">
-                        <button class="btn-link" x-show="s.scoringType==='HYBRID' && s.effectiveScore != null"
+                        <button class="btn btn-xs" x-show="s.scoringType==='HYBRID' && s.effectiveScore != null"
                                 @click="confirmHybridScore(s.code)">추정값 확정</button>
                     </div>
 
                     <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
+                    <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
+                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.effectiveScore == null">
+                        방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
+                    </p>
                 </div>
             </template>
         </div>

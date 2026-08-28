@@ -59,8 +59,8 @@ public class ReferenceTransactionService {
                 ? dealMonth
                 : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         if (lawdCd == null) {
-            log.info("법정동코드를 찾지 못해 실거래가를 조회하지 않습니다. propertyId={}, 지번주소={} "
-                    + "(legal_dong_code 적재 범위를 확인하세요)", propertyId, property.addressJibun());
+            log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
+                    propertyId, property.addressJibun());
             return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null);
         }
 

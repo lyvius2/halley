@@ -15,20 +15,20 @@ public class KakaoLocalFeignFallbackFactory implements FallbackFactory<KakaoLoca
         return new KakaoLocalFeignClient() {
             @Override
             public String searchAddress(String query) {
-                log.warn("카카오 로컬 주소검색 실패 — 폴백(빈 결과) 반환. query={}, cause={}", query, describe(cause));
+                log.warn("Kakao local address search failed - returning fallback (empty). query={}, cause={}", query, describe(cause));
                 return null;
             }
 
             @Override
             public String searchCategory(String categoryGroupCode, String x, String y, int radius) {
-                log.warn("카카오 로컬 카테고리검색 실패 — 폴백(빈 결과) 반환. code={}, cause={}",
+                log.warn("Kakao local category search failed - returning fallback (empty). code={}, cause={}",
                         categoryGroupCode, describe(cause));
                 return null;
             }
 
             @Override
             public String searchKeyword(String query, String categoryGroupCode, String x, String y, int radius, String sort) {
-                log.warn("카카오 로컬 키워드검색 실패 — 폴백(빈 결과) 반환. query={}, cause={}",
+                log.warn("Kakao local keyword search failed - returning fallback (empty). query={}, cause={}",
                         query, describe(cause));
                 return null;
             }

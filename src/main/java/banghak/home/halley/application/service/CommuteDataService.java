@@ -62,7 +62,7 @@ public class CommuteDataService {
                     transit.transferCount(), transit.walkMinutes(), null, Instant.now()));
             return transit.totalMinutes();
         } catch (RuntimeException e) {
-            log.warn("통근 조회 실패 propertyId={} userId={}: {}", property.id(), user.id(), e.getMessage());
+            log.warn("Commute lookup failed. propertyId={}, userId={}, cause={}", property.id(), user.id(), e.getMessage());
             return null;
         }
     }

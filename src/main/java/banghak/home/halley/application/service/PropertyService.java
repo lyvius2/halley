@@ -244,7 +244,7 @@ public class PropertyService {
         }
         final Optional<GeoSearchResult> geo = geoService.geocode(address);
         if (geo.isEmpty()) {
-            log.warn("주소 좌표 변환 실패, 좌표 없이 등록: {}", address);
+            log.warn("Geocoding failed - saving property without coordinates. address={}", address);
             return new Coordinates(null, null);
         }
         return new Coordinates(geo.get().lat(), geo.get().lng());

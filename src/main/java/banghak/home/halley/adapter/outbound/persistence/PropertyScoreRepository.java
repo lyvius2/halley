@@ -15,6 +15,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScor
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.COMPUTED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.CRITERION_CODE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.EFFECTIVE_SCORE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.EXPLANATION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.FALLBACK_REASON;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyScoreTable.MANUAL_SCORE;
@@ -42,6 +43,7 @@ public class PropertyScoreRepository {
                         .set(EFFECTIVE_SCORE, score.effectiveScore())
                         .set(SCORE_SOURCE, score.scoreSource() == null ? null : score.scoreSource().name())
                         .set(FALLBACK_REASON, score.fallbackReason())
+                .set(EXPLANATION, score.explanation())
                         .returningResult(ID)
                         .fetchOne())
                 .component1();
@@ -95,6 +97,7 @@ public class PropertyScoreRepository {
                 r.get(EFFECTIVE_SCORE),
                 toEnum(ScoreSource.class, r.get(SCORE_SOURCE)),
                 r.get(FALLBACK_REASON),
+                r.get(EXPLANATION),
                 toInstant(r.get(COMPUTED_AT))
         );
     }

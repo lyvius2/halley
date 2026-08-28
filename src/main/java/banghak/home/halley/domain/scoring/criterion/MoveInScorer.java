@@ -22,8 +22,8 @@ public class MoveInScorer implements CriterionScorer {
             return ScoreResult.missing("입주시기 없음");
         }
         return switch (property.moveInType()) {
-            case IMMEDIATE -> ScoreResult.scored(100.0);
-            case NEGOTIABLE -> ScoreResult.scored(85.0);
+            case IMMEDIATE -> ScoreResult.scored(100.0, "즉시 입주 가능");
+            case NEGOTIABLE -> ScoreResult.scored(85.0, "입주일 협의 가능");
             case DATE -> scoreByDate(property, ctx);
         };
     }
@@ -34,11 +34,13 @@ public class MoveInScorer implements CriterionScorer {
         }
         final long days = ChronoUnit.DAYS.between(ctx.referenceDate(), property.moveInDate());
         if (days < 0) {
-            return ScoreResult.scored(100.0);
+            return ScoreResult.scored(100.0, String.format("입주가능일 %s · 이미 도래", property.moveInDate()));
         }
         if (days > REFERENCE_DAYS) {
-            return ScoreResult.scored(0.0);
+            return ScoreResult.scored(0.0,
+                    String.format("입주가능일 %s · %d일 남아 기준일(%d일) 초과", property.moveInDate(), days, REFERENCE_DAYS));
         }
-        return ScoreResult.scored(100.0 - days * DEDUCTION_PER_DAY);
+        return ScoreResult.scored(100.0 - days * DEDUCTION_PER_DAY,
+                String.format("입주가능일 %s · %d일 남음 → 100 − %d×%.2f", property.moveInDate(), days, days, DEDUCTION_PER_DAY));
     }
 }

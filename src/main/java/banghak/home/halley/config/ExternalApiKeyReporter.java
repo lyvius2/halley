@@ -34,16 +34,16 @@ public class ExternalApiKeyReporter implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        keys.forEach((name, value) -> log.info("외부 연동 키 {} → {}", name, mask(value)));
+        keys.forEach((name, value) -> log.info("External API key {} : {}", name, mask(value)));
     }
 
     static String mask(String value) {
         if (value == null || value.isBlank()) {
-            return "미설정 (해당 연동은 빈 결과를 반환합니다)";
+            return "NOT SET (this integration returns empty results)";
         }
         if (value.length() <= 8) {
-            return "설정됨 (****)";
+            return "set (****)";
         }
-        return "설정됨 (" + value.substring(0, 4) + "****" + value.substring(value.length() - 4) + ")";
+        return "set (" + value.substring(0, 4) + "****" + value.substring(value.length() - 4) + ")";
     }
 }

@@ -13,7 +13,7 @@ public class MinistryReferenceFallbackFactory implements FallbackFactory<Ministr
     @Override
     public MinistryReferenceFeignClient create(Throwable cause) {
         return (serviceKey, lawdCd, dealYmd) -> {
-            log.warn("국토부 실거래가 조회 실패 — 폴백(참고 카드 비움) 반환. lawdCd={}, dealYmd={}, cause={}",
+            log.warn("Ministry transaction lookup failed - returning fallback (empty card). lawdCd={}, dealYmd={}, cause={}",
                     lawdCd, dealYmd, describe(cause));
             return null;
         };

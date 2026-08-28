@@ -33,7 +33,7 @@ class CriteriaServiceTest {
         assertThat(weights).extracting(CriterionWeightResponse::priorityRank).isSorted();
         assertThat(weights.getFirst().criterionCode()).isEqualTo("COMFORT");
         assertThat(weights.getFirst().weight()).isEqualByComparingTo("3.0");
-        assertThat(weights.get(11).criterionCode()).isEqualTo("BUILDING_COUNT");
+        assertThat(weights.get(11).criterionCode()).isEqualTo("HOUSEHOLDS");
         assertThat(weights.get(11).weight()).isEqualByComparingTo("0.8");
     }
 

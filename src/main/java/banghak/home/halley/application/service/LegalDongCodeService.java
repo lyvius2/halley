@@ -82,7 +82,7 @@ public class LegalDongCodeService {
                     .filter(code -> code != null && code.length() >= SIGUNGU_CODE_LENGTH)
                     .findFirst();
         } catch (RuntimeException e) {
-            log.warn("카카오 주소검색으로 법정동코드를 조회하지 못했습니다. query={}, cause={}", query, e.getMessage());
+            log.warn("Legal dong code lookup via Kakao address search failed. query={}, cause={}", query, e.getMessage());
             return Optional.empty();
         }
     }
@@ -102,7 +102,7 @@ public class LegalDongCodeService {
         }
         legalDongCodeRepository.save(new LegalDongCode(
                 code, null, matcher.group(1), matcher.group(2), null, true, Instant.now()));
-        log.info("법정동코드를 카카오 주소검색으로 확보해 캐시했습니다. {} {} → {}",
+        log.info("Cached legal dong code resolved via Kakao address search. {} {} -> {}",
                 matcher.group(1), matcher.group(2), code);
     }
 

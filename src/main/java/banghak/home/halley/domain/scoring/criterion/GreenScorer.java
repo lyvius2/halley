@@ -41,13 +41,17 @@ public class GreenScorer implements CriterionScorer {
             return ScoreResult.missing("반경 내 공원·산·하천이 없습니다");
         }
         double score = 0.0;
+        final List<String> parts = new java.util.ArrayList<>();
         for (final GreenCategory category : GreenCategory.values()) {
             final OptionalInt nearest = nearestWalkMinutes(green, category);
             if (nearest.isPresent()) {
                 score += scoreByWalkMinutes(nearest.getAsInt());
+                parts.add(String.format("%s 도보 %d분", label(category), nearest.getAsInt()));
             }
         }
-        return ScoreResult.scored(score);
+        return ScoreResult.scored(score, parts.isEmpty()
+                ? "공원·산·하천을 찾지 못했습니다"
+                : String.join(" · ", parts) + " (종류당 33.3점, 5분 이내 만점 ~ 20분 0점)");
     }
 
     /**
@@ -60,6 +64,14 @@ public class GreenScorer implements CriterionScorer {
                 .filter(f -> f.walkMinutes() != null)
                 .mapToInt(NearbyFacility::walkMinutes)
                 .min();
+    }
+
+    private static String label(GreenCategory category) {
+        return switch (category) {
+            case PARK -> "공원";
+            case MOUNTAIN -> "산";
+            case RIVER -> "하천";
+        };
     }
 
     private static double scoreByWalkMinutes(int walkMinutes) {

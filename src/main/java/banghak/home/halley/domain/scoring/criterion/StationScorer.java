@@ -28,12 +28,16 @@ public class StationScorer implements CriterionScorer {
         final int nearest = stations.stream()
                 .mapToInt(NearbyFacility::walkMinutes)
                 .min().orElse(Integer.MAX_VALUE);
+        final String nearestName = stations.stream()
+                .filter(f -> f.walkMinutes() != null && f.walkMinutes() == nearest)
+                .map(NearbyFacility::name).findFirst().orElse("최근접역");
         if (nearest <= 5) {
-            return ScoreResult.scored(100.0);
+            return ScoreResult.scored(100.0, String.format("%s 도보 %d분 · 5분 이내는 만점", nearestName, nearest));
         }
         if (nearest > 20) {
-            return ScoreResult.scored(0.0);
+            return ScoreResult.scored(0.0, String.format("%s 도보 %d분 · 20분 초과는 0점", nearestName, nearest));
         }
-        return ScoreResult.scored(100.0 * (20 - nearest) / 15.0);
+        return ScoreResult.scored(100.0 * (20 - nearest) / 15.0,
+                String.format("%s 도보 %d분 · 5분 100점 ~ 20분 0점 선형", nearestName, nearest));
     }
 }

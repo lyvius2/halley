@@ -31,7 +31,8 @@ public class ScoringEngine {
                 totalWeight += weight;
             }
             criteria.add(new CriterionScoreResult(
-                    scorer.code(), result.score(), manual, effective, result.fallbackReason()));
+                    scorer.code(), result.score(), manual, effective,
+                    result.fallbackReason(), result.explanation()));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)

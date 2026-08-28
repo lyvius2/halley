@@ -171,7 +171,7 @@ class JooqRepositoryIntegrationTest {
     void propertyScoreRoundTrip() {
         PropertyScore saved = propertyScoreRepository.save(new PropertyScore(
                 null, 90_010L, "PRICE", new BigDecimal("80.0"), null, new BigDecimal("80.0"),
-                ScoreSource.AUTO, null, null));
+                ScoreSource.AUTO, null, "호가 8억원 / 예산상한 10억원", null));
 
         PropertyScore found = propertyScoreRepository.findById(saved.id()).orElseThrow();
         assertThat(found.scoreSource()).isEqualTo(ScoreSource.AUTO);

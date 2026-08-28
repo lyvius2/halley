@@ -50,7 +50,7 @@ public class ListingCheckJob {
         final int failThreshold = intConfig(FAIL_THRESHOLD_KEY, 3);
         final List<Property> targets = propertyRepository.findBatchTargets();
         if (targets.isEmpty()) {
-            log.info("[listing-check] 대상 매물 없음 — 배치 종료");
+            log.info("[listing-check] No target properties - job finished.");
             return;
         }
 
@@ -79,14 +79,14 @@ public class ListingCheckJob {
         }
 
         if (blocked) {
-            log.warn("[listing-check] 봇 차단(403/429) — 배치 중단");
+            log.warn("[listing-check] Bot-blocked (403/429) - aborting job.");
             notificationService.sendBatchBlocked();
             return;
         }
 
         final int checked = alive.size() + gone.size() + errorCount;
         if (gone.size() >= 2 && gone.size() * 2 > checked) {
-            log.warn("[listing-check] 과반 GONE({}/{}) — 서킷 개방, 상태 변경 없음", gone.size(), checked);
+            log.warn("[listing-check] Majority GONE ({}/{}) - circuit opened, no status changes.", gone.size(), checked);
             notificationService.sendBatchCircuitOpen();
             return;
         }
@@ -106,7 +106,7 @@ public class ListingCheckJob {
         }
 
         if (!soldOut.isEmpty()) {
-            log.info("[listing-check] 판매완료 확정 {}건", soldOut.size());
+            log.info("[listing-check] Confirmed {} sold-out listings.", soldOut.size());
             notificationService.sendListingsSoldOut(soldOut);
         }
         notificationService.sendBatchSummary(targets.size(), alive.size(), gone.size(), errorCount);
