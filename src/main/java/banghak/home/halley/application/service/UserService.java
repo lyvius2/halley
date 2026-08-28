@@ -70,6 +70,8 @@ public class UserService {
                 user.id(), user.loginId(), nickname, email, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
                 user.mustChangePassword(), newBudget,
+                request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
+                request.existingLoan() != null ? request.existingLoan() : user.existingLoanOrZero(),
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
         refreshProfileFlag(updated);
 
@@ -122,6 +124,8 @@ public class UserService {
                 request.workplaceLng(),
                 true,
                 request.availableBudget() == null ? 0L : request.availableBudget(),
+                request.annualIncome() == null ? 0L : request.annualIncome(),
+                request.existingLoan() == null ? 0L : request.existingLoan(),
                 true,
                 null, null, null));
         scoringService.rescoreAll();
@@ -153,6 +157,8 @@ public class UserService {
                 request.workplaceLng(),
                 user.mustChangePassword(),
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
+                request.annualIncome() == null ? user.annualIncomeOrZero() : request.annualIncome(),
+                request.existingLoan() == null ? user.existingLoanOrZero() : request.existingLoan(),
                 user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         final long newBudget = request.availableBudget() == null ? user.availableBudget() : request.availableBudget();
@@ -187,7 +193,8 @@ public class UserService {
         final User updated = userRepository.update(new User(
                 user.id(), user.loginId(), user.nickname(), user.email(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(), enabled,
+                user.mustChangePassword(), user.availableBudget(),
+                user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
                 enabled ? null : now,
                 enabled ? null : currentAdminId(),
                 user.createdAt()));
@@ -204,7 +211,8 @@ public class UserService {
                 user.id(), user.loginId(), user.nickname(), user.email(),
                 passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                true, user.availableBudget(), user.enabled(),
+                true, user.availableBudget(),
+                user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         return new ResetPasswordResponse(temporaryPassword);
     }
@@ -230,7 +238,8 @@ public class UserService {
         return new UserResponse(
                 user.id(), user.loginId(), user.nickname(), user.email(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.availableBudget(), user.enabled(), user.mustChangePassword(), user.createdAt());
+                user.availableBudget(), user.annualIncomeOrZero(), user.existingLoanOrZero(),
+                user.enabled(), user.mustChangePassword(), user.createdAt());
     }
 
     private String randomPassword() {

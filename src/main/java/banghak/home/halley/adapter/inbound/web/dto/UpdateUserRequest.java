@@ -9,6 +9,8 @@ public record UpdateUserRequest(
         String workplaceName,
         BigDecimal workplaceLat,
         BigDecimal workplaceLng,
-        Long availableBudget
+        Long availableBudget,
+        Long annualIncome,
+        Long existingLoan
 ) {
 }

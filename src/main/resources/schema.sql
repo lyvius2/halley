@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
     workplace_lng        DECIMAL(12, 8),
     must_change_password BOOLEAN       NOT NULL DEFAULT TRUE,
     available_budget     BIGINT        NOT NULL DEFAULT 0,
+    annual_income        BIGINT       NOT NULL DEFAULT 0,
+    existing_loan        BIGINT       NOT NULL DEFAULT 0,
     enabled              BOOLEAN       NOT NULL DEFAULT TRUE,
     disabled_at          TIMESTAMP WITH TIME ZONE,
     disabled_by          BIGINT,

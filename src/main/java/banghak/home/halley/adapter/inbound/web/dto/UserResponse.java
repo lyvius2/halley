@@ -15,6 +15,8 @@ public record UserResponse(
         BigDecimal workplaceLat,
         BigDecimal workplaceLng,
         Long availableBudget,
+        Long annualIncome,
+        Long existingLoan,
         boolean enabled,
         boolean mustChangePassword,
         Instant createdAt

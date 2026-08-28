@@ -39,7 +39,7 @@ class UserServiceTest {
     void createAndList() {
         // given
         final CreateUserRequest request = new CreateUserRequest(
-                "member1", "member1", "member1@example.com", "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L);
+                "member1", "member1", "member1@example.com", "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L, null, null);
 
         // when
         final UserResponse created = userService.create(request);
@@ -55,12 +55,12 @@ class UserServiceTest {
     @DisplayName("중복 아이디로 생성하면 DuplicateLoginIdException이 발생한다")
     void createDuplicateLoginIdFails() {
         // given
-        userService.create(new CreateUserRequest("same-id", "id-user1", "id1@example.com", "pw12345!", null, null, null, null, null));
+        userService.create(new CreateUserRequest("same-id", "id-user1", "id1@example.com", "pw12345!", null, null, null, null, null, null, null));
 
         // when
         final DuplicateLoginIdException ex = assertThrows(
                 DuplicateLoginIdException.class,
-                () -> userService.create(new CreateUserRequest("same-id", "id-user2", "id2@example.com", "pw12345!", null, null, null, null, null)));
+                () -> userService.create(new CreateUserRequest("same-id", "id-user2", "id2@example.com", "pw12345!", null, null, null, null, null, null, null)));
 
         // then
         assertThat(ex.getCode()).isEqualTo("LOGIN_ID_DUPLICATED");
@@ -70,12 +70,12 @@ class UserServiceTest {
     @DisplayName("중복 이메일로 생성하면 DuplicateEmailException이 발생한다")
     void createDuplicateEmailFails() {
         // given
-        userService.create(new CreateUserRequest("dup", "dup1", "dup@example.com", "pw12345!", null, null, null, null, null));
+        userService.create(new CreateUserRequest("dup", "dup1", "dup@example.com", "pw12345!", null, null, null, null, null, null, null));
 
         // when
         final DuplicateEmailException ex = assertThrows(
                 DuplicateEmailException.class,
-                () -> userService.create(new CreateUserRequest("dup-other", "dup2", "dup@example.com", "pw12345!", null, null, null, null, null)));
+                () -> userService.create(new CreateUserRequest("dup-other", "dup2", "dup@example.com", "pw12345!", null, null, null, null, null, null, null)));
 
         // then
         assertThat(ex).isNotNull();
@@ -87,12 +87,12 @@ class UserServiceTest {
     void update() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "update", "update-user", "update@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                "update", "update-user", "update@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final UserResponse updated = userService.update(created.id(), new UpdateUserRequest(
                 "update2", "update-user2", "update2@example.com", "새회사",
-                new BigDecimal("37.5"), new BigDecimal("127.0"), 100_000_000L));
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 100_000_000L, 60_000_000L, 0L));
 
         // then
         assertThat(updated.nickname()).isEqualTo("update-user2");
@@ -105,7 +105,7 @@ class UserServiceTest {
     void resetPassword() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "reset", "reset-user", "reset@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                "reset", "reset-user", "reset@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final ResetPasswordResponse reset = userService.resetPassword(created.id());
@@ -120,7 +120,7 @@ class UserServiceTest {
     void meAndWorkplace() {
         // given
         userService.create(new CreateUserRequest(
-                "me", "프로필", "me@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                "me", "프로필", "me@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final User user = userRepository.findByEmail("me@example.com").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);
         SecurityContextHolder.getContext().setAuthentication(
@@ -130,7 +130,7 @@ class UserServiceTest {
         final UserResponse me = userService.me();
         final UserResponse updated = userService.updateProfile(
                 new ProfileRequest("바뀐닉", "changed@example.com", "회사",
-                        new BigDecimal("37.5"), new BigDecimal("126.9"), 300_000_000L));
+                        new BigDecimal("37.5"), new BigDecimal("126.9"), 300_000_000L, 60_000_000L, 0L));
 
         // then
         assertThat(me.email()).isEqualTo("me@example.com");
@@ -147,7 +147,7 @@ class UserServiceTest {
     void delete() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "delete", "delete-user", "delete@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                "delete", "delete-user", "delete@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         userService.delete(created.id());

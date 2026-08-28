@@ -34,7 +34,9 @@ function emptyUserForm() {
         workplaceName: '',
         workplaceLat: '',
         workplaceLng: '',
-        availableBudget: ''
+        availableBudget: '',
+        annualIncome: '',
+        existingLoan: ''
     };
 }
 
@@ -56,8 +58,11 @@ function halley() {
         checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
-        loanForm: { annualIncome: '', cash: '', firstHome: false },
+        loanForm: { firstHome: false },
         loanResult: null,
+        loanAmount: 0,
+        loanShowInputs: false,
+        loanOverride: { annualIncome: '', cash: '', existingLoan: '' },
         showRefModal: false,
         refProperty: null,
         refForm: { legalDongCode: '', dealMonth: '' },
@@ -80,7 +85,8 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
+        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+            availableBudget: '', annualIncome: '', existingLoan: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
@@ -90,7 +96,8 @@ function halley() {
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
-        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
+        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+            availableBudget: '', annualIncome: '', existingLoan: '' },
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
@@ -271,7 +278,9 @@ function halley() {
                 workplaceName: u.workplaceName || '',
                 workplaceLat: u.workplaceLat ?? '',
                 workplaceLng: u.workplaceLng ?? '',
-                availableBudget: u.availableBudget ?? ''
+                availableBudget: u.availableBudget ?? '',
+                annualIncome: u.annualIncome ?? '',
+                existingLoan: u.existingLoan ?? ''
             };
             this.error = null;
             this.showUserForm = true;
@@ -295,7 +304,9 @@ function halley() {
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
-                availableBudget: toNum(this.userForm.availableBudget)
+                availableBudget: toNum(this.userForm.availableBudget),
+                annualIncome: toNum(this.userForm.annualIncome),
+                existingLoan: toNum(this.userForm.existingLoan)
             };
             if (!editing) {
                 body.password = this.userForm.password;
@@ -364,7 +375,9 @@ function halley() {
                     workplaceName: body.workplaceName || '',
                     workplaceLat: body.workplaceLat ?? '',
                     workplaceLng: body.workplaceLng ?? '',
-                    availableBudget: body.availableBudget ?? ''
+                    availableBudget: body.availableBudget ?? '',
+                    annualIncome: body.annualIncome ?? '',
+                    existingLoan: body.existingLoan ?? ''
                 };
             }
         },
@@ -438,7 +451,11 @@ function halley() {
                 return;
             }
             if (!(toNum(this.setupForm.availableBudget) > 0)) {
-                this.error = '가용 예산을 0보다 큰 값으로 입력해 주세요';
+                this.error = '보유 현금을 0보다 큰 값으로 입력해 주세요';
+                return;
+            }
+            if (!(toNum(this.setupForm.annualIncome) > 0)) {
+                this.error = '연소득을 0보다 큰 값으로 입력해 주세요';
                 return;
             }
             this.loading = true;
@@ -452,7 +469,9 @@ function halley() {
                         workplaceName: this.setupForm.workplaceName,
                         workplaceLat: toNum(this.setupForm.workplaceLat),
                         workplaceLng: toNum(this.setupForm.workplaceLng),
-                        availableBudget: toNum(this.setupForm.availableBudget)
+                        availableBudget: toNum(this.setupForm.availableBudget),
+                        annualIncome: toNum(this.setupForm.annualIncome),
+                        existingLoan: toNum(this.setupForm.existingLoan) ?? 0
                     })
                 });
                 if (!ok) {
@@ -481,7 +500,9 @@ function halley() {
                         workplaceName: this.profileForm.workplaceName || null,
                         workplaceLat: toNum(this.profileForm.workplaceLat),
                         workplaceLng: toNum(this.profileForm.workplaceLng),
-                        availableBudget: toNum(this.profileForm.availableBudget)
+                        availableBudget: toNum(this.profileForm.availableBudget),
+                        annualIncome: toNum(this.profileForm.annualIncome),
+                        existingLoan: toNum(this.profileForm.existingLoan) ?? 0
                     })
                 });
                 if (ok) {
@@ -937,12 +958,60 @@ function halley() {
             return { ALIVE: '생존', GONE: '삭제', BLOCKED: '차단', ERROR: '오류' }[verdict] || verdict;
         },
 
+        // 프로필에 연소득·보유 현금이 있으므로 모달을 열면 바로 계산한다 (설계 I55)
         openLoanModal(item) {
             this.loanProperty = item;
-            this.loanForm = { annualIncome: '', cash: '', firstHome: false };
+            this.loanForm = { firstHome: false };
+            this.loanOverride = { annualIncome: '', cash: '', existingLoan: '' };
+            this.loanShowInputs = false;
             this.loanResult = null;
             this.error = null;
             this.showLoanModal = true;
+            this.runLoanEstimate();
+        },
+
+        /**
+         * 슬라이더로 대출액을 줄이면 월 상환액·필요 현금이 따라 움직인다.
+         * 서버가 월 이율과 기간을 함께 내려주므로 여기서 다시 계산한다 — 매번 서버를 부르지 않는다.
+         */
+        loanMonthlyAt(amount) {
+            const r = this.loanResult;
+            if (!r || !r.termMonths) {
+                return 0;
+            }
+            const rate = r.monthlyRate || 0;
+            if (rate === 0) {
+                return Math.round(amount / r.termMonths);
+            }
+            return Math.round(amount * rate / (1 - Math.pow(1 + rate, -r.termMonths)));
+        },
+
+        /** 매매가에서 대출을 뺀 자기자본. 취득세는 여기에 더 필요하다. */
+        loanOwnCapital() {
+            const asking = this.loanResult?.askingPrice || 0;
+            return Math.max(0, asking - this.loanAmount);
+        },
+
+        /** 보유 현금으로 자기자본 + 취득세를 감당할 수 있는가. 음수면 모자란다. */
+        loanCashGap() {
+            const need = this.loanOwnCapital() + (this.loanResult?.acquisitionTax || 0);
+            return (this.loanResult?.usedCash || 0) - need;
+        },
+
+        loanPercent(part, whole) {
+            if (!whole) {
+                return 0;
+            }
+            return Math.min(100, Math.max(0, Math.round(part * 1000 / whole) / 10));
+        },
+
+        /** 한도를 무엇이 묶고 있는지 — 규제(LTV)인지 소득(DSR)인지 */
+        loanBindingLabel() {
+            const r = this.loanResult;
+            if (!r) {
+                return '';
+            }
+            return r.dsrLimit <= r.ltvLimit ? '소득(DSR)이 한도를 정합니다' : '규제(LTV)가 한도를 정합니다';
         },
 
         closeLoanModal() {
@@ -960,14 +1029,17 @@ function halley() {
                     `/api/properties/${this.loanProperty.property.id}/loan-estimate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        // 값을 비워 보내면 서버가 내 프로필로 채운다. 이 모달에서 손댄 값만 덮어쓴다.
                         body: JSON.stringify({
-                            annualIncome: toNum(this.loanForm.annualIncome),
-                            cash: toNum(this.loanForm.cash),
+                            annualIncome: toNum(this.loanOverride.annualIncome),
+                            cash: toNum(this.loanOverride.cash),
+                            existingLoan: toNum(this.loanOverride.existingLoan),
                             firstHome: this.loanForm.firstHome
                         })
                     });
                 if (ok) {
                     this.loanResult = body;
+                    this.loanAmount = body.finalLimit || 0;
                 } else {
                     this.error = (body && body.message) || '계산에 실패했습니다';
                 }

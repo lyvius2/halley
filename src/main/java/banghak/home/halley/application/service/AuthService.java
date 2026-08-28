@@ -68,7 +68,8 @@ public class AuthService {
                 user.id(), user.loginId(), user.nickname(), user.email(),
                 passwordEncoder.encode(newPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                false, user.availableBudget(), user.enabled(),
+                false, user.availableBudget(),
+                user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
 
         principal.setMustChangePassword(false);

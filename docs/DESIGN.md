@@ -264,7 +264,11 @@ erDiagram
         decimal workplace_lat
         decimal workplace_lng
         boolean must_change_password
-        bigint available_budget "가용 예산(원) — 예산상한 합산용"
+        bigint annual_income "연소득(원) — DSR (I55)"
+        bigint existing_loan "기존 대출 잔액(원)"
+        bigint available_budget "보유 현금(원) — 예산상한 합산·자기자본 (I55)"
+        bigint annual_income "연소득(원) — DSR (I55)"
+        bigint existing_loan "기존 대출 잔액(원) — DSR 차감"
         boolean enabled "활성/비활성"
         timestamp disabled_at
         bigint disabled_by FK
@@ -1965,6 +1969,26 @@ M6는 별도 Main Frame이었으나 **모달로 변경**합니다. 설정은 매
 - 실거래가와 마찬가지로 **채점에는 반영하지 않습니다**(참고 표시 전용 — 5.5).
 - 저장은 `property.pnu` · `official_price` · `official_price_year`. 등록 커밋 뒤 **비동기**로 채웁니다.
 - 인증 실패도 HTTP 200으로 오므로 본문 `resultCode`를 먼저 확인합니다. 상세는 `docs/INTERFACE_MANUAL.md` 5.6.
+
+### I55. 연소득·기존 대출액과 대출 모달 자동 계산 · **[확정]**
+
+`users.available_budget`의 뜻을 **보유 현금**으로 확정합니다. 이름은 그대로 두되(마이그레이션 비용 대비 이득이 없음)
+문서·화면 문구를 "가용 예산"에서 "보유 현금"으로 바꿉니다. 이 값은 두 곳에 쓰입니다 —
+가격 채점의 예산 상한(5.2.1)과 대출 시 자기자본.
+
+- `users.annual_income`·`users.existing_loan`을 신설합니다. 둘 다 `NOT NULL DEFAULT 0`.
+- **연소득은 최초 설정의 필수 항목**입니다(I48의 완성 조건에 추가). DSR의 유일한 입력이라
+  없으면 대출 한도를 아예 계산할 수 없습니다. **기존 대출액은 대부분 0이라 필수로 보지 않습니다.**
+- **DSR은 모든 대출의 원리금을 합쳐 보는 규제**입니다. 기존 대출을 무시하면 한도가 실제보다 높게
+  나오므로, 기존 대출의 연간 상환액을 DSR 여력에서 먼저 뺍니다. 기존 대출의 조건은 알 수 없으니
+  신규 대출과 같은 금리·기간으로 가정해 추정합니다.
+- **대출 모달은 열자마자 결과를 보여줍니다.** `LoanEstimateRequest`의 금액 필드를 비워 보내면
+  서버가 로그인 사용자의 프로필로 채웁니다. 매번 같은 값을 다시 치게 하지 않기 위한 것입니다.
+- 화면에서 **대출 희망액을 슬라이더로** 줄이면 월 상환액·자기자본·현금 과부족이 따라 움직입니다.
+  서버가 월 이율(`monthlyRate`)과 기간(`termMonths`)을 함께 내려주므로 **조정할 때마다 서버를
+  부르지 않고** 화면에서 다시 계산합니다.
+- 모달 안의 "값 바꿔보기"는 **이 화면에서만 쓰는 임시값**입니다. 프로필은 바뀌지 않습니다 —
+  프로필을 바꾸면 전 매물의 가격 점수가 재계산되므로 가정 놀이와 분리해야 합니다.
 
 ---
 

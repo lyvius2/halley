@@ -12,7 +12,9 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ANNUAL_INCOME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.AVAILABLE_BUDGET;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EXISTING_LOAN;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.CREATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_BY;
@@ -51,6 +53,8 @@ public class UserRepository {
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
+                .set(ANNUAL_INCOME, user.annualIncomeOrZero())
+                .set(EXISTING_LOAN, user.existingLoanOrZero())
                 .set(ENABLED, user.enabled())
                 .set(DISABLED_AT, toOffset(user.disabledAt()))
                 .set(DISABLED_BY, user.disabledBy())
@@ -71,6 +75,8 @@ public class UserRepository {
                 user.workplaceLng(),
                 user.mustChangePassword(),
                 user.availableBudget(),
+                user.annualIncomeOrZero(),
+                user.existingLoanOrZero(),
                 user.enabled(),
                 user.disabledAt(),
                 user.disabledBy(),
@@ -90,6 +96,8 @@ public class UserRepository {
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
+                .set(ANNUAL_INCOME, user.annualIncomeOrZero())
+                .set(EXISTING_LOAN, user.existingLoanOrZero())
                 .set(ENABLED, user.enabled())
                 .set(DISABLED_AT, toOffset(user.disabledAt()))
                 .set(DISABLED_BY, user.disabledBy())
@@ -151,6 +159,8 @@ public class UserRepository {
                 r.get(WORKPLACE_LNG),
                 Boolean.TRUE.equals(r.get(MUST_CHANGE_PASSWORD)),
                 r.get(AVAILABLE_BUDGET),
+                r.get(ANNUAL_INCOME),
+                r.get(EXISTING_LOAN),
                 Boolean.TRUE.equals(r.get(ENABLED)),
                 toInstant(r.get(DISABLED_AT)),
                 r.get(DISABLED_BY),

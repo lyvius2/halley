@@ -64,7 +64,7 @@ class UserRepositoryTest {
         return new User(
                 null, email.split("@")[0], nickname, email, "hash", UserRole.MEMBER,
                 null, null, null,
-                true, 0L, true,
+                true, 0L, null, null, true,
                 null, null, null
         );
     }

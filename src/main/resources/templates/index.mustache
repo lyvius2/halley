@@ -225,7 +225,9 @@
                                 <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
                                 <div class="profile-row"><span>이메일</span><b x-text="profile.email"></b></div>
                                 <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
-                                <div class="profile-row"><span>가용 예산</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
+                                <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
+                                <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
+                                <div class="profile-row"><span>기존 대출액</span><b x-text="fmtWon(profile.existingLoan)"></b></div>
                                 <div class="profile-row"><span>직장</span><b x-text="profile.workplaceName || '미설정'"></b></div>
                                 <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
                             </div>
@@ -252,9 +254,17 @@
                                 <label>경도
                                     <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
                                 </label>
-                                <label class="span2">가용 예산 (원)
+                                <label class="span2">보유 현금 (원)
                                     <input type="number" min="1" x-model="profileForm.availableBudget" placeholder="300000000">
                                     <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
+                                </label>
+                                <label>연소득 (원)
+                                    <input type="number" min="1" x-model="profileForm.annualIncome" placeholder="50000000">
+                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+                                </label>
+                                <label>기존 대출액 (원)
+                                    <input type="number" min="0" x-model="profileForm.existingLoan" placeholder="0">
+                                    <span class="settings-note">없으면 0. 있으면 그만큼 DSR 여력에서 빠집니다.</span>
                                 </label>
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
@@ -335,7 +345,7 @@
         <div class="modal-head">
             <span class="modal-kicker">최초 설정</span>
             <h3>프로필을 완성해 주세요</h3>
-            <p>직장 위치와 가용 예산이 있어야 <b>직주근접</b>과 <b>가격</b> 항목이 채점됩니다. 두 값이 비어 있으면 해당 항목은 계속 미산출로 남습니다.</p>
+            <p>직장 위치와 보유 현금이 있어야 <b>직주근접</b>과 <b>가격</b> 항목이 채점됩니다. 연소득은 <b>대출 한도</b>를 매물마다 바로 보여주는 데 씁니다.</p>
         </div>
         <div class="form-grid">
             <label class="span2">이메일
@@ -354,9 +364,17 @@
             <label>경도
                 <input type="number" step="0.000001" x-model="setupForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
             </label>
-            <label class="span2">가용 예산 (원)
+            <label class="span2">보유 현금 (원)
                 <input type="number" min="1" x-model="setupForm.availableBudget" placeholder="300000000">
                 <span class="settings-note">대출을 뺀 <b>동원 가능한 현금</b>입니다. 활성 사용자 전원의 합계가 가격 채점의 예산 상한이 됩니다.</span>
+            </label>
+            <label>연소득 (원)
+                <input type="number" min="1" x-model="setupForm.annualIncome" placeholder="50000000">
+                <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+            </label>
+            <label>기존 대출액 (원)
+                <input type="number" min="0" x-model="setupForm.existingLoan" placeholder="0">
+                <span class="settings-note">없으면 0으로 두세요.</span>
             </label>
         </div>
         <p class="form-error" x-show="error" x-text="error"></p>
@@ -531,8 +549,14 @@
                 <label>직장명
                     <input type="text" x-model="userForm.workplaceName">
                 </label>
-                <label>가용 예산
+                <label>보유 현금
                     <input type="number" min="0" x-model="userForm.availableBudget">
+                </label>
+                <label>연소득
+                    <input type="number" min="0" x-model="userForm.annualIncome">
+                </label>
+                <label>기존 대출액
+                    <input type="number" min="0" x-model="userForm.existingLoan">
                 </label>
                 <label>직장 위도
                     <input type="number" step="0.000001" x-model="userForm.workplaceLat">
@@ -682,7 +706,7 @@
         <div class="card table-wrap">
             <table>
                 <thead>
-                <tr><th>ID</th><th>닉네임</th><th>이메일</th><th>역할</th><th>가용 예산</th><th>상태</th><th>관리</th></tr>
+                <tr><th>ID</th><th>닉네임</th><th>이메일</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
                 </thead>
                 <tbody>
                 <template x-for="u in users" :key="u.id">
@@ -692,6 +716,7 @@
                         <td x-text="u.email || '-'"></td>
                         <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
                         <td class="num" x-text="fmtWon(u.availableBudget)"></td>
+                        <td class="num" x-text="fmtWon(u.annualIncome)"></td>
                         <td><span class="badge" :class="u.enabled ? 'b-on' : 'b-off'" x-text="u.enabled ? '활성' : '비활성'"></span></td>
                         <td>
                             <div class="row-actions">
@@ -1115,40 +1140,126 @@
 <!-- D16 대출 한도 시뮬레이션 모달 -->
 <div class="modal" x-show="showLoanModal" x-cloak>
     <div class="modal-backdrop" @click="closeLoanModal()"></div>
-    <div class="modal-card modal-wide">
+    <div class="modal-card modal-wide loan-modal">
+        <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">대출 한도</span>
             <h3 x-text="loanProperty?.property?.name"></h3>
-            <p>LTV·DSR 기반 자체 계산입니다. 실제 한도는 은행 가심사가 필요합니다.</p>
+            <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. LTV·DSR 기반 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
-        <form class="form" @submit.prevent="runLoanEstimate()">
-            <div class="form-grid">
-                <label>연 소득 (원)
-                    <input type="number" min="0" x-model="loanForm.annualIncome" placeholder="50000000" required>
-                </label>
-                <label>보유 현금 (원)
-                    <input type="number" min="0" x-model="loanForm.cash" placeholder="300000000" required>
-                </label>
-                <label class="span2">생애최초
-                    <input type="checkbox" x-model="loanForm.firstHome">
-                </label>
-            </div>
-            <p class="form-error" x-show="error" x-text="error"></p>
-            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
-                <span x-text="loading ? '계산 중…' : '한도 계산'"></span>
-            </button>
-        </form>
+
         <template x-if="loanResult">
-            <div class="loan-result">
-                <div class="loan-row"><span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b></div>
-                <div class="loan-row"><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
-                <div class="loan-row"><span>최종 한도</span><b x-text="fmtWon(loanResult.finalLimit)"></b></div>
-                <div class="loan-row"><span>필요 현금</span><b x-text="fmtWon(loanResult.requiredCash)"></b></div>
-                <div class="loan-row"><span>취득세</span><b x-text="fmtWon(loanResult.acquisitionTax)"></b></div>
-                <div class="loan-row"><span>월 상환액</span><b x-text="fmtWon(loanResult.monthlyPayment)"></b></div>
-                <p class="loan-note">월 상환액은 LTV·DSR 한도 기준 추정치입니다. 은행 가심사를 받으세요.</p>
+            <div>
+                <!-- 한도 요약 -->
+                <div class="loan-hero">
+                    <div class="loan-hero-main">
+                        <span class="loan-hero-label">최종 한도</span>
+                        <strong x-text="fmtWon(loanResult.finalLimit)"></strong>
+                        <small x-text="loanBindingLabel()"></small>
+                    </div>
+                    <div class="loan-hero-side">
+                        <div><span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b></div>
+                        <div><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
+                    </div>
+                </div>
+
+                <!-- 매매가 대비 구성 -->
+                <div class="loan-stack">
+                    <div class="loan-stack-bar">
+                        <span class="seg seg-loan" :style="`width:${loanPercent(loanAmount, loanResult.askingPrice)}%`"></span>
+                        <span class="seg seg-cash" :style="`width:${loanPercent(loanOwnCapital(), loanResult.askingPrice)}%`"></span>
+                    </div>
+                    <div class="loan-stack-legend">
+                        <span><i class="dot dot-loan"></i>대출 <b x-text="fmtWon(loanAmount)"></b></span>
+                        <span><i class="dot dot-cash"></i>자기자본 <b x-text="fmtWon(loanOwnCapital())"></b></span>
+                        <span class="loan-stack-total">매매가 <b x-text="fmtWon(loanResult.askingPrice)"></b></span>
+                    </div>
+                </div>
+
+                <!-- 대출액 조정 -->
+                <div class="loan-slider">
+                    <div class="loan-slider-head">
+                        <label for="loanAmountRange">대출 희망액</label>
+                        <output x-text="fmtWon(loanAmount)"></output>
+                    </div>
+                    <input id="loanAmountRange" type="range" min="0" :max="loanResult.finalLimit"
+                           step="1000000" x-model.number="loanAmount">
+                    <div class="loan-slider-scale">
+                        <span>0</span>
+                        <span x-text="'한도 ' + fmtWon(loanResult.finalLimit)"></span>
+                    </div>
+                </div>
+
+                <!-- 조정 결과 -->
+                <div class="loan-cards">
+                    <div class="loan-card">
+                        <span>월 상환액</span>
+                        <b x-text="fmtWon(loanMonthlyAt(loanAmount))"></b>
+                        <small x-text="`${loanResult.termMonths / 12}년 원리금균등`"></small>
+                    </div>
+                    <div class="loan-card">
+                        <span>필요 자기자본</span>
+                        <b x-text="fmtWon(loanOwnCapital())"></b>
+                        <small>매매가 − 대출</small>
+                    </div>
+                    <div class="loan-card">
+                        <span>취득세</span>
+                        <b x-text="fmtWon(loanResult.acquisitionTax)"></b>
+                        <small x-text="loanForm.firstHome ? '생애최초 감면 반영' : '일반 세율'"></small>
+                    </div>
+                    <div class="loan-card" :class="loanCashGap() >= 0 ? 'loan-ok' : 'loan-short'">
+                        <span x-text="loanCashGap() >= 0 ? '현금 여유' : '현금 부족'"></span>
+                        <b x-text="fmtWon(Math.abs(loanCashGap()))"></b>
+                        <small x-text="'보유 현금 ' + fmtWon(loanResult.usedCash)"></small>
+                    </div>
+                </div>
+
+                <!-- 계산 전제 -->
+                <div class="loan-assume">
+                    <label class="loan-check">
+                        <input type="checkbox" x-model="loanForm.firstHome" @change="runLoanEstimate()">
+                        <span>생애최초</span>
+                    </label>
+                    <span class="loan-assume-item">연소득 <b x-text="fmtWon(loanResult.usedAnnualIncome)"></b></span>
+                    <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b></span>
+                    <span class="loan-assume-item" x-show="loanResult.usedExistingLoan > 0">
+                        기존 대출 <b x-text="fmtWon(loanResult.usedExistingLoan)"></b>
+                        <small x-text="'(연 ' + fmtWon(loanResult.existingLoanAnnual) + ' 상환)'"></small>
+                    </span>
+                    <button class="btn btn-xs" type="button" @click="loanShowInputs = !loanShowInputs"
+                            x-text="loanShowInputs ? '접기' : '값 바꿔보기'"></button>
+                </div>
+
+                <!-- 임시 조건 변경 — 프로필은 건드리지 않는다 -->
+                <div class="loan-override" x-show="loanShowInputs" x-cloak>
+                    <div class="form-grid">
+                        <label>연소득 (원)
+                            <input type="number" min="0" x-model="loanOverride.annualIncome"
+                                   :placeholder="loanResult.usedAnnualIncome">
+                        </label>
+                        <label>보유 현금 (원)
+                            <input type="number" min="0" x-model="loanOverride.cash"
+                                   :placeholder="loanResult.usedCash">
+                        </label>
+                        <label>기존 대출액 (원)
+                            <input type="number" min="0" x-model="loanOverride.existingLoan"
+                                   :placeholder="loanResult.usedExistingLoan">
+                        </label>
+                    </div>
+                    <p class="loan-note">이 화면에서만 쓰는 값입니다. 프로필은 바뀌지 않습니다.</p>
+                    <button class="btn btn-primary btn-sm" type="button" @click="runLoanEstimate()" :disabled="loading">
+                        <span x-text="loading ? '계산 중…' : '다시 계산'"></span>
+                    </button>
+                </div>
+
+                <p class="loan-note">월 상환액은 스트레스 금리를 더한 추정치입니다. 은행 가심사를 받으세요.</p>
             </div>
         </template>
+
+        <template x-if="!loanResult && !loading">
+            <p class="m2-empty">계산할 수 없습니다. 프로필에 연소득과 보유 현금을 입력했는지 확인해 주세요.</p>
+        </template>
+        <p class="form-error" x-show="error" x-text="error"></p>
     </div>
 </div>
 

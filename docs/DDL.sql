@@ -21,7 +21,9 @@ CREATE TABLE users (
     workplace_lat        NUMERIC(12, 8),
     workplace_lng        NUMERIC(12, 8),
     must_change_password BOOLEAN      NOT NULL DEFAULT TRUE,
-    available_budget     BIGINT       NOT NULL DEFAULT 0,               -- 가용 예산(원) — 예산상한 합산용
+    available_budget     BIGINT       NOT NULL DEFAULT 0,               -- 보유 현금(원) — 예산상한 합산·자기자본 (I55)
+    annual_income        BIGINT       NOT NULL DEFAULT 0,               -- 연소득(원) — DSR 산정 (설계 I55)
+    existing_loan        BIGINT       NOT NULL DEFAULT 0,               -- 기존 대출 잔액(원) — DSR 차감
     enabled              BOOLEAN      NOT NULL DEFAULT TRUE,
     disabled_at          TIMESTAMPTZ,
     disabled_by          BIGINT       REFERENCES users (id),
@@ -443,6 +445,10 @@ ALTER TABLE property ADD COLUMN IF NOT EXISTS school_source       VARCHAR(20);
 ALTER TABLE property ADD COLUMN IF NOT EXISTS pnu                 VARCHAR(19);
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price      BIGINT;
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price_year INTEGER;
+
+-- 7) 연소득·기존 대출액 (설계 I55) — available_budget은 '보유 현금'으로 뜻이 확정됐다
+ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_income BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS existing_loan BIGINT NOT NULL DEFAULT 0;
 
 COMMIT;
 

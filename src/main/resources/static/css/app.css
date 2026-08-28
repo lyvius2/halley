@@ -493,18 +493,170 @@ input[type=checkbox], input[type=radio] {
 .empty-cell { text-align: center; color: var(--ink3); padding: 20px; }
 
 /* ── 대출 결과 (D16) ───────────────────────────────── */
-.loan-result { margin-top: 16px; border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; }
-.loan-row {
+/* ── 대출 한도 모달 (설계 I55) ─────────────────────
+   프로필로 이미 계산된 결과를 먼저 보여주고, 입력은 접어 둔다. */
+.loan-modal .modal-head { margin-bottom: 16px; }
+
+.loan-hero {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--ocean) 0%, #123f52 100%);
+    color: #f2f6f8;
+}
+.loan-hero-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.loan-hero-label { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; opacity: .7; }
+.loan-hero-main strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+}
+.loan-hero-main small { font-size: 10.5px; opacity: .75; }
+.loan-hero-side {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding-left: 16px;
+    border-left: 1px solid rgba(255, 255, 255, .18);
+}
+.loan-hero-side div { display: flex; gap: 10px; justify-content: space-between; font-size: 11px; }
+.loan-hero-side span { opacity: .7; }
+.loan-hero-side b { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+
+/* 매매가 = 대출 + 자기자본 */
+.loan-stack { margin-top: 16px; }
+.loan-stack-bar {
+    display: flex;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--line2);
+}
+.loan-stack-bar .seg { transition: width .18s ease; }
+.seg-loan { background: var(--ocean-l); }
+.seg-cash { background: var(--sand); }
+.loan-stack-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--ink2);
+}
+.loan-stack-legend b { font-family: 'JetBrains Mono', monospace; color: var(--ink); margin-left: 4px; }
+.loan-stack-total { margin-left: auto; color: var(--ink3); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.dot-loan { background: var(--ocean-l); }
+.dot-cash { background: var(--sand); }
+
+/* 대출액 슬라이더 */
+.loan-slider { margin-top: 18px; }
+.loan-slider-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.loan-slider-head label { font-size: 11.5px; color: var(--ink2); }
+.loan-slider-head output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ocean);
+}
+.loan-slider input[type=range] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 2px;
+    background: var(--line2);
+    outline: none;
+}
+.loan-slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ocean);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .28);
+    cursor: pointer;
+}
+.loan-slider input[type=range]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ocean);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .28);
+    cursor: pointer;
+}
+.loan-slider-scale {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    padding: 7px 0;
-    border-bottom: 1px solid var(--line2);
-    font-size: 12.5px;
+    margin-top: 5px;
+    font-size: 10px;
+    color: var(--ink3);
 }
-.loan-row:last-of-type { border-bottom: none; }
-.loan-row span { color: var(--ink2); }
-.loan-row b { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
+
+/* 조정 결과 카드 */
+.loan-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+.loan-card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.loan-card > span { font-size: 10.5px; color: var(--ink3); }
+.loan-card > b { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--ink); }
+.loan-card > small { font-size: 9.5px; color: var(--ink3); }
+.loan-card.loan-ok { border-color: rgba(27, 94, 120, .35); }
+.loan-card.loan-ok > b { color: var(--ocean); }
+.loan-card.loan-short { border-color: rgba(190, 70, 50, .4); background: #fdf5f3; }
+.loan-card.loan-short > b { color: var(--lava); }
+
+/* 계산 전제 */
+.loan-assume {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line2);
+    font-size: 11px;
+    color: var(--ink2);
+}
+.loan-assume-item b { font-family: 'JetBrains Mono', monospace; color: var(--ink); margin-left: 3px; }
+.loan-assume-item small { color: var(--ink3); margin-left: 3px; }
+.loan-assume .btn-xs { margin-left: auto; }
+.loan-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.loan-check input { width: auto; margin: 0; }
+
+.loan-override {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.loan-override .form-grid { margin-bottom: 8px; }
+
+@media (max-width: 720px) {
+    .loan-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .loan-hero { flex-direction: column; }
+    .loan-hero-side { padding-left: 0; border-left: none; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .18); }
+}
+
 .loan-note { margin-top: 10px; font-size: 10.5px; color: var(--ink3); }
 
 /* ── 실거래 참고 카드 (D16-2) ───────────────────────── */
