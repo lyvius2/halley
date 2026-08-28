@@ -161,6 +161,14 @@ function halley() {
             } catch (e) {
                 body = null;
             }
+            // 초기 설정이 끝나기 전에는 서버가 API를 막는다(AccountSetupFilter).
+            // 어느 경로로 막히든 해당 단계의 모달을 띄워 사용자가 갇히지 않게 한다.
+            if (res.status === 403 && body && body.code === 'PROFILE_SETUP_REQUIRED') {
+                this.showProfileSetup = true;
+            }
+            if (res.status === 403 && body && body.code === 'MUST_CHANGE_PASSWORD') {
+                this.showPassword = true;
+            }
             return { ok: res.ok, status: res.status, body };
         },
 
@@ -725,14 +733,11 @@ function halley() {
                     body: JSON.stringify(this.passwordForm)
                 });
                 if (ok) {
-                    this.session.mustChangePassword = false;
                     this.passwordForm = { currentPassword: '', newPassword: '' };
                     this.showPassword = false;
                     this.error = null;
-                    if (this.session.role === 'ADMIN') {
-                        await this.loadUsers();
-                    }
-                    await this.loadProperties();
+                    // 세션을 다시 읽어야 다음 단계(프로필 설정)로 넘어간다. 목록 로드도 checkSession이 맡는다
+                    await this.checkSession();
                 } else {
                     this.error = (body && body.message) || '비밀번호 변경에 실패했습니다';
                 }
