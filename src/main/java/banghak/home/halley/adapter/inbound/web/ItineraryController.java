@@ -6,10 +6,12 @@ import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateStopVisitedRequest;
 import banghak.home.halley.adapter.inbound.web.dto.VisitPlanResponse;
 import banghak.home.halley.application.service.ItineraryService;
+import banghak.home.halley.domain.itinerary.StartLocation;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +24,17 @@ public class ItineraryController {
 
     public ItineraryController(ItineraryService itineraryService) {
         this.itineraryService = itineraryService;
+    }
+
+    /** 마지막 출발지 조회 — 캐시에 없으면 null (설계 I52). */
+    @GetMapping("/start-location")
+    public StartLocation startLocation() {
+        return itineraryService.lastStartLocation();
+    }
+
+    @PutMapping("/start-location")
+    public StartLocation rememberStartLocation(@RequestBody StartLocation request) {
+        return itineraryService.rememberStartLocation(request);
     }
 
     @PostMapping("/optimize")

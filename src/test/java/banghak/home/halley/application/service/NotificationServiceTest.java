@@ -75,7 +75,7 @@ class NotificationServiceTest {
     void sendPropertyCreatedRecordsSent() {
         // given
         userService.create(new CreateUserRequest(
-                "notify-user", "notify@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                "notify", "notify-user", "notify@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
         final var property = propertyService.create(request("알림 테스트"));
 
         // when

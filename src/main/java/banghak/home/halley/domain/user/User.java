@@ -5,6 +5,7 @@ import java.time.Instant;
 
 public record User(
         Long id,
+        String loginId,
         String nickname,
         String email,
         String passwordHash,
@@ -21,11 +22,13 @@ public record User(
 ) {
 
     /**
-     * 채점에 필요한 프로필이 채워졌는지 (설계 6.1 · I48).
+     * 계정 초기 설정이 끝났는지 (설계 6.1 · I48 · I51).
+     * 이메일은 로그인 ID와 분리된 연락처 항목이라 최초 설정에서 받고,
      * 직장 좌표가 없으면 `COMMUTE`가, 가용 예산이 0이면 `PRICE`가 계산되지 않는다.
      */
     public boolean profileComplete() {
-        return workplaceName != null && !workplaceName.isBlank()
+        return email != null && !email.isBlank()
+                && workplaceName != null && !workplaceName.isBlank()
                 && workplaceLat != null && workplaceLng != null
                 && availableBudget != null && availableBudget > 0;
     }

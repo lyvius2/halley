@@ -27,12 +27,12 @@ public class AdminBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (userRepository.findByEmail(ADMIN_LOGIN).isPresent()) {
+        if (userRepository.findByLoginId(ADMIN_LOGIN).isPresent()) {
             return;
         }
         String password = randomPassword();
         userRepository.save(new User(
-                null, "admin", ADMIN_LOGIN, passwordEncoder.encode(password), UserRole.ADMIN,
+                null, ADMIN_LOGIN, "admin", null, passwordEncoder.encode(password), UserRole.ADMIN,
                 null, null, null,
                 true, 0L, true,
                 null, null, null

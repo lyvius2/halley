@@ -40,12 +40,12 @@ class ParsePreviewApiIntegrationTest {
     void parsePreview() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "parse-user", "parse@example.com", "password1!", UserRole.MEMBER,
+                "parse", "parse-user", "parse@example.com", "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"parse@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"parse\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/password").session(session)
                         .contentType(MediaType.APPLICATION_JSON)

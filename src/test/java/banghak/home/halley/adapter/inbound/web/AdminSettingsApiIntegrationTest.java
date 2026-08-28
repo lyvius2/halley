@@ -37,12 +37,12 @@ class AdminSettingsApiIntegrationTest {
     void adminSettingsFlow() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings-admin", "settings@example.com", "password1!", UserRole.ADMIN,
+                "settings", "settings-admin", "settings@example.com", "password1!", UserRole.ADMIN,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"settings@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"settings\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/password").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -70,12 +70,12 @@ class AdminSettingsApiIntegrationTest {
     void memberForbidden() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings-member", "settings-m@example.com", "password1!", UserRole.MEMBER,
+                "settings-m", "settings-member", "settings-m@example.com", "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"settings-m@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"settings-m\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/password").session(session)
                         .contentType(MediaType.APPLICATION_JSON)

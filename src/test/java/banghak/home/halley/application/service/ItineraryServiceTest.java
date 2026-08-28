@@ -81,7 +81,7 @@ class ItineraryServiceTest {
         stubConfig.transitCalls.set(0);
         if (userRepository.findByEmail("itinerary@example.com").isEmpty()) {
             userService.create(new CreateUserRequest(
-                    "임장자", "itinerary@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
+                    "itinerary", "임장자", "itinerary@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L));
         }
         final User user = userRepository.findByEmail("itinerary@example.com").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);

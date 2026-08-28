@@ -62,7 +62,7 @@ class UserRepositoryTest {
 
     private User user(String nickname, String email) {
         return new User(
-                null, nickname, email, "hash", UserRole.MEMBER,
+                null, email.split("@")[0], nickname, email, "hash", UserRole.MEMBER,
                 null, null, null,
                 true, 0L, true,
                 null, null, null

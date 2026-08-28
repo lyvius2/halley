@@ -39,10 +39,10 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public AuthResponse login(String email, String password, HttpServletRequest request) {
+    public AuthResponse login(String loginId, String password, HttpServletRequest request) {
         try {
             final Authentication auth = authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(email, password));
+                    new UsernamePasswordAuthenticationToken(loginId, password));
             SecurityContextHolder.getContext().setAuthentication(auth);
             return toAuthResponse((HalleyUserDetails) Objects.requireNonNull(auth.getPrincipal()), request);
         } catch (DisabledException e) {
@@ -65,7 +65,8 @@ public class AuthService {
                 .orElseThrow(NotFoundUserException::new);
 
         userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), passwordEncoder.encode(newPassword), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(),
+                passwordEncoder.encode(newPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 false, user.availableBudget(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));

@@ -17,6 +17,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.CR
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_BY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EMAIL;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.LOGIN_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ENABLED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.MUST_CHANGE_PASSWORD;
@@ -40,6 +41,7 @@ public class UserRepository {
     public User save(User user) {
         Instant now = Instant.now();
         Long id = dsl.insertInto(TABLE)
+                .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
                 .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
@@ -59,6 +61,7 @@ public class UserRepository {
 
         return new User(
                 id,
+                user.loginId(),
                 user.nickname(),
                 user.email(),
                 user.passwordHash(),
@@ -77,6 +80,7 @@ public class UserRepository {
 
     public User update(User user) {
         dsl.update(TABLE)
+                .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
                 .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
@@ -97,6 +101,13 @@ public class UserRepository {
     public Optional<User> findById(Long id) {
         return dsl.selectFrom(TABLE)
                 .where(ID.eq(id))
+                .fetchOptional()
+                .map(this::map);
+    }
+
+    public Optional<User> findByLoginId(String loginId) {
+        return dsl.selectFrom(TABLE)
+                .where(LOGIN_ID.eq(loginId))
                 .fetchOptional()
                 .map(this::map);
     }
@@ -130,6 +141,7 @@ public class UserRepository {
     private User map(Record r) {
         return new User(
                 r.get(ID),
+                r.get(LOGIN_ID),
                 r.get(NICKNAME),
                 r.get(EMAIL),
                 r.get(PASSWORD_HASH),

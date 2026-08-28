@@ -19,6 +19,7 @@ public final class UserTable {
 
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<String> NICKNAME = field(name(T, "nickname"), String.class);
+    public static final Field<String> LOGIN_ID = field(name(T, "login_id"), String.class);
     public static final Field<String> EMAIL = field(name(T, "email"), String.class);
     public static final Field<String> PASSWORD_HASH = field(name(T, "password_hash"), String.class);
     public static final Field<String> ROLE = field(name(T, "role"), String.class);

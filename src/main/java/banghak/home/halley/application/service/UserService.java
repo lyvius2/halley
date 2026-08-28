@@ -7,6 +7,7 @@ import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.config.exception.AuthenticationRequiredException;
 import banghak.home.halley.config.exception.DuplicateEmailException;
+import banghak.home.halley.config.exception.DuplicateLoginIdException;
 import banghak.home.halley.config.exception.DuplicateNicknameException;
 import banghak.home.halley.config.exception.LastAdminException;
 import banghak.home.halley.config.exception.NotFoundUserException;
@@ -57,11 +58,16 @@ public class UserService {
         if (!user.nickname().equals(nickname) && userRepository.findByNickname(nickname).isPresent()) {
             throw new DuplicateNicknameException();
         }
+        final String email = hasText(request.email()) ? request.email().trim() : user.email();
+        if (hasText(email) && !email.equals(user.email())
+                && userRepository.findByEmail(email).isPresent()) {
+            throw new DuplicateEmailException();
+        }
         final long newBudget = request.availableBudget() != null
                 ? request.availableBudget() : user.availableBudget();
 
         final User updated = userRepository.update(new User(
-                user.id(), nickname, user.email(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname, email, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
                 user.mustChangePassword(), newBudget,
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
@@ -82,6 +88,10 @@ public class UserService {
         }
     }
 
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
     private Long currentUserId() {
         final Long id = currentAdminId();
         if (id == null) {
@@ -91,7 +101,10 @@ public class UserService {
     }
 
     public UserResponse create(CreateUserRequest request) {
-        if (userRepository.findByEmail(request.email()).isPresent()) {
+        if (userRepository.findByLoginId(request.loginId()).isPresent()) {
+            throw new DuplicateLoginIdException();
+        }
+        if (hasText(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
             throw new DuplicateEmailException();
         }
         if (userRepository.findByNickname(request.nickname()).isPresent()) {
@@ -99,6 +112,7 @@ public class UserService {
         }
         final User saved = userRepository.save(new User(
                 null,
+                request.loginId(),
                 request.nickname(),
                 request.email(),
                 passwordEncoder.encode(request.password()),
@@ -116,7 +130,12 @@ public class UserService {
 
     public UserResponse update(Long id, UpdateUserRequest request) {
         final User user = get(id);
-        if (!user.email().equals(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
+        if (!user.loginId().equals(request.loginId())
+                && userRepository.findByLoginId(request.loginId()).isPresent()) {
+            throw new DuplicateLoginIdException();
+        }
+        if (hasText(request.email()) && !request.email().equals(user.email())
+                && userRepository.findByEmail(request.email()).isPresent()) {
             throw new DuplicateEmailException();
         }
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
@@ -124,6 +143,7 @@ public class UserService {
         }
         final User updated = userRepository.update(new User(
                 user.id(),
+                request.loginId(),
                 request.nickname(),
                 request.email(),
                 user.passwordHash(),
@@ -165,7 +185,7 @@ public class UserService {
         }
         final Instant now = Instant.now();
         final User updated = userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.mustChangePassword(), user.availableBudget(), enabled,
                 enabled ? null : now,
@@ -181,7 +201,8 @@ public class UserService {
         final User user = get(id);
         final String temporaryPassword = randomPassword();
         userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), passwordEncoder.encode(temporaryPassword), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(),
+                passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 true, user.availableBudget(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
@@ -207,7 +228,7 @@ public class UserService {
 
     private UserResponse toResponse(User user) {
         return new UserResponse(
-                user.id(), user.nickname(), user.email(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.availableBudget(), user.enabled(), user.mustChangePassword(), user.createdAt());
     }

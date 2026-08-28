@@ -40,8 +40,8 @@ class AuthServiceTest {
     @DisplayName("최초 부팅 시 관리자 계정이 존재한다")
     void bootstrapAdminExists() {
         // then
-        assertThat(userRepository.findByEmail("admin")).isPresent();
-        final UserRole userRole = userRepository.findByEmail("admin").map(User::role).orElse(null);
+        assertThat(userRepository.findByLoginId("admin")).isPresent();
+        final UserRole userRole = userRepository.findByLoginId("admin").map(User::role).orElse(null);
         assertThat(userRole).isEqualTo(UserRole.ADMIN);
     }
 
@@ -49,10 +49,10 @@ class AuthServiceTest {
     @DisplayName("로그인 후 비밀번호를 변경하면 재변경 플래그가 해제된다")
     void loginThenChangePassword() {
         // given
-        userService.create(new CreateUserRequest("auth-user", "auth@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+        userService.create(new CreateUserRequest("auth", "auth-user", "auth@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
 
         // when
-        final AuthResponse first = authService.login("auth@example.com", "password1!", new MockHttpServletRequest());
+        final AuthResponse first = authService.login("auth", "password1!", new MockHttpServletRequest());
 
         // then
         assertThat(first.mustChangePassword()).isTrue();
@@ -63,7 +63,7 @@ class AuthServiceTest {
         assertThat(isMustChangePassword).isFalse();
 
         SecurityContextHolder.clearContext();
-        final AuthResponse second = authService.login("auth@example.com", "newpassword2!", new MockHttpServletRequest());
+        final AuthResponse second = authService.login("auth", "newpassword2!", new MockHttpServletRequest());
         assertThat(second.mustChangePassword()).isFalse();
     }
 
@@ -71,12 +71,12 @@ class AuthServiceTest {
     @DisplayName("잘못된 비밀번호로 로그인하면 InvalidCredentialsException이 발생한다")
     void loginWithWrongPasswordFails() {
         // given
-        userService.create(new CreateUserRequest("wrong-user", "wrong@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+        userService.create(new CreateUserRequest("wrong", "wrong-user", "wrong@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
 
         // when
         final InvalidCredentialsException ex = assertThrows(
                 InvalidCredentialsException.class,
-                () -> authService.login("wrong@example.com", "bad-password", new MockHttpServletRequest()));
+                () -> authService.login("wrong", "bad-password", new MockHttpServletRequest()));
 
         // then
         assertThat(ex).isNotNull();

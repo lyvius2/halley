@@ -30,14 +30,14 @@ class AuthSessionIntegrationTest {
     @Test
     void loginThenChangePasswordWithSameSession() throws Exception {
         userService.create(new CreateUserRequest(
-                "session-user", "session@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+                "session", "session-user", "session@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
 
         MockHttpSession session = new MockHttpSession();
 
         mockMvc.perform(post("/api/auth/login")
                         .session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"session@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"session\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.mustChangePassword").value(true));
 

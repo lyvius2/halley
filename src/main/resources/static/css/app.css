@@ -286,6 +286,10 @@ td.num {
 .btn-block { width: 100%; padding: 11px 18px; }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
 .btn-xs { padding: 4px 10px; font-size: 11px; }
+.btn-danger { color: var(--lava); border-color: #eeb4a4; }
+.btn-danger:hover { background: #fdf1ee; border-color: var(--lava); color: var(--lava); }
+/* 표 안의 관리 버튼 묶음 */
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* ── 모달 ────────────────────────────────────────── */
 .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }

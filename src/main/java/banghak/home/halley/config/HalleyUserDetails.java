@@ -12,6 +12,7 @@ public class HalleyUserDetails implements UserDetails {
 
     private final Long id;
     private final String nickname;
+    private final String loginId;
     private final String email;
     private final String password;
     private final String role;
@@ -22,6 +23,7 @@ public class HalleyUserDetails implements UserDetails {
     public HalleyUserDetails(User user) {
         this.id = user.id();
         this.nickname = user.nickname();
+        this.loginId = user.loginId();
         this.email = user.email();
         this.password = user.passwordHash();
         this.role = user.role().name();
@@ -70,7 +72,7 @@ public class HalleyUserDetails implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return loginId;
     }
 
     @Override

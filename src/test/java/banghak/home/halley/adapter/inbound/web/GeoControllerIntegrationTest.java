@@ -80,11 +80,11 @@ class GeoControllerIntegrationTest {
     void authenticatedSearchReturnsCoordinates() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "geo-user", "geo@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+                "geo", "geo-user", "geo@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"geo@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"geo\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/password").session(session)
                         .contentType(MediaType.APPLICATION_JSON)

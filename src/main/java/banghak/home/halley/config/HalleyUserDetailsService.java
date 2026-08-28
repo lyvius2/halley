@@ -16,9 +16,9 @@ public class HalleyUserDetailsService implements UserDetailsService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        return userRepository.findByEmail(email)
+    public UserDetails loadUserByUsername(String loginId) throws UsernameNotFoundException {
+        return userRepository.findByLoginId(loginId)
                 .map(HalleyUserDetails::new)
-                .orElseThrow(() -> new UsernameNotFoundException("user not found: " + email));
+                .orElseThrow(() -> new UsernameNotFoundException("user not found: " + loginId));
     }
 }

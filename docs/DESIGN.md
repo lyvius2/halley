@@ -255,8 +255,9 @@ erDiagram
 
     USERS {
         bigint id PK
+        varchar login_id UK "로그인 ID (I51)"
         varchar nickname UK
-        varchar email UK
+        varchar email UK "연락처 — 최초 설정에서 입력
         varchar password_hash
         varchar role "ADMIN | MEMBER"
         varchar workplace_name
@@ -757,7 +758,7 @@ sequenceDiagram
 |---|---|---|---|
 | M1 | `/` | 메인 (매물 비교) | 좌 리스트 3 : 우 지도 7 |
 | M2 | `/properties/:id` | 매물 상세 | **모달** (Session 16-I45 — 지도 위 슬라이드 패널에서 변경) |
-| M3 | `/admin/users` | 사용자 관리 | Admin 전용, 테이블 |
+| M3 | — | 사용자 관리 | Admin 전용 **모달**, 표: ID·닉네임·이메일·역할·가용 예산·상태 (Session 16-I51) |
 | M4 | `/admin/criteria` | 평가 기준·가중치 | Admin 전용, 드래그 정렬 |
 | M5 | `/me` | 내 프로필 | 닉네임·직장 위치·비밀번호 |
 | M6 | — | 시스템 설정 | Admin 전용 **모달**, 섹션: 배치/대출 + Slack 테스트 + 알림 이력 (Session 16-I46) |
@@ -1228,6 +1229,7 @@ sequenceDiagram
 
 | Method | Path | 설명 |
 |---|---|---|
+| GET·PUT | `/api/itinerary/start-location` | 출발지 조회·캐시 (TTL 7일 — Session 16-I52) |
 | POST | `/api/itinerary/optimize` | 매물 ID 목록 + 제약 → 최적 순서 계산 (미저장, 프리뷰) |
 | POST | `/api/itinerary/plans` | 계획 저장 |
 | GET | `/api/itinerary/plans/{id}` | 계획 조회 |
@@ -1895,6 +1897,26 @@ M6는 별도 Main Frame이었으나 **모달로 변경**합니다. 설정은 매
 **직장 주소 입력은 카카오(다음) 우편번호 서비스**(`postcode.v2.js`)로 바꿨습니다. 키워드 검색으로 직접 주소를 치던 방식은 오타·형식 문제로 지오코딩이 실패하기 쉬웠습니다. 팝업에서 주소를 고르면 그 주소를 `/api/geo/search`로 지오코딩해 좌표까지 자동으로 채우고, 좌표 칸은 읽기 전용으로 둡니다. 별도 API 키가 필요 없는 무료 서비스입니다.
 
 **함께 고친 버그**: `loadUsers()`가 `/api/users` 응답을 `users`가 아니라 `itinPlan`에 넣고 있어(복사 실수) **사용자 관리 화면이 항상 비어 있었습니다.** Admin이 안 보이는 게 아니라 아무도 보이지 않는 상태였습니다.
+
+### I51. 로그인 ID와 이메일 분리 · **[확정]**
+
+`users.email`이 로그인 ID를 겸하고 있어 부트스트랩 관리자 계정은 `email = "admin"`이라는 형태로 저장됐습니다. 이메일 형식도 아니고, 관리자에게 연락처를 받을 자리도 없었습니다.
+
+- `users.login_id`(고유)를 신설하고 **로그인은 이 값으로** 합니다. `email`은 `NOT NULL`을 풀어 연락처 항목이 됩니다.
+- 이메일은 **최초 설정 단계에서 강제 입력**합니다(I48의 프로필 완성 조건에 추가). 관리자가 계정을 만들 때 비워 두면 본인이 첫 로그인에서 채웁니다.
+- 아이디 중복은 `DuplicateLoginIdException`(`LOGIN_ID_DUPLICATED`)로 구분합니다.
+- 사용자 관리(M3)는 설정(M6)과 같이 **모달**로 바꾸고 상단 메뉴에서 설정 왼쪽에 둡니다. 표 항목은 ID·닉네임·이메일·역할·가용 예산·상태이며, 관리 동작(정보 수정·비번 리셋·삭제)은 링크가 아니라 버튼입니다.
+
+### I52. 임장 출발지 캐시 · **[확정 — Redis, TTL 7일]**
+
+출발지는 계획으로 저장되기 전 단계의 입력값이라 영속 대상이 아니지만, 매번 주소를 다시 찾는 것은 번거롭습니다. `StartLocationCache` 포트(local 인메모리 / live Redis, 키 `itin:start:{userId}`, **TTL 7일**)에 사용자별로 담고, 임장 플래너를 열면 채워 넣습니다.
+
+주소 입력은 카카오 우편번호 서비스로 통일했고(I48과 동일), 주소를 고르는 순간 지오코딩 → 좌표 확보 → 캐시 저장까지 한 번에 처리합니다.
+
+| Method | Path | 설명 |
+|---|---|---|
+| GET | `/api/itinerary/start-location` | 마지막 출발지 (없으면 null) |
+| PUT | `/api/itinerary/start-location` | 출발지 캐시 |
 ---
 
 ## 17. 부록: 패키지 구조 (제안)

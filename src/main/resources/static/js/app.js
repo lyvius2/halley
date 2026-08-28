@@ -26,6 +26,7 @@ function emptyPropertyForm() {
 
 function emptyUserForm() {
     return {
+        loginId: '',
         nickname: '',
         email: '',
         password: '',
@@ -79,14 +80,15 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
+        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
         showSettings: false,
+        showUsers: false,
         showProfileSetup: false,
-        setupForm: { workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
+        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
@@ -131,7 +133,7 @@ function halley() {
         roadviewProperty: null,
         roadviewState: 'loading',
         roadview: null,
-        loginForm: { email: '', password: '' },
+        loginForm: { loginId: '', password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
@@ -198,9 +200,6 @@ function halley() {
 
         setView(view) {
             this.view = view;
-            if (view === 'users') {
-                this.loadUsers();
-            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -208,6 +207,7 @@ function halley() {
                 this.loadProfile();
             }
             if (view === 'itinerary') {
+                this.loadStartLocation();
                 this.renderItinerary();
             }
         },
@@ -225,6 +225,21 @@ function halley() {
 
         closeSettings() {
             this.showSettings = false;
+            this.error = null;
+        },
+
+        /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
+        openUsers() {
+            if (this.session.role !== 'ADMIN') {
+                return;
+            }
+            this.showUsers = true;
+            this.error = null;
+            this.loadUsers();
+        },
+
+        closeUsers() {
+            this.showUsers = false;
             this.error = null;
         },
 
@@ -246,6 +261,7 @@ function halley() {
         openEditUser(u) {
             this.editingUserId = u.id;
             this.userForm = {
+                loginId: u.loginId,
                 nickname: u.nickname,
                 email: u.email,
                 password: '',
@@ -271,8 +287,9 @@ function halley() {
             this.error = null;
             const editing = this.editingUserId;
             const body = {
+                loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
-                email: this.userForm.email,
+                email: this.userForm.email || null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
@@ -341,6 +358,7 @@ function halley() {
                 this.profile = body;
                 this.profileForm = {
                     nickname: body.nickname || '',
+                    email: body.email || '',
                     workplaceName: body.workplaceName || '',
                     workplaceLat: body.workplaceLat ?? '',
                     workplaceLng: body.workplaceLng ?? '',
@@ -361,17 +379,43 @@ function halley() {
             new window.daum.Postcode({
                 oncomplete: async (data) => {
                     const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
-                    const form = target === 'setup' ? this.setupForm : this.profileForm;
-                    form.workplaceName = data.buildingName ? `${address} (${data.buildingName})` : address;
+                    const label = data.buildingName ? `${address} (${data.buildingName})` : address;
                     const coords = await this.geocodeAddress(address);
-                    if (coords) {
-                        form.workplaceLat = coords.lat;
-                        form.workplaceLng = coords.lng;
-                    } else {
+                    if (!coords) {
                         this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
+                        return;
                     }
+                    if (target === 'itinerary') {
+                        this.itinStart = { address: label, lat: coords.lat, lng: coords.lng };
+                        await this.rememberStartLocation();
+                        return;
+                    }
+                    const form = target === 'setup' ? this.setupForm : this.profileForm;
+                    form.workplaceName = label;
+                    form.workplaceLat = coords.lat;
+                    form.workplaceLng = coords.lng;
                 }
             }).open();
+        },
+
+        /** 출발지는 입력이 끝나는 즉시 캐시한다 (TTL 7일 — 설계 I52). */
+        async rememberStartLocation() {
+            await this.request('/api/itinerary/start-location', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    address: this.itinStart.address || null,
+                    lat: toNum(this.itinStart.lat),
+                    lng: toNum(this.itinStart.lng)
+                })
+            });
+        },
+
+        async loadStartLocation() {
+            const { ok, body } = await this.request('/api/itinerary/start-location');
+            if (ok && body && body.lat != null) {
+                this.itinStart = { address: body.address || '', lat: body.lat, lng: body.lng };
+            }
         },
 
         async geocodeAddress(address) {
@@ -383,6 +427,10 @@ function halley() {
         },
 
         async saveProfileSetup() {
+            if (!this.setupForm.email || !this.setupForm.email.includes('@')) {
+                this.error = '이메일을 입력해 주세요';
+                return;
+            }
             if (!this.setupForm.workplaceLat || !this.setupForm.workplaceLng) {
                 this.error = '주소 검색으로 직장 위치를 선택해 주세요';
                 return;
@@ -398,6 +446,7 @@ function halley() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        email: this.setupForm.email,
                         workplaceName: this.setupForm.workplaceName,
                         workplaceLat: toNum(this.setupForm.workplaceLat),
                         workplaceLng: toNum(this.setupForm.workplaceLng),
@@ -426,6 +475,7 @@ function halley() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nickname: this.profileForm.nickname || null,
+                        email: this.profileForm.email || null,
                         workplaceName: this.profileForm.workplaceName || null,
                         workplaceLat: toNum(this.profileForm.workplaceLat),
                         workplaceLng: toNum(this.profileForm.workplaceLng),
