@@ -52,13 +52,25 @@ public class UserService {
 
     public UserResponse updateProfile(ProfileRequest request) {
         final User user = get(currentUserId());
+        final String nickname = request.nickname() == null || request.nickname().isBlank()
+                ? user.nickname() : request.nickname().trim();
+        if (!user.nickname().equals(nickname) && userRepository.findByNickname(nickname).isPresent()) {
+            throw new DuplicateNicknameException();
+        }
+        final long newBudget = request.availableBudget() != null
+                ? request.availableBudget() : user.availableBudget();
+
         final User updated = userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                user.id(), nickname, user.email(), user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                user.mustChangePassword(),
-                request.availableBudget() != null ? request.availableBudget() : user.availableBudget(),
+                user.mustChangePassword(), newBudget,
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
         refreshProfileFlag(updated);
+
+        // 예산 상한이 바뀌면 전 매물 PRICE가 달라진다 (설계 5.2.1)
+        if (newBudget != user.availableBudget()) {
+            scoringService.rescoreAll();
+        }
         return toResponse(updated);
     }
 

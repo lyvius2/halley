@@ -543,6 +543,8 @@ input[type=checkbox], input[type=radio] {
 /* ── 프로필 (M5) ───────────────────────────────────── */
 .profile-panel { padding: 18px; }
 .profile-title { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 12px; color: var(--ink2); }
+/* 카드 안 액션 버튼은 입력과 붙지 않게 띄운다 */
+.panel-actions { display: flex; gap: 10px; margin-top: 20px; }
 .profile-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
 .profile-row span { color: var(--ink2); }
 .profile-row b { font-weight: 500; }

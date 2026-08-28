@@ -79,8 +79,7 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        workplaceQuery: '',
-        workplaceResults: [],
+        profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
@@ -340,25 +339,14 @@ function halley() {
             const { ok, body } = await this.request('/api/users/me');
             if (ok) {
                 this.profile = body;
-                this.workplaceQuery = body.workplaceName || '';
+                this.profileForm = {
+                    nickname: body.nickname || '',
+                    workplaceName: body.workplaceName || '',
+                    workplaceLat: body.workplaceLat ?? '',
+                    workplaceLng: body.workplaceLng ?? '',
+                    availableBudget: body.availableBudget ?? ''
+                };
             }
-        },
-
-        async searchWorkplace() {
-            const query = this.workplaceQuery;
-            if (!query || !query.trim()) {
-                return;
-            }
-            const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
-            this.workplaceResults = ok ? (body || []) : [];
-        },
-
-        selectWorkplace(r) {
-            this.profile.workplaceName = r.addressName;
-            this.profile.workplaceLat = r.lat;
-            this.profile.workplaceLng = r.lng;
-            this.workplaceQuery = r.addressName;
-            this.workplaceResults = [];
         },
 
         /**
@@ -373,7 +361,7 @@ function halley() {
             new window.daum.Postcode({
                 oncomplete: async (data) => {
                     const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
-                    const form = target === 'setup' ? this.setupForm : this.profile;
+                    const form = target === 'setup' ? this.setupForm : this.profileForm;
                     form.workplaceName = data.buildingName ? `${address} (${data.buildingName})` : address;
                     const coords = await this.geocodeAddress(address);
                     if (coords) {
@@ -429,7 +417,7 @@ function halley() {
             }
         },
 
-        async saveWorkplace() {
+        async saveProfile() {
             this.loading = true;
             this.error = null;
             try {
@@ -437,15 +425,19 @@ function halley() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        workplaceName: this.profile.workplaceName || null,
-                        workplaceLat: toNum(this.profile.workplaceLat),
-                        workplaceLng: toNum(this.profile.workplaceLng)
+                        nickname: this.profileForm.nickname || null,
+                        workplaceName: this.profileForm.workplaceName || null,
+                        workplaceLat: toNum(this.profileForm.workplaceLat),
+                        workplaceLng: toNum(this.profileForm.workplaceLng),
+                        availableBudget: toNum(this.profileForm.availableBudget)
                     })
                 });
                 if (ok) {
                     this.profile = body;
+                    this.session.nickname = body.nickname;
+                    await this.loadProperties();
                 } else {
-                    this.error = (body && body.message) || '직장 위치 저장에 실패했습니다';
+                    this.error = (body && body.message) || '프로필 저장에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

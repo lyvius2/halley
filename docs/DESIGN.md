@@ -875,7 +875,7 @@ sequenceDiagram
 | PUT/DELETE | `/api/users/{id}` | 수정·삭제 | ADMIN |
 | PATCH | `/api/users/{id}/status` | 활성/비활성 토글 | ADMIN |
 | POST | `/api/users/{id}/reset-password` | 임시 비밀번호 리셋 (1회 반환) | ADMIN |
-| PUT | `/api/users/me/profile` | 내 프로필(직장 좌표 + 가용 예산) | AUTH |
+| PUT | `/api/users/me/profile` | 내 프로필(닉네임 + 직장 좌표 + 가용 예산) | AUTH |
 | GET | `/api/properties` | 목록 (정렬·필터·점수 포함) | AUTH |
 | POST | `/api/properties` | 수기 등록 | AUTH |
 | POST | `/api/properties/parse-preview` | **붙여넣기 텍스트 파싱 (미저장, 프리뷰)** | AUTH |

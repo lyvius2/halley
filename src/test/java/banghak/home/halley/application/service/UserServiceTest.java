@@ -112,13 +112,14 @@ class UserServiceTest {
         // when
         final UserResponse me = userService.me();
         final UserResponse updated = userService.updateProfile(
-                new ProfileRequest("회사", new BigDecimal("37.5"), new BigDecimal("126.9"), 300_000_000L));
+                new ProfileRequest("바뀐닉", "회사", new BigDecimal("37.5"), new BigDecimal("126.9"), 300_000_000L));
 
         // then
         assertThat(me.email()).isEqualTo("me@example.com");
         assertThat(updated.workplaceName()).isEqualTo("회사");
         assertThat(updated.workplaceLat()).isEqualByComparingTo("37.5");
         assertThat(updated.availableBudget()).isEqualTo(300_000_000L);
+        assertThat(updated.nickname()).isEqualTo("바뀐닉");
 
         SecurityContextHolder.clearContext();
     }
