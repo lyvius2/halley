@@ -355,6 +355,79 @@ CREATE TABLE legal_dong_code (
 CREATE INDEX ix_legal_dong_code_dong ON legal_dong_code (sigungu, dong_name);
 
 -- =============================================================================
+-- 마이그레이션 — 2026-08-28 배포분 (Session 16-I41·I43·I44·I49·I50·I51)
+--
+-- 위 CREATE 문은 신규 구축용이다. **이미 운영 중인 DB**는 아래를 순서대로 실행한다.
+-- 모두 멱등(idempotent)하므로 다시 돌려도 안전하다. 트랜잭션으로 묶어 실행할 것.
+-- =============================================================================
+BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- 1. users — 로그인 ID와 이메일 분리 (I51)
+--    기존에는 email이 로그인 ID를 겸했다. login_id로 옮기고 email은 연락처로 남긴다.
+-- ---------------------------------------------------------------------------
+ALTER TABLE users ADD COLUMN IF NOT EXISTS login_id VARCHAR(50);
+UPDATE users SET login_id = email WHERE login_id IS NULL;
+ALTER TABLE users ALTER COLUMN login_id SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_users_login_id ON users (login_id);
+
+-- 이메일은 선택 항목이 된다. 이메일 형식이 아닌 값(로그인 ID로 쓰이던 값)은 비워
+-- 다음 로그인 때 최초 설정 단계에서 다시 받는다 (I48).
+ALTER TABLE users ALTER COLUMN email DROP NOT NULL;
+UPDATE users SET email = NULL WHERE email IS NOT NULL AND position('@' IN email) = 0;
+
+-- ---------------------------------------------------------------------------
+-- 2. property_score — 자동 채점 산출 근거 (I50)
+--    기존 행의 explanation은 NULL이며, 재채점하면 채워진다.
+-- ---------------------------------------------------------------------------
+ALTER TABLE property_score ADD COLUMN IF NOT EXISTS explanation VARCHAR(500);
+
+-- ---------------------------------------------------------------------------
+-- 3. 채점 항목 교체 — BUILDING_COUNT(단지 동수) → HOUSEHOLDS(세대수) (I49)
+--    가중치 순위는 그대로 승계한다. 점수 값은 옛 산식 기준이므로 재채점이 필요하다.
+-- ---------------------------------------------------------------------------
+INSERT INTO criterion (code, name, scoring_type, enabled)
+VALUES ('HOUSEHOLDS', '세대수', 'AUTO', TRUE)
+ON CONFLICT (code) DO NOTHING;
+
+UPDATE criterion_weight SET criterion_code = 'HOUSEHOLDS' WHERE criterion_code = 'BUILDING_COUNT';
+UPDATE property_score   SET criterion_code = 'HOUSEHOLDS' WHERE criterion_code = 'BUILDING_COUNT';
+DELETE FROM criterion WHERE code = 'BUILDING_COUNT';
+
+-- ---------------------------------------------------------------------------
+-- 4. system_config — 채점 상수 키 제거 (I41)
+--    화면에는 보이지만 채점 코드가 읽지 않아 혼란을 줬다. 앱도 부팅 시 지우지만 함께 정리한다.
+-- ---------------------------------------------------------------------------
+DELETE FROM system_config WHERE config_key IN ('scoring.floorPeak', 'scoring.weightCurve');
+
+-- ---------------------------------------------------------------------------
+-- 5. legal_dong_code — 잘못된 부트스트랩 시드 제거 (I43)
+--    8건 중 5건의 시군구 코드가 틀려(마포구를 강남구 11680 등) 엉뚱한 구의 실거래가를
+--    가져왔다. 이제 카카오 주소검색 b_code로 조회·캐시하므로 시드가 필요 없다.
+-- ---------------------------------------------------------------------------
+DELETE FROM legal_dong_code WHERE code IN (
+    '1111000000', '1111000100', '1168000000', '1168000100',
+    '1156000000', '1141000000', '1123000000', '1168000200'
+);
+
+-- ---------------------------------------------------------------------------
+-- 6. nearby_facility — 테이블 폐지 (I44)
+--    영속 데이터가 아니라 카카오 응답 캐시라 PoiCache(Redis, TTL 30일)로 옮겼다.
+-- ---------------------------------------------------------------------------
+DROP TABLE IF EXISTS nearby_facility;
+
+COMMIT;
+
+-- ---------------------------------------------------------------------------
+-- 적용 후 할 일
+--   1) 매물별 재채점: POST /api/properties/{id}/rescore
+--      - HOUSEHOLDS는 옛 산식(동 수) 기준 점수가 남아 있고, explanation도 비어 있다
+--      - POI는 PoiCache가 비어 있으므로 첫 재채점에서 카카오를 다시 호출한다
+--   2) 계정 확인: 로그인 ID가 기존 이메일 값으로 채워졌다. 필요하면 사용자 관리에서 바꾼다
+--   3) 이메일이 비워진 계정은 다음 로그인에서 최초 설정 모달이 뜬다 (I48)
+-- ---------------------------------------------------------------------------
+
+-- =============================================================================
 -- 시드 데이터 참고 (DDL 아님 — 애플리케이션 부팅/적재 담당)
 --   - criterion(12건)·criterion_weight: 부팅 시 yml 시드
 --   - system_config: 부팅 시 yml 시드, 이후 DB 우선
