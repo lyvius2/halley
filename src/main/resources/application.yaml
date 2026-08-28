@@ -108,7 +108,6 @@ resilience4j:
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
 
-# LLM 추천도 (설계 I58 · I59). 지금 구현체는 Claude 하나 — 나중에 Ollama 등을 붙일 수 있게 포트로 뺐다
 llm:
   enabled: ${LLM_ENABLED:true}
   provider: ${LLM_PROVIDER:claude}

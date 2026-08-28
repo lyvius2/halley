@@ -321,6 +321,7 @@ CREATE TABLE llm_recommendation (
     reason       VARCHAR(2000),                                  -- 그 점수를 준 이유
     model        VARCHAR(100),                                   -- 무엇으로 매긴 점수인지 남긴다
     prompt_hash  VARCHAR(64),                                    -- 입력이 그대로면 다시 부르지 않는다
+    workplace_count INTEGER    NOT NULL DEFAULT 0,                -- 추론에 쓰인 직장 위치 수 (설계 I60)
     computed_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT uq_llm_recommendation UNIQUE (property_id)
 );
@@ -491,6 +492,7 @@ CREATE TABLE IF NOT EXISTS llm_recommendation (
     reason       VARCHAR(2000),
     model        VARCHAR(100),
     prompt_hash  VARCHAR(64),
+    workplace_count INTEGER    NOT NULL DEFAULT 0,
     computed_at  TIMESTAMPTZ   NOT NULL DEFAULT now(),
     CONSTRAINT uq_llm_recommendation UNIQUE (property_id)
 );

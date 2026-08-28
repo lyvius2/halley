@@ -23,6 +23,7 @@ public final class LlmRecommendationTable {
     public static final Field<String> REASON = field(name(T, "reason"), String.class);
     public static final Field<String> MODEL = field(name(T, "model"), String.class);
     public static final Field<String> PROMPT_HASH = field(name(T, "prompt_hash"), String.class);
+    public static final Field<Integer> WORKPLACE_COUNT = field(name(T, "workplace_count"), Integer.class);
     public static final Field<OffsetDateTime> COMPUTED_AT = field(name(T, "computed_at"), OffsetDateTime.class);
 
     private LlmRecommendationTable() {

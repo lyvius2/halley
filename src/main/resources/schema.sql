@@ -240,6 +240,7 @@ CREATE TABLE IF NOT EXISTS llm_recommendation (
     reason       VARCHAR(2000),
     model        VARCHAR(100),
     prompt_hash  VARCHAR(64),
+    workplace_count INTEGER    NOT NULL DEFAULT 0,
     computed_at  TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_llm_recommendation UNIQUE (property_id)
 );

@@ -76,9 +76,48 @@ public class LlmRecommendationService {
         this.enabled = enabled;
     }
 
+    /** 직장 위치가 이만큼 모이면 판단이 충분히 안정된다고 본다 (설계 I60). */
+    static final int ENOUGH_WORKPLACES = 3;
+
     /** 저장된 추천도만 읽는다 — LLM을 부르지 않는다. */
     public Optional<LlmRecommendation> find(Long propertyId) {
         return recommendationRepository.findByPropertyId(propertyId);
+    }
+
+    /**
+     * 사용자가 추가되거나 직장 위치가 바뀌었을 때 전 매물의 추천도를 다시 뽑는다 (설계 I60).
+     *
+     * <p>단, <b>직장 위치 3곳 이상으로 이미 추론한 매물은 건너뜁니다.</b> 그 정도면 통근 판단에
+     * 필요한 정보가 다 모인 셈이라, 네 번째 사람이 들어왔다고 매물 전체를 다시 물으면
+     * 비용만 늘고 점수는 거의 그대로입니다.
+     *
+     * @return 실제로 다시 물어본 매물 수
+     */
+    public int refreshForWorkplaceChange() {
+        if (!enabled || !llmPort.isEnabled()) {
+            return 0;
+        }
+        int refreshed = 0;
+        int skipped = 0;
+        for (final Property property : propertyRepository.findAll()) {
+            final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(property.id());
+            if (cached.isPresent() && workplaceCountOf(cached.get()) >= ENOUGH_WORKPLACES) {
+                skipped++;
+                continue;
+            }
+            final Optional<LlmRecommendation> before = cached;
+            final Optional<LlmRecommendation> after = ensureRecommendation(property.id());
+            if (after.isPresent() && (before.isEmpty() || !after.get().equals(before.get()))) {
+                refreshed++;
+            }
+        }
+        log.info("Refreshed LLM recommendations after workplace change. refreshed={}, skipped={} (>= {} workplaces)",
+                refreshed, skipped, ENOUGH_WORKPLACES);
+        return refreshed;
+    }
+
+    private int workplaceCountOf(LlmRecommendation recommendation) {
+        return recommendation.workplaceCount() == null ? 0 : recommendation.workplaceCount();
     }
 
     /**
@@ -98,6 +137,9 @@ public class LlmRecommendationService {
         final List<User> buyers = activeBuyers();
         final String prompt = buildPrompt(property, buyers);
         final String hash = sha256(prompt);
+        final int workplaces = (int) buyers.stream()
+                .filter(u -> u.workplaceLat() != null && u.workplaceLng() != null)
+                .count();
 
         final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(propertyId);
         if (cached.isPresent() && hash.equals(cached.get().promptHash())) {
@@ -116,9 +158,9 @@ public class LlmRecommendationService {
         }
         final LlmRecommendation saved = recommendationRepository.upsert(new LlmRecommendation(
                 null, propertyId, verdict.get().score(), verdict.get().reason(),
-                result.model(), hash, Instant.now()));
-        log.info("LLM recommendation stored. propertyId={}, score={}, model={}",
-                propertyId, saved.score(), saved.model());
+                result.model(), hash, workplaces, Instant.now()));
+        log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
+                propertyId, saved.score(), saved.model(), workplaces);
         return Optional.of(saved);
     }
 

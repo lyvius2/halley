@@ -104,7 +104,7 @@ class LlmRecommendationServiceTest {
 
         // when — 같은 해시가 저장돼 있는 상태로 다시 부른다
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(new LlmRecommendation(
-                9L, 1L, new BigDecimal("70.00"), "무난", "m", hash, Instant.now())));
+                9L, 1L, new BigDecimal("70.00"), "무난", "m", hash, 2, Instant.now())));
         final Optional<LlmRecommendation> second = service.ensureRecommendation(1L);
 
         // then — LLM은 한 번만 불렸다
@@ -118,7 +118,7 @@ class LlmRecommendationServiceTest {
         // given
         givenPropertyAndUsers();
         final LlmRecommendation previous = new LlmRecommendation(
-                9L, 1L, new BigDecimal("70.00"), "이전 판단", "m", "old-hash", Instant.now());
+                9L, 1L, new BigDecimal("70.00"), "이전 판단", "m", "old-hash", 2, Instant.now());
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(previous));
         final LlmRecommendationService service = service(stub(LlmResult.of("잘 모르겠습니다", "m")));
 
@@ -200,6 +200,105 @@ class LlmRecommendationServiceTest {
         assertThat(prompt).contains("밥: 판교역");
         // 값이 없는 항목은 지어내지 않고 '정보 없음'으로 남긴다
         assertThat(prompt).contains("공시가격(원): 정보 없음");
+    }
+
+    @Test
+    @DisplayName("직장 위치가 3곳 이상으로 이미 추론된 매물은 사용자가 늘어도 다시 묻지 않는다")
+    void skipsWhenThreeWorkplacesAlreadyUsed() {
+        // given — 3곳으로 추론해 둔 매물
+        when(propertyRepository.findAll()).thenReturn(List.of(property()));
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(new LlmRecommendation(
+                9L, 1L, new BigDecimal("70.00"), "이미 충분", "m", "old-hash", 3, Instant.now())));
+        final AtomicInteger calls = new AtomicInteger();
+        final LlmRecommendationService service =
+                service(countingPort(calls, LlmResult.of("{\"score\": 90}", "m")));
+
+        // when — 네 번째 사람이 들어와 직장 위치가 바뀐 상황
+        final int refreshed = service.refreshForWorkplaceChange();
+
+        // then — LLM을 부르지 않는다
+        assertThat(calls.get()).isZero();
+        assertThat(refreshed).isZero();
+        verify(recommendationRepository, never()).upsert(any());
+    }
+
+    @Test
+    @DisplayName("직장 위치가 2곳뿐이면 사용자가 추가될 때 다시 묻는다")
+    void refreshesWhenFewerThanThreeWorkplaces() {
+        // given — 2곳으로만 추론해 둔 매물
+        givenPropertyAndUsers();
+        when(propertyRepository.findAll()).thenReturn(List.of(property()));
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(new LlmRecommendation(
+                9L, 1L, new BigDecimal("70.00"), "아직 부족", "m", "old-hash", 2, Instant.now())));
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+        final AtomicInteger calls = new AtomicInteger();
+        final LlmRecommendationService service = service(countingPort(
+                calls, LlmResult.of("{\"score\": 90, \"reason\": \"직장이 더 가까워졌습니다\"}", "m")));
+
+        // when
+        final int refreshed = service.refreshForWorkplaceChange();
+
+        // then
+        assertThat(calls.get()).isEqualTo(1);
+        assertThat(refreshed).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("아직 추론된 적 없는 매물은 직장 위치 수와 무관하게 뽑는다")
+    void refreshesWhenNeverComputed() {
+        // given
+        givenPropertyAndUsers();
+        when(propertyRepository.findAll()).thenReturn(List.of(property()));
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+        final AtomicInteger calls = new AtomicInteger();
+        final LlmRecommendationService service =
+                service(countingPort(calls, LlmResult.of("{\"score\": 65, \"reason\": \"보통\"}", "m")));
+
+        // when
+        service.refreshForWorkplaceChange();
+
+        // then
+        assertThat(calls.get()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("추론에 쓰인 직장 위치 수를 함께 저장한다 — 다음에 건너뛸지 판단하는 근거")
+    void storesWorkplaceCount() {
+        // given — 좌표가 있는 사용자 2명
+        givenPropertyAndUsers();
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        service(stub(LlmResult.of("{\"score\": 80, \"reason\": \"좋음\"}", "m"))).ensureRecommendation(1L);
+
+        // then
+        final ArgumentCaptor<LlmRecommendation> captor = ArgumentCaptor.forClass(LlmRecommendation.class);
+        verify(recommendationRepository).upsert(captor.capture());
+        assertThat(captor.getValue().workplaceCount()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("좌표 없는 사용자는 직장 위치 수에 세지 않는다")
+    void countsOnlyUsersWithCoordinates() {
+        // given — 2명 중 1명만 좌표가 있다
+        when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
+        when(userRepository.findAll()).thenReturn(List.of(
+                user(1L, "앨리스", "강남역"),
+                new User(2L, "login2", "밥", "b@example.com", "hash", UserRole.MEMBER,
+                        "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
+                        true, null, null, Instant.now())));
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        service(stub(LlmResult.of("{\"score\": 80, \"reason\": \"좋음\"}", "m"))).ensureRecommendation(1L);
+
+        // then
+        final ArgumentCaptor<LlmRecommendation> captor = ArgumentCaptor.forClass(LlmRecommendation.class);
+        verify(recommendationRepository).upsert(captor.capture());
+        assertThat(captor.getValue().workplaceCount()).isEqualTo(1);
     }
 
     private LlmRecommendationService service(LlmPort port) {

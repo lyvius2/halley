@@ -14,7 +14,9 @@ import banghak.home.halley.config.exception.NotFoundUserException;
 import banghak.home.halley.config.exception.SelfDeleteException;
 import banghak.home.halley.config.exception.SelfDisableException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.event.WorkplacesChangedEvent;
 import banghak.home.halley.config.HalleyUserDetails;
+import org.springframework.context.ApplicationEventPublisher;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
@@ -22,9 +24,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class UserService {
@@ -35,12 +39,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       ScoringService scoringService) {
+                       ScoringService scoringService,
+                       ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<UserResponse> list() {
@@ -78,6 +85,10 @@ public class UserService {
         // 예산 상한이 바뀌면 전 매물 PRICE가 달라진다 (설계 5.2.1)
         if (newBudget != user.availableBudget()) {
             scoringService.rescoreAll();
+        }
+        // 직장 위치는 AI 추천도의 입력이다 (설계 I60)
+        if (workplaceChanged(user, updated)) {
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("profile:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -129,6 +140,7 @@ public class UserService {
                 true,
                 null, null, null));
         scoringService.rescoreAll();
+        eventPublisher.publishEvent(new WorkplacesChangedEvent("user-created:" + saved.id()));
         return toResponse(saved);
     }
 
@@ -165,6 +177,9 @@ public class UserService {
         if (newBudget != user.availableBudget()) {
             scoringService.rescoreAll();
         }
+        if (workplaceChanged(user, updated)) {
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
+        }
         return toResponse(updated);
     }
 
@@ -200,6 +215,7 @@ public class UserService {
                 user.createdAt()));
         if (enabled != user.enabled()) {
             scoringService.rescoreAll();
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-enabled:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -215,6 +231,24 @@ public class UserService {
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         return new ResetPasswordResponse(temporaryPassword);
+    }
+
+    /** 직장 위치(이름·좌표)가 실제로 달라졌는지. 예산만 고친 경우까지 LLM을 부르지 않는다. */
+    private boolean workplaceChanged(User before, User after) {
+        return !Objects.equals(before.workplaceName(), after.workplaceName())
+                || compare(before.workplaceLat(), after.workplaceLat()) != 0
+                || compare(before.workplaceLng(), after.workplaceLng()) != 0;
+    }
+
+    /** BigDecimal은 scale이 달라도 같은 값일 수 있어 equals 대신 compareTo로 본다. */
+    private int compare(BigDecimal before, BigDecimal after) {
+        if (before == null && after == null) {
+            return 0;
+        }
+        if (before == null || after == null) {
+            return 1;
+        }
+        return before.compareTo(after);
     }
 
     private User get(Long id) {

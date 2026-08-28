@@ -16,6 +16,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.LlmRecommend
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LlmRecommendationTable.REASON;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LlmRecommendationTable.SCORE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LlmRecommendationTable.TABLE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.LlmRecommendationTable.WORKPLACE_COUNT;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toInstant;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 
@@ -37,6 +38,8 @@ public class LlmRecommendationRepository {
                     .set(REASON, recommendation.reason())
                     .set(MODEL, recommendation.model())
                     .set(PROMPT_HASH, recommendation.promptHash())
+                .set(WORKPLACE_COUNT, workplaceCount(recommendation))
+                    .set(WORKPLACE_COUNT, workplaceCount(recommendation))
                     .set(COMPUTED_AT, toOffset(recommendation.computedAt()))
                     .where(ID.eq(existing.get().id()))
                     .execute();
@@ -48,6 +51,7 @@ public class LlmRecommendationRepository {
                 .set(REASON, recommendation.reason())
                 .set(MODEL, recommendation.model())
                 .set(PROMPT_HASH, recommendation.promptHash())
+                .set(WORKPLACE_COUNT, workplaceCount(recommendation))
                 .set(COMPUTED_AT, toOffset(recommendation.computedAt()))
                 .execute();
         return findByPropertyId(recommendation.propertyId()).orElseThrow();
@@ -68,9 +72,13 @@ public class LlmRecommendationRepository {
         dsl.deleteFrom(TABLE).where(PROPERTY_ID.eq(propertyId)).execute();
     }
 
+    private int workplaceCount(LlmRecommendation r) {
+        return r.workplaceCount() == null ? 0 : r.workplaceCount();
+    }
+
     private LlmRecommendation map(Record r) {
         return new LlmRecommendation(
                 r.get(ID), r.get(PROPERTY_ID), r.get(SCORE), r.get(REASON),
-                r.get(MODEL), r.get(PROMPT_HASH), toInstant(r.get(COMPUTED_AT)));
+                r.get(MODEL), r.get(PROMPT_HASH), r.get(WORKPLACE_COUNT), toInstant(r.get(COMPUTED_AT)));
     }
 }
