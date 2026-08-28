@@ -1,6 +1,8 @@
 package banghak.home.halley.ingest.parser;
 
+import banghak.home.halley.ingest.parser.extractor.AgentExtractor;
 import banghak.home.halley.ingest.parser.extractor.ApprovalYearExtractor;
+import banghak.home.halley.ingest.parser.extractor.BrokerageExtractor;
 import banghak.home.halley.ingest.parser.extractor.AreaValueExtractor;
 import banghak.home.halley.ingest.parser.extractor.DealTypeExtractor;
 import banghak.home.halley.ingest.parser.extractor.DongHoExtractor;
@@ -13,6 +15,7 @@ import banghak.home.halley.ingest.parser.extractor.MoveInExtractor;
 import banghak.home.halley.ingest.parser.extractor.NameExtractor;
 import banghak.home.halley.ingest.parser.extractor.ParkingExtractor;
 import banghak.home.halley.ingest.parser.extractor.SchoolExtractor;
+import banghak.home.halley.ingest.parser.extractor.TaxExtractor;
 import banghak.home.halley.ingest.parser.extractor.WalkMinutesExtractor;
 import banghak.home.halley.ingest.parser.extractor.WonValueExtractor;
 
@@ -52,7 +55,20 @@ public class NaverListingTextParser {
                 new ApprovalYearExtractor("approvalYear", "사용승인일"),
                 new IntegerValueExtractor("totalHouseholds", "세대수"),
                 new ParkingExtractor(),
-                new MoveInExtractor());
+                new MoveInExtractor(),
+                // 중개사 (설계 I53)
+                new AgentExtractor("agentName", AgentExtractor.Target.AGENT_NAME),
+                new AgentExtractor("agentOfficeName", AgentExtractor.Target.OFFICE_NAME),
+                new AgentExtractor("agentPhone", AgentExtractor.Target.PHONE),
+                new AgentExtractor("agentMobile", AgentExtractor.Target.MOBILE),
+                new AgentExtractor("agentAddress", AgentExtractor.Target.ADDRESS),
+                new AgentExtractor("agentRegistrationNo", AgentExtractor.Target.REGISTRATION_NO),
+                // 중개보수·세금
+                new BrokerageExtractor("brokerageFee", BrokerageExtractor.Target.FEE),
+                new BrokerageExtractor("brokerageRate", BrokerageExtractor.Target.RATE),
+                new TaxExtractor("acquisitionTax", TaxExtractor.Target.ACQUISITION),
+                new TaxExtractor("propertyTax", TaxExtractor.Target.PROPERTY),
+                new TaxExtractor("comprehensiveTax", TaxExtractor.Target.COMPREHENSIVE));
     }
 
     public List<FieldExtractor<?>> extractors() {

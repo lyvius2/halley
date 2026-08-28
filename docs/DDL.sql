@@ -63,6 +63,17 @@ CREATE TABLE property (
     heating_type          VARCHAR(50),
     building_count        INTEGER,                                       -- 단지 동수 — 수기 입력
     kb_price              BIGINT,                                        -- KB시세 — 대출 산정 기준
+    brokerage_fee         BIGINT,                                        -- 중개보수 상한액(원) — 설계 I53
+    brokerage_rate        NUMERIC(4, 2),                                 -- 중개보수 상한 요율(%)
+    acquisition_tax       BIGINT,                                        -- 취득세 합계(원)
+    property_tax          BIGINT,                                        -- 재산세 합계(원)
+    comprehensive_tax     VARCHAR(100),                                  -- 종합부동산세 — '과세대상 아님' 등 문구 그대로
+    school_name           VARCHAR(255),                                  -- 배정 초등학교
+    school_walk_minutes   INTEGER,                                       -- 초등학교 도보 분
+    school_source         VARCHAR(20),                                   -- PASTE | KAKAO (파싱 실패 시 비동기 보정)
+    pnu                   VARCHAR(19),                                   -- 필지고유번호 — 공시가격 조회 키 (설계 I54)
+    official_price        BIGINT,                                        -- 공시가격(원)
+    official_price_year   INTEGER,                                       -- 공시가격 기준연도
     source_type           VARCHAR(20),                                   -- MANUAL | PASTE | CRAWL
     source_url            VARCHAR(1000),
     naver_article_no      VARCHAR(50),                                   -- 매물번호
@@ -415,6 +426,23 @@ DELETE FROM legal_dong_code WHERE code IN (
 --    영속 데이터가 아니라 카카오 응답 캐시라 PoiCache(Redis, TTL 30일)로 옮겼다.
 -- ---------------------------------------------------------------------------
 DROP TABLE IF EXISTS nearby_facility;
+
+-- 5) 중개사·세금·초등학교 항목 (설계 I53)
+--    중개사 정보 자체는 기존 agent / property_agent 테이블을 그대로 쓴다.
+--    매물마다 달라지는 값(보수·세금)과 입지 항목(초등학교)만 property에 붙인다.
+ALTER TABLE property ADD COLUMN IF NOT EXISTS brokerage_fee       BIGINT;
+ALTER TABLE property ADD COLUMN IF NOT EXISTS brokerage_rate      NUMERIC(4, 2);
+ALTER TABLE property ADD COLUMN IF NOT EXISTS acquisition_tax     BIGINT;
+ALTER TABLE property ADD COLUMN IF NOT EXISTS property_tax        BIGINT;
+ALTER TABLE property ADD COLUMN IF NOT EXISTS comprehensive_tax   VARCHAR(100);
+ALTER TABLE property ADD COLUMN IF NOT EXISTS school_name         VARCHAR(255);
+ALTER TABLE property ADD COLUMN IF NOT EXISTS school_walk_minutes INTEGER;
+ALTER TABLE property ADD COLUMN IF NOT EXISTS school_source       VARCHAR(20);
+
+-- 6) 공시가격 (설계 I54 — V-World 공동주택/개별주택 공시가격)
+ALTER TABLE property ADD COLUMN IF NOT EXISTS pnu                 VARCHAR(19);
+ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price      BIGINT;
+ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price_year INTEGER;
 
 COMMIT;
 

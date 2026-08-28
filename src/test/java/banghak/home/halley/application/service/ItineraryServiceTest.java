@@ -195,7 +195,7 @@ class ItineraryServiceTest {
                 "서울시", null, new BigDecimal(lat), new BigDecimal(lng),
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

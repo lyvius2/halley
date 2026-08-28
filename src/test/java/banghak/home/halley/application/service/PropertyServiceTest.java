@@ -62,7 +62,7 @@ class PropertyServiceTest {
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null);
 
         // when
@@ -180,7 +180,7 @@ class PropertyServiceTest {
                 "서울시 새주소", null, new BigDecimal("37.6"), new BigDecimal("127.1"),
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
-                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L,
+                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L, null, null, null, null, null, null, null, null,
                 null, null, null);
 
         // when
@@ -217,7 +217,7 @@ class PropertyServiceTest {
                 base.areaSupplyM2(), base.areaExclusiveM2(), base.floorRaw(), base.floorNo(), base.floorTotal(),
                 base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
                 base.moveInDate(), base.parkingPerHousehold(), base.totalHouseholds(), base.heatingType(),
-                base.buildingCount(), base.kbPrice(),
+                base.buildingCount(), base.kbPrice(), null, null, null, null, null, null, null, null,
                 null, "A12345678", "매매\n매매가\n15억");
 
         // when
@@ -250,7 +250,7 @@ class PropertyServiceTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

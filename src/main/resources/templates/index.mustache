@@ -6,7 +6,7 @@
     <title>Halley — 부동산 매물 비교</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/app.css">
     <script defer src="/js/app.js"></script>
     <script defer src="/js/vendor/alpine.min.js"></script>
@@ -87,7 +87,9 @@
                                         <span class="badge b-off" x-show="r.property.listingStatus==='SOLD_OUT'">판매완료</span>
                                         <span x-text="r.property.addressRoad"></span>
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
-                                        <span x-show="r.property.areaExclusiveM2" x-text="r.property.areaExclusiveM2 + '㎡'"></span>
+                                        <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
+                                        <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
+                                        <span class="card-owner" x-show="r.property.createdByNickname" x-text="'등록 ' + r.property.createdByNickname"></span>
                                         <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
@@ -280,17 +282,18 @@
 <!-- D1 로그인 모달 -->
 <div class="modal" x-show="showLogin" x-cloak>
     <div class="modal-backdrop"></div>
-    <div class="modal-card">
+    <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
             <h3>Halley</h3>
             <p>계정 정보를 입력해 들어오세요.</p>
         </div>
         <form class="form" @submit.prevent="login()">
-            <label>아이디
-                <input type="text" x-model="loginForm.loginId" autocomplete="username" placeholder="admin" required>
+            <label>ID
+                <input type="text" x-model="loginForm.loginId" autocomplete="username" placeholder="admin" required
+                       x-ref="loginId" x-effect="if (showLogin) $nextTick(() => $refs.loginId.focus())">
             </label>
-            <label>비밀번호
+            <label>Password
                 <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
             </label>
             <p class="form-error" x-show="error" x-text="error"></p>
@@ -781,33 +784,119 @@
 <div class="modal modal-detail" x-show="showM2" x-cloak>
     <div class="modal-backdrop" @click="closeDetail()"></div>
     <template x-if="detailItem">
-        <div class="modal-card modal-wide">
+        <div class="modal-card modal-xwide">
             <button class="modal-close" @click="closeDetail()">×</button>
             <div class="modal-head">
                 <span class="modal-kicker">매물 상세</span>
-                <h3 x-text="detailItem.property.name"></h3>
+                <h3 x-text="detailItem.property.name + (detailItem.property.dongHo ? ' ' + detailItem.property.dongHo : '')"></h3>
             </div>
             <div class="m2-meta">
                 <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
                 <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
+                <span class="score-pill" :class="detailItem.totalScore != null && detailItem.totalScore >= 50 ? 'score-high' : 'score-low'">
+                    <b x-text="fmtScore(detailItem.totalScore)"></b><i>점</i>
+                </span>
+                <span class="m2-owner" x-show="detailItem.property.createdByNickname"
+                      x-text="'등록 ' + detailItem.property.createdByNickname"></span>
             </div>
-            <div class="m2-rows">
-                <div class="m2-row"><span>총점</span><b x-text="fmtScore(detailItem.totalScore)"></b></div>
-                <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
-                <div class="m2-row"><span>전용면적</span><b x-text="detailItem.property.areaExclusiveM2 ? detailItem.property.areaExclusiveM2 + '㎡' : '-'"></b></div>
-                <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
-                <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
-                <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
-                <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+
+            <div class="m2-grid">
+                <section class="m2-sec">
+                    <h4>기본</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
+                        <div class="m2-row"><span>공급면적</span><b x-text="fmtArea(detailItem.property.areaSupplyM2)"></b></div>
+                        <div class="m2-row"><span>전용면적</span><b x-text="fmtArea(detailItem.property.areaExclusiveM2)"></b></div>
+                        <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
+                        <div class="m2-row"><span>방/욕실</span><b x-text="detailItem.property.roomBath || '-'"></b></div>
+                        <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
+                        <div class="m2-row"><span>난방</span><b x-text="detailItem.property.heatingType || '-'"></b></div>
+                        <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
+                        <div class="m2-row"><span>세대수</span><b x-text="detailItem.property.totalHouseholds ? detailItem.property.totalHouseholds + '세대' : '-'"></b></div>
+                        <div class="m2-row"><span>주차</span><b x-text="detailItem.property.parkingPerHousehold ? '세대당 ' + detailItem.property.parkingPerHousehold + '대' : '-'"></b></div>
+                        <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>비용</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row"><span>관리비</span><b x-text="detailItem.property.maintenanceFee ? fmtWon(detailItem.property.maintenanceFee) + '/월' : '-'"></b></div>
+                        <div class="m2-row"><span>KB시세</span><b x-text="detailItem.property.kbPrice ? fmtWon(detailItem.property.kbPrice) : '-'"></b></div>
+                        <div class="m2-row"><span>공시가격</span><b x-text="detailItem.property.officialPrice ? fmtWon(detailItem.property.officialPrice) + (detailItem.property.officialPriceYear ? ' (' + detailItem.property.officialPriceYear + '년)' : '') : '조회 중 · 없음'"></b></div>
+                        <div class="m2-row"><span>취득세</span><b x-text="detailItem.property.acquisitionTax ? fmtWon(detailItem.property.acquisitionTax) : '-'"></b></div>
+                        <div class="m2-row"><span>재산세</span><b x-text="detailItem.property.propertyTax ? fmtWon(detailItem.property.propertyTax) : '-'"></b></div>
+                        <div class="m2-row"><span>종부세</span><b x-text="detailItem.property.comprehensiveTax || '-'"></b></div>
+                        <div class="m2-row"><span>중개보수</span><b x-text="detailItem.property.brokerageFee ? '최대 ' + fmtWon(detailItem.property.brokerageFee) : '-'"></b></div>
+                        <div class="m2-row"><span>상한요율</span><b x-text="detailItem.property.brokerageRate ? detailItem.property.brokerageRate + '%' : '-'"></b></div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>입지</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row">
+                            <span>배정 초등학교</span>
+                            <b>
+                                <span x-text="detailItem.property.schoolName || '-'"></span>
+                                <small x-show="detailItem.property.schoolWalkMinutes" x-text="' 도보 ' + detailItem.property.schoolWalkMinutes + '분'"></small>
+                                <small class="m2-src" x-show="detailItem.property.schoolSource === 'KAKAO'">카카오 보정</small>
+                            </b>
+                        </div>
+                        <div class="m2-row"><span>입주</span><b x-text="moveInLabel(detailItem.property)"></b></div>
+                        <div class="m2-row"><span>매물번호</span><b x-text="detailItem.property.naverArticleNo || '-'"></b></div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>중개사</h4>
+                    <template x-if="detailAgents.length === 0">
+                        <p class="m2-empty">등록된 중개사 정보가 없습니다.</p>
+                    </template>
+                    <template x-for="a in detailAgents" :key="a.agentId">
+                        <div class="m2-rows">
+                            <div class="m2-row"><span>중개사무소</span><b x-text="a.officeName || '-'"></b></div>
+                            <div class="m2-row"><span>중개인</span><b x-text="a.agentName || '-'"></b></div>
+                            <div class="m2-row"><span>전화</span><b x-text="a.phone || '-'"></b></div>
+                            <div class="m2-row"><span>휴대폰</span><b x-text="a.mobile || '-'"></b></div>
+                        </div>
+                    </template>
+                </section>
+
+                <section class="m2-sec m2-sec-wide">
+                    <h4>국토교통부 실거래가</h4>
+                    <template x-if="!detailRef || detailRef.transactions.length === 0">
+                        <p class="m2-empty">조회된 실거래가가 없습니다.</p>
+                    </template>
+                    <template x-if="detailRef && detailRef.transactions.length > 0">
+                        <div>
+                            <p class="m2-gap" x-show="detailRef.gapPercent != null"
+                               x-text="'최근 실거래 대비 호가 ' + (detailRef.gapPercent > 0 ? '+' : '') + detailRef.gapPercent + '%'"></p>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead><tr><th>계약일</th><th>층</th><th>거래가</th></tr></thead>
+                                    <tbody>
+                                    <template x-for="(tx, i) in detailRef.transactions.slice(0, 8)" :key="i">
+                                        <tr>
+                                            <td x-text="tx.contractDate || '-'"></td>
+                                            <td x-text="tx.floorNo != null ? tx.floorNo + '층' : '-'"></td>
+                                            <td class="strong" x-text="fmtWon(tx.price)"></td>
+                                        </tr>
+                                    </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+                </section>
             </div>
+
             <div class="m2-actions">
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
                 <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
                 <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
-                <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
                 <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
-                <button class="btn btn-sm" @click="openAgentModal(detailItem)">중개인</button>
-                <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">수정</button>
+                <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">정보 수정</button>
             </div>
         </div>
     </template>

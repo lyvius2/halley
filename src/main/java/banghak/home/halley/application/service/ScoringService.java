@@ -229,7 +229,8 @@ public class ScoringService {
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
-        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), total, views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
+                editVersionStore.current(versionKey(property.id()))), total, views);
     }
 
     private ScoredPropertyResponse toResponse(Property property, PropertyScoringResult result,
@@ -248,7 +249,16 @@ public class ScoringService {
                         c.fallbackReason(),
                         c.explanation()))
                 .toList();
-        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
+                editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+    }
+
+    /** 매물 카드의 등록자 표시용 닉네임 (설계 I53). */
+    private String nicknameOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId).map(User::nickname).orElse(null);
     }
 
     private ScoringContext buildContext(Property property) {

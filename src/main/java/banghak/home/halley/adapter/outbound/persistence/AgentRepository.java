@@ -66,6 +66,15 @@ public class AgentRepository {
         return findById(agent.id()).orElseThrow();
     }
 
+    /** 등록번호는 중개사무소의 유일 식별자다 — 붙여넣기로 같은 중개사가 반복 등록되는 것을 막는다 (설계 I53). */
+    public Optional<Agent> findByRegistrationNo(String registrationNo) {
+        return dsl.selectFrom(TABLE)
+                .where(REGISTRATION_NO.eq(registrationNo))
+                .limit(1)
+                .fetchOptional()
+                .map(this::map);
+    }
+
     public List<Agent> findAll() {
         return dsl.selectFrom(TABLE)
                 .fetch()

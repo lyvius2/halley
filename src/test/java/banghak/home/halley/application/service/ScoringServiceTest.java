@@ -146,7 +146,7 @@ class ScoringServiceTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

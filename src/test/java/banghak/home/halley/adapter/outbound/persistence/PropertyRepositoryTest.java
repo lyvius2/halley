@@ -58,7 +58,7 @@ class PropertyRepositoryTest {
                 "서울시 도로명주소", "서울시 지번주소", new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, new BigDecimal("84.9"), "중층", 5, 12, null,
                 "3/2", "남향", 2020, null, null,
-                new BigDecimal("1.2"), 300, "개별난방", 4, 800_000_000L,
+                new BigDecimal("1.2"), 300, "개별난방", 4, 800_000_000L, null, null, null, null, null, null, null, null, null, null, null,
                 saved.sourceType(), saved.sourceUrl(), saved.naverArticleNo(),
                 saved.rawPasteText(), saved.parserVersion(), saved.parseConfidence(),
                 saved.isDraft(), saved.listingStatus(), saved.active(),
@@ -106,7 +106,7 @@ class PropertyRepositoryTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
                 null, 0, null, null, null);

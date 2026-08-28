@@ -47,6 +47,17 @@ public final class PropertyTable {
     public static final Field<String> HEATING_TYPE = field(name(T, "heating_type"), String.class);
     public static final Field<Integer> BUILDING_COUNT = field(name(T, "building_count"), Integer.class);
     public static final Field<Long> KB_PRICE = field(name(T, "kb_price"), Long.class);
+    public static final Field<Long> BROKERAGE_FEE = field(name(T, "brokerage_fee"), Long.class);
+    public static final Field<BigDecimal> BROKERAGE_RATE = field(name(T, "brokerage_rate"), BigDecimal.class);
+    public static final Field<Long> ACQUISITION_TAX = field(name(T, "acquisition_tax"), Long.class);
+    public static final Field<Long> PROPERTY_TAX = field(name(T, "property_tax"), Long.class);
+    public static final Field<String> COMPREHENSIVE_TAX = field(name(T, "comprehensive_tax"), String.class);
+    public static final Field<String> SCHOOL_NAME = field(name(T, "school_name"), String.class);
+    public static final Field<Integer> SCHOOL_WALK_MINUTES = field(name(T, "school_walk_minutes"), Integer.class);
+    public static final Field<String> SCHOOL_SOURCE = field(name(T, "school_source"), String.class);
+    public static final Field<String> PNU = field(name(T, "pnu"), String.class);
+    public static final Field<Long> OFFICIAL_PRICE = field(name(T, "official_price"), Long.class);
+    public static final Field<Integer> OFFICIAL_PRICE_YEAR = field(name(T, "official_price_year"), Integer.class);
     public static final Field<String> SOURCE_TYPE = field(name(T, "source_type"), String.class);
     public static final Field<String> SOURCE_URL = field(name(T, "source_url"), String.class);
     public static final Field<String> NAVER_ARTICLE_NO = field(name(T, "naver_article_no"), String.class);

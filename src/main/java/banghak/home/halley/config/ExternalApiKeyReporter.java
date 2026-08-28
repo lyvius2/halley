@@ -24,11 +24,13 @@ public class ExternalApiKeyReporter implements ApplicationRunner {
                                   @Value("${kakao.rest-key:}") String kakaoRestKey,
                                   @Value("${odsay.api-key:}") String odsayApiKey,
                                   @Value("${ministry.service-key:}") String ministryServiceKey,
+                                  @Value("${vworld.api-key:}") String vworldApiKey,
                                   @Value("${slack.webhook-url:}") String slackWebhookUrl) {
         keys.put("kakao.js-key", kakaoJsKey);
         keys.put("kakao.rest-key", kakaoRestKey);
         keys.put("odsay.api-key", odsayApiKey);
         keys.put("ministry.service-key", ministryServiceKey);
+        keys.put("vworld.api-key", vworldApiKey);
         keys.put("slack.webhook-url", slackWebhookUrl);
     }
 

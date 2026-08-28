@@ -85,6 +85,8 @@ function halley() {
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        detailAgents: [],
+        detailRef: null,
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
@@ -531,12 +533,30 @@ function halley() {
 
         openDetail(item) {
             this.detailItem = item;
+            this.detailAgents = [];
+            this.detailRef = null;
             this.showM2 = true;
+            this.loadDetailExtras(item.property.id);
+        },
+
+        // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
+        async loadDetailExtras(propertyId) {
+            const [agents, ref] = await Promise.all([
+                this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false }))
+            ]);
+            if (this.detailItem && this.detailItem.property.id !== propertyId) {
+                return;
+            }
+            this.detailAgents = agents.ok ? (agents.body || []) : [];
+            this.detailRef = ref.ok ? ref.body : null;
         },
 
         closeDetail() {
             this.showM2 = false;
             this.detailItem = null;
+            this.detailAgents = [];
+            this.detailRef = null;
         },
 
         async openPhotoModal(item) {
@@ -1345,6 +1365,28 @@ function halley() {
                 moveInType,
                 moveInDate,
                 naverArticleNo: value('naverArticleNo') || null,
+                maintenanceFee: toNum(value('maintenanceFee')),
+                roomBath: value('roomBath') || null,
+                heatingType: value('heatingType') || null,
+                // 비용·세금 (설계 I53)
+                brokerageFee: toNum(value('brokerageFee')),
+                brokerageRate: toNum(value('brokerageRate')),
+                acquisitionTax: toNum(value('acquisitionTax')),
+                propertyTax: toNum(value('propertyTax')),
+                comprehensiveTax: value('comprehensiveTax') || null,
+                schoolName: value('school') || null,
+                schoolWalkMinutes: toNum(value('schoolMinutes')),
+                // 중개사 — 등록번호가 같으면 서버가 기존 중개사를 갱신해 연결한다
+                agent: {
+                    officeName: value('agentOfficeName') || null,
+                    agentName: value('agentName') || null,
+                    phone: value('agentPhone') || null,
+                    mobile: value('agentMobile') || null,
+                    registrationNo: value('agentRegistrationNo') || null,
+                    address: value('agentAddress') || null,
+                    lat: null,
+                    lng: null
+                },
                 rawPasteText: this.pasteText
             };
         },
@@ -1367,7 +1409,11 @@ function halley() {
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
                 totalHouseholds: '세대수', parkingPerHousehold: '주차(세대당)', moveIn: '입주가능일',
                 subway: '지하철', subwayMinutes: '역 도보(분)',
-                school: '배정 초등학교', schoolMinutes: '학교 도보(분)'
+                school: '배정 초등학교', schoolMinutes: '학교 도보(분)',
+                agentName: '중개인', agentOfficeName: '중개사무소', agentPhone: '중개사 전화',
+                agentMobile: '중개사 휴대폰', agentAddress: '중개사 위치', agentRegistrationNo: '등록번호',
+                brokerageFee: '중개보수(상한액)', brokerageRate: '상한 요율',
+                acquisitionTax: '취득세 합계', propertyTax: '재산세 합계', comprehensiveTax: '종합부동산세'
             }[key] || key;
         },
 
@@ -1827,6 +1873,25 @@ function halley() {
                 return '-';
             }
             return Number(n).toFixed(0);
+        },
+
+        /** ㎡와 평을 함께 보여준다. 1평 = 3.3058㎡ (설계 I53). */
+        fmtArea(m2) {
+            if (m2 == null || m2 === '') {
+                return '-';
+            }
+            const n = Number(m2);
+            return `${n}㎡ (${(n / 3.3058).toFixed(1)}평)`;
+        },
+
+        moveInLabel(p) {
+            if (p.moveInType === 'IMMEDIATE') {
+                return '즉시 입주';
+            }
+            if (p.moveInType === 'NEGOTIABLE') {
+                return p.moveInDate ? `${p.moveInDate} 협의 가능` : '협의 가능';
+            }
+            return p.moveInDate || '-';
         },
 
         fmtWon(won) {
