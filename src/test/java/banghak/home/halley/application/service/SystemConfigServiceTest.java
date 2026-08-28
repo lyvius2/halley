@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.SystemConfigResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateConfigRequest;
+import banghak.home.halley.domain.setting.ConfigCategory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,8 +29,20 @@ class SystemConfigServiceTest {
         // then
         assertThat(configs).extracting(SystemConfigResponse::configKey)
                 .contains("batch.listingCheck.enabled", "batch.listingCheck.cron",
-                        "batch.listingCheck.failThreshold", "scoring.weightCurve",
-                        "scoring.floorPeak", "loan.regulation.profile");
+                        "batch.listingCheck.failThreshold", "loan.regulation.profile");
+    }
+
+    @Test
+    @DisplayName("채점 상수는 코드에만 두므로 SCORING 설정 키는 시드되지 않는다 (I41 옵션 B)")
+    void scoringKeysAreNotSeeded() {
+        // when
+        final List<SystemConfigResponse> configs = systemConfigService.list();
+
+        // then
+        assertThat(configs).extracting(SystemConfigResponse::configKey)
+                .doesNotContain("scoring.weightCurve", "scoring.floorPeak");
+        assertThat(configs).extracting(SystemConfigResponse::category)
+                .doesNotContain(ConfigCategory.SCORING);
     }
 
     @Test

@@ -1529,12 +1529,19 @@ function halley() {
             }
         },
 
+        settingCategories() {
+            const order = ['BATCH', 'LOAN'];
+            const rank = c => (order.indexOf(c) === -1 ? order.length : order.indexOf(c));
+            const present = [...new Set(this.settings.map(s => s.category))];
+            return present.sort((a, b) => rank(a) - rank(b));
+        },
+
         settingsByCategory(category) {
             return this.settings.filter(s => s.category === category);
         },
 
         configCategoryLabel(category) {
-            return { BATCH: '배치', SCORING: '채점', LOAN: '대출' }[category] || category;
+            return { BATCH: '배치', LOAN: '대출' }[category] || category;
         },
 
         fmtTime(iso) {

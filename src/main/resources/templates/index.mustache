@@ -328,7 +328,7 @@
 
                     <div x-show="view==='settings'">
                         <div class="sec-head"><span class="sec-num">04</span><h2>시스템 설정</h2></div>
-                        <template x-for="cat in ['BATCH', 'SCORING', 'LOAN']" :key="cat">
+                        <template x-for="cat in settingCategories()" :key="cat">
                             <div class="settings-section">
                                 <h4 x-text="configCategoryLabel(cat)"></h4>
                                 <div class="card table-wrap">
