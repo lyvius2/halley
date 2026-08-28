@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @FeignClient(name = "ministry-reference",
-        url = "${ministry.base-url:http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest}",
+        url = "${ministry.base-url:https://apis.data.go.kr/1613000}",
         fallbackFactory = MinistryReferenceFallbackFactory.class)
 public interface MinistryReferenceFeignClient {
 

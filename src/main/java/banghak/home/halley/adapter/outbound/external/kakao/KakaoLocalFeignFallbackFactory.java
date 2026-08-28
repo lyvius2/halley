@@ -1,8 +1,12 @@
 package banghak.home.halley.adapter.outbound.external.kakao;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
+import static banghak.home.halley.adapter.outbound.external.FallbackCause.describe;
+
+@Slf4j
 @Component
 public class KakaoLocalFeignFallbackFactory implements FallbackFactory<KakaoLocalFeignClient> {
 
@@ -11,11 +15,21 @@ public class KakaoLocalFeignFallbackFactory implements FallbackFactory<KakaoLoca
         return new KakaoLocalFeignClient() {
             @Override
             public String searchAddress(String query) {
+                log.warn("카카오 로컬 주소검색 실패 — 폴백(빈 결과) 반환. query={}, cause={}", query, describe(cause));
                 return null;
             }
 
             @Override
             public String searchCategory(String categoryGroupCode, String x, String y, int radius) {
+                log.warn("카카오 로컬 카테고리검색 실패 — 폴백(빈 결과) 반환. code={}, cause={}",
+                        categoryGroupCode, describe(cause));
+                return null;
+            }
+
+            @Override
+            public String searchKeyword(String query, String categoryGroupCode, String x, String y, int radius, String sort) {
+                log.warn("카카오 로컬 키워드검색 실패 — 폴백(빈 결과) 반환. query={}, cause={}",
+                        query, describe(cause));
                 return null;
             }
         };

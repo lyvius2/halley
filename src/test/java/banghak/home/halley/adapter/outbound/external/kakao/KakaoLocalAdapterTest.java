@@ -100,6 +100,11 @@ class KakaoLocalAdapterTest {
             public String searchCategory(String categoryGroupCode, String x, String y, int radius) {
                 return categoryJson;
             }
+
+            @Override
+            public String searchKeyword(String query, String categoryGroupCode, String x, String y, int radius, String sort) {
+                return categoryJson;
+            }
         };
     }
 }

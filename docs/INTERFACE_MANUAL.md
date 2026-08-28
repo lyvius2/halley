@@ -103,13 +103,13 @@ sequenceDiagram
 ### 2.5.2 키 발급
 
 - **카카오 REST 키 재사용** (`KAKAO_REST_KEY`, 2.2에서 발급)
-- [카카오모빌리티 Directions API](https://developers.kakao.com/docs/latest/ko/devtalk/directions) 는 별도 앱이 아니라 **카카오 개발자 콘솔 앱의 REST 키**로 호출하며, `apis-navi.kakamobility.com` 도메인 사용을 위해 해당 API를 활성화합니다.
+- [카카오모빌리티 Directions API](https://developers.kakao.com/docs/latest/ko/devtalk/directions) 는 별도 앱이 아니라 **카카오 개발자 콘솔 앱의 REST 키**로 호출하며, `apis-navi.kakaomobility.com` 도메인 사용을 위해 해당 API를 활성화합니다.
 
 ### 2.5.3 설정 키
 
 | application.yaml 키 | 환경변수 | 기본값 | 설명 |
 |---|---|---|---|
-| `kakao.directions.base-url` | — | `https://apis-navi.kakamobility.com` | Directions 베이스 |
+| `kakao.directions.base-url` | — | `https://apis-navi.kakaomobility.com` | Directions 베이스 |
 | `kakao.rest-key` | `KAKAO_REST_KEY` | (없음) | 로컬 API와 동일한 인증 헤더 |
 
 **서킷브레이커/타임아웃**: `kakao-directions` connect 3s / read 6s, 실패율 40%, open 15s
@@ -120,7 +120,7 @@ sequenceDiagram
 sequenceDiagram
     participant U as 사용자
     participant S as Halley 서버
-    participant D as 카카오 Directions(apis-navi.kakamobility.com)
+    participant D as 카카오 Directions(apis-navi.kakaomobility.com)
 
     U->>S: POST /api/itinerary/optimize (매물 N건, DRIVING)
     S->>S: (N+1)개 노드 순서쌍 나열
@@ -265,7 +265,7 @@ sequenceDiagram
 | application.yaml 키 | 환경변수 | 기본값 | 설명 |
 |---|---|---|---|
 | `ministry.service-key` | `MINISTRY_API_KEY` | (없음) | 요청 `serviceKey` 파라미터 |
-| `ministry.base-url` | — | `http://openapi.molit.go.kr:8081/OpenAPI_ToolInstallPackage/service/rest` | API 베이스 |
+| `ministry.base-url` | — | `https://apis.data.go.kr/1613000` | API 베이스 |
 
 **서킷브레이커/타임아웃**: `ministry-reference` connect 3s / read 8s, 실패율 40%, open 30s (참고 데이터라 실패해도 치명적이지 않음)
 
@@ -275,7 +275,7 @@ sequenceDiagram
 sequenceDiagram
     participant U as 사용자
     participant S as Halley 서버
-    participant M as 국토부(openapi.molit.go.kr)
+    participant M as 국토부(apis.data.go.kr)
     participant R as reference_transaction
 
     U->>S: M2 진입 (매물 상세)
@@ -296,7 +296,7 @@ sequenceDiagram
 
 ## 6. 공통 · 운영 메모
 
-### 5.1 로컬 개발 시 키 없이 동작하는 방식
+### 6.1 로컬 개발 시 키 없이 동작하는 방식
 
 | 연동 | 키 없음 → 동작 |
 |---|---|
@@ -304,13 +304,13 @@ sequenceDiagram
 | ODsay | `TransitResult.missing()` → `COMMUTE` MISSING |
 | Slack | `slack.enabled=false`(기본) → 알림 skip |
 
-### 5.2 Feign 공통 규칙 (코딩 규칙)
+### 6.2 Feign 공통 규칙 (코딩 규칙)
 
 - 모든 외부 API는 **OpenFeign `@FeignClient`** 로 선언하고, 각 클라이언트마다 **`FallbackFactory`를 필수 구현**
 - 타임아웃·서킷브레이커 임계는 **API별로 다르게** 설정(`feign.client.config.<name>` / `resilience4j.circuitbreaker.instances.<name>`)
 - `@EnableFeignClients(basePackages = "banghak.home.halley.adapter.outbound.external")` (`FeignSupportConfig`)
 
-### 5.3 포트/어댑터 목록
+### 6.3 포트/어댑터 목록
 
 | Port | 어댑터 | FeignClient |
 |---|---|---|

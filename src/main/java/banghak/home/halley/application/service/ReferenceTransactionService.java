@@ -11,6 +11,7 @@ import banghak.home.halley.domain.property.ReferenceDealType;
 import banghak.home.halley.domain.property.ReferenceSource;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import banghak.home.halley.domain.property.ReferenceTransaction;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -22,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class ReferenceTransactionService {
 
@@ -57,6 +59,8 @@ public class ReferenceTransactionService {
                 ? dealMonth
                 : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         if (lawdCd == null) {
+            log.info("법정동코드를 찾지 못해 실거래가를 조회하지 않습니다. propertyId={}, 지번주소={} "
+                    + "(legal_dong_code 적재 범위를 확인하세요)", propertyId, property.addressJibun());
             return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null);
         }
 

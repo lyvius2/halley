@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 @FeignClient(name = "kakao-directions",
-        url = "${kakao.directions.base-url:https://apis-navi.kakamobility.com}",
+        url = "${kakao.directions.base-url:https://apis-navi.kakaomobility.com}",
         configuration = KakaoFeignConfig.class,
         fallbackFactory = KakaoDirectionsFallbackFactory.class)
 public interface KakaoDirectionsFeignClient {

@@ -45,6 +45,60 @@ class MinistryReferenceAdapterTest {
     }
 
     @Test
+    @DisplayName("현행 apis.data.go.kr의 영문 태그 응답도 ReferenceTrade로 매핑한다")
+    void parseEnglishTagXml() {
+        // given — apis.data.go.kr/1613000 실제 응답 형식
+        final String xml = """
+                <response><body><items>
+                <item>
+                <aptNm>에비뉴청계Ⅱ</aptNm>
+                <dealAmount> 92,500</dealAmount>
+                <excluUseAr>84.93</excluUseAr>
+                <floor>7</floor>
+                <dealYear>2026</dealYear>
+                <dealMonth>7</dealMonth>
+                <dealDay>12</dealDay>
+                </item>
+                </items></body></response>
+                """;
+
+        // when
+        final List<ReferenceTrade> trades = adapter.parse(xml);
+
+        // then
+        assertThat(trades).hasSize(1);
+        final ReferenceTrade trade = trades.getFirst();
+        assertThat(trade.apartmentName()).isEqualTo("에비뉴청계Ⅱ");
+        assertThat(trade.dealAmount()).isEqualTo(925_000_000L);
+        assertThat(trade.areaM2()).isEqualByComparingTo("84.93");
+        assertThat(trade.floorNo()).isEqualTo(7);
+        assertThat(trade.contractDate()).isEqualTo("2026-07-12");
+    }
+
+    @Test
+    @DisplayName("Encoding 형태로 발급된 서비스 키는 퍼센트 이스케이프를 되돌려 이중 인코딩(403)을 막는다")
+    void decodesPercentEncodedServiceKey() {
+        // given
+        final String encoded = "abc%2Fdef%2Bghi%3D%3D";
+
+        // when
+        final String decoded = MinistryReferenceAdapter.decodeIfEncoded(encoded);
+
+        // then
+        assertThat(decoded).isEqualTo("abc/def+ghi==");
+    }
+
+    @Test
+    @DisplayName("Decoding 형태로 발급된 키는 그대로 두며 Base64의 +를 공백으로 바꾸지 않는다")
+    void keepsPlainServiceKey() {
+        // when
+        final String plain = MinistryReferenceAdapter.decodeIfEncoded("abc/def+ghi==");
+
+        // then
+        assertThat(plain).isEqualTo("abc/def+ghi==");
+    }
+
+    @Test
     @DisplayName("잘못된 XML은 예외 없이 빈 목록으로 처리한다")
     void malformedXmlReturnsEmpty() {
         // when

@@ -50,6 +50,17 @@ public class KakaoLocalAdapter implements KakaoLocalPort {
         return PoiResult.mapPois(parse(json));
     }
 
+    @Override
+    public List<PoiResult> searchKeyword(String query, String categoryGroupCode, double x, double y, int radius) {
+        requireKey();
+        final String json = client.searchKeyword(
+                query, categoryGroupCode, String.valueOf(x), String.valueOf(y), radius, "distance");
+        if (json == null) {
+            return List.of();
+        }
+        return PoiResult.mapPois(parse(json));
+    }
+
     private void requireKey() {
         if (restKey == null || restKey.isBlank()) {
             throw new KakaoApiKeyMissingException();

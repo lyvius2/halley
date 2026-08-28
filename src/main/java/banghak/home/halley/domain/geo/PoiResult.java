@@ -10,10 +10,16 @@ public record PoiResult(
         String categoryGroupCode,
         Integer distanceM,
         String x,
-        String y
+        String y,
+        String categoryName
 ) {
     public static PoiResult of(String name, String categoryGroupCode, Integer distanceM, String x, String y) {
-        return new PoiResult(name, categoryGroupCode, distanceM, x, y);
+        return new PoiResult(name, categoryGroupCode, distanceM, x, y, null);
+    }
+
+    public static PoiResult of(String name, String categoryGroupCode, Integer distanceM, String x, String y,
+                               String categoryName) {
+        return new PoiResult(name, categoryGroupCode, distanceM, x, y, categoryName);
     }
 
     public static List<PoiResult> mapPois(JsonNode root) {
@@ -25,7 +31,8 @@ public record PoiResult(
                     document.path("category_group_code").asString(null),
                     distance == null ? null : Integer.parseInt(distance),
                     document.path("x").asString(null),
-                    document.path("y").asString(null)));
+                    document.path("y").asString(null),
+                    document.path("category_name").asString(null)));
         }
         return results;
     }

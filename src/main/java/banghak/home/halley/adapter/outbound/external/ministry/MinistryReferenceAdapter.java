@@ -11,6 +11,8 @@ import org.w3c.dom.NodeList;
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -27,7 +29,19 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     public MinistryReferenceAdapter(MinistryReferenceFeignClient client,
                                  @Value("${ministry.service-key:}") String serviceKey) {
         this.client = client;
-        this.serviceKey = serviceKey;
+        this.serviceKey = decodeIfEncoded(serviceKey);
+    }
+
+    /**
+     * 공공데이터포털은 인증키를 Encoding/Decoding 두 형태로 발급한다. Encoding 키(`%2F`·`%3D` 포함)를 그대로 넘기면
+     * Feign이 `%`를 한 번 더 인코딩해 403 SERVICE_KEY_IS_NOT_REGISTERED_ERROR가 난다. 어느 형태를 넣어도 동작하도록
+     * 퍼센트 이스케이프만 되돌린다(`+`는 Base64 키의 문자이므로 공백으로 바뀌지 않게 보호).
+     */
+    static String decodeIfEncoded(String key) {
+        if (key == null || !key.contains("%")) {
+            return key;
+        }
+        return URLDecoder.decode(key.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
     @Override
@@ -60,14 +74,14 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     }
 
     private ReferenceTrade toTrade(Element item) {
-        final String priceMan = text(item, "거래금액");
-        final String area = text(item, "전용면적");
-        final String floor = text(item, "층");
-        final String year = text(item, "년");
-        final String month = text(item, "월");
-        final String day = text(item, "일");
+        final String priceMan = text(item, "dealAmount", "거래금액");
+        final String area = text(item, "excluUseAr", "전용면적");
+        final String floor = text(item, "floor", "층");
+        final String year = text(item, "dealYear", "년");
+        final String month = text(item, "dealMonth", "월");
+        final String day = text(item, "dealDay", "일");
         return new ReferenceTrade(
-                text(item, "아파트"),
+                text(item, "aptNm", "아파트"),
                 priceMan == null ? null : Math.round(Double.parseDouble(priceMan.replace(",", "")) * 10_000L),
                 area == null ? null : new BigDecimal(area),
                 floor == null ? null : Integer.parseInt(floor),
@@ -79,12 +93,21 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         );
     }
 
-    private String text(Element item, String tag) {
-        final NodeList nodes = item.getElementsByTagName(tag);
-        if (nodes.getLength() == 0) {
-            return null;
+    /**
+     * apis.data.go.kr(현행)은 영문 태그(`aptNm`·`dealAmount`), 구 molit 엔드포인트는 국문 태그(`아파트`·`거래금액`)를
+     * 사용한다. 후보 태그를 순서대로 찾아 먼저 값이 있는 쪽을 쓴다.
+     */
+    private String text(Element item, String... tags) {
+        for (final String tag : tags) {
+            final NodeList nodes = item.getElementsByTagName(tag);
+            if (nodes.getLength() == 0) {
+                continue;
+            }
+            final String value = nodes.item(0).getTextContent();
+            if (value != null && !value.isBlank()) {
+                return value.trim();
+            }
         }
-        final String value = nodes.item(0).getTextContent();
-        return value == null || value.isBlank() ? null : value.trim();
+        return null;
     }
 }

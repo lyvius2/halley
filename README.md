@@ -8,6 +8,7 @@
 ![Alpine.js](https://img.shields.io/badge/Alpine.js-frontend-8BC0D0?logo=alpinedotjs&logoColor=black)
 ![Kakao Map](https://img.shields.io/badge/Kakao%20Map-SDK-FFCD00?logo=kakao&logoColor=black)
 ![DeepSeek](https://img.shields.io/badge/Built%20with-DeepSeek%20V4%20Pro-4D6BFE?logo=deepseek&logoColor=white)
+![Claude Code](https://img.shields.io/badge/Verified%20with-Claude%20Code-D97757?logo=claude&logoColor=white)
 
 부동산 매물을 비교·평가하기 위한 2인 전용 폐쇄형 웹 애플리케이션입니다. 네이버 부동산 매물 정보를 붙여넣기로 등록하고, 직주근접·가격·역세권 등 12개 기준으로 자동/수동 채점해 우선순위를 정합니다.
 
@@ -64,6 +65,7 @@ docker compose up -d
 | `KAKAO_JS_KEY` | 카카오맵 JavaScript 키 |
 | `KAKAO_REST_KEY` | 카카오 로컬/Directions/Roadview REST API 키 |
 | `ODSAY_API_KEY` | ODsay 대중교통 길찾기 API 키 |
+| `MINISTRY_API_KEY` | 공공데이터포털 국토부 실거래가 서비스 키 (Encoding·Decoding 어느 형태든 가능) |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | PostgreSQL 접속 정보 |
 | `REDIS_HOST` / `REDIS_PORT` | Redis 접속 정보 |
 

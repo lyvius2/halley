@@ -19,4 +19,12 @@ public interface KakaoLocalFeignClient {
                           @RequestParam("x") String x,
                           @RequestParam("y") String y,
                           @RequestParam("radius") int radius);
+
+    @GetMapping("/v2/local/search/keyword.json")
+    String searchKeyword(@RequestParam("query") String query,
+                         @RequestParam("category_group_code") String categoryGroupCode,
+                         @RequestParam("x") String x,
+                         @RequestParam("y") String y,
+                         @RequestParam("radius") int radius,
+                         @RequestParam("sort") String sort);
 }

@@ -50,6 +50,11 @@ class ScoringServiceTest {
                 public List<PoiResult> searchCategory(String categoryGroupCode, double x, double y, int radius) {
                     return List.of();
                 }
+
+                @Override
+                public List<PoiResult> searchKeyword(String query, String categoryGroupCode, double x, double y, int radius) {
+                    return List.of();
+                }
             };
         }
 

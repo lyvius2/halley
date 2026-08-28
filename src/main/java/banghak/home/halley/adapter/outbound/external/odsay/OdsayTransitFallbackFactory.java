@@ -1,18 +1,21 @@
 package banghak.home.halley.adapter.outbound.external.odsay;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.openfeign.FallbackFactory;
 import org.springframework.stereotype.Component;
 
+import static banghak.home.halley.adapter.outbound.external.FallbackCause.describe;
+
+@Slf4j
 @Component
 public class OdsayTransitFallbackFactory implements FallbackFactory<OdsayTransitFeignClient> {
 
     @Override
     public OdsayTransitFeignClient create(Throwable cause) {
-        return new OdsayTransitFeignClient() {
-            @Override
-            public String findTransit(String apiKey, double startX, double startY, double endX, double endY) {
-                return null;
-            }
+        return (apiKey, startX, startY, endX, endY) -> {
+            log.warn("ODsay 대중교통 경로 실패 — 폴백(MISSING) 반환. start=({},{}), end=({},{}), cause={}",
+                    startX, startY, endX, endY, describe(cause));
+            return null;
         };
     }
 }
