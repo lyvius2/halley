@@ -726,7 +726,6 @@ input[type=checkbox], input[type=radio] {
 .m2-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
 /* 매물 상세(M2) — 버튼을 눌러 펼치던 항목을 한 화면에 모두 보여준다 (설계 I53) */
-.m2-owner { font-size: 11px; color: var(--ink3); margin-left: auto; }
 .m2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
 .m2-sec-wide { grid-column: 1 / -1; }
 .m2-sec > h4 {
@@ -749,7 +748,6 @@ input[type=checkbox], input[type=radio] {
 }
 .m2-empty { font-size: 11.5px; color: var(--ink3); padding: 8px 0; }
 .m2-gap { font-size: 11.5px; color: var(--ocean); margin-bottom: 8px; }
-.card-owner { color: var(--ink3); }
 @media (max-width: 720px) {
     .m2-grid { grid-template-columns: 1fr; }
 }
@@ -1141,3 +1139,55 @@ tr.dragging { opacity: .5; background: var(--line2); }
     border-top: 1px solid var(--line2);
 }
 .comment-new > label { display: block; font-size: 11.5px; color: var(--ink2); margin-bottom: 6px; }
+
+/* ── 등록자 배지 (설계 I57) ──────────────────────
+   매물 이름 바로 오른쪽에 붙는다. 이름이 길면 이름이 먼저 줄고 배지는 살아남아야 하므로
+   flex-shrink를 잠근다. 닉네임 첫 글자를 원형 이니셜로 앞세워 사람이라는 걸 먼저 읽히게 한다. */
+.owner-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    max-width: 40%;
+    padding: 2px 8px 2px 3px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.owner-badge > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.owner-initial {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ocean);
+    color: #fff;
+    font-style: normal;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.property-card:hover .owner-badge { border-color: var(--ocean); }
+
+/* 상세 모달은 여백이 넉넉해 조금 크게 */
+.owner-badge-lg {
+    margin-left: auto;
+    max-width: none;
+    padding: 3px 10px 3px 4px;
+    font-size: 11px;
+}
+.owner-badge-lg .owner-initial { width: 18px; height: 18px; font-size: 10px; }
+
+/* 이름 · 배지 · 가격이 한 줄에서 자연스럽게 나뉘도록 */
+.property-card-header .property-card-name { flex: 0 1 auto; min-width: 0; }
+.property-card-header .property-card-price { margin-left: auto; }

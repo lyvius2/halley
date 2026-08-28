@@ -79,6 +79,11 @@
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
                                         <span class="property-card-name" x-text="r.property.name"></span>
+                                        <span class="owner-badge" x-show="r.property.createdByNickname"
+                                              :title="'등록: ' + r.property.createdByNickname">
+                                            <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
+                                            <span x-text="r.property.createdByNickname"></span>
+                                        </span>
                                         <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
@@ -89,7 +94,6 @@
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
                                         <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
-                                        <span class="card-owner" x-show="r.property.createdByNickname" x-text="'등록 ' + r.property.createdByNickname"></span>
                                         <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
@@ -822,8 +826,11 @@
                 <span class="score-pill" :class="detailItem.totalScore != null && detailItem.totalScore >= 50 ? 'score-high' : 'score-low'">
                     <b x-text="fmtScore(detailItem.totalScore)"></b><i>점</i>
                 </span>
-                <span class="m2-owner" x-show="detailItem.property.createdByNickname"
-                      x-text="'등록 ' + detailItem.property.createdByNickname"></span>
+                <span class="owner-badge owner-badge-lg" x-show="detailItem.property.createdByNickname"
+                      :title="'등록: ' + detailItem.property.createdByNickname">
+                    <i class="owner-initial" x-text="ownerInitial(detailItem.property.createdByNickname)"></i>
+                    <span x-text="detailItem.property.createdByNickname"></span>
+                </span>
             </div>
 
             <div class="m2-grid">

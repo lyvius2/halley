@@ -2070,6 +2070,11 @@ function halley() {
             return Number(n).toFixed(0);
         },
 
+        /** 등록자 배지의 원형 이니셜 — 닉네임 첫 글자 (설계 I57). */
+        ownerInitial(nickname) {
+            return nickname ? Array.from(nickname.trim())[0] : '';
+        },
+
         /** ㎡와 평을 함께 보여준다. 1평 = 3.3058㎡ (설계 I53). */
         fmtArea(m2) {
             if (m2 == null || m2 === '') {
