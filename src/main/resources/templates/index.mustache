@@ -98,6 +98,7 @@
                                         <button class="btn-link" @click="openDetail(r)">상세</button>
                                         <button class="btn-link" x-show="r.property.isDraft" @click="openPasteModal(r)">완성</button>
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
+                                        <button class="btn-link" @click="openComments(r)">코멘트</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
                                         <button class="btn-link" @click="openRefModal(r)">실거래</button>
@@ -919,6 +920,7 @@
             <div class="m2-actions">
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
                 <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
+                <button class="btn btn-sm" @click="openComments(detailItem)">코멘트</button>
                 <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
                 <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
                 <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">정보 수정</button>
@@ -1259,6 +1261,60 @@
         <template x-if="!loanResult && !loading">
             <p class="m2-empty">계산할 수 없습니다. 프로필에 연소득과 보유 현금을 입력했는지 확인해 주세요.</p>
         </template>
+        <p class="form-error" x-show="error" x-text="error"></p>
+    </div>
+</div>
+
+<!-- D25 매물 코멘트 모달 (설계 I56) -->
+<div class="modal" x-show="showComments" x-cloak>
+    <div class="modal-backdrop" @click="closeComments()"></div>
+    <div class="modal-card modal-wide">
+        <button class="modal-close" @click="closeComments()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">코멘트</span>
+            <h3 x-text="commentProperty?.property?.name"></h3>
+            <p>이 매물에 대한 각자의 생각을 남깁니다. 한 사람당 한 건이며 언제든 고쳐 쓸 수 있습니다.</p>
+        </div>
+
+        <div class="comment-list">
+            <template x-if="comments.length === 0">
+                <p class="m2-empty">아직 남긴 코멘트가 없습니다.</p>
+            </template>
+            <template x-for="c in comments" :key="c.id">
+                <article class="comment" :class="{ mine: c.mine }">
+                    <div class="comment-head">
+                        <span class="comment-who" x-text="c.nickname"></span>
+                        <span class="badge b-mem" x-show="c.mine">나</span>
+                        <time class="comment-time" x-text="fmtTime(c.updatedAt || c.createdAt)"></time>
+                        <span class="comment-edited" x-show="c.updatedAt">수정됨</span>
+                        <div class="comment-actions" x-show="c.mine && commentEditingId !== c.id">
+                            <button class="btn btn-xs" @click="startEditComment(c)">수정</button>
+                            <button class="btn btn-xs btn-danger" @click="removeComment(c)">삭제</button>
+                        </div>
+                    </div>
+                    <p class="comment-body" x-show="commentEditingId !== c.id" x-text="c.content"></p>
+                    <div class="comment-edit" x-show="commentEditingId === c.id" x-cloak>
+                        <textarea rows="4" x-model="commentEditText" maxlength="2000"></textarea>
+                        <div class="comment-edit-actions">
+                            <button class="btn btn-sm" @click="cancelEditComment()">취소</button>
+                            <button class="btn btn-primary btn-sm" @click="saveEditComment(c)" :disabled="loading">저장</button>
+                        </div>
+                    </div>
+                </article>
+            </template>
+        </div>
+
+        <!-- 아직 안 남겼을 때만 입력칸을 연다 -->
+        <div class="comment-new" x-show="!myComment" x-cloak>
+            <label for="commentNew">내 코멘트</label>
+            <textarea id="commentNew" rows="4" x-model="commentNewText" maxlength="2000"
+                      placeholder="직접 보고 느낀 점, 걸리는 점을 남겨 주세요"></textarea>
+            <div class="comment-edit-actions">
+                <span class="comment-count" x-text="commentNewText.length + ' / 2000'"></span>
+                <button class="btn btn-primary btn-sm" @click="addComment()"
+                        :disabled="loading || !commentNewText.trim()">남기기</button>
+            </div>
+        </div>
         <p class="form-error" x-show="error" x-text="error"></p>
     </div>
 </div>

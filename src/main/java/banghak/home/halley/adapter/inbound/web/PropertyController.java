@@ -2,6 +2,8 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
+import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
@@ -18,6 +20,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
+import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyImageService;
@@ -55,6 +58,7 @@ public class PropertyController {
     private final ReferenceTransactionService referenceTransactionService;
     private final PropertyImageService propertyImageService;
     private final AgentService agentService;
+    private final PropertyCommentService propertyCommentService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -62,7 +66,8 @@ public class PropertyController {
                               LoanEstimateService loanEstimateService,
                               ReferenceTransactionService referenceTransactionService,
                               PropertyImageService propertyImageService,
-                              AgentService agentService) {
+                              AgentService agentService,
+                              PropertyCommentService propertyCommentService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -70,6 +75,31 @@ public class PropertyController {
         this.referenceTransactionService = referenceTransactionService;
         this.propertyImageService = propertyImageService;
         this.agentService = agentService;
+        this.propertyCommentService = propertyCommentService;
+    }
+
+    @GetMapping("/{id}/comments")
+    public List<CommentResponse> comments(@PathVariable Long id) {
+        return propertyCommentService.list(id);
+    }
+
+    @PostMapping("/{id}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CommentResponse addComment(@PathVariable Long id, @RequestBody CommentRequest request) {
+        return propertyCommentService.create(id, request);
+    }
+
+    @PutMapping("/{id}/comments/{commentId}")
+    public CommentResponse editComment(@PathVariable Long id,
+                                       @PathVariable Long commentId,
+                                       @RequestBody CommentRequest request) {
+        return propertyCommentService.update(id, commentId, request);
+    }
+
+    @DeleteMapping("/{id}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeComment(@PathVariable Long id, @PathVariable Long commentId) {
+        propertyCommentService.delete(id, commentId);
     }
 
     @GetMapping("/{id}/agents")

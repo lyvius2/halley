@@ -91,6 +91,12 @@ function halley() {
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        showComments: false,
+        commentProperty: null,
+        comments: [],
+        commentNewText: '',
+        commentEditingId: null,
+        commentEditText: '',
         detailAgents: [],
         detailRef: null,
         showSettings: false,
@@ -544,6 +550,123 @@ function halley() {
                     this.closeChangePw();
                 } else {
                     this.error = (body && body.message) || '비밀번호 변경에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── 매물 코멘트 (설계 I56) ─────────────────────
+        openComments(item) {
+            this.commentProperty = item;
+            this.comments = [];
+            this.commentNewText = '';
+            this.commentEditingId = null;
+            this.error = null;
+            this.showComments = true;
+            this.loadComments();
+        },
+
+        closeComments() {
+            this.showComments = false;
+            this.commentProperty = null;
+            this.comments = [];
+            this.commentEditingId = null;
+            this.error = null;
+        },
+
+        async loadComments() {
+            const { ok, body } = await this.request(
+                `/api/properties/${this.commentProperty.property.id}/comments`);
+            this.comments = ok ? (body || []) : [];
+        },
+
+        /** 내가 이미 남긴 글. 있으면 입력칸 대신 수정 버튼을 보여준다. */
+        get myComment() {
+            return this.comments.find(c => c.mine) || null;
+        },
+
+        async addComment() {
+            const content = this.commentNewText.trim();
+            if (!content) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                if (ok) {
+                    this.commentNewText = '';
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 등록에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        startEditComment(comment) {
+            this.commentEditingId = comment.id;
+            this.commentEditText = comment.content;
+            this.error = null;
+        },
+
+        cancelEditComment() {
+            this.commentEditingId = null;
+            this.commentEditText = '';
+        },
+
+        async saveEditComment(comment) {
+            const content = this.commentEditText.trim();
+            if (!content) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments/${comment.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                if (ok) {
+                    this.commentEditingId = null;
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 수정에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async removeComment(comment) {
+            if (!confirm('이 코멘트를 삭제할까요?')) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments/${comment.id}`,
+                    { method: 'DELETE' });
+                if (ok) {
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 삭제에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

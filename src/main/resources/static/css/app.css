@@ -1092,3 +1092,52 @@ tr.dragging { opacity: .5; background: var(--line2); }
     .form-grid .span2 { grid-column: span 1; }
     .paste-grid { grid-template-columns: 1fr; }
 }
+
+/* ── 매물 코멘트 (설계 I56) ──────────────────────
+   둘이 쓰는 앱이라 스레드가 아니라 '각자의 견해' 목록에 가깝다.
+   내 글은 왼쪽에 색 띠를 둬서 남의 글과 한눈에 갈린다. */
+.comment-list { display: grid; gap: 10px; max-height: 46vh; overflow-y: auto; padding-right: 2px; }
+.comment {
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 13px;
+    background: var(--card);
+}
+.comment.mine { border-left-color: var(--ocean); background: var(--paper); }
+.comment-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+}
+.comment-who { font-weight: 500; color: var(--ink); }
+.comment-time { color: var(--ink3); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.comment-edited { color: var(--ink3); font-size: 10px; }
+.comment-actions { display: flex; gap: 6px; margin-left: auto; }
+.comment-body { font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+
+.comment-edit textarea,
+.comment-new textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.7;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    resize: vertical;
+}
+.comment-edit textarea:focus,
+.comment-new textarea:focus { outline: none; border-color: var(--ocean); }
+.comment-edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; }
+.comment-count { margin-right: auto; font-size: 10px; color: var(--ink3); font-family: 'JetBrains Mono', monospace; }
+
+.comment-new {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line2);
+}
+.comment-new > label { display: block; font-size: 11.5px; color: var(--ink2); margin-bottom: 6px; }
