@@ -3,6 +3,8 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.application.service.UserService;
 import banghak.home.halley.domain.user.UserRole;
+
+import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,7 +41,8 @@ class ScoreApiIntegrationTest {
     void comfortScoreReflected() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "score-user", "score@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+                "score-user", "score@example.com", "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -125,7 +128,8 @@ class ScoreApiIntegrationTest {
 
     private MockHttpSession login(String nickname, String email) throws Exception {
         userService.create(new CreateUserRequest(
-                nickname, email, "password1!", UserRole.MEMBER, null, null, null, 0L));
+                nickname, email, "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)

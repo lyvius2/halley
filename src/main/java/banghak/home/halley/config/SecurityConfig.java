@@ -27,7 +27,7 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
-                                                   MustChangePasswordFilter mustChangePasswordFilter,
+                                                   AccountSetupFilter accountSetupFilter,
                                                    JsonAuthenticationEntryPoint entryPoint) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
@@ -41,7 +41,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/**").authenticated()
                         .anyRequest().permitAll())
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(entryPoint))
-                .addFilterAfter(mustChangePasswordFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterAfter(accountSetupFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 }

@@ -4,7 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
@@ -111,13 +111,14 @@ class UserServiceTest {
 
         // when
         final UserResponse me = userService.me();
-        final UserResponse updated = userService.updateWorkplace(
-                new WorkplaceRequest("회사", new BigDecimal("37.5"), new BigDecimal("126.9")));
+        final UserResponse updated = userService.updateProfile(
+                new ProfileRequest("회사", new BigDecimal("37.5"), new BigDecimal("126.9"), 300_000_000L));
 
         // then
         assertThat(me.email()).isEqualTo("me@example.com");
         assertThat(updated.workplaceName()).isEqualTo("회사");
         assertThat(updated.workplaceLat()).isEqualByComparingTo("37.5");
+        assertThat(updated.availableBudget()).isEqualTo(300_000_000L);
 
         SecurityContextHolder.clearContext();
     }

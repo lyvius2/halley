@@ -37,7 +37,12 @@ public class AdminBootstrap implements ApplicationRunner {
                 true, 0L, true,
                 null, null, null
         ));
-        log.info("★ 초기 관리자 계정 생성 ★ id={} / password={}", ADMIN_LOGIN, password);
+        log.info("==========================================================");
+        log.info("  Admin account initialized.");
+        log.info("  username : {}", ADMIN_LOGIN);
+        log.info("  password : {}", password);
+        log.info("  Please change the password after first login.");
+        log.info("==========================================================");
     }
 
     private String randomPassword() {

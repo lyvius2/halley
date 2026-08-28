@@ -683,6 +683,8 @@ sequenceDiagram
 
 **강제화 구현**: `must_change_password=true`인 세션은 서버 인터셉터가 `/api/auth/password`와 `/api/auth/logout`을 제외한 **모든 API를 403으로 차단**합니다. 프론트에서 모달만 띄우는 건 우회 가능하므로 서버 차단이 필수입니다.
 
+**2단계 — 프로필 완성 강제 (I48)**: 비밀번호를 바꾼 뒤에도 **직장 좌표와 가용 예산이 비어 있으면** `PROFILE_SETUP_REQUIRED`로 API를 차단합니다. 이 두 값이 없으면 `COMMUTE`와 `PRICE`가 영원히 미산출로 남기 때문입니다(I47). 프로필 단계에서는 `/api/auth/*`, `/api/users/me`, `/api/users/me/profile`, `/api/geo/search`만 허용해 설정을 마칠 수 있게 합니다. **Admin도 예외가 아닙니다** — Admin 역시 채점에 참여하는 사용자입니다.
+
 ### 6.2 세션 정책
 
 | 항목 | 값 |
@@ -873,7 +875,7 @@ sequenceDiagram
 | PUT/DELETE | `/api/users/{id}` | 수정·삭제 | ADMIN |
 | PATCH | `/api/users/{id}/status` | 활성/비활성 토글 | ADMIN |
 | POST | `/api/users/{id}/reset-password` | 임시 비밀번호 리셋 (1회 반환) | ADMIN |
-| PUT | `/api/users/me/workplace` | 내 직장 좌표 | AUTH |
+| PUT | `/api/users/me/profile` | 내 프로필(직장 좌표 + 가용 예산) | AUTH |
 | GET | `/api/properties` | 목록 (정렬·필터·점수 포함) | AUTH |
 | POST | `/api/properties` | 수기 등록 | AUTH |
 | POST | `/api/properties/parse-preview` | **붙여넣기 텍스트 파싱 (미저장, 프리뷰)** | AUTH |
@@ -1881,6 +1883,23 @@ M6는 별도 Main Frame이었으나 **모달로 변경**합니다. 설정은 매
 2. **가격은 예산 미설정 시 0점 대신 MISSING**으로 둡니다(5.2.1).
 3. **채점 모달(D14)을 다시 설계했습니다.** 상단에 총점과 자동/수동/미산출 개수, 그 아래 **막힌 사유를 중복 없이 모은 경고 박스**, 항목마다 점수 게이지·타입 배지·입력칸, 미산출 항목에는 사유를 인라인으로 표시합니다. 저장 버튼은 목록이 길어도 하단에 고정되고, 저장 후 모달을 닫지 않고 갱신된 점수를 보여줍니다.
 4. **`CriterionScorer.type()`을 제거**했습니다(I41의 후속). 이 메서드는 어디에서도 호출되지 않으면서 `BUILDING_COUNT`만 `criterion` 테이블(`MANUAL`)과 다른 값(`AUTO`)을 들고 있어 혼란을 줬습니다. AUTO/MANUAL/HYBRID 분류의 단일 출처는 **`criterion` 테이블**입니다.
+
+### I48. 계정 초기 설정 · **[확정 — 비밀번호 + 프로필 2단계 강제, 주소는 우편번호 서비스로]**
+
+**프로필 완성을 강제합니다.** 6.1의 비밀번호 강제 변경만으로는 직장 좌표·가용 예산이 비어 있는 계정이 그대로 통과했고, 그 상태로는 `COMMUTE`·`PRICE`가 계산되지 않습니다(I47). `AccountSetupFilter`가 두 단계를 순서대로 막습니다.
+
+| 단계 | 조건 | 허용 경로 | 응답 코드 |
+|---|---|---|---|
+| 1 | `must_change_password` | `/api/auth/password`, `/api/auth/logout` | `MUST_CHANGE_PASSWORD` |
+| 2 | 직장 좌표·가용 예산 미입력 | + `/api/auth/session`, `/api/users/me`, `/api/users/me/profile`, `/api/geo/search` | `PROFILE_SETUP_REQUIRED` |
+
+완성 판정은 `User.profileComplete()` 한 곳에 둡니다 — 직장명·직장 좌표가 있고 `available_budget > 0`. 예산을 `> 0`으로 요구하는 이유는 0이면 예산상한이 늘 호가보다 작아 가격이 전부 0점이 되기 때문입니다(5.2.1). **Admin도 동일하게 적용됩니다** — 관리자 역시 채점에 참여하는 사용자입니다.
+
+`PUT /api/users/me/workplace`는 예산까지 함께 저장하는 **`PUT /api/users/me/profile`로 대체**했습니다. 세션의 principal에 `profileComplete` 플래그를 두고 저장 시 갱신하는 방식은 `must_change_password`와 같습니다.
+
+**직장 주소 입력은 카카오(다음) 우편번호 서비스**(`postcode.v2.js`)로 바꿨습니다. 키워드 검색으로 직접 주소를 치던 방식은 오타·형식 문제로 지오코딩이 실패하기 쉬웠습니다. 팝업에서 주소를 고르면 그 주소를 `/api/geo/search`로 지오코딩해 좌표까지 자동으로 채우고, 좌표 칸은 읽기 전용으로 둡니다. 별도 API 키가 필요 없는 무료 서비스입니다.
+
+**함께 고친 버그**: `loadUsers()`가 `/api/users` 응답을 `users`가 아니라 `itinPlan`에 넣고 있어(복사 실수) **사용자 관리 화면이 항상 비어 있었습니다.** Admin이 안 보이는 게 아니라 아무도 보이지 않는 상태였습니다.
 ---
 
 ## 17. 부록: 패키지 구조 (제안)

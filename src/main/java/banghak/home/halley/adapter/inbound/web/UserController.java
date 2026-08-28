@@ -5,7 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.application.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -41,9 +41,9 @@ public class UserController {
         return userService.me();
     }
 
-    @PutMapping("/me/workplace")
-    public UserResponse updateWorkplace(@RequestBody WorkplaceRequest request) {
-        return userService.updateWorkplace(request);
+    @PutMapping("/me/profile")
+    public UserResponse updateProfile(@RequestBody ProfileRequest request) {
+        return userService.updateProfile(request);
     }
 
     @PostMapping

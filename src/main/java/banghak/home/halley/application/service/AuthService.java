@@ -92,6 +92,7 @@ public class AuthService {
                 principal.getNickname(),
                 UserRole.valueOf(principal.getRole()),
                 principal.isMustChangePassword(),
+                principal.isProfileComplete(),
                 remainingSessionSeconds(request));
     }
 

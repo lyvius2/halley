@@ -86,6 +86,8 @@ function halley() {
         showM2: false,
         detailItem: null,
         showSettings: false,
+        showProfileSetup: false,
+        setupForm: { workplaceName: '', workplaceLat: '', workplaceLng: '', availableBudget: '' },
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
@@ -171,10 +173,13 @@ function halley() {
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
-                if (this.session.role === 'ADMIN' && !this.showPassword) {
+                this.showProfileSetup = !this.showPassword && body.profileComplete === false;
+                // 초기 설정(비밀번호·프로필)이 끝나기 전에는 다른 API가 403이므로 호출하지 않는다
+                const setupPending = this.showPassword || this.showProfileSetup;
+                if (this.session.role === 'ADMIN' && !setupPending) {
                     await this.loadUsers();
                 }
-                if (!this.showPassword) {
+                if (!setupPending) {
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                 }
@@ -219,8 +224,7 @@ function halley() {
         async loadUsers() {
             const { ok, body } = await this.request('/api/users');
             if (ok) {
-                this.itinPlan = body;
-                this.renderItinerary();
+                this.users = body || [];
             }
         },
 
@@ -349,11 +353,79 @@ function halley() {
             this.workplaceResults = [];
         },
 
+        /**
+         * 카카오(다음) 우편번호 서비스로 주소를 고르고, 선택한 주소를 지오코딩해 좌표까지 채운다.
+         * target: 'setup'(최초 설정 모달) | 'profile'(내 프로필 화면)
+         */
+        searchPostcodeFor(target) {
+            if (!window.daum || !window.daum.Postcode) {
+                this.error = '우편번호 서비스를 불러오지 못했습니다. 새로고침 후 다시 시도하세요.';
+                return;
+            }
+            new window.daum.Postcode({
+                oncomplete: async (data) => {
+                    const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                    const form = target === 'setup' ? this.setupForm : this.profile;
+                    form.workplaceName = data.buildingName ? `${address} (${data.buildingName})` : address;
+                    const coords = await this.geocodeAddress(address);
+                    if (coords) {
+                        form.workplaceLat = coords.lat;
+                        form.workplaceLng = coords.lng;
+                    } else {
+                        this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
+                    }
+                }
+            }).open();
+        },
+
+        async geocodeAddress(address) {
+            const { ok, body } = await this.request(`/api/geo/search?query=${encodeURIComponent(address)}`);
+            if (ok && Array.isArray(body) && body.length > 0) {
+                return { lat: body[0].lat, lng: body[0].lng };
+            }
+            return null;
+        },
+
+        async saveProfileSetup() {
+            if (!this.setupForm.workplaceLat || !this.setupForm.workplaceLng) {
+                this.error = '주소 검색으로 직장 위치를 선택해 주세요';
+                return;
+            }
+            if (!(toNum(this.setupForm.availableBudget) > 0)) {
+                this.error = '가용 예산을 0보다 큰 값으로 입력해 주세요';
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        workplaceName: this.setupForm.workplaceName,
+                        workplaceLat: toNum(this.setupForm.workplaceLat),
+                        workplaceLng: toNum(this.setupForm.workplaceLng),
+                        availableBudget: toNum(this.setupForm.availableBudget)
+                    })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '프로필 저장에 실패했습니다';
+                    return;
+                }
+                this.showProfileSetup = false;
+                await this.checkSession();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
         async saveWorkplace() {
             this.loading = true;
             this.error = null;
             try {
-                const { ok, body } = await this.request('/api/users/me/workplace', {
+                const { ok, body } = await this.request('/api/users/me/profile', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({

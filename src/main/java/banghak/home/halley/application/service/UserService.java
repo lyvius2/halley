@@ -4,7 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.config.exception.AuthenticationRequiredException;
 import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.config.exception.DuplicateNicknameException;
@@ -50,14 +50,24 @@ public class UserService {
         return toResponse(get(currentUserId()));
     }
 
-    public UserResponse updateWorkplace(WorkplaceRequest request) {
+    public UserResponse updateProfile(ProfileRequest request) {
         final User user = get(currentUserId());
         final User updated = userRepository.update(new User(
                 user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(), user.enabled(),
-                user.disabledAt(), user.disabledBy(), user.createdAt()));
+                user.mustChangePassword(),
+                request.availableBudget() != null ? request.availableBudget() : user.availableBudget(),
+                user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
+        refreshProfileFlag(updated);
         return toResponse(updated);
+    }
+
+    /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다. */
+    private void refreshProfileFlag(User updated) {
+        final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
+            principal.setProfileComplete(updated.profileComplete());
+        }
     }
 
     private Long currentUserId() {
