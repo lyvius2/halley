@@ -1,7 +1,6 @@
 package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.Map;
 
@@ -12,16 +11,15 @@ public class CommuteScorer implements CriterionScorer {
         return "COMMUTE";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
         final Map<Long, Integer> commuteMinutes = ctx.commuteMinutes();
         if (commuteMinutes == null || commuteMinutes.isEmpty()) {
-            return ScoreResult.missing("통근 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("직장 좌표가 설정된 사용자가 없습니다 — 프로필에서 직장 위치를 지정하세요");
         }
         double sum = 0.0;
         for (final int minutes : commuteMinutes.values()) {

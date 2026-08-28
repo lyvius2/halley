@@ -2,7 +2,6 @@ package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.List;
 
@@ -13,10 +12,6 @@ public class StationScorer implements CriterionScorer {
         return "STATION";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -25,7 +20,10 @@ public class StationScorer implements CriterionScorer {
                 .filter(f -> f.walkMinutes() != null)
                 .toList();
         if (stations.isEmpty()) {
-            return ScoreResult.missing("역세권 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("반경 내 지하철역이 없습니다");
         }
         final int nearest = stations.stream()
                 .mapToInt(NearbyFacility::walkMinutes)

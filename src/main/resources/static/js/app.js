@@ -1411,8 +1411,15 @@ function halley() {
                         body: JSON.stringify({ scores })
                     });
                 if (ok) {
-                    this.showScoreModal = false;
                     await this.loadProperties();
+                    // 저장 후 닫지 않고 갱신된 점수를 그대로 보여준다
+                    const fresh = (this.properties || []).find(
+                        r => r.property.id === this.scoreProperty.property.id);
+                    if (fresh) {
+                        this.openScoreModal(fresh);
+                    } else {
+                        this.showScoreModal = false;
+                    }
                 } else {
                     this.error = (body && body.message) || '채점 저장에 실패했습니다';
                 }
@@ -1677,7 +1684,23 @@ function halley() {
         },
 
         scoreSourceLabel(source) {
-            return { AUTO: '자동', MANUAL: '수동', FALLBACK: '폴백' }[source] || '';
+            return { AUTO: '자동', MANUAL: '수동', FALLBACK: '미산출' }[source] || '';
+        },
+
+        scoreSourceBadge(source) {
+            return { AUTO: 'b-on', MANUAL: 'b-admin', FALLBACK: 'b-off' }[source] || '';
+        },
+
+        scoreCount(source) {
+            return (this.scoreProperty?.scores || []).filter(s => s.scoreSource === source).length;
+        },
+
+        /** 미산출 사유를 중복 없이 모아 모달 상단에 한 번만 보여준다. */
+        scoreBlockers() {
+            const reasons = (this.scoreProperty?.scores || [])
+                .filter(s => s.scoreSource === 'FALLBACK' && s.fallbackReason)
+                .map(s => s.fallbackReason);
+            return [...new Set(reasons)];
         },
 
         fmtScore(n) {

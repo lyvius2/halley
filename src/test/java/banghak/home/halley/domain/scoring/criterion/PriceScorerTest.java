@@ -30,14 +30,28 @@ class PriceScorerTest {
     @Test
     @DisplayName("호가가 예산상한을 초과하면 0점으로 클램프된다")
     void overBudgetClampsToZero() {
-        // given
+        // given — 현금 1억 + 대출한도(호가 10억 × LTV 0.4 = 4억) = 5억 < 호가
+        final ScoringContext ctx = TestContexts.context(100_000_000L, List.of());
+
+        // when
+        final ScoreResult result = scorer.score(new PropertyBuilder().priceDeposit(1_000_000_000L).build(), ctx);
+
+        // then
+        assertThat(result.score()).isEqualByComparingTo("0");
+    }
+
+    @Test
+    @DisplayName("가용 예산이 0이면 0점이 아니라 설정이 빠졌다는 사유를 남긴다")
+    void noBudgetIsMissingNotZero() {
+        // given — 현금이 0이면 예산상한이 늘 호가보다 작아 모든 매물이 0점으로 붕괴한다
         final ScoringContext ctx = TestContexts.context(0L, List.of());
 
         // when
         final ScoreResult result = scorer.score(new PropertyBuilder().priceDeposit(100_000_000L).build(), ctx);
 
         // then
-        assertThat(result.score()).isEqualByComparingTo("0");
+        assertThat(result.isComputed()).isFalse();
+        assertThat(result.fallbackReason()).contains("가용 예산");
     }
 
     @Test

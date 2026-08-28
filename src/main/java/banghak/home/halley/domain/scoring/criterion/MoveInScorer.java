@@ -2,7 +2,6 @@ package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.MoveInType;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.time.temporal.ChronoUnit;
 
@@ -16,10 +15,6 @@ public class MoveInScorer implements CriterionScorer {
         return "MOVE_IN";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {

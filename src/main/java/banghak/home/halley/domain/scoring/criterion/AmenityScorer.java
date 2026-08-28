@@ -2,7 +2,6 @@ package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.List;
 
@@ -17,10 +16,6 @@ public class AmenityScorer implements CriterionScorer {
         return "AMENITY";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -28,7 +23,10 @@ public class AmenityScorer implements CriterionScorer {
                 .filter(f -> "AMENITY".equals(f.category()))
                 .toList();
         if (amenity.isEmpty()) {
-            return ScoreResult.missing("편의시설 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("반경 내 편의시설이 없습니다");
         }
         final List<NearbyFacility> inRange = amenity.stream()
                 .filter(f -> f.distanceM() != null && f.distanceM() <= WALK_RANGE_M)

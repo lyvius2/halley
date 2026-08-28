@@ -1,7 +1,6 @@
 package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 public class BuildingCountScorer implements CriterionScorer {
 
@@ -12,10 +11,6 @@ public class BuildingCountScorer implements CriterionScorer {
         return "BUILDING_COUNT";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {

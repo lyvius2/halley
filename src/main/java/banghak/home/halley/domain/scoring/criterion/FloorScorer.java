@@ -2,7 +2,6 @@ package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 public class FloorScorer implements CriterionScorer {
 
@@ -13,10 +12,6 @@ public class FloorScorer implements CriterionScorer {
         return "FLOOR";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {

@@ -2,7 +2,6 @@ package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.List;
 
@@ -15,10 +14,6 @@ public class EducationScorer implements CriterionScorer {
         return "EDUCATION";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.HYBRID;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -26,7 +21,10 @@ public class EducationScorer implements CriterionScorer {
                 .filter(f -> "EDUCATION".equals(f.category()))
                 .toList();
         if (education.isEmpty()) {
-            return ScoreResult.missing("교육여건 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("반경 내 학교·보육시설이 없습니다");
         }
         final List<NearbyFacility> inRange = education.stream()
                 .filter(f -> f.distanceM() != null && f.distanceM() <= WALK_RANGE_M)

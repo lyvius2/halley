@@ -856,33 +856,77 @@
 <!-- D14 평가 채점 모달 -->
 <div class="modal" x-show="showScoreModal" x-cloak>
     <div class="modal-backdrop" @click="closeScoreModal()"></div>
-    <div class="modal-card modal-wide">
+    <div class="modal-card modal-xwide">
+        <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">평가 채점</span>
             <h3 x-text="scoreProperty?.property?.name"></h3>
-            <p>항목별 수동 점수를 입력하면 자동 점수를 덮어씁니다. 쾌적함은 사용자별 1~5로 평가합니다.</p>
+            <p>자동으로 계산되지 않은 항목은 직접 점수를 넣을 수 있습니다. 입력한 값은 자동 점수보다 우선합니다.</p>
         </div>
+
+        <div class="score-summary">
+            <div class="score-summary-total">
+                <span>총점</span>
+                <b x-text="fmtScore(scoreProperty?.totalScore)"></b>
+            </div>
+            <div class="score-summary-counts">
+                <span><i class="dot dot-auto"></i>자동 <b x-text="scoreCount('AUTO')"></b></span>
+                <span><i class="dot dot-manual"></i>수동 <b x-text="scoreCount('MANUAL')"></b></span>
+                <span><i class="dot dot-fallback"></i>미산출 <b x-text="scoreCount('FALLBACK')"></b></span>
+            </div>
+        </div>
+
+        <template x-if="scoreBlockers().length > 0">
+            <div class="score-alert">
+                <b>자동 채점이 막혀 있습니다</b>
+                <ul>
+                    <template x-for="reason in scoreBlockers()" :key="reason">
+                        <li x-text="reason"></li>
+                    </template>
+                </ul>
+            </div>
+        </template>
+
         <div class="score-list">
             <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
-                <label class="score-row">
-                    <span class="score-name">
-                        <b x-text="s.name"></b>
-                        <span class="score-source" x-text="scoreSourceLabel(s.scoreSource)"></span>
-                        <span class="score-source" x-show="s.scoringType==='HYBRID'">추정</span>
-                    </span>
-                    <button class="btn-link" x-show="s.scoringType==='HYBRID'" @click="confirmHybridScore(s.code)">추정값 확정</button>
-                    <span class="score-auto" x-text="'유효 ' + fmtScore(s.effectiveScore)"></span>
-                    <input type="number" x-model="scoreForm[s.code]"
-                           :min="s.code === 'COMFORT' ? 1 : 0"
-                           :max="s.code === 'COMFORT' ? 5 : 100"
-                           :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'">
-                </label>
+                <div class="score-item" :class="{'is-fallback': s.scoreSource==='FALLBACK'}">
+                    <div class="score-item-head">
+                        <span class="score-item-name" x-text="s.name"></span>
+                        <span class="badge" :class="scoreSourceBadge(s.scoreSource)" x-text="scoreSourceLabel(s.scoreSource)"></span>
+                        <span class="badge b-jeonse" x-show="s.scoringType==='HYBRID' && s.scoreSource==='AUTO'">추정</span>
+                    </div>
+
+                    <div class="score-item-gauge">
+                        <div class="gauge-track">
+                            <div class="gauge-fill" :class="s.scoreSource==='MANUAL' ? 'is-manual' : ''"
+                                 :style="'width:' + (s.effectiveScore == null ? 0 : s.effectiveScore) + '%'"></div>
+                        </div>
+                        <span class="gauge-value" x-text="fmtScore(s.effectiveScore)"></span>
+                    </div>
+
+                    <div class="score-item-input">
+                        <input type="number" x-model="scoreForm[s.code]"
+                               :min="s.code === 'COMFORT' ? 1 : 0"
+                               :max="s.code === 'COMFORT' ? 5 : 100"
+                               :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
+                               :aria-label="s.name + ' 점수 입력'">
+                        <button class="btn-link" x-show="s.scoringType==='HYBRID' && s.effectiveScore != null"
+                                @click="confirmHybridScore(s.code)">추정값 확정</button>
+                    </div>
+
+                    <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
+                </div>
             </template>
         </div>
+
         <p class="form-error" x-show="error" x-text="error"></p>
-        <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
-            <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
-        </button>
+        <div class="score-actions">
+            <span class="score-hint">쾌적함은 사용자별 1~5로 평가해 평균 × 20으로 환산됩니다.</span>
+            <button class="btn" @click="closeScoreModal()">닫기</button>
+            <button class="btn btn-primary" @click="saveScore()" :disabled="loading">
+                <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
+            </button>
+        </div>
     </div>
 </div>
 

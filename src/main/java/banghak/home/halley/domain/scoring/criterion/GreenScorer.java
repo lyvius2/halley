@@ -3,7 +3,6 @@ package banghak.home.halley.domain.scoring.criterion;
 import banghak.home.halley.domain.geo.GreenCategory;
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.List;
 import java.util.OptionalInt;
@@ -29,10 +28,6 @@ public class GreenScorer implements CriterionScorer {
         return "GREEN";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.HYBRID;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -40,7 +35,10 @@ public class GreenScorer implements CriterionScorer {
                 .filter(f -> "GREEN".equals(f.category()))
                 .toList();
         if (green.isEmpty()) {
-            return ScoreResult.missing("녹색환경 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("반경 내 공원·산·하천이 없습니다");
         }
         double score = 0.0;
         for (final GreenCategory category : GreenCategory.values()) {

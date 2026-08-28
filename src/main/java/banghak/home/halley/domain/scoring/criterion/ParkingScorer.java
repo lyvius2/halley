@@ -1,7 +1,6 @@
 package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 public class ParkingScorer implements CriterionScorer {
 
@@ -10,10 +9,6 @@ public class ParkingScorer implements CriterionScorer {
         return "PARKING";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
