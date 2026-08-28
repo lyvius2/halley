@@ -47,36 +47,6 @@
                 <h4>카카오맵 대기 중</h4>
                 <p>로그인 후 매물 좌표가 마커로 표시됩니다.</p>
             </div>
-            <div class="m2-panel" x-show="showM2" x-cloak>
-                <button class="m2-close" @click="closeDetail()">×</button>
-                <template x-if="detailItem">
-                    <div>
-                        <h3 class="m2-name" x-text="detailItem.property.name"></h3>
-                        <div class="m2-meta">
-                            <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
-                            <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
-                        </div>
-                        <div class="m2-rows">
-                            <div class="m2-row"><span>총점</span><b x-text="fmtScore(detailItem.totalScore)"></b></div>
-                            <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
-                            <div class="m2-row"><span>전용면적</span><b x-text="detailItem.property.areaExclusiveM2 ? detailItem.property.areaExclusiveM2 + '㎡' : '-'"></b></div>
-                            <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
-                            <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
-                            <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
-                            <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
-                        </div>
-                        <div class="m2-actions">
-                            <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
-                            <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
-                            <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
-                            <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
-                                        <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
-                                        <button class="btn btn-sm" @click="openAgentModal(detailItem)">중개인</button>
-                                        <button class="btn btn-sm" @click="openEditProperty(detailItem)">수정</button>
-                        </div>
-                    </div>
-                </template>
-            </div>
         </section>
 
         <aside class="list-panel">
@@ -736,6 +706,42 @@
             <button class="btn btn-primary" @click="confirmYes()">확인</button>
         </div>
     </div>
+</div>
+
+<!-- M2 매물 상세 모달 -->
+<div class="modal modal-detail" x-show="showM2" x-cloak>
+    <div class="modal-backdrop" @click="closeDetail()"></div>
+    <template x-if="detailItem">
+        <div class="modal-card modal-wide">
+            <button class="modal-close" @click="closeDetail()">×</button>
+            <div class="modal-head">
+                <span class="modal-kicker">매물 상세</span>
+                <h3 x-text="detailItem.property.name"></h3>
+            </div>
+            <div class="m2-meta">
+                <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
+                <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
+            </div>
+            <div class="m2-rows">
+                <div class="m2-row"><span>총점</span><b x-text="fmtScore(detailItem.totalScore)"></b></div>
+                <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
+                <div class="m2-row"><span>전용면적</span><b x-text="detailItem.property.areaExclusiveM2 ? detailItem.property.areaExclusiveM2 + '㎡' : '-'"></b></div>
+                <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
+                <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
+                <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
+                <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+            </div>
+            <div class="m2-actions">
+                <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
+                <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
+                <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
+                <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
+                <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
+                <button class="btn btn-sm" @click="openAgentModal(detailItem)">중개인</button>
+                <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">수정</button>
+            </div>
+        </div>
+    </template>
 </div>
 
 <!-- D10 매물 수기 등록/수정 모달 -->

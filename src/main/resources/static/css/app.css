@@ -264,6 +264,8 @@ td.num {
 
 /* ── 모달 ────────────────────────────────────────── */
 .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
+/* 매물 상세(M2)는 채점·대출·사진 등 자식 모달을 띄우는 출발점이므로 항상 그 아래에 깔린다 */
+.modal.modal-detail { z-index: 45; }
 .modal-backdrop {
     position: absolute;
     inset: 0;
@@ -274,6 +276,8 @@ td.num {
 .modal-card {
     position: relative;
     width: min(92vw, 400px);
+    max-height: 92vh;
+    overflow-y: auto;
     background: var(--card);
     border: 1px solid var(--line);
     border-radius: 12px;
@@ -295,8 +299,20 @@ td.num {
 
 /* ── 폼 ──────────────────────────────────────────── */
 .form { display: flex; flex-direction: column; gap: 14px; }
-.form label { font-size: 11.5px; color: var(--ink2); font-weight: 500; display: flex; flex-direction: column; gap: 6px; }
-.form input {
+
+/* 라벨·컨트롤 스타일은 .form 안팎을 가리지 않는다.
+   임장·프로필·중개인·사진·실거래 패널은 <form> 없이 .form-grid만 쓰므로 함께 지정한다. */
+.form label,
+.form-grid label {
+    font-size: 11.5px;
+    color: var(--ink2);
+    font-weight: 500;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+:is(.form, .form-grid) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea) {
     font-family: inherit;
     font-size: 13px;
     padding: 10px 12px;
@@ -305,19 +321,53 @@ td.num {
     background: var(--paper);
     color: var(--ink);
     transition: .15s;
+    width: 100%;
 }
-.form input:focus { outline: none; border-color: var(--ocean); background: #fff; }
-.form select {
+:is(.form, .form-grid) :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select, textarea):focus {
+    outline: none;
+    border-color: var(--ocean);
+    background: #fff;
+}
+:is(.form, .form-grid) textarea { resize: vertical; min-height: 88px; line-height: 1.6; }
+
+/* 좌표처럼 자동 입력만 받는 칸은 편집 불가임이 보이게 한다 (매물 폼 위도·경도) */
+:is(.form, .form-grid) input[readonly]:not([type=checkbox]):not([type=radio]):not([type=file]) {
+    background: var(--line2);
+    color: var(--ink2);
+    cursor: default;
+}
+:is(.form, .form-grid) input[readonly]:not([type=checkbox]):not([type=radio]):not([type=file]):focus {
+    background: var(--line2);
+    border-color: var(--line);
+}
+
+/* 체크박스·라디오는 기본 렌더를 유지하되 색·크기만 맞춘다 */
+input[type=checkbox], input[type=radio] {
+    accent-color: var(--ocean);
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+}
+
+/* 파일 선택 버튼 (D12 사진 업로드) */
+:is(.form, .form-grid) input[type=file] { font-size: 12px; color: var(--ink2); }
+:is(.form, .form-grid) input[type=file]::file-selector-button {
     font-family: inherit;
-    font-size: 13px;
-    padding: 10px 12px;
+    font-size: 12px;
+    padding: 7px 12px;
+    margin-right: 10px;
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--paper);
     color: var(--ink);
+    cursor: pointer;
     transition: .15s;
 }
-.form select:focus { outline: none; border-color: var(--ocean); background: #fff; }
+:is(.form, .form-grid) input[type=file]::file-selector-button:hover {
+    border-color: var(--ocean);
+    color: var(--ocean);
+}
+
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .form-grid .span2 { grid-column: span 2; }
 .form-error { font-size: 11px; color: var(--lava); }
@@ -440,33 +490,22 @@ td.num {
 }
 
 /* ── M2 매물 상세 패널 ─────────────────────────────── */
-.m2-panel {
-    position: absolute;
-    top: 16px;
-    right: 16px;
-    bottom: 16px;
-    width: 300px;
-    background: var(--card);
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    box-shadow: 0 10px 32px rgba(0, 0, 0, .2);
-    padding: 20px;
-    overflow-y: auto;
-    z-index: 20;
-}
-.m2-close {
+/* 매물 상세는 지도 위 슬라이드 패널이 아니라 모달로 띄운다 (설계 I45) */
+.modal-close {
     position: absolute;
     top: 12px;
     right: 12px;
     width: 26px; height: 26px;
     border: none; border-radius: 50%;
     background: var(--line2); color: var(--ink2);
-    font-size: 15px; cursor: pointer;
+    font-size: 15px; line-height: 1; cursor: pointer;
+    transition: .15s;
 }
+.modal-close:hover { background: var(--line); color: var(--ink); }
 .m2-name { font-family: 'Noto Serif KR', serif; font-size: 18px; margin-bottom: 8px; }
 .m2-meta { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .m2-price { font-family: 'JetBrains Mono', monospace; color: var(--ocean); font-weight: 700; }
-.m2-rows { border-top: 1px solid var(--line2); }
+.m2-rows { border-top: 1px solid var(--line2); max-height: 46vh; overflow-y: auto; }
 .m2-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
 .m2-row span { color: var(--ink2); }
 .m2-row b { font-family: 'JetBrains Mono', monospace; font-weight: 500; text-align: right; }
@@ -702,7 +741,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
     .main-grid { grid-template-columns: 1fr; }
     .map-panel { min-height: 52vh; border-right: 0; border-bottom: 1px solid var(--line); }
     .list-panel { overflow: visible; }
-    .m2-panel { width: calc(100% - 32px); }
 }
 
 @media (max-width: 768px) {
