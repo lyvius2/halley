@@ -514,7 +514,7 @@ sequenceDiagram
 | `llm.enabled` | `LLM_ENABLED` | `true` | 전체 스위치 |
 | `llm.provider` | `LLM_PROVIDER` | `claude` | 구현체가 여럿일 때 선택 |
 | `llm.claude.api-key` | `ANTHROPIC_API_KEY` | (없음) | `x-api-key` 헤더 |
-| `llm.claude.model` | `LLM_CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` | |
+| `llm.claude.model` | `LLM_CLAUDE_MODEL` | `claude-opus-5` | 판단의 질이 곧 채점 품질이라 상위 모델을 기본으로 둔다 (I71) |
 | `llm.claude.base-url` | — | `https://api.anthropic.com` | |
 
 **서킷브레이커/타임아웃**: `claude-llm` connect 5s / **read 60s**, 실패율 40%, open 60s.

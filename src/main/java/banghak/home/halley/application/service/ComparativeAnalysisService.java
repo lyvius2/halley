@@ -214,7 +214,9 @@ public class ComparativeAnalysisService {
             sb.add("매매가/보증금(원): " + number(p.priceDeposit()));
             sb.add("월세(원): " + number(p.priceMonthly()));
             sb.add("관리비(원/월): " + number(p.maintenanceFee()));
-            sb.add("주소: " + text(firstNonBlank(p.addressRoad(), p.addressJibun())));
+            // 도로명만 주면 모델이 동 이름을 잘못 추정한다 (설계 I71)
+            sb.add("지번주소: " + text(p.addressJibun()));
+            sb.add("도로명주소: " + text(p.addressRoad()));
             sb.add("공급면적(㎡): " + number(p.areaSupplyM2()));
             sb.add("전용면적(㎡): " + number(p.areaExclusiveM2()));
             sb.add("해당층/총층: " + (p.floorNo() == null ? "정보 없음"
@@ -319,14 +321,6 @@ public class ComparativeAnalysisService {
         return value == null ? "정보 없음" : String.valueOf(value);
     }
 
-    private String firstNonBlank(String... values) {
-        for (final String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
-    }
 
     record Ranking(Long propertyId, Integer rank, BigDecimal score, String reason) {
     }
