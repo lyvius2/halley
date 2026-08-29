@@ -165,3 +165,9 @@ slack:
 law:
   oc: ${LAW_OC:test}
   base-url: http://www.law.go.kr
+
+# 금융감독원 금융상품통합비교공시 (설계 I77).
+# 주담대·전세자금대출의 실제 공시 금리를 회사·조건별로 받는다.
+fss:
+  api-key: ${FSS_API_KEY:}
+  base-url: http://finlife.fss.or.kr/finlifeapi
