@@ -9,6 +9,7 @@ import banghak.home.halley.domain.llm.LlmJobState;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.domain.llm.LlmResult;
+import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.user.User;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -46,7 +48,8 @@ public class LlmRecommendationService {
 
     private static final String SYSTEM_PROMPT = """
             당신은 한국 부동산 매물을 평가하는 조력자입니다.
-            주어진 매물 정보와 구매자들의 직장 위치를 근거로 이 매물이 이 구매자들에게 얼마나 적합한지 판단하세요.
+            주어진 매물 정보, 주변 시설, 구매자들의 직장 위치를 근거로
+            이 매물이 이 구매자들에게 얼마나 적합한지 판단하세요.
 
             반드시 아래 JSON 형식으로만 답하세요. 다른 문장을 덧붙이지 마세요.
             {"score": <0~100 정수>, "reason": "<한국어 두세 문장>"}
@@ -54,6 +57,7 @@ public class LlmRecommendationService {
             채점 지침
             - score는 이 구매자들에게 이 매물이 얼마나 좋은 선택인지를 0~100으로 나타냅니다.
             - reason에는 점수의 근거를 구체적으로 적으세요. 어떤 정보가 없어서 판단이 제한됐다면 그것도 밝히세요.
+            - [주변 시설]의 지하철역과 도보시간은 통근 판단의 핵심 근거입니다. 있으면 반드시 반영하세요.
             - 주어지지 않은 정보를 지어내지 마세요.
             """;
 
@@ -62,6 +66,7 @@ public class LlmRecommendationService {
     private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final PoiDataService poiDataService;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
 
@@ -70,6 +75,7 @@ public class LlmRecommendationService {
                                     LlmJobCache jobCache,
                                     PropertyRepository propertyRepository,
                                     UserRepository userRepository,
+                                    PoiDataService poiDataService,
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
@@ -77,6 +83,7 @@ public class LlmRecommendationService {
         this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
+        this.poiDataService = poiDataService;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
     }
@@ -187,7 +194,7 @@ public class LlmRecommendationService {
         }
         final Property property = found.get();
         final List<User> buyers = activeBuyers();
-        final String prompt = buildPrompt(property, buyers);
+        final String prompt = buildPrompt(property, buyers, poiDataService.ensureNearby(property));
         final String hash = sha256(prompt);
         final int workplaces = (int) buyers.stream()
                 .filter(u -> u.workplaceLat() != null && u.workplaceLng() != null)
@@ -236,7 +243,7 @@ public class LlmRecommendationService {
      * 프롬프트는 <b>줄 단위로 안정적</b>이어야 한다. 순서가 흔들리면 해시가 달라져 같은 입력에도
      * 다시 호출된다. 그래서 필드를 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
      */
-    String buildPrompt(Property property, List<User> buyers) {
+    String buildPrompt(Property property, List<User> buyers, List<NearbyFacility> nearby) {
         final StringJoiner sb = new StringJoiner("\n");
         sb.add("[매물 정보]");
         sb.add("단지명: " + text(property.name()));
@@ -267,6 +274,10 @@ public class LlmRecommendationService {
                 ? "정보 없음" : property.lat() + ", " + property.lng()));
 
         sb.add("");
+        sb.add("[주변 시설] 도보 분은 직선거리 기준 환산치");
+        appendNearby(sb, nearby);
+
+        sb.add("");
         sb.add("[구매자들의 직장 위치]");
         if (buyers.isEmpty()) {
             sb.add("정보 없음");
@@ -279,6 +290,53 @@ public class LlmRecommendationService {
             }
         }
         return sb.toString();
+    }
+
+
+    /**
+     * 주변 시설을 <b>가까운 순으로</b> 프롬프트에 싣는다.
+     *
+     * <p>이게 없어서 모델이 "지하철역 접근성 정보가 없어 통근 시간 산정에 한계가 있다"고 답했다.
+     * 앱은 역명과 도보시간을 이미 갖고 있었는데({@code StationScorer}가 채점에 쓴다) 프롬프트에만
+     * 빠져 있었다. <b>채점이 쓰는 입력은 모델도 봐야 한다</b> — 같은 매물을 두고 서로 다른 근거로
+     * 판단하면 추천 사유와 채점 결과가 어긋난다.
+     *
+     * <p>전부 넣으면 수백 건이라 카테고리마다 가까운 것만 추린다. 순서는 도보시간 → 이름으로
+     * 고정한다 — 프롬프트가 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다.
+     */
+    private void appendNearby(StringJoiner sb, List<NearbyFacility> nearby) {
+        if (nearby == null || nearby.isEmpty()) {
+            sb.add("정보 없음");
+            return;
+        }
+        for (final NearbyCategory category : NEARBY_CATEGORIES) {
+            final List<NearbyFacility> matched = nearby.stream()
+                    .filter(f -> category.code().equals(f.category()))
+                    .filter(f -> f.walkMinutes() != null)
+                    .sorted(Comparator.comparing(NearbyFacility::walkMinutes)
+                            .thenComparing(NearbyFacility::name))
+                    .toList();
+            if (matched.isEmpty()) {
+                sb.add(category.label() + ": 반경 내 없음");
+                continue;
+            }
+            final String top = matched.stream()
+                    .limit(category.limit())
+                    .map(f -> f.name() + " 도보 " + f.walkMinutes() + "분")
+                    .collect(java.util.stream.Collectors.joining(", "));
+            sb.add(category.label() + ": " + top
+                    + (matched.size() > category.limit() ? " 외 " + (matched.size() - category.limit()) + "곳" : ""));
+        }
+    }
+
+    /** 역은 통근을 좌우하므로 여러 개, 나머지는 가장 가까운 것만 보여도 판단에 충분하다. */
+    private static final List<NearbyCategory> NEARBY_CATEGORIES = List.of(
+            new NearbyCategory("STATION", "지하철역", 3),
+            new NearbyCategory("EDUCATION", "학교·학원", 2),
+            new NearbyCategory("AMENITY", "생활편의", 3),
+            new NearbyCategory("GREEN", "공원·녹지", 2));
+
+    private record NearbyCategory(String code, String label, int limit) {
     }
 
     /** 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 해시가 달라진다. */

@@ -11,6 +11,7 @@ import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ListingStatus;
+import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SourceType;
 import banghak.home.halley.domain.user.User;
@@ -156,7 +157,7 @@ class LlmRecommendationServiceTest {
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                objectMapper, false);
+                poiDataService, objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -204,6 +205,52 @@ class LlmRecommendationServiceTest {
         assertThat(prompt).contains("밥: 판교역");
         // 값이 없는 항목은 지어내지 않고 '정보 없음'으로 남긴다
         assertThat(prompt).contains("공시가격(원): 정보 없음");
+    }
+
+    @Test
+    @DisplayName("주변 지하철역과 도보시간이 프롬프트에 담긴다 — 없으면 모델이 '역 정보가 없다'고 답한다")
+    void promptCarriesNearbyStations() {
+        // given — 채점(StationScorer)이 쓰는 것과 같은 POI 입력
+        givenPropertyAndUsers();
+        when(poiDataService.ensureNearby(any())).thenReturn(List.of(
+                NearbyFacility.of(1L, "STATION", "SW8", "미사역", 1400, 20, Instant.now()),
+                NearbyFacility.of(1L, "STATION", "SW8", "하남풍산역", 2000, 28, Instant.now()),
+                NearbyFacility.of(1L, "GREEN", "공원", "미사경정공원", 700, 10, Instant.now())));
+        final AtomicReference<LlmMessage> sent = new AtomicReference<>();
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        // when
+        service(capturing(sent)).ensureRecommendation(1L);
+
+        // then — 가까운 순으로, 역명과 도보시간이 함께 간다
+        final String prompt = sent.get().user();
+        assertThat(prompt).contains("[주변 시설]");
+        assertThat(prompt).contains("지하철역: 미사역 도보 20분, 하남풍산역 도보 28분");
+        assertThat(prompt).contains("공원·녹지: 미사경정공원 도보 10분");
+        // 반경 내 없는 항목은 비워 두지 않고 없다고 밝힌다 — 모델이 지어내지 않도록
+        assertThat(prompt).contains("학교·학원: 반경 내 없음");
+    }
+
+    /** 보낸 메시지를 붙잡아 두는 스텁. */
+    private LlmPort capturing(AtomicReference<LlmMessage> sent) {
+        return new LlmPort() {
+            @Override
+            public String provider() {
+                return "stub";
+            }
+
+            @Override
+            public boolean isEnabled() {
+                return true;
+            }
+
+            @Override
+            public LlmResult complete(LlmMessage message) {
+                sent.set(message);
+                return LlmResult.of("{\"score\": 60, \"reason\": \"보통\"}", "m");
+            }
+        };
     }
 
     @Test
@@ -410,11 +457,12 @@ class LlmRecommendationServiceTest {
 
     /** 진행 표시 캐시는 로컬 인메모리 구현을 그대로 쓴다 — 실제 동작을 흉내 낼 필요가 없다. */
     private final LlmJobCache jobCache = new InMemoryLlmJobCache();
+    private final PoiDataService poiDataService = mock(PoiDataService.class);
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                objectMapper, true);
+                poiDataService, objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {
