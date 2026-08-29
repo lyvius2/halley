@@ -61,6 +61,12 @@ public record LoanEstimateResponse(
         String ownershipLabel,
         BigDecimal ltvRate,
         String ltvReason,
+        /**
+         * 규제지역 값을 믿을 수 없을 때 그 사유 (설계 I73). 규제지역이 비면 비규제로 판정되어
+         * LTV 0.7이 잡히는데, 실제가 투기과열지구(0.4)면 <b>한도를 과대평가</b>한다.
+         * 조용히 틀리지 않도록 화면에 그대로 실어 보낸다. 정상이면 null
+         */
+        String zoneWarning,
 
         // ── 전세 전용 ────────────────────────────
         Long guaranteeLimit,
@@ -72,7 +78,8 @@ public record LoanEstimateResponse(
                                                 long askingPrice, long annualIncome, long cash,
                                                 long existingLoan, boolean insured,
                                                 RegulationZone zone, HouseOwnership ownership,
-                                                BigDecimal ltvRate, String ltvReason) {
+                                                BigDecimal ltvRate, String ltvReason,
+                                                String zoneWarning) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.MORTGAGE, "주택담보대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), false,
@@ -83,7 +90,7 @@ public record LoanEstimateResponse(
                 r.collateralValue(), r.collateralSource(), r.collateralSource().label(),
                 r.collateralSampleCount(), r.collateralReliable(),
                 r.leaseDeduction(), insured,
-                zone, zone.label(), ownership, ownership.label(), ltvRate, ltvReason,
+                zone, zone.label(), ownership, ownership.label(), ltvRate, ltvReason, zoneWarning,
                 null, null, null);
     }
 
@@ -97,7 +104,7 @@ public record LoanEstimateResponse(
                 deposit, annualIncome, cash, existingLoan,
                 r.monthlyRate(), r.termMonths(),
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 r.guaranteeLimit(), r.guaranteeRate(), r.guaranteeCap());
     }
 }

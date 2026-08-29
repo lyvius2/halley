@@ -76,6 +76,19 @@ public class RegulatedAreaRepository {
         dsl.deleteFrom(TABLE).where(ID.eq(id)).execute();
     }
 
+    public int countByZone(RegulationZone zone) {
+        return dsl.fetchCount(TABLE, ZONE.eq(zone.name()));
+    }
+
+    /**
+     * 고시가 갱신되면 그 규제의 지역을 <b>통째로 갈아 끼운다</b> (설계 I73). 부분 갱신하면
+     * 해제된 지역이 남아 거짓이 된다 — 고시 현황표는 그 시점의 전체 목록이다.
+     */
+    public void replaceZone(RegulationZone zone, List<RegulatedArea> areas) {
+        dsl.deleteFrom(TABLE).where(ZONE.eq(zone.name())).execute();
+        areas.forEach(this::save);
+    }
+
     private RegulatedArea map(Record r) {
         return new RegulatedArea(
                 r.get(ID), r.get(CODE_PREFIX), toEnum(RegulationZone.class, r.get(ZONE)),

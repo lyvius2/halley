@@ -331,3 +331,13 @@ CREATE TABLE IF NOT EXISTS legal_dong_code (
     is_active  BOOLEAN NOT NULL DEFAULT TRUE,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS regulation_notice (
+    zone          VARCHAR(30) PRIMARY KEY,
+    notice_no     VARCHAR(50),
+    announced_on  DATE,
+    seed_status   VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED',
+    area_count    INT NOT NULL DEFAULT 0,
+    message       VARCHAR(500),
+    updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

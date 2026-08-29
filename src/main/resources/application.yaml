@@ -158,3 +158,10 @@ slack:
   notify:
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
     sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
+
+# 법제처 국가법령정보 — 규제지역 고시 조회 (설계 I73).
+# OC는 인증키가 아니라 이메일 ID다(hong@korea.kr → hong). 시험용 test로도 응답하지만
+# 언제까지 열려 있을지 보장이 없어 운영에서는 발급받아 쓴다.
+law:
+  oc: ${LAW_OC:test}
+  base-url: http://www.law.go.kr

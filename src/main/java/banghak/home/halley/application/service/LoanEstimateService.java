@@ -64,6 +64,7 @@ public class LoanEstimateService {
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
     private final LoanEstimateRepository loanEstimateRepository;
+    private final RegulationNoticeService regulationNoticeService;
     private final ObjectMapper objectMapper;
 
     public LoanEstimateService(PropertyRepository propertyRepository,
@@ -73,6 +74,7 @@ public class LoanEstimateService {
                                RegulationParamRepository regulationParamRepository,
                                SystemConfigRepository systemConfigRepository,
                                LoanEstimateRepository loanEstimateRepository,
+                               RegulationNoticeService regulationNoticeService,
                                ObjectMapper objectMapper) {
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
@@ -81,7 +83,22 @@ public class LoanEstimateService {
         this.regulationParamRepository = regulationParamRepository;
         this.systemConfigRepository = systemConfigRepository;
         this.loanEstimateRepository = loanEstimateRepository;
+        this.regulationNoticeService = regulationNoticeService;
         this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 규제지역 값을 못 믿을 때 화면에 실을 문구 (설계 I73).
+     *
+     * <p>규제지역이 비어 있으면 {@code RegulatedAreaService}가 비규제로 판정하고 LTV 0.7이
+     * 잡힙니다. 실제가 투기과열지구(0.4)라면 <b>한도가 배 가까이 부풀려집니다.</b> 값이 틀린 것보다
+     * 틀렸는지 모르는 것이 위험하므로 결과에 붙여 보냅니다.
+     */
+    private String zoneWarning() {
+        if (regulationNoticeService.isTrustworthy()) {
+            return null;
+        }
+        return "규제지역 정보를 아직 불러오지 못했습니다. 실제 규제지역이라면 한도가 과대평가될 수 있습니다.";
     }
 
     /**
@@ -141,7 +158,7 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
-                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason());
+                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning());
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
