@@ -40,6 +40,9 @@ function emptyUserForm() {
     };
 }
 
+/** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
+const COMPARE_MIN_PROPERTIES = 4;
+
 function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
@@ -91,6 +94,10 @@ function halley() {
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        showCompare: false,
+        compareStatus: null,
+        compareRunning: false,
+        compareError: null,
         showComments: false,
         commentProperty: null,
         comments: [],
@@ -554,6 +561,80 @@ function halley() {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // ── 비교 우위 분석 (설계 I61) ─────────────────
+        /** 분석 대상은 판매완료·작성 중을 뺀 매물이다 — 서버의 판정과 같은 기준을 화면에서도 쓴다. */
+        comparableCount() {
+            return this.properties.filter(r => r.property.active && !r.property.isDraft).length;
+        },
+
+        canCompare() {
+            const min = this.compareStatus ? this.compareStatus.minProperties : COMPARE_MIN_PROPERTIES;
+            if (this.comparableCount() < min) {
+                return false;
+            }
+            // 현황을 아직 못 읽었으면 매물 수만으로 판단한다. 서버가 최종 판정을 다시 한다.
+            return this.compareStatus ? this.compareStatus.analysable : true;
+        },
+
+        /** 왜 못 누르는지 버튼에 붙여 준다. 비활성 이유가 안 보이면 고장으로 읽힌다. */
+        compareHint() {
+            const min = this.compareStatus ? this.compareStatus.minProperties : COMPARE_MIN_PROPERTIES;
+            const count = this.comparableCount();
+            if (count < min) {
+                return `매물이 ${min}건 이상이어야 비교할 수 있습니다 (현재 ${count}건)`;
+            }
+            if (this.compareStatus && !this.compareStatus.analysable) {
+                return 'AI 분석을 사용할 수 없습니다. LLM 연동 설정을 확인해 주세요';
+            }
+            return '등록된 매물 전체를 견주어 순위를 매깁니다';
+        },
+
+        hasCompareResult() {
+            return !!(this.compareStatus && this.compareStatus.rankings && this.compareStatus.rankings.length > 0);
+        },
+
+        async openCompare() {
+            this.compareError = null;
+            this.showCompare = true;
+            await this.loadCompareStatus();
+        },
+
+        closeCompare() {
+            this.showCompare = false;
+            this.compareError = null;
+        },
+
+        async loadCompareStatus() {
+            const { ok, body } = await this.request('/api/properties/comparative-analysis');
+            if (ok) {
+                this.compareStatus = body;
+            }
+        },
+
+        async runCompare() {
+            // 서버가 다시 검증하지만, 여기서 막아야 눌러 놓고 에러를 받는 일이 없다
+            if (!this.canCompare()) {
+                this.compareError = this.compareHint();
+                return;
+            }
+            this.compareRunning = true;
+            this.compareError = null;
+            try {
+                const { ok, body } = await this.request('/api/properties/comparative-analysis', { method: 'POST' });
+                if (ok) {
+                    this.compareStatus = body;
+                    // 순위가 바뀌면 전 매물의 총점이 함께 움직인다
+                    await this.loadProperties();
+                } else {
+                    this.compareError = (body && body.message) || '분석에 실패했습니다';
+                }
+            } catch (e) {
+                this.compareError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.compareRunning = false;
             }
         },
 

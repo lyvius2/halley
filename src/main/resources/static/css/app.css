@@ -1286,3 +1286,74 @@ tr.dragging { opacity: .5; background: var(--line2); }
     cursor: pointer;
 }
 .photo-del:hover { background: var(--lava); }
+
+/* ── 비교 우위 분석 (설계 I61) ──────────────────────
+   매물 목록 헤더만 오른쪽에 버튼 묶음을 갖는다. 다른 화면의 .sec-sub는
+   margin-left:auto로 오른쪽에 붙는 규칙을 그대로 쓰므로 클래스로 구분한다. */
+.sec-head-actions .sec-sub { margin-left: 0; }
+.sec-head-actions .sec-actions { display: flex; gap: 8px; margin-left: auto; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.compare-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.compare-count { font-size: 12px; color: var(--ink2); }
+.compare-count b { font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+.compare-count small { color: var(--ink3); margin-left: 4px; font-size: 10.5px; }
+.compare-warn {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--sunset);
+}
+
+.compare-list { margin-top: 16px; display: grid; gap: 8px; }
+.compare-row {
+    display: flex;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+}
+/* 1위만 눈에 먼저 들어오게 — 순위표에서 가장 중요한 정보다 */
+.compare-row.top { border-left-color: var(--sand); background: #fffdf7; }
+.compare-rank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    flex-shrink: 0;
+}
+.compare-rank b { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; }
+.compare-rank i { font-style: normal; font-size: 9.5px; color: var(--ink3); }
+.compare-row.top .compare-rank b { color: var(--sand); }
+.compare-body { flex: 1; min-width: 0; }
+.compare-title { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.compare-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compare-title .score-pill { margin-left: auto; flex-shrink: 0; }
+.compare-reason { font-size: 12px; line-height: 1.7; color: var(--ink2); }
+.compare-meta {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--ink3);
+    font-family: 'JetBrains Mono', monospace;
+}

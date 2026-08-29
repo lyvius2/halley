@@ -55,8 +55,14 @@
             <template x-if="session.authenticated && !session.mustChangePassword">
                 <div>
                     <div x-show="view==='list'">
-                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
-                            <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
+                        <div class="sec-head sec-head-actions">
+                            <span class="sec-num">01</span><h2>매물</h2>
+                            <span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
+                            <div class="sec-actions">
+                                <button class="btn btn-sm" @click="openCompare()"
+                                        :disabled="!canCompare()" :title="compareHint()">비교 우위 분석</button>
+                                <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
+                            </div>
                         </div>
                         <div class="deal-tabs">
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
@@ -1396,6 +1402,61 @@
             </div>
         </div>
         <p class="form-error" x-show="error" x-text="error"></p>
+    </div>
+</div>
+
+<!-- D26 비교 우위 분석 모달 (설계 I61) -->
+<div class="modal" x-show="showCompare" x-cloak>
+    <div class="modal-backdrop" @click="closeCompare()"></div>
+    <div class="modal-card modal-xwide">
+        <button class="modal-close" @click="closeCompare()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">비교 우위</span>
+            <h3>매물 비교 분석</h3>
+            <p>등록된 매물 전체를 한 번에 견주어 순위를 매깁니다. 판매완료·작성 중 매물은 제외됩니다.</p>
+        </div>
+
+        <div class="compare-bar">
+            <span class="compare-count">
+                비교 대상 <b x-text="compareStatus ? compareStatus.propertyCount : 0"></b>건
+                <small x-text="'(최소 ' + (compareStatus ? compareStatus.minProperties : 4) + '건 필요)'"></small>
+            </span>
+            <button class="btn btn-primary btn-sm" @click="runCompare()"
+                    :disabled="compareRunning || !canCompare()">
+                <span x-text="compareRunning ? '분석 중…' : (hasCompareResult() ? '다시 분석' : '분석 실행')"></span>
+            </button>
+        </div>
+
+        <p class="compare-warn" x-show="!canCompare()" x-text="compareHint()"></p>
+        <p class="form-error" x-show="compareError" x-text="compareError"></p>
+
+        <template x-if="hasCompareResult()">
+            <div class="compare-list">
+                <template x-for="r in compareStatus.rankings" :key="r.propertyId">
+                    <article class="compare-row" :class="{ top: r.rank === 1 }">
+                        <div class="compare-rank">
+                            <b x-text="r.rank"></b><i x-text="'/ ' + r.propertyCount"></i>
+                        </div>
+                        <div class="compare-body">
+                            <div class="compare-title">
+                                <span class="compare-name" x-text="r.propertyName"></span>
+                                <span class="score-pill" :class="r.score >= 50 ? 'score-high' : 'score-low'">
+                                    <b x-text="fmtScore(r.score)"></b><i>점</i>
+                                </span>
+                            </div>
+                            <p class="compare-reason" x-text="r.reason"></p>
+                        </div>
+                    </article>
+                </template>
+                <p class="compare-meta">
+                    <span x-text="compareStatus.rankings[0].model"></span>
+                    <span x-text="fmtTime(compareStatus.rankings[0].computedAt)"></span>
+                </p>
+            </div>
+        </template>
+        <template x-if="!hasCompareResult() && !compareRunning">
+            <p class="m2-empty">아직 분석 결과가 없습니다.</p>
+        </template>
     </div>
 </div>
 
