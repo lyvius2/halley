@@ -5,6 +5,7 @@ import banghak.home.halley.domain.user.UserRole;
 import java.math.BigDecimal;
 
 public record CreateUserRequest(
+        String loginId,
         String nickname,
         String email,
         String password,
@@ -12,6 +13,8 @@ public record CreateUserRequest(
         String workplaceName,
         BigDecimal workplaceLat,
         BigDecimal workplaceLng,
-        Long availableBudget
+        Long availableBudget,
+        Long annualIncome,
+        Long existingLoan
 ) {
 }

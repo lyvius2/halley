@@ -50,13 +50,14 @@ body {
     gap: 16px;
     padding: 12px 20px;
 }
+/* 서비스명은 라틴 문자라 Noto Sans를 쓴다 — 로그인 모달의 제목과 같은 얼굴 */
 .wordmark {
-    font-family: 'Noto Serif KR', serif;
+    font-family: 'Noto Sans', sans-serif;
     font-size: 16px;
     font-weight: 700;
     color: #fff;
     text-decoration: none;
-    letter-spacing: .01em;
+    letter-spacing: -.01em;
 }
 .wordmark em { font-style: normal; color: #e8c98a; font-weight: 300; }
 /* 상단 메뉴는 건반처럼 — 각진 사각형이 맞붙고, 선택된 키만 눌린 듯 밝아진다 */
@@ -285,6 +286,11 @@ td.num {
 .btn-ghost:hover { border-color: #e8c98a; color: #e8c98a; }
 .btn-block { width: 100%; padding: 11px 18px; }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
+.btn-xs { padding: 4px 10px; font-size: 11px; }
+.btn-danger { color: var(--lava); border-color: #eeb4a4; }
+.btn-danger:hover { background: #fdf1ee; border-color: var(--lava); color: var(--lava); }
+/* 표 안의 관리 버튼 묶음 */
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
 /* ── 모달 ────────────────────────────────────────── */
 .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; }
@@ -309,6 +315,33 @@ td.num {
     box-shadow: 0 18px 50px rgba(0, 0, 0, .28);
 }
 .modal-card.modal-wide { width: min(92vw, 560px); }
+
+/* 로그인 모달 — halley.png를 배경으로 깔고 그 위에 어두운 겹을 덮는다.
+   원본이 어두운 사진이라 카드 전체를 다크 톤으로 뒤집는 편이 글자가 더 잘 읽힌다. */
+.modal-card.modal-login {
+    background:
+        linear-gradient(rgba(12, 16, 22, .74), rgba(12, 16, 22, .86)),
+        url('/image/halley.png') center / cover no-repeat;
+    border-color: rgba(255, 255, 255, .16);
+    box-shadow: 0 22px 60px rgba(0, 0, 0, .5);
+}
+.modal-login .modal-head h3,
+.modal-login .form > label { color: #f4f1ea; }
+/* 서비스명은 라틴 문자라 본문용 Noto Sans KR 대신 Noto Sans를 쓴다 */
+.modal-login .modal-head h3 { font-family: 'Noto Sans', sans-serif; letter-spacing: -.01em; }
+.modal-login .modal-head p { color: rgba(244, 241, 234, .72); text-align: right; }
+.modal-login .modal-kicker { color: #e2c58d; }
+.modal-login .form input {
+    background: rgba(255, 255, 255, .08);
+    border-color: rgba(255, 255, 255, .22);
+    color: #f4f1ea;
+}
+.modal-login .form input::placeholder { color: rgba(244, 241, 234, .45); }
+.modal-login .form input:focus {
+    background: rgba(255, 255, 255, .14);
+    border-color: var(--ocean-l);
+}
+.modal-login .form-error { color: #ff9c8a; }
 /* 설정(M6)은 표가 들어가 더 넓어야 한다 */
 .modal-card.modal-xwide { width: min(94vw, 820px); }
 .modal-head { margin-bottom: 20px; }
@@ -460,18 +493,170 @@ input[type=checkbox], input[type=radio] {
 .empty-cell { text-align: center; color: var(--ink3); padding: 20px; }
 
 /* ── 대출 결과 (D16) ───────────────────────────────── */
-.loan-result { margin-top: 16px; border: 1px solid var(--line2); border-radius: 10px; padding: 14px 16px; }
-.loan-row {
+/* ── 대출 한도 모달 (설계 I55) ─────────────────────
+   프로필로 이미 계산된 결과를 먼저 보여주고, 입력은 접어 둔다. */
+.loan-modal .modal-head { margin-bottom: 16px; }
+
+.loan-hero {
+    display: flex;
+    align-items: stretch;
+    gap: 16px;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--ocean) 0%, #123f52 100%);
+    color: #f2f6f8;
+}
+.loan-hero-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.loan-hero-label { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; opacity: .7; }
+.loan-hero-main strong {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: -.02em;
+}
+.loan-hero-main small { font-size: 10.5px; opacity: .75; }
+.loan-hero-side {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    padding-left: 16px;
+    border-left: 1px solid rgba(255, 255, 255, .18);
+}
+.loan-hero-side div { display: flex; gap: 10px; justify-content: space-between; font-size: 11px; }
+.loan-hero-side span { opacity: .7; }
+.loan-hero-side b { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+
+/* 매매가 = 대출 + 자기자본 */
+.loan-stack { margin-top: 16px; }
+.loan-stack-bar {
+    display: flex;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--line2);
+}
+.loan-stack-bar .seg { transition: width .18s ease; }
+.seg-loan { background: var(--ocean-l); }
+.seg-cash { background: var(--sand); }
+.loan-stack-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--ink2);
+}
+.loan-stack-legend b { font-family: 'JetBrains Mono', monospace; color: var(--ink); margin-left: 4px; }
+.loan-stack-total { margin-left: auto; color: var(--ink3); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 5px; }
+.dot-loan { background: var(--ocean-l); }
+.dot-cash { background: var(--sand); }
+
+/* 대출액 슬라이더 */
+.loan-slider { margin-top: 18px; }
+.loan-slider-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.loan-slider-head label { font-size: 11.5px; color: var(--ink2); }
+.loan-slider-head output {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ocean);
+}
+.loan-slider input[type=range] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    border-radius: 2px;
+    background: var(--line2);
+    outline: none;
+}
+.loan-slider input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ocean);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .28);
+    cursor: pointer;
+}
+.loan-slider input[type=range]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--ocean);
+    border: 3px solid #fff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .28);
+    cursor: pointer;
+}
+.loan-slider-scale {
     display: flex;
     justify-content: space-between;
-    align-items: baseline;
-    padding: 7px 0;
-    border-bottom: 1px solid var(--line2);
-    font-size: 12.5px;
+    margin-top: 5px;
+    font-size: 10px;
+    color: var(--ink3);
 }
-.loan-row:last-of-type { border-bottom: none; }
-.loan-row span { color: var(--ink2); }
-.loan-row b { font-family: 'JetBrains Mono', monospace; color: var(--ocean); }
+
+/* 조정 결과 카드 */
+.loan-cards {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 18px;
+}
+.loan-card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px;
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.loan-card > span { font-size: 10.5px; color: var(--ink3); }
+.loan-card > b { font-family: 'JetBrains Mono', monospace; font-size: 14px; color: var(--ink); }
+.loan-card > small { font-size: 9.5px; color: var(--ink3); }
+.loan-card.loan-ok { border-color: rgba(27, 94, 120, .35); }
+.loan-card.loan-ok > b { color: var(--ocean); }
+.loan-card.loan-short { border-color: rgba(190, 70, 50, .4); background: #fdf5f3; }
+.loan-card.loan-short > b { color: var(--lava); }
+
+/* 계산 전제 */
+.loan-assume {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line2);
+    font-size: 11px;
+    color: var(--ink2);
+}
+.loan-assume-item b { font-family: 'JetBrains Mono', monospace; color: var(--ink); margin-left: 3px; }
+.loan-assume-item small { color: var(--ink3); margin-left: 3px; }
+.loan-assume .btn-xs { margin-left: auto; }
+.loan-check { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.loan-check input { width: auto; margin: 0; }
+
+.loan-override {
+    margin-top: 12px;
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.loan-override .form-grid { margin-bottom: 8px; }
+
+@media (max-width: 720px) {
+    .loan-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .loan-hero { flex-direction: column; }
+    .loan-hero-side { padding-left: 0; border-left: none; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .18); }
+}
+
 .loan-note { margin-top: 10px; font-size: 10.5px; color: var(--ink3); }
 
 /* ── 실거래 참고 카드 (D16-2) ───────────────────────── */
@@ -540,9 +725,38 @@ input[type=checkbox], input[type=radio] {
 .m2-row b { font-family: 'JetBrains Mono', monospace; font-weight: 500; text-align: right; }
 .m2-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
+/* 매물 상세(M2) — 버튼을 눌러 펼치던 항목을 한 화면에 모두 보여준다 (설계 I53) */
+.m2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
+.m2-sec-wide { grid-column: 1 / -1; }
+.m2-sec > h4 {
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--sand);
+    margin-bottom: 6px;
+}
+/* 섹션 안에서는 각자 스크롤하지 않는다 — 모달 전체가 한 번에 흐르는 편이 읽기 쉽다 */
+.m2-grid .m2-rows { max-height: none; overflow: visible; }
+.m2-row small { color: var(--ink3); font-weight: 400; }
+.m2-src {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 5px;
+    border: 1px solid var(--line2);
+    border-radius: 3px;
+    font-size: 9.5px;
+}
+.m2-empty { font-size: 11.5px; color: var(--ink3); padding: 8px 0; }
+.m2-gap { font-size: 11.5px; color: var(--ocean); margin-bottom: 8px; }
+@media (max-width: 720px) {
+    .m2-grid { grid-template-columns: 1fr; }
+}
+
 /* ── 프로필 (M5) ───────────────────────────────────── */
 .profile-panel { padding: 18px; }
 .profile-title { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 12px; color: var(--ink2); }
+/* 카드 안 액션 버튼은 입력과 붙지 않게 띄운다 */
+.panel-actions { display: flex; gap: 10px; margin-top: 20px; }
 .profile-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--line2); font-size: 12.5px; }
 .profile-row span { color: var(--ink2); }
 .profile-row b { font-weight: 500; }
@@ -566,15 +780,10 @@ input[type=checkbox], input[type=radio] {
 .temp-pw-value { font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--ocean); margin-bottom: 10px; }
 
 /* ── 사진 (D12) ───────────────────────────────────── */
-.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .photo-item { position: relative; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; display: block; padding: 0; cursor: zoom-in; }
 .photo-item img { width: 100%; height: 90px; object-fit: cover; display: block; }
-.photo-type {
-    position: absolute; left: 6px; bottom: 6px;
-    font-size: 9px; background: rgba(20,20,20,.7); color: #fff;
-    padding: 1px 6px; border-radius: 4px;
-}
-.photo-empty { font-size: 12px; color: var(--ink3); margin-top: 14px; }
+.photo-empty { font-size: 11.5px; color: var(--ink3); }
 
 /* ── 라이트박스 (D13) ──────────────────────────────── */
 .lightbox {
@@ -672,32 +881,110 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .paste-note { font-size: 10.5px; color: var(--ink3); }
 .paste-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
 
-/* ── 평가 채점 (D14) ───────────────────────────────── */.score-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; max-height: 60vh; overflow-y: auto; }
-.score-row {
+/* ── 평가 채점 (D14) ───────────────────────────────── */
+.score-summary {
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--paper);
+    margin-bottom: 14px;
+}
+.score-summary-total { display: flex; align-items: baseline; gap: 10px; }
+.score-summary-total span { font-size: 11px; letter-spacing: .12em; color: var(--ink3); text-transform: uppercase; }
+.score-summary-total b { font-family: 'JetBrains Mono', monospace; font-size: 26px; font-weight: 700; color: var(--ocean); }
+.score-summary-counts { display: flex; gap: 16px; font-size: 11.5px; color: var(--ink2); }
+.score-summary-counts b { font-family: 'JetBrains Mono', monospace; font-weight: 700; margin-left: 3px; }
+.dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+.dot-auto { background: var(--palm); }
+.dot-manual { background: #4a3f7a; }
+.dot-fallback { background: var(--lava); }
+
+.score-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 4px; max-height: 46vh; overflow-y: auto; }
+.score-item {
+    display: grid;
+    grid-template-columns: minmax(150px, 1.1fr) minmax(120px, 1.4fr) auto;
+    align-items: center;
+    gap: 14px;
     border: 1px solid var(--line2);
     border-radius: 8px;
-    padding: 10px 12px;
-    font-size: 12px;
+    padding: 11px 14px;
+    transition: border-color .15s;
 }
-.score-name { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
-.score-name b { font-weight: 500; white-space: nowrap; }
-.score-source { font-size: 10px; color: var(--ink3); white-space: nowrap; }
-.score-auto { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink3); white-space: nowrap; }
-.score-row input {
+.score-item:hover { border-color: var(--line); }
+.score-item.is-fallback { background: #fdfbf7; }
+.score-item-head { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.score-item-name { font-size: 12.5px; font-weight: 500; white-space: nowrap; }
+
+.score-item-gauge { display: flex; align-items: center; gap: 10px; }
+.gauge-track { flex: 1; height: 6px; border-radius: 3px; background: var(--line2); overflow: hidden; }
+.gauge-fill { height: 100%; border-radius: 3px; background: var(--ocean); transition: width .2s; }
+.gauge-fill.is-manual { background: #4a3f7a; }
+.gauge-value {
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
-    width: 76px;
-    padding: 6px 8px;
+    font-weight: 500;
+    color: var(--ink2);
+    min-width: 26px;
+    text-align: right;
+}
+
+.score-item-input { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+.score-item-input input {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    width: 78px;
+    padding: 7px 9px;
     border: 1px solid var(--line);
     border-radius: 6px;
     background: var(--paper);
     color: var(--ink);
     text-align: right;
 }
-.score-row input:focus { outline: none; border-color: var(--ocean); background: #fff; }
+.score-item-input input:focus { outline: none; border-color: var(--ocean); background: #fff; }
+.score-item-reason {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--lava);
+    line-height: 1.6;
+}
+/* 자동 점수의 산출 근거 (설계 I50) */
+.score-item-why {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--ink3);
+    line-height: 1.65;
+    background: var(--paper);
+    border-left: 2px solid var(--line);
+    border-radius: 0 4px 4px 0;
+    padding: 7px 10px;
+}
+/* 쾌적함 미채점 시 입력 유도 */
+.score-item-invite {
+    grid-column: 1 / -1;
+    font-size: 11.5px;
+    color: var(--ocean);
+    background: #eef4f7;
+    border-radius: 6px;
+    padding: 8px 11px;
+    line-height: 1.6;
+}
+
+/* 목록이 길어도 저장 버튼은 항상 보이게 카드 하단에 고정한다 */
+.score-actions {
+    position: sticky;
+    bottom: -28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--card);
+    padding: 12px 0 16px;
+    border-top: 1px solid var(--line2);
+}
+.score-hint { font-size: 11px; color: var(--ink3); margin-right: auto; }
 
 /* ── 매물 카드 활성(지도↔리스트 동기화) ────────────── */
 .property-card.active {
@@ -797,4 +1084,324 @@ tr.dragging { opacity: .5; background: var(--line2); }
     .form-grid { grid-template-columns: 1fr; }
     .form-grid .span2 { grid-column: span 1; }
     .paste-grid { grid-template-columns: 1fr; }
+}
+
+/* ── 매물 코멘트 (설계 I56) ──────────────────────
+   둘이 쓰는 앱이라 스레드가 아니라 '각자의 견해' 목록에 가깝다.
+   내 글은 왼쪽에 색 띠를 둬서 남의 글과 한눈에 갈린다. */
+.comment-list { display: grid; gap: 10px; max-height: 46vh; overflow-y: auto; padding-right: 2px; }
+.comment {
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 13px;
+    background: var(--card);
+}
+.comment.mine { border-left-color: var(--ocean); background: var(--paper); }
+.comment-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 11px;
+}
+.comment-who { font-weight: 500; color: var(--ink); }
+.comment-time { color: var(--ink3); font-family: 'JetBrains Mono', monospace; font-size: 10px; }
+.comment-edited { color: var(--ink3); font-size: 10px; }
+.comment-actions { display: flex; gap: 6px; margin-left: auto; }
+.comment-body { font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; word-break: break-word; }
+
+.comment-edit textarea,
+.comment-new textarea {
+    width: 100%;
+    font-family: inherit;
+    font-size: 12.5px;
+    line-height: 1.7;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+    resize: vertical;
+}
+.comment-edit textarea:focus,
+.comment-new textarea:focus { outline: none; border-color: var(--ocean); }
+.comment-edit-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 8px; }
+.comment-count { margin-right: auto; font-size: 10px; color: var(--ink3); font-family: 'JetBrains Mono', monospace; }
+
+.comment-new {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line2);
+}
+.comment-new > label { display: block; font-size: 11.5px; color: var(--ink2); margin-bottom: 6px; }
+
+/* ── 등록자 배지 (설계 I57) ──────────────────────
+   매물 이름 바로 오른쪽에 붙는다. 이름이 길면 이름이 먼저 줄고 배지는 살아남아야 하므로
+   flex-shrink를 잠근다. 닉네임 첫 글자를 원형 이니셜로 앞세워 사람이라는 걸 먼저 읽히게 한다. */
+.owner-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex-shrink: 0;
+    max-width: 40%;
+    padding: 2px 8px 2px 3px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--card);
+    font-size: 10.5px;
+    line-height: 1.6;
+    color: var(--ink2);
+    white-space: nowrap;
+    overflow: hidden;
+}
+.owner-badge > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.owner-initial {
+    display: inline-grid;
+    place-items: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--ocean);
+    color: #fff;
+    font-style: normal;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.property-card:hover .owner-badge { border-color: var(--ocean); }
+
+/* 상세 모달은 여백이 넉넉해 조금 크게 */
+.owner-badge-lg {
+    margin-left: auto;
+    max-width: none;
+    padding: 3px 10px 3px 4px;
+    font-size: 11px;
+}
+.owner-badge-lg .owner-initial { width: 18px; height: 18px; font-size: 10px; }
+
+/* 이름 · 배지 · 가격이 한 줄에서 자연스럽게 나뉘도록 */
+.property-card-header .property-card-name { flex: 0 1 auto; min-width: 0; }
+.property-card-header .property-card-price { margin-left: auto; }
+
+/* ── AI 추천도 (설계 I59) ────────────────────────
+   점수를 왼쪽에 크게 두고 이유를 옆에 붙인다. 근거를 못 읽으면 점수만 남아 오해를 부른다. */
+.llm-box { display: flex; gap: 14px; align-items: flex-start; }
+.llm-score {
+    display: flex;
+    align-items: baseline;
+    gap: 1px;
+    flex-shrink: 0;
+    min-width: 78px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #2d3f52 0%, #1b2a38 100%);
+    color: #f2f6f8;
+}
+.llm-score b { font-family: 'JetBrains Mono', monospace; font-size: 22px; font-weight: 700; }
+.llm-score i { font-style: normal; font-size: 10px; opacity: .7; }
+.llm-body { flex: 1; min-width: 0; }
+.llm-body > p { font-size: 12.5px; line-height: 1.75; white-space: pre-wrap; }
+.llm-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--ink3);
+    font-family: 'JetBrains Mono', monospace;
+}
+.llm-meta .btn-xs { margin-left: auto; font-family: inherit; }
+
+/* 붙여넣기 모달의 '직접 입력' 블록 — 파싱 결과 격자와 구분되게 띄운다 (설계 I62) */
+.paste-extra {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--line);
+}
+.paste-extra .paste-field { display: block; }
+
+/* URL은 길어서 줄바꿈시킨다 — 모달 폭을 밀어내면 안 된다 */
+.m2-link {
+    color: var(--ocean);
+    word-break: break-all;
+    text-align: right;
+}
+
+/* ── 이미지 업로드 — 평면도/매물사진 분리 (설계 I63) ────
+   한 칸에 종류를 골라 넣던 방식은 무엇이 무엇인지 올리고 나서야 알 수 있었다.
+   구역을 나눠 각자의 자리에 넣게 한다. */
+.img-sec {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line2);
+}
+.img-sec:first-of-type { border-top: none; padding-top: 0; }
+.img-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.img-sec-head h4 {
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--sand);
+}
+.img-sec-note { font-size: 10.5px; color: var(--ink3); }
+
+/* 파일을 고르는 순간 올라간다 — 별도 업로드 버튼이 없다 */
+.img-drop {
+    display: block;
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--ink2);
+    cursor: pointer;
+    transition: .15s;
+}
+.img-drop:hover { border-color: var(--ocean); color: var(--ocean); background: var(--paper); }
+.img-drop input { display: none; }
+
+.img-single { display: flex; align-items: flex-start; gap: 10px; }
+.img-single .photo-item { width: 180px; }
+.img-single .photo-item img { height: 130px; }
+
+/* 사진마다 삭제 버튼을 겹쳐 둔다 */
+.photo-cell { position: relative; }
+.photo-del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, .62);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.photo-del:hover { background: var(--lava); }
+
+/* ── 비교 우위 분석 (설계 I61) ──────────────────────
+   매물 목록 헤더만 오른쪽에 버튼 묶음을 갖는다. 다른 화면의 .sec-sub는
+   margin-left:auto로 오른쪽에 붙는 규칙을 그대로 쓰므로 클래스로 구분한다. */
+.sec-head-actions .sec-sub { margin-left: 0; }
+.sec-head-actions .sec-actions { display: flex; gap: 8px; margin-left: auto; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+
+.compare-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    background: var(--paper);
+}
+.compare-count { font-size: 12px; color: var(--ink2); }
+.compare-count b { font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+.compare-count small { color: var(--ink3); margin-left: 4px; font-size: 10.5px; }
+.compare-warn {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--sunset);
+}
+
+.compare-list { margin-top: 16px; display: grid; gap: 8px; }
+.compare-row {
+    display: flex;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--line);
+    border-radius: 8px;
+    background: var(--card);
+}
+/* 1위만 눈에 먼저 들어오게 — 순위표에서 가장 중요한 정보다 */
+.compare-row.top { border-left-color: var(--sand); background: #fffdf7; }
+.compare-rank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 42px;
+    flex-shrink: 0;
+}
+.compare-rank b { font-family: 'JetBrains Mono', monospace; font-size: 20px; font-weight: 700; }
+.compare-rank i { font-style: normal; font-size: 9.5px; color: var(--ink3); }
+.compare-row.top .compare-rank b { color: var(--sand); }
+.compare-body { flex: 1; min-width: 0; }
+.compare-title { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.compare-name {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13.5px;
+    font-weight: 700;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.compare-title .score-pill { margin-left: auto; flex-shrink: 0; }
+.compare-reason { font-size: 12px; line-height: 1.7; color: var(--ink2); }
+.compare-meta {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 6px;
+    font-size: 10px;
+    color: var(--ink3);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ── 담보가치 (설계 I64 · I65) ────────────────────
+   LTV의 기준이 호가가 아니라는 것과, 그 값을 어디서 얻었는지를 드러낸다.
+   호가로 계산한 값과 KB시세로 계산한 값이 같은 얼굴로 보이면 안 된다. */
+.loan-collateral {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--ocean);
+    border-radius: 8px;
+    background: var(--paper);
+}
+/* 근거가 약하면(호가·소표본) 테두리 색으로 먼저 알린다 */
+.loan-collateral.weak { border-left-color: var(--sunset); }
+.loan-collateral-main { display: flex; align-items: baseline; gap: 10px; }
+.loan-collateral-main > span { font-size: 11px; color: var(--ink3); }
+.loan-collateral-main > b { font-family: 'JetBrains Mono', monospace; font-size: 15px; }
+.loan-collateral-src { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.loan-collateral-src small { font-size: 10px; color: var(--ink3); }
+
+/* ── LTV 판정 근거 (설계 I66) ─────────────────────
+   규제지역·보유주택이 한도를 어떻게 가렸는지 보여준다.
+   숫자만 있으면 왜 이 값인지 납득할 수 없다. */
+.loan-policy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.loan-policy-reason { font-size: 11px; color: var(--ink2); }
+
+/* 전제 줄의 셀렉트 — 체크박스와 나란히 선다 */
+.loan-select { display: inline-flex; align-items: center; gap: 6px; }
+.loan-select > span { font-size: 11px; color: var(--ink2); white-space: nowrap; }
+.loan-select select {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--card);
 }

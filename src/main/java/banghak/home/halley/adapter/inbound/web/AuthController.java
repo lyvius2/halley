@@ -26,7 +26,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public AuthResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
-        return authService.login(request.email(), request.password(), httpRequest);
+        return authService.login(request.loginId(), request.password(), httpRequest);
     }
 
     @PostMapping("/logout")

@@ -12,11 +12,14 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ANNUAL_INCOME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.AVAILABLE_BUDGET;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EXISTING_LOAN;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.CREATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_BY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EMAIL;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.LOGIN_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ENABLED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.MUST_CHANGE_PASSWORD;
@@ -40,6 +43,7 @@ public class UserRepository {
     public User save(User user) {
         Instant now = Instant.now();
         Long id = dsl.insertInto(TABLE)
+                .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
                 .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
@@ -49,6 +53,8 @@ public class UserRepository {
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
+                .set(ANNUAL_INCOME, user.annualIncomeOrZero())
+                .set(EXISTING_LOAN, user.existingLoanOrZero())
                 .set(ENABLED, user.enabled())
                 .set(DISABLED_AT, toOffset(user.disabledAt()))
                 .set(DISABLED_BY, user.disabledBy())
@@ -59,6 +65,7 @@ public class UserRepository {
 
         return new User(
                 id,
+                user.loginId(),
                 user.nickname(),
                 user.email(),
                 user.passwordHash(),
@@ -68,6 +75,8 @@ public class UserRepository {
                 user.workplaceLng(),
                 user.mustChangePassword(),
                 user.availableBudget(),
+                user.annualIncomeOrZero(),
+                user.existingLoanOrZero(),
                 user.enabled(),
                 user.disabledAt(),
                 user.disabledBy(),
@@ -77,6 +86,7 @@ public class UserRepository {
 
     public User update(User user) {
         dsl.update(TABLE)
+                .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
                 .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
@@ -86,6 +96,8 @@ public class UserRepository {
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
+                .set(ANNUAL_INCOME, user.annualIncomeOrZero())
+                .set(EXISTING_LOAN, user.existingLoanOrZero())
                 .set(ENABLED, user.enabled())
                 .set(DISABLED_AT, toOffset(user.disabledAt()))
                 .set(DISABLED_BY, user.disabledBy())
@@ -97,6 +109,13 @@ public class UserRepository {
     public Optional<User> findById(Long id) {
         return dsl.selectFrom(TABLE)
                 .where(ID.eq(id))
+                .fetchOptional()
+                .map(this::map);
+    }
+
+    public Optional<User> findByLoginId(String loginId) {
+        return dsl.selectFrom(TABLE)
+                .where(LOGIN_ID.eq(loginId))
                 .fetchOptional()
                 .map(this::map);
     }
@@ -130,6 +149,7 @@ public class UserRepository {
     private User map(Record r) {
         return new User(
                 r.get(ID),
+                r.get(LOGIN_ID),
                 r.get(NICKNAME),
                 r.get(EMAIL),
                 r.get(PASSWORD_HASH),
@@ -139,6 +159,8 @@ public class UserRepository {
                 r.get(WORKPLACE_LNG),
                 Boolean.TRUE.equals(r.get(MUST_CHANGE_PASSWORD)),
                 r.get(AVAILABLE_BUDGET),
+                r.get(ANNUAL_INCOME),
+                r.get(EXISTING_LOAN),
                 Boolean.TRUE.equals(r.get(ENABLED)),
                 toInstant(r.get(DISABLED_AT)),
                 r.get(DISABLED_BY),

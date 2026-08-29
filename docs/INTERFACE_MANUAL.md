@@ -1,6 +1,6 @@
 # Halley 외부 인터페이스 매뉴얼
 
-> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
+> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, Claude)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
 > 수치는 실제 코드(`src/main/resources/application.yaml`, 각 `@FeignClient`, `config/`)와 정합합니다.
 > 인터페이스 아키텍처 원칙은 `docs/DESIGN.md` 2.5(외부 연동은 port/어댑터)를 따릅니다.
 
@@ -16,6 +16,9 @@
 | **ODsay** | 대중교통 경로(직주근접 채점) | 서버(Feign) | `apiKey` 쿼리 파라미터 | `ODSAY_API_KEY` | `OdsayTransitFeignClient` | 사용 중 |
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
 | **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
+| **V-World 공시가격** | 공동주택·개별주택 공시가격(M2) — **채점 미반영** | 서버(Feign) | 인증키(`key`) | `HOUSING_PRICE_API_KEY` | `VworldHousingPriceFeignClient` | 사용 중(참고 전용) |
+| **Claude (LLM)** | AI 추천도 — **채점 반영** | 서버(Feign) | `x-api-key` 헤더 | `ANTHROPIC_API_KEY` | `ClaudeFeignClient` | 사용 중 |
+| **금감원 주담대** | 은행별 금리·기간·상환방식 (대출 계산) | 서버(Feign) | `auth` 쿼리 파라미터 | `FSS_API_KEY` | — | **설계 예정** (5.8) |
 
 > **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL·국토부 키는 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
 
@@ -345,7 +348,242 @@ GET /v2/local/search/address.json?query={지번주소}
 
 ---
 
+## 5.6 공시가격 (V-World) — 국가공간정보 개방데이터
+
+### 5.6.1 역할
+
+**공시가격 참고 표시** — 매물 상세(M2)에 국토교통부가 매년 1월 1일 기준으로 공시하는 가격을 보여줍니다.
+실거래가와 같이 **`PRICE` 채점에는 반영하지 않습니다**(호가 기준 채점과 섞지 않음 — 설계 5.5).
+
+| 데이터 | 대상 | 엔드포인트 |
+|---|---|---|
+| 공동주택가격 | 아파트·연립·다세대 | `GET /ned/data/getApartHousingPriceAttr` |
+| 개별주택가격 | 단독·다가구 | `GET /ned/data/getIndvdHousingPriceAttr` |
+
+Halley는 **공동주택을 먼저 조회하고, 결과가 없으면 개별주택으로 한 번 더** 봅니다.
+
+### 5.6.2 키 발급 절차
+
+1. [V-World 공간정보 오픈플랫폼](https://www.vworld.kr) 회원가입/로그인
+2. **오픈API → 인증키 발급 신청** — 활용 유형과 서비스 URL(도메인)을 입력합니다.
+   로컬 개발이면 `http://localhost:8080`으로 신청해 두면 됩니다.
+3. 발급된 인증키를 `HOUSING_PRICE_API_KEY` 환경변수로 주입
+4. 데이터 목록은 [국가공간정보 개방데이터](https://www.vworld.kr/dtna/dtna_apiSvcFc_s001.do)에서 확인합니다.
+
+> **인증 실패도 HTTP 200으로 옵니다.** 실패는 `{"apartHousingPrices": {"resultCode": "INVALID_KEY", …}}`,
+> 성공은 `{"response": {"resultCode": "", "totalCount": "0", …}}` 형태로 **래퍼 이름과 `resultCode`가 둘 다 달라집니다.**
+> 정상 응답의 `resultCode`는 **빈 문자열**이므로, 값이 채워져 있고 성공 코드가 아닐 때만 거절로 봅니다.
+> `VworldHousingPriceAdapter`가 이를 판별해 실패면 WARN, 자료 없음이면 `totalCount`와 함께 INFO를 남깁니다.
+
+> **`totalCount`가 0이면** 그 필지에 자료가 없거나 PNU가 틀린 것입니다. 도메인 제한이 걸린 키는
+> `domain`을 함께 보내지 않으면 0건이 나올 수 있으니 `HOUSING_PRICE_API_DOMAIN`을 확인하세요.
+
+### 5.6.3 설정 키
+
+| application.yaml 키 | 환경변수 | 기본값 | 설명 |
+|---|---|---|---|
+| `vworld.api-key` | `HOUSING_PRICE_API_KEY` | (없음) | 요청 `key` 파라미터 |
+| `vworld.domain` | `HOUSING_PRICE_API_DOMAIN` | (없음) | 키 발급 시 등록한 URL. 비어 있으면 쿼리에서 생략 |
+| `vworld.base-url` | — | `https://api.vworld.kr` | API 베이스 |
+
+기동 로그의 `External API key vworld.api-key : set (…)` 줄로 주입 여부를 확인할 수 있습니다(`ExternalApiKeyReporter`).
+
+**서킷브레이커/타임아웃**: `vworld-housing-price` connect 3s / read 8s, 실패율 40%, open 30s
+
+### 5.6.4 요청 파라미터
+
+| 이름 | 필수 | 값 | 비고 |
+|---|---|---|---|
+| `key` | ○ | 발급 인증키 | |
+| `pnu` | ○ | 필지고유번호 19자리 | 아래 5.6.5 |
+| `stdrYear` | **실질 필수** | 기준연도(YYYY) | 아래 경고 참조 |
+| `format` | | `json` | Halley는 항상 `json` |
+| `numOfRows` | | 최대 1000 | Halley는 1000 |
+| `pageNo` | | 1 | 대단지는 페이지를 넘겨야 한다 |
+| `domain` | | 발급 시 등록한 URL | 설정돼 있을 때만 붙임 |
+
+> ⚠️ **`stdrYear`는 문서상 옵션이지만 빼면 안 됩니다.** 생략하면 그 필지의 **전 연도가 오래된 순으로**
+> 나옵니다. 은마아파트 PNU 실측에서 `totalCount = 110,600 = 4,424세대 × 25년`이었고 첫 페이지가
+> **2006년치**였습니다. 그대로 쓰면 20년 전 공시가격이 저장됩니다.
+>
+> Halley는 `numOfRows=1`로 연도별 `totalCount`만 먼저 확인해 **자료가 있는 가장 최근 연도**를 정하고
+> (공시는 매년 4월 말이라 연초에는 올해 자료가 없어 최대 2년 거슬러 봅니다), 그 연도만 페이지로 모읍니다.
+> 페이지는 최대 5장(5,000건)까지만 받아 호출 폭증을 막습니다.
+
+**응답 필드** (은마아파트 실측)
+
+| 필드 | 값 예시 | 설명 |
+|---|---|---|
+| `pnu` | `1168010600103160000` | 필지고유번호 |
+| `stdrYear` · `stdrMt` | `2026` · `01` | 기준연도·월 |
+| `pblntfPc` | `656000000` | **공시가격(원)** — 공동주택 |
+| `housePc` | `268000000` | 주택가격(원) — 개별주택 |
+| `prvuseAr` | `84.43` | 전용면적(㎡) |
+| `dongNm` · `hoNm` · `floorNm` | `27` · `1401` · `14` | 동·호·층 (**동은 숫자만**) |
+| `aphusNm` · `aphusSeCodeNm` | `은마` · `아파트` | 단지명·유형 |
+| `ldCode` · `ldCodeNm` | `1168010600` · `서울특별시 강남구 대치동` | 법정동 |
+| `mnnmSlno` | `316` | 지번 |
+
+### 5.6.5 PNU(필지고유번호) 확보 — 카카오 주소검색 재사용
+
+공시가격 조회 키는 법정동코드가 아니라 **PNU 19자리**입니다. 국토부 API를 하나 더 붙이는 대신
+이미 쓰고 있는 **카카오 주소검색 응답으로 조립**합니다(5.5의 `LAWD_CD`와 같은 방식).
+
+```
+PNU(19) = b_code(10) + 필지구분(1) + 본번(4, 0채움) + 부번(4, 0채움)
+          └ 법정동코드   └ 일반 1 / 산 2
+                          └ main_address_no   └ sub_address_no (없으면 0000)
+```
+
+예) `서울시 종로구 명륜2가 4` → `b_code=1111014000`, `main=4`, `sub=` → `1111014000100040000`
+
+구현은 `GeoSearchResult.pnu(...)`이며, 넷 중 하나라도 없으면 `null`을 돌려주고 조회를 건너뜁니다.
+
+### 5.6.6 호출 흐름
+
+```mermaid
+sequenceDiagram
+    participant S as Halley 서버
+    participant K as 카카오 로컬
+    participant V as V-World
+    participant P as property
+
+    Note over S: 매물 등록 커밋 후 비동기 (PropertyCreatedListener)
+    S->>K: 지번주소 지오코딩
+    K-->>S: b_code · 본번 · 부번 → PNU 조립
+    S->>V: GET getApartHousingPriceAttr?stdrYear=올해&numOfRows=1 (연도 탐색)
+    V-->>S: totalCount — 0이면 전년도로 재시도 (최대 2년)
+    S->>V: GET getApartHousingPriceAttr?stdrYear&numOfRows=1000&pageNo=1..5
+    V-->>S: 그 해의 동·호별 공시가격 목록
+    S->>S: 전용면적 ±5% → 같은 동 → 중앙값 선택
+    alt 공동주택 결과 없음
+        S->>V: GET getIndvdHousingPriceAttr (단독·다가구)
+    end
+    S->>P: official_price · official_price_year · pnu 저장
+```
+
+> 같은 필지라도 **타입마다 공시가격이 다릅니다.** 전용면적을 맞추지 않으면 엉뚱한 값이 붙기 때문에
+> ±5% 안의 건을 먼저 찾고, 없으면 면적 차가 가장 작은 건을 씁니다. 같은 면적이라도 층·향에 따라
+> 조금씩 달라(실측 은마 84.43㎡: 6.56억 ~ 6.62억) 매물의 동을 우선하고 그중 **중앙값**을 씁니다.
+> 공시가격의 `dongNm`은 `27`처럼 숫자만 오므로 매물의 `102동`과는 숫자로 맞춥니다.
+
+---
+
+## 5.7 Claude (LLM) — AI 추천도
+
+### 5.7.1 역할
+
+**AI 추천도** — 매물 정보와 구매자들의 직장 위치를 Anthropic Claude에 보내 0~100의 추천도와
+그 이유를 받습니다. 결과는 `llm_recommendation`에 저장되고 `LLM_RECOMMENDATION` 채점 항목으로
+총점에 반영됩니다(설계 I59).
+
+공급자는 `LlmPort`로 추상화돼 있어 나중에 Ollama 같은 로컬 모델을 붙일 수 있습니다(설계 I58).
+
+### 5.7.2 키 발급 절차
+
+1. [Anthropic Console](https://console.anthropic.com) 가입/로그인
+2. **API Keys → Create Key** 로 키 발급 (`sk-ant-…`)
+3. **Billing** 에서 결제 수단 등록 — 무료 크레딧이 없으면 401이 아니라 429/400으로 거절됩니다
+4. `ANTHROPIC_API_KEY` 환경변수로 주입
+
+> 키를 넣지 않으면 `LlmPort.isEnabled()`가 false가 되어 **호출 자체를 건너뜁니다.**
+> AI 추천도만 미산출로 남고 나머지 채점은 그대로 나옵니다.
+
+### 5.7.3 설정 키
+
+| application.yaml 키 | 환경변수 | 기본값 | 설명 |
+|---|---|---|---|
+| `llm.enabled` | `LLM_ENABLED` | `true` | 전체 스위치 |
+| `llm.provider` | `LLM_PROVIDER` | `claude` | 구현체가 여럿일 때 선택 |
+| `llm.claude.api-key` | `ANTHROPIC_API_KEY` | (없음) | `x-api-key` 헤더 |
+| `llm.claude.model` | `LLM_CLAUDE_MODEL` | `claude-sonnet-4-5-20250929` | |
+| `llm.claude.base-url` | — | `https://api.anthropic.com` | |
+
+**서킷브레이커/타임아웃**: `claude-llm` connect 5s / **read 60s**, 실패율 40%, open 60s.
+생성에 시간이 걸리고 비동기 보정에서만 부르므로 read timeout을 길게 잡아도 화면을 막지 않습니다.
+
+기동 로그의 `External API key llm.claude.api-key : set (…)` 줄로 주입 여부를 확인할 수 있습니다.
+
+### 5.7.4 호출 형식
+
+```
+POST https://api.anthropic.com/v1/messages
+x-api-key: <ANTHROPIC_API_KEY>
+anthropic-version: 2023-06-01
+Content-Type: application/json
+
+{"model": "...", "max_tokens": 1024, "system": "...",
+ "messages": [{"role": "user", "content": "..."}]}
+```
+
+응답의 `content`는 블록 배열이며 `type: "text"`인 블록의 `text`만 이어 붙입니다.
+오류는 `{"type": "error", "error": {"message": "..."}}` 형태입니다.
+
+### 5.7.5 비용 관리
+
+- **입력이 그대로면 다시 부르지 않습니다.** 프롬프트의 SHA-256을 `prompt_hash`에 저장해 두고
+  같으면 저장된 값을 그대로 씁니다. 매물을 열 때마다 부르면 비용이 선형으로 늘어납니다.
+- `max_tokens`는 **1024**로 묶습니다. 점수와 두세 문장이면 충분합니다.
+- 호출 시점은 **매물 등록 후 비동기 1회** + 사용자가 "다시 물어보기"를 누를 때뿐입니다.
+  재채점(`POST /{id}/rescore`)은 LLM을 부르지 않습니다.
+
+---
+
+## 5.8 금융감독원 — 주택담보대출 상품·금리 (설계 예정)
+
+> **아직 연동하지 않았습니다.** 설계는 `docs/MORTGAGE_ENGINE.md` 3·6장(로드맵 3단계)을 따릅니다.
+> 이 절은 **구현 전 확인해야 할 사항**을 남겨 둔 것입니다.
+
+### 5.8.1 역할
+
+금감원 **금융상품통합비교공시(금융상품 한눈에)** 에서 은행별 주담대 **금리·대출기간·상환방식**을
+받아 예상 월 상환액과 총 이자를 실제 시장값으로 계산합니다.
+
+**한도 산식은 바뀌지 않습니다.** 지금은 규제 파라미터의 고정 금리(`loan.interestRate = 0.04`)를
+쓰고 있고, 연동은 그 값을 시장 금리 범위로 대체하는 것뿐입니다. 연동 전까지는 관리자가
+프로파일에서 조정하면 됩니다.
+
+> ⚠️ **금감원 금리를 DSR 역산에 그대로 쓰면 안 됩니다.** DSR은 스트레스 금리로 계산합니다.
+> 금감원 금리는 `loan.interestRate`를 대체하고 `loan.stressRate`는 규제 파라미터로 남깁니다
+> (설계 I64-2).
+
+### 5.8.2 키 발급 절차
+
+1. [금융상품 한눈에](https://finlife.fss.or.kr) → **오픈API** → 인증키 신청
+2. 발급된 키를 `FSS_API_KEY` 환경변수로 주입 (예정)
+
+### 5.8.3 확인된 것 / 확인 못 한 것
+
+**확인됨** (공식 문서 기준)
+
+- 오픈 API는 **8종**이며 그중 **"주택담보대출상품 API"** 가 존재합니다.
+- 공통 요청 파라미터: `auth`(인증키, 필수) · `topFinGrpNo`(권역코드, 필수) · `pageNo`(필수) ·
+  `financeCd`(선택)
+- 응답은 `baseList`(상품 기본) + `optionList`(금리 옵션) 2단 구조입니다.
+- 기본 URL 형태: `https://finlife.fss.or.kr/finlifeapi/{서비스명}.{json|xml}`
+
+**확인 못 함**
+
+- **정확한 서비스명과 응답 필드명.** `finlife.fss.or.kr`이 개발 환경에서 응답하지 않아
+  (해외 IP 차단으로 추정) 실제 요청을 보내지 못했습니다.
+- 서비스명은 `mortgageLoanProductsSearch`로 널리 알려져 있으나 **실측으로 확인하지 않았습니다.**
+
+> **구현 전에 반드시** 실제 응답 한 건을 받아 필드명을 확정하세요.
+> V-World 연동에서 겪은 것처럼(설계 I54), 문서만 보고 만든 파서는 실제 응답과 어긋납니다 —
+> 그때도 `stdrYear`를 빼면 20년 전 데이터가 온다는 사실은 실측으로만 드러났습니다.
+
+### 5.8.4 설계 시 유의
+
+- **권역별로 따로 불러야 합니다.** `topFinGrpNo`가 은행(020000)·저축은행·보험 등으로 나뉩니다.
+- **페이지네이션이 있습니다.** `pageNo`로 끝까지 돌아야 전체 상품이 모입니다.
+- **금리는 자주 바뀌지 않습니다**(공시 주기 월 단위). 매 계산마다 부르지 말고
+  **캐시(TTL 1일 이상)** 를 두세요. 다른 연동과 같이 `FallbackFactory`는 필수입니다.
+- 금리가 없으면 규제 파라미터의 기본 금리로 떨어뜨립니다 — 대출 계산 자체는 계속 돌아야 합니다.
+
+---
+
 ## 6. 공통 · 운영 메모
+
 
 ### 6.1 로컬 개발 시 키 없이 동작하는 방식
 
@@ -353,6 +591,8 @@ GET /v2/local/search/address.json?query={지번주소}
 |---|---|
 | 카카오 REST | `KakaoApiKeyMissingException`(503) 또는 POI 빈 목록 → 채점 `MISSING` |
 | ODsay | `TransitResult.missing()` → `COMMUTE` MISSING |
+| V-World | 조회 skip(INFO 로그) → 공시가격 빈 값. 채점 영향 없음 |
+| Claude | `isEnabled()=false` → 호출 skip. AI 추천도만 미산출 |
 | Slack | `slack.enabled=false`(기본) → 알림 skip |
 
 ### 6.2 Feign 공통 규칙 (코딩 규칙)
@@ -369,6 +609,8 @@ GET /v2/local/search/address.json?query={지번주소}
 | `KakaoDirectionsPort` | `KakaoDirectionsAdapter` | `KakaoDirectionsFeignClient` |
 | `OdsayTransitPort` | `OdsayTransitAdapter` | `OdsayTransitFeignClient` |
 | `MinistryReferencePort` | `MinistryReferenceAdapter` | `MinistryReferenceFeignClient` |
+| `HousingPricePort` | `VworldHousingPriceAdapter` | `VworldHousingPriceFeignClient` |
+| `LlmPort` | `ClaudeLlmAdapter` | `ClaudeFeignClient` |
 | `SlackPort` | `SlackWebhookAdapter` | `SlackWebhookClient` |
 
 **캐시 포트** (프로파일로 구현 교체 — 설계 2.5)

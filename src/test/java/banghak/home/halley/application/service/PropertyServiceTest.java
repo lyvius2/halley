@@ -62,7 +62,7 @@ class PropertyServiceTest {
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null);
 
         // when
@@ -180,7 +180,7 @@ class PropertyServiceTest {
                 "서울시 새주소", null, new BigDecimal("37.6"), new BigDecimal("127.1"),
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
-                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L,
+                new BigDecimal("1.1"), 500, "지역난방", 8, 700_000_000L, null, null, null, null, null, null, null, null,
                 null, null, null);
 
         // when
@@ -217,7 +217,7 @@ class PropertyServiceTest {
                 base.areaSupplyM2(), base.areaExclusiveM2(), base.floorRaw(), base.floorNo(), base.floorTotal(),
                 base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
                 base.moveInDate(), base.parkingPerHousehold(), base.totalHouseholds(), base.heatingType(),
-                base.buildingCount(), base.kbPrice(),
+                base.buildingCount(), base.kbPrice(), null, null, null, null, null, null, null, null,
                 null, "A12345678", "매매\n매매가\n15억");
 
         // when
@@ -250,7 +250,48 @@ class PropertyServiceTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
+    }
+
+    @Test
+    @DisplayName("붙여넣기 등록에서도 원본 URL을 받아 저장한다 — 생존 확인 배치 대상이 된다 (설계 I62)")
+    void sourceUrlIsStoredOnPasteRegistration() {
+        // when
+        final PropertyResponse created =
+                propertyService.create(requestWithSourceUrl("https://fin.land.naver.com/articles/1"));
+
+        // then
+        assertThat(created.sourceUrl()).isEqualTo("https://fin.land.naver.com/articles/1");
+        assertThat(propertyRepository.findBatchTargets())
+                .extracting(banghak.home.halley.domain.property.Property::id)
+                .contains(created.id());
+    }
+
+    @Test
+    @DisplayName("원본 URL은 http/https만 받는다 — 링크로 열리고 배치가 두드리는 값이다")
+    void rejectsNonHttpSourceUrl() {
+        final InvalidPropertyRequestException rejected = assertThrows(
+                InvalidPropertyRequestException.class,
+                () -> propertyService.create(requestWithSourceUrl("javascript:alert(1)")));
+        assertThat(rejected.getMessage()).contains("http://");
+    }
+
+    @Test
+    @DisplayName("원본 URL이 비어 있으면 null로 저장한다")
+    void blankSourceUrlBecomesNull() {
+        assertThat(propertyService.create(requestWithSourceUrl("   ")).sourceUrl()).isNull();
+        assertThat(propertyService.create(requestWithSourceUrl(null)).sourceUrl()).isNull();
+    }
+
+    private PropertyRequest requestWithSourceUrl(String sourceUrl) {
+        return new PropertyRequest(
+                "참고URL테스트", null, DealType.SALE, 500_000_000L, null, null,
+                "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
+                null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                sourceUrl, null, null);
     }
 }

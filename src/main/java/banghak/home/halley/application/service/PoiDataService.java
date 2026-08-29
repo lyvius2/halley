@@ -90,7 +90,7 @@ public class PoiDataService {
                 }
             }
         } catch (RuntimeException e) {
-            log.warn("POI 수집 실패 propertyId={}: {}", property.id(), e.getMessage());
+            log.warn("POI collection failed. propertyId={}, cause={}", property.id(), e.getMessage());
             return List.of();
         }
         poiCache.put(property.id(), POI_SCHEMA_VERSION, facilities);

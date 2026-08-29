@@ -68,7 +68,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             }
             return trades;
         } catch (Exception e) {
-            log.warn("국토부 실거래가 XML 파싱 실패: {}", e.getMessage());
+            log.warn("Failed to parse ministry transaction XML. cause={}", e.getMessage());
             return List.of();
         }
     }

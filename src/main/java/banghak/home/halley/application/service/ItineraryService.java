@@ -11,7 +11,9 @@ import banghak.home.halley.adapter.outbound.persistence.VisitPlanStopRepository;
 import banghak.home.halley.application.port.out.cache.TravelTimeCache;
 import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
+import banghak.home.halley.application.port.out.cache.StartLocationCache;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.domain.itinerary.StartLocation;
 import banghak.home.halley.config.exception.InvalidPlanRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.itinerary.DriveRoute;
@@ -52,13 +54,16 @@ public class ItineraryService {
     private final TravelTimeCache travelTimeCache;
     private final ItineraryOptimizer optimizer;
 
+    private final StartLocationCache startLocationCache;
+
     public ItineraryService(PropertyRepository propertyRepository,
                             PropertyVisitPlanRepository propertyVisitPlanRepository,
                             VisitPlanStopRepository visitPlanStopRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
                             OdsayTransitPort odsayTransitPort,
                             TravelTimeCache travelTimeCache,
-                            ItineraryOptimizer optimizer) {
+                            ItineraryOptimizer optimizer,
+                            StartLocationCache startLocationCache) {
         this.propertyRepository = propertyRepository;
         this.propertyVisitPlanRepository = propertyVisitPlanRepository;
         this.visitPlanStopRepository = visitPlanStopRepository;
@@ -66,6 +71,7 @@ public class ItineraryService {
         this.odsayTransitPort = odsayTransitPort;
         this.travelTimeCache = travelTimeCache;
         this.optimizer = optimizer;
+        this.startLocationCache = startLocationCache;
     }
 
     public OptimizeItineraryResponse optimize(OptimizeItineraryRequest request) {
@@ -236,6 +242,17 @@ public class ItineraryService {
 
     private TravelMode modeOf(TravelMode mode) {
         return mode == null ? TravelMode.DRIVING : mode;
+    }
+
+    /** 마지막 출발지를 돌려준다 — 임장 플래너를 열 때 채워 넣는다 (설계 I52). */
+    public StartLocation lastStartLocation() {
+        return startLocationCache.get(currentUserId()).orElse(null);
+    }
+
+    /** 출발지 입력이 끝난 시점에 캐시한다 (TTL 7일). */
+    public StartLocation rememberStartLocation(StartLocation location) {
+        startLocationCache.put(currentUserId(), location);
+        return location;
     }
 
     private Long currentUserId() {

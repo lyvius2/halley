@@ -49,7 +49,7 @@ class GeoControllerIntegrationTest {
                 public List<GeoSearchResult> searchAddress(String query) {
                     return List.of(new GeoSearchResult(
                             "서울 마포구 서교동", "서울 마포구 양화로",
-                            new BigDecimal("37.55"), new BigDecimal("126.91"), "1144012000"));
+                            new BigDecimal("37.55"), new BigDecimal("126.91"), "1144012000", null));
                 }
 
                 @Override
@@ -80,11 +80,11 @@ class GeoControllerIntegrationTest {
     void authenticatedSearchReturnsCoordinates() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "geo-user", "geo@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L));
+                "geo", "geo-user", "geo@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"geo@example.com\",\"password\":\"password1!\"}"))
+                        .content("{\"loginId\":\"geo\",\"password\":\"password1!\"}"))
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/password").session(session)
                         .contentType(MediaType.APPLICATION_JSON)

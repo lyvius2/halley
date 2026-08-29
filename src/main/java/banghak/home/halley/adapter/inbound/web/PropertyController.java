@@ -2,8 +2,12 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
+import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
+import banghak.home.halley.adapter.inbound.web.dto.LlmRecommendationResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewRequest;
@@ -18,6 +22,9 @@ import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
+import banghak.home.halley.application.service.ComparativeAnalysisService;
+import banghak.home.halley.application.service.LlmRecommendationService;
+import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyImageService;
@@ -27,6 +34,7 @@ import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ImageType;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -55,6 +63,9 @@ public class PropertyController {
     private final ReferenceTransactionService referenceTransactionService;
     private final PropertyImageService propertyImageService;
     private final AgentService agentService;
+    private final PropertyCommentService propertyCommentService;
+    private final LlmRecommendationService llmRecommendationService;
+    private final ComparativeAnalysisService comparativeAnalysisService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -62,7 +73,10 @@ public class PropertyController {
                               LoanEstimateService loanEstimateService,
                               ReferenceTransactionService referenceTransactionService,
                               PropertyImageService propertyImageService,
-                              AgentService agentService) {
+                              AgentService agentService,
+                              PropertyCommentService propertyCommentService,
+                              LlmRecommendationService llmRecommendationService,
+                              ComparativeAnalysisService comparativeAnalysisService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -70,6 +84,65 @@ public class PropertyController {
         this.referenceTransactionService = referenceTransactionService;
         this.propertyImageService = propertyImageService;
         this.agentService = agentService;
+        this.propertyCommentService = propertyCommentService;
+        this.llmRecommendationService = llmRecommendationService;
+        this.comparativeAnalysisService = comparativeAnalysisService;
+    }
+
+    /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
+    @GetMapping("/comparative-analysis")
+    public ComparativeAnalysisStatus comparativeAnalysis() {
+        return comparativeAnalysisService.status();
+    }
+
+    /** 등록된 매물 전체를 견주어 순위를 매긴다. 매물이 4개 미만이면 409. */
+    @PostMapping("/comparative-analysis")
+    public ComparativeAnalysisStatus runComparativeAnalysis() {
+        comparativeAnalysisService.analyse();
+        return comparativeAnalysisService.status();
+    }
+
+    @GetMapping("/{id}/llm-recommendation")
+    public ResponseEntity<LlmRecommendationResponse> llmRecommendation(@PathVariable Long id) {
+        return llmRecommendationService.find(id)
+                .map(LlmRecommendationResponse::from)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    /** 매물 정보나 직장 위치가 바뀐 뒤 다시 물어보고 싶을 때. 입력이 그대로면 재호출하지 않는다. */
+    @PostMapping("/{id}/llm-recommendation")
+    public ResponseEntity<LlmRecommendationResponse> refreshLlmRecommendation(@PathVariable Long id) {
+        final var refreshed = llmRecommendationService.ensureRecommendation(id);
+        refreshed.ifPresent(r -> scoringService.rescore(id));
+        return refreshed
+                .map(LlmRecommendationResponse::from)
+                .map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.noContent().build());
+    }
+
+    @GetMapping("/{id}/comments")
+    public List<CommentResponse> comments(@PathVariable Long id) {
+        return propertyCommentService.list(id);
+    }
+
+    @PostMapping("/{id}/comments")
+    @ResponseStatus(HttpStatus.CREATED)
+    public CommentResponse addComment(@PathVariable Long id, @RequestBody CommentRequest request) {
+        return propertyCommentService.create(id, request);
+    }
+
+    @PutMapping("/{id}/comments/{commentId}")
+    public CommentResponse editComment(@PathVariable Long id,
+                                       @PathVariable Long commentId,
+                                       @RequestBody CommentRequest request) {
+        return propertyCommentService.update(id, commentId, request);
+    }
+
+    @DeleteMapping("/{id}/comments/{commentId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeComment(@PathVariable Long id, @PathVariable Long commentId) {
+        propertyCommentService.delete(id, commentId);
     }
 
     @GetMapping("/{id}/agents")
@@ -88,6 +161,12 @@ public class PropertyController {
                                              @RequestPart("file") MultipartFile file,
                                              @RequestParam("imageType") ImageType imageType) {
         return propertyImageService.upload(id, file, imageType);
+    }
+
+    @DeleteMapping("/{id}/images/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteImage(@PathVariable Long id, @PathVariable Long imageId) {
+        propertyImageService.delete(id, imageId);
     }
 
     @GetMapping("/{id}/images")

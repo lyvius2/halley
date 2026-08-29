@@ -26,7 +26,7 @@ class LoanCalculatorTest {
         final long asking = 800_000_000L;
 
         // when
-        final LoanEstimateResult result = calculator.estimate(asking, 50_000_000L, 300_000_000L, false, params);
+        final LoanEstimateResult result = calculator.estimate(input(asking, 50_000_000L, 300_000_000L, 0L, false), params);
 
         // then
         assertThat(result.ltvLimit()).isEqualTo(320_000_000L);
@@ -42,11 +42,11 @@ class LoanCalculatorTest {
         final RegulationParams params = RegulationParams.defaults();
 
         // when / then
-        assertThat(calculator.estimate(600_000_000L, 50_000_000L, 0L, false, params).acquisitionTax())
+        assertThat(calculator.estimate(input(600_000_000L, 50_000_000L, 0L, 0L, false), params).acquisitionTax())
                 .isEqualTo(6_000_000L);
-        assertThat(calculator.estimate(1_000_000_000L, 50_000_000L, 0L, false, params).acquisitionTax())
+        assertThat(calculator.estimate(input(1_000_000_000L, 50_000_000L, 0L, 0L, false), params).acquisitionTax())
                 .isEqualTo(30_000_000L);
-        final long middle = calculator.estimate(700_000_000L, 50_000_000L, 0L, false, params).acquisitionTax();
+        final long middle = calculator.estimate(input(700_000_000L, 50_000_000L, 0L, 0L, false), params).acquisitionTax();
         assertThat(middle).isBetween(6_000_000L, 30_000_000L);
     }
 
@@ -57,11 +57,18 @@ class LoanCalculatorTest {
         final RegulationParams params = RegulationParams.defaults();
 
         // when
-        final LoanEstimateResult normal = calculator.estimate(600_000_000L, 50_000_000L, 0L, false, params);
-        final LoanEstimateResult firstHome = calculator.estimate(600_000_000L, 50_000_000L, 0L, true, params);
+        final LoanEstimateResult normal = calculator.estimate(input(600_000_000L, 50_000_000L, 0L, 0L, false), params);
+        final LoanEstimateResult firstHome = calculator.estimate(input(600_000_000L, 50_000_000L, 0L, 0L, true), params);
 
         // then — 취득세 1% → 6,000,000, 생애최초 50% 감면 → 3,000,000
         assertThat(normal.acquisitionTax()).isEqualTo(6_000_000L);
         assertThat(firstHome.acquisitionTax()).isEqualTo(3_000_000L);
+    }
+
+    /** 담보가치는 호가와 같게 두고(별도 검증은 CollateralValuatorTest), MCI 가입으로 방공제를 뺀다. */
+    private LoanEstimateInput input(long asking, long income, long cash, long existingLoan, boolean firstHome) {
+        return new LoanEstimateInput(asking,
+                CollateralValuation.of(asking, CollateralSource.ASKING_PRICE),
+                income, cash, existingLoan, firstHome, true);
     }
 }

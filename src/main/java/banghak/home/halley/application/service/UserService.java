@@ -4,16 +4,19 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
-import banghak.home.halley.adapter.inbound.web.dto.WorkplaceRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.config.exception.AuthenticationRequiredException;
 import banghak.home.halley.config.exception.DuplicateEmailException;
+import banghak.home.halley.config.exception.DuplicateLoginIdException;
 import banghak.home.halley.config.exception.DuplicateNicknameException;
 import banghak.home.halley.config.exception.LastAdminException;
 import banghak.home.halley.config.exception.NotFoundUserException;
 import banghak.home.halley.config.exception.SelfDeleteException;
 import banghak.home.halley.config.exception.SelfDisableException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.event.WorkplacesChangedEvent;
 import banghak.home.halley.config.HalleyUserDetails;
+import org.springframework.context.ApplicationEventPublisher;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
@@ -21,9 +24,11 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.math.BigDecimal;
 import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class UserService {
@@ -34,12 +39,15 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-                       ScoringService scoringService) {
+                       ScoringService scoringService,
+                       ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
+        this.eventPublisher = eventPublisher;
     }
 
     public List<UserResponse> list() {
@@ -50,14 +58,51 @@ public class UserService {
         return toResponse(get(currentUserId()));
     }
 
-    public UserResponse updateWorkplace(WorkplaceRequest request) {
+    public UserResponse updateProfile(ProfileRequest request) {
         final User user = get(currentUserId());
+        final String nickname = request.nickname() == null || request.nickname().isBlank()
+                ? user.nickname() : request.nickname().trim();
+        if (!user.nickname().equals(nickname) && userRepository.findByNickname(nickname).isPresent()) {
+            throw new DuplicateNicknameException();
+        }
+        final String email = hasText(request.email()) ? request.email().trim() : user.email();
+        if (hasText(email) && !email.equals(user.email())
+                && userRepository.findByEmail(email).isPresent()) {
+            throw new DuplicateEmailException();
+        }
+        final long newBudget = request.availableBudget() != null
+                ? request.availableBudget() : user.availableBudget();
+
         final User updated = userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname, email, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(), user.enabled(),
-                user.disabledAt(), user.disabledBy(), user.createdAt()));
+                user.mustChangePassword(), newBudget,
+                request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
+                request.existingLoan() != null ? request.existingLoan() : user.existingLoanOrZero(),
+                user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
+        refreshProfileFlag(updated);
+
+        // 예산 상한이 바뀌면 전 매물 PRICE가 달라진다 (설계 5.2.1)
+        if (newBudget != user.availableBudget()) {
+            scoringService.rescoreAll();
+        }
+        // 직장 위치는 AI 추천도의 입력이다 (설계 I60)
+        if (workplaceChanged(user, updated)) {
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("profile:" + updated.id()));
+        }
         return toResponse(updated);
+    }
+
+    /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다. */
+    private void refreshProfileFlag(User updated) {
+        final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
+            principal.setProfileComplete(updated.profileComplete());
+        }
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private Long currentUserId() {
@@ -69,7 +114,10 @@ public class UserService {
     }
 
     public UserResponse create(CreateUserRequest request) {
-        if (userRepository.findByEmail(request.email()).isPresent()) {
+        if (userRepository.findByLoginId(request.loginId()).isPresent()) {
+            throw new DuplicateLoginIdException();
+        }
+        if (hasText(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
             throw new DuplicateEmailException();
         }
         if (userRepository.findByNickname(request.nickname()).isPresent()) {
@@ -77,6 +125,7 @@ public class UserService {
         }
         final User saved = userRepository.save(new User(
                 null,
+                request.loginId(),
                 request.nickname(),
                 request.email(),
                 passwordEncoder.encode(request.password()),
@@ -86,15 +135,23 @@ public class UserService {
                 request.workplaceLng(),
                 true,
                 request.availableBudget() == null ? 0L : request.availableBudget(),
+                request.annualIncome() == null ? 0L : request.annualIncome(),
+                request.existingLoan() == null ? 0L : request.existingLoan(),
                 true,
                 null, null, null));
         scoringService.rescoreAll();
+        eventPublisher.publishEvent(new WorkplacesChangedEvent("user-created:" + saved.id()));
         return toResponse(saved);
     }
 
     public UserResponse update(Long id, UpdateUserRequest request) {
         final User user = get(id);
-        if (!user.email().equals(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
+        if (!user.loginId().equals(request.loginId())
+                && userRepository.findByLoginId(request.loginId()).isPresent()) {
+            throw new DuplicateLoginIdException();
+        }
+        if (hasText(request.email()) && !request.email().equals(user.email())
+                && userRepository.findByEmail(request.email()).isPresent()) {
             throw new DuplicateEmailException();
         }
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
@@ -102,6 +159,7 @@ public class UserService {
         }
         final User updated = userRepository.update(new User(
                 user.id(),
+                request.loginId(),
                 request.nickname(),
                 request.email(),
                 user.passwordHash(),
@@ -111,11 +169,16 @@ public class UserService {
                 request.workplaceLng(),
                 user.mustChangePassword(),
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
+                request.annualIncome() == null ? user.annualIncomeOrZero() : request.annualIncome(),
+                request.existingLoan() == null ? user.existingLoanOrZero() : request.existingLoan(),
                 user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         final long newBudget = request.availableBudget() == null ? user.availableBudget() : request.availableBudget();
         if (newBudget != user.availableBudget()) {
             scoringService.rescoreAll();
+        }
+        if (workplaceChanged(user, updated)) {
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -143,14 +206,16 @@ public class UserService {
         }
         final Instant now = Instant.now();
         final User updated = userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(), enabled,
+                user.mustChangePassword(), user.availableBudget(),
+                user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
                 enabled ? null : now,
                 enabled ? null : currentAdminId(),
                 user.createdAt()));
         if (enabled != user.enabled()) {
             scoringService.rescoreAll();
+            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-enabled:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -159,11 +224,31 @@ public class UserService {
         final User user = get(id);
         final String temporaryPassword = randomPassword();
         userRepository.update(new User(
-                user.id(), user.nickname(), user.email(), passwordEncoder.encode(temporaryPassword), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(),
+                passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                true, user.availableBudget(), user.enabled(),
+                true, user.availableBudget(),
+                user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         return new ResetPasswordResponse(temporaryPassword);
+    }
+
+    /** 직장 위치(이름·좌표)가 실제로 달라졌는지. 예산만 고친 경우까지 LLM을 부르지 않는다. */
+    private boolean workplaceChanged(User before, User after) {
+        return !Objects.equals(before.workplaceName(), after.workplaceName())
+                || compare(before.workplaceLat(), after.workplaceLat()) != 0
+                || compare(before.workplaceLng(), after.workplaceLng()) != 0;
+    }
+
+    /** BigDecimal은 scale이 달라도 같은 값일 수 있어 equals 대신 compareTo로 본다. */
+    private int compare(BigDecimal before, BigDecimal after) {
+        if (before == null && after == null) {
+            return 0;
+        }
+        if (before == null || after == null) {
+            return 1;
+        }
+        return before.compareTo(after);
     }
 
     private User get(Long id) {
@@ -185,9 +270,10 @@ public class UserService {
 
     private UserResponse toResponse(User user) {
         return new UserResponse(
-                user.id(), user.nickname(), user.email(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.email(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.availableBudget(), user.enabled(), user.mustChangePassword(), user.createdAt());
+                user.availableBudget(), user.annualIncomeOrZero(), user.existingLoanOrZero(),
+                user.enabled(), user.mustChangePassword(), user.createdAt());
     }
 
     private String randomPassword() {

@@ -105,7 +105,7 @@ class JooqRepositoryIntegrationTest {
                 new BigDecimal("37.57"), new BigDecimal("126.96"),
                 new BigDecimal("84.93"), new BigDecimal("59.90"),
                 "7", 7, 15, FloorBand.HIGH, "3/2", "남동향", 1995, MoveInType.IMMEDIATE, null,
-                new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L,
+                new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.PASTE, "https://example.com", "12345", "raw", "v1",
                 objectMapper.createObjectNode().put("price", "EXACT"),
                 false, ListingStatus.ACTIVE, true, null, 0, null, null, null));
@@ -171,7 +171,7 @@ class JooqRepositoryIntegrationTest {
     void propertyScoreRoundTrip() {
         PropertyScore saved = propertyScoreRepository.save(new PropertyScore(
                 null, 90_010L, "PRICE", new BigDecimal("80.0"), null, new BigDecimal("80.0"),
-                ScoreSource.AUTO, null, null));
+                ScoreSource.AUTO, null, "호가 8억원 / 예산상한 10억원", null));
 
         PropertyScore found = propertyScoreRepository.findById(saved.id()).orElseThrow();
         assertThat(found.scoreSource()).isEqualTo(ScoreSource.AUTO);
@@ -244,7 +244,7 @@ class JooqRepositoryIntegrationTest {
     void referenceTransactionRoundTrip() {
         ReferenceTransaction saved = referenceTransactionRepository.save(new ReferenceTransaction(
                 null, 1L, ReferenceDealType.TRADE, LocalDate.of(2026, 7, 1),
-                1_290_000_000L, 2, ReferenceSource.MINISTRY_TRADE, null));
+                1_290_000_000L, new BigDecimal("84.90"), 2, ReferenceSource.MINISTRY_TRADE, null));
 
         ReferenceTransaction found = referenceTransactionRepository.findById(saved.id()).orElseThrow();
         assertThat(found.dealType()).isEqualTo(ReferenceDealType.TRADE);

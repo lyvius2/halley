@@ -155,7 +155,7 @@ class LegalDongCodeKakaoFallbackTest {
     }
 
     private static GeoSearchResult result(String bCode) {
-        return new GeoSearchResult("주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"), bCode);
+        return new GeoSearchResult("주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"), bCode, null);
     }
 
     @FunctionalInterface

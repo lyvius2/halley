@@ -24,7 +24,35 @@ public class RegulationParamBootstrap implements ApplicationRunner {
             new Seed("loan.stressRate", "0.01", RegulationValueType.DECIMAL, "스트레스 가산 금리"),
             new Seed("loan.termYears", "30", RegulationValueType.INT, "대출 기간(년)"),
             new Seed("tax.acquisitionRate", "0.01", RegulationValueType.DECIMAL, "취득세율"),
-            new Seed("tax.firstHomeDiscount", "0.5", RegulationValueType.DECIMAL, "생애최초 취득세 감면율"));
+            new Seed("tax.firstHomeDiscount", "0.5", RegulationValueType.DECIMAL, "생애최초 취득세 감면율"),
+            // 방공제·현실화율은 시행령·고시로 바뀐다. 값의 근거와 기준일을 설명에 남긴다 (설계 I64)
+            new Seed("ltv.leaseDeduction", "55000000", RegulationValueType.DECIMAL,
+                    "방공제(소액임차보증금 최우선변제금, 원) — 서울 기준. "
+                            + "주택임대차보호법 시행령 개정 시 갱신 필요. MCI/MCG 가입 시 미차감"),
+            new Seed("valuation.officialPriceRatio", "0.7", RegulationValueType.DECIMAL,
+                    "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"),
+            // LTV 매트릭스 (설계 I66) — 지역 × 보유주택. 고시로 자주 바뀌므로 반드시 확인 후 조정
+            new Seed("ltv.rate.normal.none", "0.7", RegulationValueType.DECIMAL, "비규제·무주택 LTV"),
+            new Seed("ltv.rate.normal.one", "0.6", RegulationValueType.DECIMAL, "비규제·1주택 LTV"),
+            new Seed("ltv.rate.normal.multi", "0.6", RegulationValueType.DECIMAL, "비규제·다주택 LTV"),
+            new Seed("ltv.rate.adjustment.none", "0.5", RegulationValueType.DECIMAL, "조정대상지역·무주택 LTV"),
+            new Seed("ltv.rate.adjustment.one", "0.3", RegulationValueType.DECIMAL, "조정대상지역·1주택 LTV"),
+            new Seed("ltv.rate.adjustment.multi", "0", RegulationValueType.DECIMAL, "조정대상지역·다주택 LTV"),
+            new Seed("ltv.rate.speculation.none", "0.4", RegulationValueType.DECIMAL, "투기과열지구·무주택 LTV"),
+            new Seed("ltv.rate.speculation.one", "0.2", RegulationValueType.DECIMAL, "투기과열지구·1주택 LTV"),
+            new Seed("ltv.rate.speculation.multi", "0", RegulationValueType.DECIMAL, "투기과열지구·다주택 LTV"),
+            new Seed("ltv.rate.firstHome", "0.8", RegulationValueType.DECIMAL,
+                    "생애최초 우대 LTV — 지역·보유와 무관하게 적용"),
+            new Seed("ltv.cap.firstHome", "600000000", RegulationValueType.DECIMAL,
+                    "생애최초 대출 총액 상한(원)"),
+            // 전세자금대출 (설계 I67) — 보증기관·정책마다 다르고 자주 바뀐다
+            new Seed("jeonse.guaranteeRate", "0.8", RegulationValueType.DECIMAL,
+                    "전세자금대출 보증비율 — 보증금의 몇 %까지 보증하는지"),
+            new Seed("jeonse.guaranteeCap", "222000000", RegulationValueType.DECIMAL,
+                    "전세자금대출 보증기관 한도(원) — HUG/HF/SGI별로 다르다. 확인 후 조정"),
+            new Seed("jeonse.interestRate", "0.04", RegulationValueType.DECIMAL, "전세자금대출 기준 금리"),
+            new Seed("jeonse.termYears", "2", RegulationValueType.INT,
+                    "전세자금대출 기간(년) — 전세 계약 주기와 같다"));
 
     private final RegulationParamRepository regulationParamRepository;
 
@@ -42,7 +70,9 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     null, PROFILE, seed.key(), seed.value(), seed.valueType(),
                     seed.description(), null, null));
         }
-        log.info("★ 규제 파라미터 {}건 시드 완료 (profile={}) ★", DEFAULTS.size(), PROFILE);
+        log.info("Seeded {} regulation parameters (profile={}). "
+                        + "LTV/lease-deduction values are defaults - verify against the current notice.",
+                DEFAULTS.size(), PROFILE);
     }
 
     private record Seed(String key, String value, RegulationValueType valueType, String description) {

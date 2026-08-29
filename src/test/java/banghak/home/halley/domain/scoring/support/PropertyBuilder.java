@@ -20,6 +20,15 @@ public final class PropertyBuilder {
     private LocalDate moveInDate = null;
     private Integer buildingCount = 3;
     private Long priceDeposit = 500_000_000L;
+    private BigDecimal lat = new BigDecimal("37.5");
+    private BigDecimal lng = new BigDecimal("127.0");
+
+    /** 좌표가 없는 매물 — POI·통근 채점이 좌표 부재로 폴백되는 경우를 재현한다. */
+    public PropertyBuilder noCoordinates() {
+        this.lat = null;
+        this.lng = null;
+        return this;
+    }
 
     public PropertyBuilder floorNo(Integer value) {
         this.floorNo = value;
@@ -64,10 +73,10 @@ public final class PropertyBuilder {
     public Property build() {
         return new Property(
                 null, "테스트", null, DealType.SALE, priceDeposit, null, null,
-                "서울시", null, null, null, null, null, null,
+                "서울시", null, lat, lng, null, null, null,
                 floorNo, null, floorBand,
                 null, null, approvalYear, moveInType, moveInDate,
-                parkingPerHousehold, null, null, buildingCount, null,
+                parkingPerHousehold, null, null, buildingCount, null, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
                 null, 0, null, null, null);

@@ -5,6 +5,7 @@ import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.MoveInType;
 import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.property.SchoolSource;
 import banghak.home.halley.domain.property.SourceType;
 import tools.jackson.databind.ObjectMapper;
 import org.jooq.DSLContext;
@@ -16,14 +17,18 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ACQUISITION_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ACTIVE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ADDRESS_JIBUN;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ADDRESS_ROAD;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.APPROVAL_YEAR;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.AREA_EXCLUSIVE_M2;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.AREA_SUPPLY_M2;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.BROKERAGE_FEE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.BROKERAGE_RATE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.BUILDING_COUNT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CHECK_FAIL_STREAK;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.COMPREHENSIVE_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CREATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CREATED_BY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DEAL_TYPE;
@@ -47,12 +52,19 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.NAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.NAVER_ARTICLE_NO;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARKING_PER_HOUSEHOLD;
-import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSE_CONFIDENCE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.OFFICIAL_PRICE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.OFFICIAL_PRICE_YEAR;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PNU;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSER_VERSION;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSE_CONFIDENCE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_DEPOSIT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_MONTHLY;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PROPERTY_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.RAW_PASTE_TEXT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ROOM_BATH;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SCHOOL_NAME;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SCHOOL_SOURCE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SCHOOL_WALK_MINUTES;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SOLD_DETECTED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SOURCE_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.SOURCE_URL;
@@ -105,6 +117,17 @@ public class PropertyRepository {
                         .set(HEATING_TYPE, property.heatingType())
                         .set(BUILDING_COUNT, property.buildingCount())
                         .set(KB_PRICE, property.kbPrice())
+                        .set(BROKERAGE_FEE, property.brokerageFee())
+                        .set(BROKERAGE_RATE, property.brokerageRate())
+                        .set(ACQUISITION_TAX, property.acquisitionTax())
+                        .set(PROPERTY_TAX, property.propertyTax())
+                        .set(COMPREHENSIVE_TAX, property.comprehensiveTax())
+                        .set(SCHOOL_NAME, property.schoolName())
+                        .set(SCHOOL_WALK_MINUTES, property.schoolWalkMinutes())
+                        .set(SCHOOL_SOURCE, property.schoolSource() == null ? null : property.schoolSource().name())
+                        .set(PNU, property.pnu())
+                        .set(OFFICIAL_PRICE, property.officialPrice())
+                        .set(OFFICIAL_PRICE_YEAR, property.officialPriceYear())
                         .set(SOURCE_TYPE, property.sourceType() == null ? null : property.sourceType().name())
                         .set(SOURCE_URL, property.sourceUrl())
                         .set(NAVER_ARTICLE_NO, property.naverArticleNo())
@@ -152,6 +175,17 @@ public class PropertyRepository {
                 .set(HEATING_TYPE, property.heatingType())
                 .set(BUILDING_COUNT, property.buildingCount())
                 .set(KB_PRICE, property.kbPrice())
+                .set(BROKERAGE_FEE, property.brokerageFee())
+                .set(BROKERAGE_RATE, property.brokerageRate())
+                .set(ACQUISITION_TAX, property.acquisitionTax())
+                .set(PROPERTY_TAX, property.propertyTax())
+                .set(COMPREHENSIVE_TAX, property.comprehensiveTax())
+                .set(SCHOOL_NAME, property.schoolName())
+                .set(SCHOOL_WALK_MINUTES, property.schoolWalkMinutes())
+                .set(SCHOOL_SOURCE, property.schoolSource() == null ? null : property.schoolSource().name())
+                .set(PNU, property.pnu())
+                .set(OFFICIAL_PRICE, property.officialPrice())
+                .set(OFFICIAL_PRICE_YEAR, property.officialPriceYear())
                 .set(SOURCE_TYPE, property.sourceType() == null ? null : property.sourceType().name())
                 .set(SOURCE_URL, property.sourceUrl())
                 .set(NAVER_ARTICLE_NO, property.naverArticleNo())
@@ -254,6 +288,17 @@ public class PropertyRepository {
                 r.get(HEATING_TYPE),
                 r.get(BUILDING_COUNT),
                 r.get(KB_PRICE),
+                r.get(BROKERAGE_FEE),
+                r.get(BROKERAGE_RATE),
+                r.get(ACQUISITION_TAX),
+                r.get(PROPERTY_TAX),
+                r.get(COMPREHENSIVE_TAX),
+                r.get(SCHOOL_NAME),
+                r.get(SCHOOL_WALK_MINUTES),
+                toEnum(SchoolSource.class, r.get(SCHOOL_SOURCE)),
+                r.get(PNU),
+                r.get(OFFICIAL_PRICE),
+                r.get(OFFICIAL_PRICE_YEAR),
                 toEnum(SourceType.class, r.get(SOURCE_TYPE)),
                 r.get(SOURCE_URL),
                 r.get(NAVER_ARTICLE_NO),

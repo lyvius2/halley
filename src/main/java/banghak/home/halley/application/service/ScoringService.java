@@ -11,7 +11,11 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepository;
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
+import banghak.home.halley.adapter.outbound.persistence.ComparativeAnalysisRepository;
+import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.domain.llm.ComparativeAnalysis;
+import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
@@ -47,6 +51,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -56,6 +61,8 @@ public class ScoringService {
 
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final LlmRecommendationRepository llmRecommendationRepository;
+    private final ComparativeAnalysisRepository comparativeAnalysisRepository;
     private final CriterionRepository criterionRepository;
     private final CriterionWeightRepository criterionWeightRepository;
     private final PropertyScoreRepository propertyScoreRepository;
@@ -70,6 +77,8 @@ public class ScoringService {
 
     public ScoringService(PropertyRepository propertyRepository,
                           UserRepository userRepository,
+                          LlmRecommendationRepository llmRecommendationRepository,
+                          ComparativeAnalysisRepository comparativeAnalysisRepository,
                           CriterionRepository criterionRepository,
                           CriterionWeightRepository criterionWeightRepository,
                           PropertyScoreRepository propertyScoreRepository,
@@ -83,6 +92,8 @@ public class ScoringService {
                           List<CriterionScorer> scorers) {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
+        this.llmRecommendationRepository = llmRecommendationRepository;
+        this.comparativeAnalysisRepository = comparativeAnalysisRepository;
         this.criterionRepository = criterionRepository;
         this.criterionWeightRepository = criterionWeightRepository;
         this.propertyScoreRepository = propertyScoreRepository;
@@ -194,6 +205,7 @@ public class ScoringService {
                     criterion.effectiveScore(),
                     sourceOf(criterion),
                     criterion.fallbackReason(),
+                    criterion.explanation(),
                     Instant.now()));
         }
         return toResponse(property, result, weights);
@@ -222,12 +234,14 @@ public class ScoringService {
                     s.manualScore(),
                     s.effectiveScore(),
                     s.scoreSource() == null ? null : s.scoreSource().name(),
-                    s.fallbackReason()));
+                    s.fallbackReason(),
+                    s.explanation()));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
-        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), total, views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
+                editVersionStore.current(versionKey(property.id()))), total, views);
     }
 
     private ScoredPropertyResponse toResponse(Property property, PropertyScoringResult result,
@@ -243,9 +257,19 @@ public class ScoringService {
                         c.manualScore(),
                         c.effectiveScore(),
                         sourceOf(c).name(),
-                        c.fallbackReason()))
+                        c.fallbackReason(),
+                        c.explanation()))
                 .toList();
-        return new ScoredPropertyResponse(PropertyResponse.from(property, editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
+                editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+    }
+
+    /** 매물 카드의 등록자 표시용 닉네임 (설계 I53). */
+    private String nicknameOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId).map(User::nickname).orElse(null);
     }
 
     private ScoringContext buildContext(Property property) {
@@ -259,8 +283,19 @@ public class ScoringService {
         final List<NearbyFacility> nearbyFacilities = poiDataService.ensureNearby(property);
         // I13: 비활성 사용자도 채점 반영 (I10과 동일) — 통근은 전 사용자 기준
         final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, allUsers);
+        // AI 추천도는 채점 루프 안에서 부르지 않는다 — 저장된 값만 읽는다 (설계 I59)
+        final Optional<LlmRecommendation> llm = llmRecommendationRepository.findByPropertyId(property.id());
+        // 비교 우위도 마찬가지 — 매물 전체를 한 번에 묻는 무거운 작업이라 저장된 값만 읽는다 (설계 I61)
+        final Optional<ComparativeAnalysis> comparative =
+                comparativeAnalysisRepository.findByPropertyId(property.id());
         return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loadLoanCalculator(),
-                nearbyFacilities, commuteMinutes);
+                nearbyFacilities, commuteMinutes,
+                llm.map(LlmRecommendation::score).orElse(null),
+                llm.map(LlmRecommendation::reason).orElse(null),
+                comparative.map(ComparativeAnalysis::score).orElse(null),
+                comparative.map(ComparativeAnalysis::reason).orElse(null),
+                comparative.map(ComparativeAnalysis::rankNo).orElse(null),
+                comparative.map(ComparativeAnalysis::propertyCount).orElse(null));
     }
 
     @Transactional

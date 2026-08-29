@@ -5,6 +5,7 @@ import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.MoveInType;
 import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.property.SchoolSource;
 import banghak.home.halley.domain.property.SourceType;
 
 import java.math.BigDecimal;
@@ -39,16 +40,29 @@ public record PropertyResponse(
         String heatingType,
         Integer buildingCount,
         Long kbPrice,
+        Long brokerageFee,
+        BigDecimal brokerageRate,
+        Long acquisitionTax,
+        Long propertyTax,
+        String comprehensiveTax,
+        String schoolName,
+        Integer schoolWalkMinutes,
+        SchoolSource schoolSource,
+        Long officialPrice,
+        Integer officialPriceYear,
         SourceType sourceType,
+        String sourceUrl,
         ListingStatus listingStatus,
         boolean active,
         boolean isDraft,
         Instant soldDetectedAt,
         Instant createdAt,
+        Long createdBy,
+        String createdByNickname,
         Long editVersion
 ) {
 
-    public static PropertyResponse from(Property p, Long editVersion) {
+    public static PropertyResponse from(Property p, String createdByNickname, Long editVersion) {
         return new PropertyResponse(
                 p.id(), p.name(), p.dongHo(), p.dealType(),
                 p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
@@ -56,7 +70,9 @@ public record PropertyResponse(
                 p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
                 p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
                 p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
-                p.sourceType(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
-                editVersion);
+                p.brokerageFee(), p.brokerageRate(), p.acquisitionTax(), p.propertyTax(), p.comprehensiveTax(),
+                p.schoolName(), p.schoolWalkMinutes(), p.schoolSource(), p.officialPrice(), p.officialPriceYear(),
+                p.sourceType(), p.sourceUrl(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
+                p.createdBy(), createdByNickname, editVersion);
     }
 }

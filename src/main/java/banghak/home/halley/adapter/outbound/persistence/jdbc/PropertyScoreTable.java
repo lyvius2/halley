@@ -25,6 +25,7 @@ public final class PropertyScoreTable {
     public static final Field<BigDecimal> EFFECTIVE_SCORE = field(name(T, "effective_score"), BigDecimal.class);
     public static final Field<String> SCORE_SOURCE = field(name(T, "score_source"), String.class);
     public static final Field<String> FALLBACK_REASON = field(name(T, "fallback_reason"), String.class);
+    public static final Field<String> EXPLANATION = field(name(T, "explanation"), String.class);
     public static final Field<OffsetDateTime> COMPUTED_AT = field(name(T, "computed_at"), OffsetDateTime.class);
 
     private PropertyScoreTable() {

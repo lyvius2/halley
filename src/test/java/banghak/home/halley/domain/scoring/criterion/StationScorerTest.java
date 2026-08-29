@@ -41,18 +41,29 @@ class StationScorerTest {
     }
 
     @Test
-    @DisplayName("역 데이터가 없으면 MISSING으로 기록된다")
+    @DisplayName("반경 내 역이 없으면 MISSING으로 기록된다")
     void missing() {
         // when
         final ScoreResult result = scorer.score(new PropertyBuilder().build(), TestContexts.context());
 
         // then
         assertThat(result.isComputed()).isFalse();
-        assertThat(result.fallbackReason()).isEqualTo("역세권 데이터 없음");
+        assertThat(result.fallbackReason()).isEqualTo("반경 내 지하철역이 없습니다");
     }
 
     private static ScoringContext ctx(NearbyFacility station) {
         return TestContexts.context(List.of(station));
+    }
+
+    @Test
+    @DisplayName("좌표가 없으면 '데이터 없음'이 아니라 좌표를 채우라는 사유를 남긴다")
+    void missingCoordinates() {
+        // when
+        final ScoreResult result = scorer.score(new PropertyBuilder().noCoordinates().build(), TestContexts.context());
+
+        // then
+        assertThat(result.isComputed()).isFalse();
+        assertThat(result.fallbackReason()).contains("좌표");
     }
 
     private static NearbyFacility station(int walkMinutes) {

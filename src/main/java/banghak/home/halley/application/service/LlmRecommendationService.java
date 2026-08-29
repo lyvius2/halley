@@ -1,0 +1,277 @@
+package banghak.home.halley.application.service;
+
+import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.domain.llm.LlmMessage;
+import banghak.home.halley.domain.llm.LlmRecommendation;
+import banghak.home.halley.domain.llm.LlmResult;
+import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.user.User;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
+import java.util.StringJoiner;
+
+/**
+ * LLM 추천도 산출 (설계 I59).
+ *
+ * <p>매물 정보와 <b>사용자들의 직장 위치</b>를 던져 0~100의 추천도와 이유를 받습니다.
+ * 결과는 `llm_recommendation`에 저장되고 `LLM_RECOMMENDATION` 채점 항목의 입력이 됩니다.
+ *
+ * <p>입력이 그대로면 다시 부르지 않습니다(`prompt_hash`). 매물을 열 때마다 호출하면 비용이
+ * 선형으로 늘고, 같은 입력에 같은 답이 나올 것을 다시 사는 셈이기 때문입니다.
+ */
+@Slf4j
+@Service
+public class LlmRecommendationService {
+
+    private static final int MAX_TOKENS = 1024;
+    private static final int MAX_REASON_LENGTH = 2000;
+
+    private static final String SYSTEM_PROMPT = """
+            당신은 한국 부동산 매물을 평가하는 조력자입니다.
+            주어진 매물 정보와 구매자들의 직장 위치를 근거로 이 매물이 이 구매자들에게 얼마나 적합한지 판단하세요.
+
+            반드시 아래 JSON 형식으로만 답하세요. 다른 문장을 덧붙이지 마세요.
+            {"score": <0~100 정수>, "reason": "<한국어 두세 문장>"}
+
+            채점 지침
+            - score는 이 구매자들에게 이 매물이 얼마나 좋은 선택인지를 0~100으로 나타냅니다.
+            - reason에는 점수의 근거를 구체적으로 적으세요. 어떤 정보가 없어서 판단이 제한됐다면 그것도 밝히세요.
+            - 주어지지 않은 정보를 지어내지 마세요.
+            """;
+
+    private final LlmPort llmPort;
+    private final LlmRecommendationRepository recommendationRepository;
+    private final PropertyRepository propertyRepository;
+    private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+    private final boolean enabled;
+
+    public LlmRecommendationService(LlmPort llmPort,
+                                    LlmRecommendationRepository recommendationRepository,
+                                    PropertyRepository propertyRepository,
+                                    UserRepository userRepository,
+                                    ObjectMapper objectMapper,
+                                    @Value("${llm.enabled:true}") boolean enabled) {
+        this.llmPort = llmPort;
+        this.recommendationRepository = recommendationRepository;
+        this.propertyRepository = propertyRepository;
+        this.userRepository = userRepository;
+        this.objectMapper = objectMapper;
+        this.enabled = enabled;
+    }
+
+    /** 직장 위치가 이만큼 모이면 판단이 충분히 안정된다고 본다 (설계 I60). */
+    static final int ENOUGH_WORKPLACES = 3;
+
+    /** 저장된 추천도만 읽는다 — LLM을 부르지 않는다. */
+    public Optional<LlmRecommendation> find(Long propertyId) {
+        return recommendationRepository.findByPropertyId(propertyId);
+    }
+
+    /**
+     * 사용자가 추가되거나 직장 위치가 바뀌었을 때 전 매물의 추천도를 다시 뽑는다 (설계 I60).
+     *
+     * <p>단, <b>직장 위치 3곳 이상으로 이미 추론한 매물은 건너뜁니다.</b> 그 정도면 통근 판단에
+     * 필요한 정보가 다 모인 셈이라, 네 번째 사람이 들어왔다고 매물 전체를 다시 물으면
+     * 비용만 늘고 점수는 거의 그대로입니다.
+     *
+     * @return 실제로 다시 물어본 매물 수
+     */
+    public int refreshForWorkplaceChange() {
+        if (!enabled || !llmPort.isEnabled()) {
+            return 0;
+        }
+        int refreshed = 0;
+        int skipped = 0;
+        for (final Property property : propertyRepository.findAll()) {
+            final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(property.id());
+            if (cached.isPresent() && workplaceCountOf(cached.get()) >= ENOUGH_WORKPLACES) {
+                skipped++;
+                continue;
+            }
+            final Optional<LlmRecommendation> before = cached;
+            final Optional<LlmRecommendation> after = ensureRecommendation(property.id());
+            if (after.isPresent() && (before.isEmpty() || !after.get().equals(before.get()))) {
+                refreshed++;
+            }
+        }
+        log.info("Refreshed LLM recommendations after workplace change. refreshed={}, skipped={} (>= {} workplaces)",
+                refreshed, skipped, ENOUGH_WORKPLACES);
+        return refreshed;
+    }
+
+    private int workplaceCountOf(LlmRecommendation recommendation) {
+        return recommendation.workplaceCount() == null ? 0 : recommendation.workplaceCount();
+    }
+
+    /**
+     * 필요하면 LLM을 불러 추천도를 갱신한다. 입력이 그대로면 저장된 값을 그대로 쓴다.
+     * 실패해도 예외를 던지지 않는다 — 나머지 채점은 그대로 나와야 한다.
+     */
+    public Optional<LlmRecommendation> ensureRecommendation(Long propertyId) {
+        if (!enabled || !llmPort.isEnabled()) {
+            log.debug("Skipping LLM recommendation - provider not enabled. provider={}", llmPort.provider());
+            return recommendationRepository.findByPropertyId(propertyId);
+        }
+        final Optional<Property> found = propertyRepository.findById(propertyId);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        final Property property = found.get();
+        final List<User> buyers = activeBuyers();
+        final String prompt = buildPrompt(property, buyers);
+        final String hash = sha256(prompt);
+        final int workplaces = (int) buyers.stream()
+                .filter(u -> u.workplaceLat() != null && u.workplaceLng() != null)
+                .count();
+
+        final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(propertyId);
+        if (cached.isPresent() && hash.equals(cached.get().promptHash())) {
+            return cached;
+        }
+
+        final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+        if (!result.isPresent()) {
+            log.warn("LLM recommendation unavailable. propertyId={}, cause={}", propertyId, result.failureCause());
+            return cached;
+        }
+        final Optional<Verdict> verdict = parse(result.text());
+        if (verdict.isEmpty()) {
+            log.warn("LLM recommendation could not be parsed. propertyId={}, raw={}", propertyId, result.text());
+            return cached;
+        }
+        final LlmRecommendation saved = recommendationRepository.upsert(new LlmRecommendation(
+                null, propertyId, verdict.get().score(), verdict.get().reason(),
+                result.model(), hash, workplaces, Instant.now()));
+        log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
+                propertyId, saved.score(), saved.model(), workplaces);
+        return Optional.of(saved);
+    }
+
+    /**
+     * 프롬프트는 <b>줄 단위로 안정적</b>이어야 한다. 순서가 흔들리면 해시가 달라져 같은 입력에도
+     * 다시 호출된다. 그래서 필드를 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
+     */
+    String buildPrompt(Property property, List<User> buyers) {
+        final StringJoiner sb = new StringJoiner("\n");
+        sb.add("[매물 정보]");
+        sb.add("단지명: " + text(property.name()));
+        sb.add("동/호: " + text(property.dongHo()));
+        sb.add("거래유형: " + (property.dealType() == null ? "정보 없음" : property.dealType().name()));
+        sb.add("매매가/보증금(원): " + number(property.priceDeposit()));
+        sb.add("월세(원): " + number(property.priceMonthly()));
+        sb.add("관리비(원/월): " + number(property.maintenanceFee()));
+        sb.add("주소: " + text(firstNonBlank(property.addressRoad(), property.addressJibun())));
+        sb.add("공급면적(㎡): " + number(property.areaSupplyM2()));
+        sb.add("전용면적(㎡): " + number(property.areaExclusiveM2()));
+        sb.add("해당층/총층: " + (property.floorNo() == null ? "정보 없음"
+                : property.floorNo() + "/" + number(property.floorTotal())));
+        sb.add("방/욕실: " + text(property.roomBath()));
+        sb.add("향: " + text(property.direction()));
+        sb.add("난방: " + text(property.heatingType()));
+        sb.add("사용승인연도: " + number(property.approvalYear()));
+        sb.add("세대수: " + number(property.totalHouseholds()));
+        sb.add("세대당 주차: " + number(property.parkingPerHousehold()));
+        sb.add("배정 초등학교: " + text(property.schoolName())
+                + (property.schoolWalkMinutes() == null ? "" : " (도보 " + property.schoolWalkMinutes() + "분)"));
+        sb.add("공시가격(원): " + number(property.officialPrice()));
+        sb.add("KB시세(원): " + number(property.kbPrice()));
+        sb.add("좌표: " + (property.lat() == null || property.lng() == null
+                ? "정보 없음" : property.lat() + ", " + property.lng()));
+
+        sb.add("");
+        sb.add("[구매자들의 직장 위치]");
+        if (buyers.isEmpty()) {
+            sb.add("정보 없음");
+        } else {
+            for (final User buyer : buyers) {
+                sb.add("- " + buyer.nickname() + ": " + text(buyer.workplaceName())
+                        + (buyer.workplaceLat() == null || buyer.workplaceLng() == null
+                        ? " (좌표 없음)"
+                        : " (" + buyer.workplaceLat() + ", " + buyer.workplaceLng() + ")"));
+            }
+        }
+        return sb.toString();
+    }
+
+    /** 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 해시가 달라진다. */
+    private List<User> activeBuyers() {
+        return userRepository.findAll().stream()
+                .filter(User::enabled)
+                .sorted(java.util.Comparator.comparing(User::id))
+                .toList();
+    }
+
+    /**
+     * 모델이 JSON만 내도록 지시했지만 앞뒤에 설명이나 코드펜스를 붙이는 경우가 있어
+     * 첫 `{`부터 마지막 `}`까지만 잘라 읽는다.
+     */
+    Optional<Verdict> parse(String raw) {
+        final int start = raw.indexOf('{');
+        final int end = raw.lastIndexOf('}');
+        if (start < 0 || end <= start) {
+            return Optional.empty();
+        }
+        try {
+            final JsonNode node = objectMapper.readTree(raw.substring(start, end + 1));
+            if (node.path("score").isMissingNode()) {
+                return Optional.empty();
+            }
+            final double score = node.path("score").asDouble(-1);
+            if (score < 0 || score > 100) {
+                return Optional.empty();
+            }
+            final String reason = node.path("reason").asString("");
+            return Optional.of(new Verdict(
+                    BigDecimal.valueOf(score).setScale(2, RoundingMode.HALF_UP),
+                    reason.length() > MAX_REASON_LENGTH ? reason.substring(0, MAX_REASON_LENGTH) : reason));
+        } catch (RuntimeException e) {
+            return Optional.empty();
+        }
+    }
+
+    private String sha256(String value) {
+        try {
+            final MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private String text(String value) {
+        return value == null || value.isBlank() ? "정보 없음" : value;
+    }
+
+    private String number(Object value) {
+        return value == null ? "정보 없음" : String.valueOf(value);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (final String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    record Verdict(BigDecimal score, String reason) {
+    }
+}

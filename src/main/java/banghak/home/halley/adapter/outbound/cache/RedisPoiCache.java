@@ -42,7 +42,7 @@ public class RedisPoiCache implements PoiCache {
             return objectMapper.readValue(value, new TypeReference<List<NearbyFacility>>() {
             });
         } catch (RuntimeException e) {
-            log.warn("Redis POI 캐시 조회 실패 propertyId={}: {}", propertyId, e.getMessage());
+            log.warn("Redis POI cache read failed. propertyId={}, cause={}", propertyId, e.getMessage());
             return List.of();
         }
     }
@@ -53,7 +53,7 @@ public class RedisPoiCache implements PoiCache {
             redisTemplate.opsForValue().set(
                     key(propertyId, schemaVersion), objectMapper.writeValueAsString(facilities), TTL);
         } catch (RuntimeException e) {
-            log.warn("Redis POI 캐시 저장 실패 propertyId={}: {}", propertyId, e.getMessage());
+            log.warn("Redis POI cache write failed. propertyId={}, cause={}", propertyId, e.getMessage());
         }
     }
 

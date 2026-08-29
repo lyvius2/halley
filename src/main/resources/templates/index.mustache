@@ -6,10 +6,12 @@
     <title>Halley — 부동산 매물 비교</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/css/app.css">
     <script defer src="/js/app.js"></script>
     <script defer src="/js/vendor/alpine.min.js"></script>
+    <!-- 카카오(다음) 우편번호 서비스 — 주소 검색 팝업 -->
+    <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
     {{#kakaoJsKey}}
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
@@ -24,9 +26,9 @@
                 <nav class="nav">
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
-                    <button class="nav-btn" :class="{on: view==='users'}" x-show="session.role==='ADMIN'" @click="setView('users')">사용자</button>
                     <button class="nav-btn" :class="{on: view==='me'}" @click="setView('me')">프로필</button>
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
+                    <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
@@ -53,8 +55,14 @@
             <template x-if="session.authenticated && !session.mustChangePassword">
                 <div>
                     <div x-show="view==='list'">
-                        <div class="sec-head"><span class="sec-num">01</span><h2>매물</h2><span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
-                            <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
+                        <div class="sec-head sec-head-actions">
+                            <span class="sec-num">01</span><h2>매물</h2>
+                            <span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
+                            <div class="sec-actions">
+                                <button class="btn btn-sm" @click="openCompare()"
+                                        :disabled="!canCompare()" :title="compareHint()">비교 우위 분석</button>
+                                <button class="btn btn-primary btn-sm" @click="openAddMenu()">+ 매물 추가</button>
+                            </div>
                         </div>
                         <div class="deal-tabs">
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
@@ -77,6 +85,11 @@
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
                                         <span class="property-card-name" x-text="r.property.name"></span>
+                                        <span class="owner-badge" x-show="r.property.createdByNickname"
+                                              :title="'등록: ' + r.property.createdByNickname">
+                                            <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
+                                            <span x-text="r.property.createdByNickname"></span>
+                                        </span>
                                         <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
@@ -85,7 +98,8 @@
                                         <span class="badge b-off" x-show="r.property.listingStatus==='SOLD_OUT'">판매완료</span>
                                         <span x-text="r.property.addressRoad"></span>
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
-                                        <span x-show="r.property.areaExclusiveM2" x-text="r.property.areaExclusiveM2 + '㎡'"></span>
+                                        <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
+                                        <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
                                         <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
@@ -94,6 +108,7 @@
                                         <button class="btn-link" @click="openDetail(r)">상세</button>
                                         <button class="btn-link" x-show="r.property.isDraft" @click="openPasteModal(r)">완성</button>
                                         <button class="btn-link" @click="openCheckLogs(r)">이력</button>
+                                        <button class="btn-link" @click="openComments(r)">코멘트</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
                                         <button class="btn-link" @click="openRefModal(r)">실거래</button>
@@ -143,13 +158,16 @@
                         <div class="card itin-panel">
                             <div class="form-grid">
                                 <label class="span2">출발지 주소
-                                    <input type="text" x-model="itinStart.address" placeholder="우리집">
+                                    <div class="workplace-search">
+                                        <input type="text" x-model="itinStart.address" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
+                                        <button class="btn" type="button" @click="searchPostcodeFor('itinerary')">주소 검색</button>
+                                    </div>
                                 </label>
                                 <label>위도
-                                    <input type="number" step="0.000001" x-model="itinStart.lat" placeholder="37.5">
+                                    <input type="number" step="0.000001" x-model="itinStart.lat" readonly placeholder="주소 선택 시 자동 입력">
                                 </label>
                                 <label>경도
-                                    <input type="number" step="0.000001" x-model="itinStart.lng" placeholder="126.9">
+                                    <input type="number" step="0.000001" x-model="itinStart.lng" readonly placeholder="주소 선택 시 자동 입력">
                                 </label>
                                 <label>이동수단
                                     <select x-model="itinMode">
@@ -210,89 +228,69 @@
                         </template>
                     </div>
 
-                    <div x-show="view==='users'">
-                        <div class="sec-head"><span class="sec-num">02</span><h2>사용자 관리</h2><span class="sec-sub" x-text="users.length + '명'"></span>
-                            <button class="btn btn-primary btn-sm" @click="openAddUser()">+ 사용자 추가</button>
-                        </div>
-                        <div class="card table-wrap">
-                            <table>
-                                <thead>
-                                <tr><th>닉네임</th><th>이메일</th><th>역할</th><th>가용 예산</th><th>상태</th><th>관리</th></tr>
-                                </thead>
-                                <tbody>
-                                <template x-for="u in users" :key="u.id">
-                                    <tr>
-                                        <td class="strong" x-text="u.nickname"></td>
-                                        <td x-text="u.email"></td>
-                                        <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
-                                        <td class="num" x-text="fmtWon(u.availableBudget)"></td>
-                                        <td><span class="badge" :class="u.enabled ? 'b-on' : 'b-off'" x-text="u.enabled ? '활성' : '비활성'"></span></td>
-                                        <td>
-                                            <button class="btn-link" @click="openEditUser(u)">수정</button>
-                                            <button class="btn-link" @click="resetUserPassword(u)">비번 리셋</button>
-                                            <button class="btn-link danger" @click="removeUser(u)">삭제</button>
-                                        </td>
-                                    </tr>
-                                </template>
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="card temp-pw" x-show="tempPassword" style="margin-top:14px;">
-                            <p class="temp-pw-label">임시 비밀번호 (1회 표시)</p>
-                            <p class="temp-pw-value" x-text="tempPassword"></p>
-                            <button class="btn btn-ghost" @click="tempPassword = null">닫기</button>
-                        </div>
-                    </div>
-
                     <div x-show="view==='me'">
                         <div class="sec-head"><span class="sec-num">06</span><h2>내 프로필</h2></div>
                         <template x-if="profile">
                             <div class="card profile-panel">
+                                <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
                                 <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
                                 <div class="profile-row"><span>이메일</span><b x-text="profile.email"></b></div>
                                 <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
-                                <div class="profile-row"><span>가용 예산</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
+                                <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
+                                <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
+                                <div class="profile-row"><span>기존 대출액</span><b x-text="fmtWon(profile.existingLoan)"></b></div>
                                 <div class="profile-row"><span>직장</span><b x-text="profile.workplaceName || '미설정'"></b></div>
                                 <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
                             </div>
                         </template>
-                         <template x-if="profile">
-                         <div class="card profile-panel" style="margin-top:14px;">
-                             <h4 class="profile-title">직장 위치 지정</h4>
+                        <template x-if="profile">
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">프로필 수정</h4>
                             <div class="form-grid">
-                                <label class="span2">주소 검색
+                                <label>닉네임
+                                    <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
+                                </label>
+                                <label>이메일
+                                    <input type="email" x-model="profileForm.email" placeholder="name@example.com">
+                                </label>
+                                <label class="span2">직장 주소
                                     <div class="workplace-search">
-                                        <input type="text" x-model="workplaceQuery" placeholder="회사 주소 검색" @keyup.enter="searchWorkplace()">
-                                        <button class="btn" @click="searchWorkplace()">검색</button>
+                                        <input type="text" x-model="profileForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
+                                        <button class="btn" type="button" @click="searchPostcodeFor('profile')">주소 검색</button>
                                     </div>
                                 </label>
-                                <template x-if="workplaceResults.length > 0">
-                                    <div class="workplace-results span2">
-                                        <template x-for="(r, i) in workplaceResults" :key="i">
-                                            <button class="workplace-result" @click="selectWorkplace(r)">
-                                                <span x-text="r.addressName"></span>
-                                                <small x-text="r.roadAddressName"></small>
-                                            </button>
-                                        </template>
-                                    </div>
-                                </template>
-                                <label>직장명
-                                    <input type="text" x-model="profile.workplaceName">
+                                <label>위도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
                                 </label>
-                                <label>위도/경도
-                                    <div class="workplace-latlng">
-                                        <input type="number" step="0.000001" x-model="profile.workplaceLat">
-                                        <input type="number" step="0.000001" x-model="profile.workplaceLng">
-                                    </div>
+                                <label>경도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
+                                </label>
+                                <label class="span2">보유 현금 (원)
+                                    <input type="number" min="1" x-model="profileForm.availableBudget" placeholder="300000000">
+                                    <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
+                                </label>
+                                <label>연소득 (원)
+                                    <input type="number" min="1" x-model="profileForm.annualIncome" placeholder="50000000">
+                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+                                </label>
+                                <label>기존 대출액 (원)
+                                    <input type="number" min="0" x-model="profileForm.existingLoan" placeholder="0">
+                                    <span class="settings-note">없으면 0. 있으면 그만큼 DSR 여력에서 빠집니다.</span>
                                 </label>
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
-                            <button class="btn btn-primary" @click="saveWorkplace()" :disabled="loading">직장 위치 저장</button>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" @click="saveProfile()" :disabled="loading">
+                                    <span x-text="loading ? '저장 중…' : '프로필 저장'"></span>
+                                </button>
+                            </div>
                         </div>
                         </template>
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">비밀번호 변경</h4>
-                            <button class="btn" @click="openChangePw()">비밀번호 변경</button>
+                            <div class="panel-actions">
+                                <button class="btn" @click="openChangePw()">비밀번호 변경</button>
+                            </div>
                         </div>
                     </div>
 
@@ -305,17 +303,18 @@
 <!-- D1 로그인 모달 -->
 <div class="modal" x-show="showLogin" x-cloak>
     <div class="modal-backdrop"></div>
-    <div class="modal-card">
+    <div class="modal-card modal-login">
         <div class="modal-head">
-            <span class="modal-kicker">Halley · 로그인</span>
-            <h3>부동산 매물 비교</h3>
+            <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
+            <h3>Halley</h3>
             <p>계정 정보를 입력해 들어오세요.</p>
         </div>
         <form class="form" @submit.prevent="login()">
-            <label>아이디
-                <input type="text" x-model="loginForm.email" autocomplete="username" placeholder="admin" required>
+            <label>ID
+                <input type="text" x-model="loginForm.loginId" autocomplete="username" placeholder="admin" required
+                       x-ref="loginId" x-effect="if (showLogin) $nextTick(() => $refs.loginId.focus())">
             </label>
-            <label>비밀번호
+            <label>Password
                 <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
             </label>
             <p class="form-error" x-show="error" x-text="error"></p>
@@ -347,6 +346,52 @@
                 <span x-text="loading ? '변경 중…' : '비밀번호 변경'"></span>
             </button>
         </form>
+    </div>
+</div>
+
+<!-- D2-2 최초 프로필 설정 (강제 — 설계 6.1 · I48) -->
+<div class="modal" x-show="showProfileSetup" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card modal-wide">
+        <div class="modal-head">
+            <span class="modal-kicker">최초 설정</span>
+            <h3>프로필을 완성해 주세요</h3>
+            <p>직장 위치와 보유 현금이 있어야 <b>직주근접</b>과 <b>가격</b> 항목이 채점됩니다. 연소득은 <b>대출 한도</b>를 매물마다 바로 보여주는 데 씁니다.</p>
+        </div>
+        <div class="form-grid">
+            <label class="span2">이메일
+                <input type="email" x-model="setupForm.email" placeholder="name@example.com">
+                <span class="settings-note">로그인 아이디와 별개인 연락처입니다.</span>
+            </label>
+            <label class="span2">직장 주소
+                <div class="workplace-search">
+                    <input type="text" x-model="setupForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
+                    <button class="btn" type="button" @click="searchPostcodeFor('setup')">주소 검색</button>
+                </div>
+            </label>
+            <label>위도
+                <input type="number" step="0.000001" x-model="setupForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
+            </label>
+            <label>경도
+                <input type="number" step="0.000001" x-model="setupForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
+            </label>
+            <label class="span2">보유 현금 (원)
+                <input type="number" min="1" x-model="setupForm.availableBudget" placeholder="300000000">
+                <span class="settings-note">대출을 뺀 <b>동원 가능한 현금</b>입니다. 활성 사용자 전원의 합계가 가격 채점의 예산 상한이 됩니다.</span>
+            </label>
+            <label>연소득 (원)
+                <input type="number" min="1" x-model="setupForm.annualIncome" placeholder="50000000">
+                <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+            </label>
+            <label>기존 대출액 (원)
+                <input type="number" min="0" x-model="setupForm.existingLoan" placeholder="0">
+                <span class="settings-note">없으면 0으로 두세요.</span>
+            </label>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <button class="btn btn-primary btn-block" @click="saveProfileSetup()" :disabled="loading">
+            <span x-text="loading ? '저장 중…' : '저장하고 시작하기'"></span>
+        </button>
     </div>
 </div>
 
@@ -433,6 +478,19 @@
                         </label>
                     </template>
                 </div>
+                <!-- 붙여넣기 텍스트에는 URL이 없어 사람이 직접 붙인다 (설계 I62) -->
+                <div class="paste-extra">
+                    <label class="paste-field">
+                        <span class="paste-field-head">
+                            <b>원본 URL</b>
+                            <span class="badge b-mem">직접 입력</span>
+                        </span>
+                        <input type="url" x-model="pasteForm.sourceUrl"
+                               placeholder="https://fin.land.naver.com/articles/...">
+                        <span class="paste-note">붙여넣기 텍스트에는 주소가 없어 파싱되지 않습니다.
+                            넣어 두면 <b>판매완료를 자동으로 감지</b>합니다.</span>
+                    </label>
+                </div>
                 <p class="form-error" x-show="pasteError" x-text="pasteError"></p>
                 <div class="paste-actions">
                     <button class="btn btn-ghost" @click="pastePreview=null; pasteForm={}">다시 입력</button>
@@ -488,15 +546,18 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">사용자 관리</span>
-            <h3 x-text="editingUserId ? '사용자 수정' : '사용자 생성'"></h3>
+            <h3 x-text="editingUserId ? '사용자 정보 수정' : '사용자 추가'"></h3>
         </div>
         <form class="form" @submit.prevent="saveUser()">
             <div class="form-grid">
+                <label>아이디
+                    <input type="text" x-model="userForm.loginId" placeholder="로그인에 쓰는 아이디" required>
+                </label>
                 <label>닉네임
                     <input type="text" x-model="userForm.nickname" required>
                 </label>
-                <label>이메일
-                    <input type="email" x-model="userForm.email" required>
+                <label class="span2">이메일
+                    <input type="email" x-model="userForm.email" placeholder="비워두면 본인이 첫 로그인 때 입력합니다">
                 </label>
                 <template x-if="!editingUserId">
                     <label>비밀번호
@@ -512,8 +573,14 @@
                 <label>직장명
                     <input type="text" x-model="userForm.workplaceName">
                 </label>
-                <label>가용 예산
+                <label>보유 현금
                     <input type="number" min="0" x-model="userForm.availableBudget">
+                </label>
+                <label>연소득
+                    <input type="number" min="0" x-model="userForm.annualIncome">
+                </label>
+                <label>기존 대출액
+                    <input type="number" min="0" x-model="userForm.existingLoan">
                 </label>
                 <label>직장 위도
                     <input type="number" step="0.000001" x-model="userForm.workplaceLat">
@@ -592,37 +659,58 @@
 <div class="modal" x-show="showPhotoModal" x-cloak>
     <div class="modal-backdrop" @click="closePhotoModal()"></div>
     <div class="modal-card modal-wide">
+        <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
-            <span class="modal-kicker">사진</span>
+            <span class="modal-kicker">이미지</span>
             <h3 x-text="photoProperty?.property?.name"></h3>
-            <p>도면 1장 + 실사 N장. 업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
+            <p>업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
         </div>
-        <div class="form-grid">
-            <label>종류
-                <select x-model="photoType">
-                    <option value="PHOTO">실사</option>
-                    <option value="FLOOR_PLAN">도면</option>
-                </select>
+
+        <!-- 평면도: 매물당 한 장. 올리면 기존 것을 대체한다 (설계 I63) -->
+        <section class="img-sec">
+            <div class="img-sec-head">
+                <h4>평면도</h4>
+                <span class="img-sec-note">한 장만 둡니다. 새로 올리면 기존 평면도를 대체합니다.</span>
+            </div>
+            <template x-if="floorPlan">
+                <div class="img-single">
+                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan))">
+                        <img :src="floorPlan.storagePath" alt="평면도">
+                    </button>
+                    <button class="btn btn-xs btn-danger" @click="removeImage(floorPlan)" :disabled="loading">삭제</button>
+                </div>
+            </template>
+            <label class="img-drop">
+                <input type="file" accept="image/*" @change="uploadImages($event, 'FLOOR_PLAN')">
+                <span x-text="floorPlan ? '평면도 교체하기' : '평면도 올리기'"></span>
             </label>
-            <label>파일
-                <input type="file" accept="image/*" @change="onPhotoFile($event)">
+        </section>
+
+        <!-- 매물사진: 여러 장 -->
+        <section class="img-sec">
+            <div class="img-sec-head">
+                <h4>매물사진</h4>
+                <span class="img-sec-note" x-text="photos.length + '장'"></span>
+            </div>
+            <div class="photo-grid" x-show="photos.length > 0">
+                <template x-for="img in photos" :key="img.id">
+                    <div class="photo-cell">
+                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img))">
+                            <img :src="img.storagePath" alt="매물사진">
+                        </button>
+                        <button class="photo-del" @click="removeImage(img)" :disabled="loading" title="삭제">×</button>
+                    </div>
+                </template>
+            </div>
+            <p class="photo-empty" x-show="photos.length === 0">등록된 매물사진이 없습니다.</p>
+            <label class="img-drop">
+                <input type="file" accept="image/*" multiple @change="uploadImages($event, 'PHOTO')">
+                <span>매물사진 올리기 (여러 장 선택 가능)</span>
             </label>
-        </div>
+        </section>
+
+        <p class="paste-hint" x-show="loading">업로드 중…</p>
         <p class="form-error" x-show="error" x-text="error"></p>
-        <div class="paste-actions">
-            <button class="btn btn-primary" @click="uploadPhoto()" :disabled="loading || !photoFile">업로드</button>
-        </div>
-        <div class="photo-grid">
-            <template x-for="(img, i) in photoImages" :key="img.id">
-                <button class="photo-item" @click="openPhotoViewer(i)">
-                    <img :src="img.storagePath" alt="">
-                    <span class="photo-type" x-text="img.imageType === 'FLOOR_PLAN' ? '도면' : '실사'"></span>
-                </button>
-            </template>
-            <template x-if="photoImages.length === 0">
-                <p class="photo-empty">등록된 사진이 없습니다.</p>
-            </template>
-        </div>
     </div>
 </div>
 
@@ -646,6 +734,50 @@
         <div class="paste-actions">
             <button class="btn btn-ghost" @click="confirmNo()">취소</button>
             <button class="btn btn-primary" @click="confirmYes()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- M3 사용자 관리 모달 (ADMIN 전용) -->
+<div class="modal" x-show="showUsers" x-cloak>
+    <div class="modal-backdrop" @click="closeUsers()"></div>
+    <div class="modal-card modal-xwide">
+        <button class="modal-close" @click="closeUsers()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">사용자 관리</span>
+            <h3>계정 <span x-text="users.length"></span>명</h3>
+            <p>가입 절차가 없는 폐쇄형 서비스입니다. 계정은 관리자가 이곳에서 만들고 관리합니다.</p>
+        </div>
+        <div class="card table-wrap">
+            <table>
+                <thead>
+                <tr><th>ID</th><th>닉네임</th><th>이메일</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
+                </thead>
+                <tbody>
+                <template x-for="u in users" :key="u.id">
+                    <tr>
+                        <td class="strong" x-text="u.loginId"></td>
+                        <td x-text="u.nickname"></td>
+                        <td x-text="u.email || '-'"></td>
+                        <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
+                        <td class="num" x-text="fmtWon(u.availableBudget)"></td>
+                        <td class="num" x-text="fmtWon(u.annualIncome)"></td>
+                        <td><span class="badge" :class="u.enabled ? 'b-on' : 'b-off'" x-text="u.enabled ? '활성' : '비활성'"></span></td>
+                        <td>
+                            <div class="row-actions">
+                                <button class="btn btn-xs" @click="openEditUser(u)">정보 수정</button>
+                                <button class="btn btn-xs" @click="resetUserPassword(u)">비번 리셋</button>
+                                <button class="btn btn-xs btn-danger" @click="removeUser(u)">삭제</button>
+                            </div>
+                        </td>
+                    </tr>
+                </template>
+                </tbody>
+            </table>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+        <div class="panel-actions">
+            <button class="btn btn-primary" @click="openAddUser()">+ 사용자 추가</button>
         </div>
     </div>
 </div>
@@ -722,33 +854,158 @@
 <div class="modal modal-detail" x-show="showM2" x-cloak>
     <div class="modal-backdrop" @click="closeDetail()"></div>
     <template x-if="detailItem">
-        <div class="modal-card modal-wide">
+        <div class="modal-card modal-xwide">
             <button class="modal-close" @click="closeDetail()">×</button>
             <div class="modal-head">
                 <span class="modal-kicker">매물 상세</span>
-                <h3 x-text="detailItem.property.name"></h3>
+                <h3 x-text="detailItem.property.name + (detailItem.property.dongHo ? ' ' + detailItem.property.dongHo : '')"></h3>
             </div>
             <div class="m2-meta">
                 <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
                 <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
+                <span class="score-pill" :class="detailItem.totalScore != null && detailItem.totalScore >= 50 ? 'score-high' : 'score-low'">
+                    <b x-text="fmtScore(detailItem.totalScore)"></b><i>점</i>
+                </span>
+                <span class="owner-badge owner-badge-lg" x-show="detailItem.property.createdByNickname"
+                      :title="'등록: ' + detailItem.property.createdByNickname">
+                    <i class="owner-initial" x-text="ownerInitial(detailItem.property.createdByNickname)"></i>
+                    <span x-text="detailItem.property.createdByNickname"></span>
+                </span>
             </div>
-            <div class="m2-rows">
-                <div class="m2-row"><span>총점</span><b x-text="fmtScore(detailItem.totalScore)"></b></div>
-                <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
-                <div class="m2-row"><span>전용면적</span><b x-text="detailItem.property.areaExclusiveM2 ? detailItem.property.areaExclusiveM2 + '㎡' : '-'"></b></div>
-                <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
-                <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
-                <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
-                <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+
+            <div class="m2-grid">
+                <section class="m2-sec">
+                    <h4>기본</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
+                        <div class="m2-row"><span>공급면적</span><b x-text="fmtArea(detailItem.property.areaSupplyM2)"></b></div>
+                        <div class="m2-row"><span>전용면적</span><b x-text="fmtArea(detailItem.property.areaExclusiveM2)"></b></div>
+                        <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
+                        <div class="m2-row"><span>방/욕실</span><b x-text="detailItem.property.roomBath || '-'"></b></div>
+                        <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
+                        <div class="m2-row"><span>난방</span><b x-text="detailItem.property.heatingType || '-'"></b></div>
+                        <div class="m2-row"><span>준공</span><b x-text="detailItem.property.approvalYear || '-'"></b></div>
+                        <div class="m2-row"><span>세대수</span><b x-text="detailItem.property.totalHouseholds ? detailItem.property.totalHouseholds + '세대' : '-'"></b></div>
+                        <div class="m2-row"><span>주차</span><b x-text="detailItem.property.parkingPerHousehold ? '세대당 ' + detailItem.property.parkingPerHousehold + '대' : '-'"></b></div>
+                        <div class="m2-row"><span>상태</span><b x-text="detailItem.property.listingStatus"></b></div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>비용</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row"><span>관리비</span><b x-text="detailItem.property.maintenanceFee ? fmtWon(detailItem.property.maintenanceFee) + '/월' : '-'"></b></div>
+                        <div class="m2-row"><span>KB시세</span><b x-text="detailItem.property.kbPrice ? fmtWon(detailItem.property.kbPrice) : '-'"></b></div>
+                        <div class="m2-row"><span>공시가격</span><b x-text="detailItem.property.officialPrice ? fmtWon(detailItem.property.officialPrice) + (detailItem.property.officialPriceYear ? ' (' + detailItem.property.officialPriceYear + '년)' : '') : '조회 중 · 없음'"></b></div>
+                        <div class="m2-row"><span>취득세</span><b x-text="detailItem.property.acquisitionTax ? fmtWon(detailItem.property.acquisitionTax) : '-'"></b></div>
+                        <div class="m2-row"><span>재산세</span><b x-text="detailItem.property.propertyTax ? fmtWon(detailItem.property.propertyTax) : '-'"></b></div>
+                        <div class="m2-row"><span>종부세</span><b x-text="detailItem.property.comprehensiveTax || '-'"></b></div>
+                        <div class="m2-row"><span>중개보수</span><b x-text="detailItem.property.brokerageFee ? '최대 ' + fmtWon(detailItem.property.brokerageFee) : '-'"></b></div>
+                        <div class="m2-row"><span>상한요율</span><b x-text="detailItem.property.brokerageRate ? detailItem.property.brokerageRate + '%' : '-'"></b></div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>입지</h4>
+                    <div class="m2-rows">
+                        <div class="m2-row">
+                            <span>배정 초등학교</span>
+                            <b>
+                                <span x-text="detailItem.property.schoolName || '-'"></span>
+                                <small x-show="detailItem.property.schoolWalkMinutes" x-text="' 도보 ' + detailItem.property.schoolWalkMinutes + '분'"></small>
+                                <small class="m2-src" x-show="detailItem.property.schoolSource === 'KAKAO'">카카오 보정</small>
+                            </b>
+                        </div>
+                        <div class="m2-row"><span>입주</span><b x-text="moveInLabel(detailItem.property)"></b></div>
+                        <div class="m2-row"><span>매물번호</span><b x-text="detailItem.property.naverArticleNo || '-'"></b></div>
+                        <div class="m2-row">
+                            <span>원본 URL</span>
+                            <b>
+                                <template x-if="detailItem.property.sourceUrl">
+                                    <a class="m2-link" :href="detailItem.property.sourceUrl"
+                                       target="_blank" rel="noopener noreferrer"
+                                       x-text="detailItem.property.sourceUrl"></a>
+                                </template>
+                                <template x-if="!detailItem.property.sourceUrl"><span>-</span></template>
+                            </b>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="m2-sec">
+                    <h4>중개사</h4>
+                    <template x-if="detailAgents.length === 0">
+                        <p class="m2-empty">등록된 중개사 정보가 없습니다.</p>
+                    </template>
+                    <template x-for="a in detailAgents" :key="a.agentId">
+                        <div class="m2-rows">
+                            <div class="m2-row"><span>중개사무소</span><b x-text="a.officeName || '-'"></b></div>
+                            <div class="m2-row"><span>중개인</span><b x-text="a.agentName || '-'"></b></div>
+                            <div class="m2-row"><span>전화</span><b x-text="a.phone || '-'"></b></div>
+                            <div class="m2-row"><span>휴대폰</span><b x-text="a.mobile || '-'"></b></div>
+                        </div>
+                    </template>
+                </section>
+
+                <section class="m2-sec m2-sec-wide">
+                    <h4>AI 추천도</h4>
+                    <template x-if="!detailLlm">
+                        <p class="m2-empty">아직 산출되지 않았습니다.
+                            <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">지금 물어보기</button>
+                        </p>
+                    </template>
+                    <template x-if="detailLlm">
+                        <div class="llm-box">
+                            <div class="llm-score">
+                                <b x-text="fmtScore(detailLlm.score)"></b><i>점</i>
+                            </div>
+                            <div class="llm-body">
+                                <p x-text="detailLlm.reason"></p>
+                                <div class="llm-meta">
+                                    <span x-text="detailLlm.model"></span>
+                                    <span x-text="fmtTime(detailLlm.computedAt)"></span>
+                                    <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">다시 물어보기</button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </section>
+
+                <section class="m2-sec m2-sec-wide">
+                    <h4>국토교통부 실거래가</h4>
+                    <template x-if="!detailRef || detailRef.transactions.length === 0">
+                        <p class="m2-empty">조회된 실거래가가 없습니다.</p>
+                    </template>
+                    <template x-if="detailRef && detailRef.transactions.length > 0">
+                        <div>
+                            <p class="m2-gap" x-show="detailRef.gapPercent != null"
+                               x-text="'최근 실거래 대비 호가 ' + (detailRef.gapPercent > 0 ? '+' : '') + detailRef.gapPercent + '%'"></p>
+                            <div class="table-wrap">
+                                <table>
+                                    <thead><tr><th>계약일</th><th>층</th><th>거래가</th></tr></thead>
+                                    <tbody>
+                                    <template x-for="(tx, i) in detailRef.transactions.slice(0, 8)" :key="i">
+                                        <tr>
+                                            <td x-text="tx.contractDate || '-'"></td>
+                                            <td x-text="tx.floorNo != null ? tx.floorNo + '층' : '-'"></td>
+                                            <td class="strong" x-text="fmtWon(tx.price)"></td>
+                                        </tr>
+                                    </template>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </template>
+                </section>
             </div>
+
             <div class="m2-actions">
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
                 <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
+                <button class="btn btn-sm" @click="openComments(detailItem)">코멘트</button>
                 <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
-                <button class="btn btn-sm" @click="openRefModal(detailItem)">실거래</button>
                 <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
-                <button class="btn btn-sm" @click="openAgentModal(detailItem)">중개인</button>
-                <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">수정</button>
+                <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">정보 수정</button>
             </div>
         </div>
     </template>
@@ -803,6 +1060,10 @@
                 <label class="span2">도로명주소
                     <input type="text" x-model="propertyForm.addressRoad" placeholder="서울시 ...">
                 </label>
+                <label class="span2">원본 URL
+                    <input type="url" x-model="propertyForm.sourceUrl" placeholder="https://fin.land.naver.com/articles/...">
+                    <span class="settings-note">넣어 두면 판매완료를 자동으로 감지합니다.</span>
+                </label>
                 <label>위도
                     <input type="number" step="0.000001" readonly x-model="propertyForm.lat" placeholder="주소 검색 시 자동 입력">
                 </label>
@@ -856,33 +1117,70 @@
 <!-- D14 평가 채점 모달 -->
 <div class="modal" x-show="showScoreModal" x-cloak>
     <div class="modal-backdrop" @click="closeScoreModal()"></div>
-    <div class="modal-card modal-wide">
+    <div class="modal-card modal-xwide">
+        <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">평가 채점</span>
             <h3 x-text="scoreProperty?.property?.name"></h3>
-            <p>항목별 수동 점수를 입력하면 자동 점수를 덮어씁니다. 쾌적함은 사용자별 1~5로 평가합니다.</p>
+            <p>자동으로 계산되지 않은 항목은 직접 점수를 넣을 수 있습니다. 입력한 값은 자동 점수보다 우선합니다.</p>
         </div>
+
+        <div class="score-summary">
+            <div class="score-summary-total">
+                <span>총점</span>
+                <b x-text="fmtScore(scoreProperty?.totalScore)"></b>
+            </div>
+            <div class="score-summary-counts">
+                <span><i class="dot dot-auto"></i>자동 <b x-text="scoreCount('AUTO')"></b></span>
+                <span><i class="dot dot-manual"></i>수동 <b x-text="scoreCount('MANUAL')"></b></span>
+                <span><i class="dot dot-fallback"></i>미산출 <b x-text="scoreCount('FALLBACK')"></b></span>
+            </div>
+        </div>
+
         <div class="score-list">
             <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
-                <label class="score-row">
-                    <span class="score-name">
-                        <b x-text="s.name"></b>
-                        <span class="score-source" x-text="scoreSourceLabel(s.scoreSource)"></span>
-                        <span class="score-source" x-show="s.scoringType==='HYBRID'">추정</span>
-                    </span>
-                    <button class="btn-link" x-show="s.scoringType==='HYBRID'" @click="confirmHybridScore(s.code)">추정값 확정</button>
-                    <span class="score-auto" x-text="'유효 ' + fmtScore(s.effectiveScore)"></span>
-                    <input type="number" x-model="scoreForm[s.code]"
-                           :min="s.code === 'COMFORT' ? 1 : 0"
-                           :max="s.code === 'COMFORT' ? 5 : 100"
-                           :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'">
-                </label>
+                <div class="score-item" :class="{'is-fallback': s.scoreSource==='FALLBACK'}">
+                    <div class="score-item-head">
+                        <span class="score-item-name" x-text="s.name"></span>
+                        <span class="badge" :class="scoreSourceBadge(s.scoreSource)" x-text="scoreSourceLabel(s.scoreSource)"></span>
+                        <span class="badge b-jeonse" x-show="s.scoringType==='HYBRID' && s.scoreSource==='AUTO'">추정</span>
+                    </div>
+
+                    <div class="score-item-gauge">
+                        <div class="gauge-track">
+                            <div class="gauge-fill" :class="s.scoreSource==='MANUAL' ? 'is-manual' : ''"
+                                 :style="'width:' + (s.effectiveScore == null ? 0 : s.effectiveScore) + '%'"></div>
+                        </div>
+                        <span class="gauge-value" x-text="fmtScore(s.effectiveScore)"></span>
+                    </div>
+
+                    <div class="score-item-input">
+                        <input type="number" x-model="scoreForm[s.code]"
+                               :min="s.code === 'COMFORT' ? 1 : 0"
+                               :max="s.code === 'COMFORT' ? 5 : 100"
+                               :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
+                               :aria-label="s.name + ' 점수 입력'">
+                        <button class="btn btn-xs" x-show="s.scoringType==='HYBRID' && s.effectiveScore != null"
+                                @click="confirmHybridScore(s.code)">추정값 확정</button>
+                    </div>
+
+                    <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
+                    <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
+                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.effectiveScore == null">
+                        방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
+                    </p>
+                </div>
             </template>
         </div>
+
         <p class="form-error" x-show="error" x-text="error"></p>
-        <button class="btn btn-primary btn-block" @click="saveScore()" :disabled="loading">
-            <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
-        </button>
+        <div class="score-actions">
+            <span class="score-hint">쾌적함은 사용자별 1~5로 평가해 평균 × 20으로 환산됩니다.</span>
+            <button class="btn" @click="closeScoreModal()">닫기</button>
+            <button class="btn btn-primary" @click="saveScore()" :disabled="loading">
+                <span x-text="loading ? '저장 중…' : '채점 저장'"></span>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -930,39 +1228,309 @@
 <!-- D16 대출 한도 시뮬레이션 모달 -->
 <div class="modal" x-show="showLoanModal" x-cloak>
     <div class="modal-backdrop" @click="closeLoanModal()"></div>
-    <div class="modal-card modal-wide">
+    <div class="modal-card modal-wide loan-modal">
+        <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">대출 한도</span>
             <h3 x-text="loanProperty?.property?.name"></h3>
-            <p>LTV·DSR 기반 자체 계산입니다. 실제 한도는 은행 가심사가 필요합니다.</p>
+            <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
-        <form class="form" @submit.prevent="runLoanEstimate()">
-            <div class="form-grid">
-                <label>연 소득 (원)
-                    <input type="number" min="0" x-model="loanForm.annualIncome" placeholder="50000000" required>
-                </label>
-                <label>보유 현금 (원)
-                    <input type="number" min="0" x-model="loanForm.cash" placeholder="300000000" required>
-                </label>
-                <label class="span2">생애최초
-                    <input type="checkbox" x-model="loanForm.firstHome">
-                </label>
-            </div>
-            <p class="form-error" x-show="error" x-text="error"></p>
-            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
-                <span x-text="loading ? '계산 중…' : '한도 계산'"></span>
-            </button>
-        </form>
+
         <template x-if="loanResult">
-            <div class="loan-result">
-                <div class="loan-row"><span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b></div>
-                <div class="loan-row"><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
-                <div class="loan-row"><span>최종 한도</span><b x-text="fmtWon(loanResult.finalLimit)"></b></div>
-                <div class="loan-row"><span>필요 현금</span><b x-text="fmtWon(loanResult.requiredCash)"></b></div>
-                <div class="loan-row"><span>취득세</span><b x-text="fmtWon(loanResult.acquisitionTax)"></b></div>
-                <div class="loan-row"><span>월 상환액</span><b x-text="fmtWon(loanResult.monthlyPayment)"></b></div>
-                <p class="loan-note">월 상환액은 LTV·DSR 한도 기준 추정치입니다. 은행 가심사를 받으세요.</p>
+            <div>
+                <!-- 한도 요약 -->
+                <div class="loan-hero">
+                    <div class="loan-hero-main">
+                        <span class="loan-hero-label" x-text="loanResult.productLabel + ' 최종 한도'"></span>
+                        <strong x-text="fmtWon(loanResult.finalLimit)"></strong>
+                        <small x-text="loanBindingLabel()"></small>
+                    </div>
+                    <div class="loan-hero-side">
+                        <div x-show="loanResult.productType === 'MORTGAGE'">
+                            <span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b>
+                        </div>
+                        <div x-show="loanResult.productType === 'JEONSE'">
+                            <span>보증 한도</span><b x-text="fmtWon(loanResult.guaranteeLimit)"></b>
+                        </div>
+                        <div><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
+                    </div>
+                </div>
+
+                <!-- 어떤 규정으로 이 LTV가 나왔는지 (설계 I66) — 매매 전용 -->
+                <div class="loan-policy" x-show="loanResult.productType === 'MORTGAGE'">
+                    <span class="badge" :class="loanResult.zone === 'NORMAL' ? 'b-mem' : 'b-off'"
+                          x-text="loanResult.zoneLabel"></span>
+                    <span class="badge b-mem" x-text="loanResult.ownershipLabel"></span>
+                    <span class="loan-policy-reason" x-text="loanResult.ltvReason"></span>
+                </div>
+
+                <!-- 담보가치 — LTV의 기준. 호가와 다르고 출처마다 신뢰도가 다르다 (설계 I64·I65) -->
+                <div class="loan-collateral" x-show="loanResult.productType === 'MORTGAGE'"
+                     :class="loanResult.collateralReliable ? '' : 'weak'">
+                    <div class="loan-collateral-main">
+                        <span>담보가치 (LTV 기준)</span>
+                        <b x-text="fmtWon(loanResult.collateralValue)"></b>
+                    </div>
+                    <div class="loan-collateral-src">
+                        <span class="badge" :class="loanResult.collateralReliable ? 'b-on' : 'b-off'"
+                              x-text="loanResult.collateralSourceLabel"></span>
+                        <small x-show="loanResult.collateralSource === 'RECENT_TRADE'"
+                               x-text="'실거래 ' + loanResult.collateralSampleCount + '건 · 단가 환산'"></small>
+                        <small x-show="loanResult.collateralSource === 'ASKING_PRICE'">
+                            KB시세·실거래·공시가격이 없어 호가로 계산했습니다
+                        </small>
+                        <small x-show="loanResult.leaseDeduction > 0"
+                               x-text="'방공제 −' + fmtWon(loanResult.leaseDeduction)"></small>
+                    </div>
+                </div>
+
+                <!-- 전세 전용 — 담보가 집이 아니라 보증기관의 보증이다 (설계 I67) -->
+                <div class="loan-collateral" x-show="loanResult.productType === 'JEONSE'">
+                    <div class="loan-collateral-main">
+                        <span>보증 기준</span>
+                        <b x-text="fmtWon(loanResult.guaranteeLimit)"></b>
+                    </div>
+                    <div class="loan-collateral-src">
+                        <span class="badge b-mem"
+                              x-text="'보증비율 ' + (loanResult.guaranteeRate * 100) + '%'"></span>
+                        <small x-text="'보증기관 한도 ' + fmtWon(loanResult.guaranteeCap)"></small>
+                        <small>담보는 집이 아니라 보증기관의 보증입니다 — 취득세·방공제가 없습니다</small>
+                    </div>
+                </div>
+
+                <!-- 매매가 대비 구성 -->
+                <div class="loan-stack">
+                    <div class="loan-stack-bar">
+                        <span class="seg seg-loan" :style="`width:${loanPercent(loanAmount, loanResult.askingPrice)}%`"></span>
+                        <span class="seg seg-cash" :style="`width:${loanPercent(loanOwnCapital(), loanResult.askingPrice)}%`"></span>
+                    </div>
+                    <div class="loan-stack-legend">
+                        <span><i class="dot dot-loan"></i>대출 <b x-text="fmtWon(loanAmount)"></b></span>
+                        <span><i class="dot dot-cash"></i>자기자본 <b x-text="fmtWon(loanOwnCapital())"></b></span>
+                        <span class="loan-stack-total">
+                            <span x-text="loanResult.productType === 'JEONSE' ? '보증금' : '매매가'"></span>
+                            <b x-text="fmtWon(loanResult.askingPrice)"></b>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- 대출액 조정 -->
+                <div class="loan-slider">
+                    <div class="loan-slider-head">
+                        <label for="loanAmountRange">대출 희망액</label>
+                        <output x-text="fmtWon(loanAmount)"></output>
+                    </div>
+                    <input id="loanAmountRange" type="range" min="0" :max="loanResult.finalLimit"
+                           step="1000000" x-model.number="loanAmount">
+                    <div class="loan-slider-scale">
+                        <span>0</span>
+                        <span x-text="'한도 ' + fmtWon(loanResult.finalLimit)"></span>
+                    </div>
+                </div>
+
+                <!-- 조정 결과 -->
+                <div class="loan-cards">
+                    <div class="loan-card">
+                        <span>월 상환액</span>
+                        <b x-text="fmtWon(loanMonthlyAt(loanAmount))"></b>
+                        <small x-text="loanResult.interestOnly
+                            ? `${loanResult.termMonths / 12}년 만기일시 · 이자만`
+                            : `${loanResult.termMonths / 12}년 원리금균등`"></small>
+                    </div>
+                    <div class="loan-card">
+                        <span>필요 자기자본</span>
+                        <b x-text="fmtWon(loanOwnCapital())"></b>
+                        <small x-text="loanResult.productType === 'JEONSE' ? '보증금 − 대출' : '매매가 − 대출'"></small>
+                    </div>
+                    <div class="loan-card" x-show="loanResult.productType === 'MORTGAGE'">
+                        <span>취득세</span>
+                        <b x-text="fmtWon(loanResult.acquisitionTax)"></b>
+                        <small x-text="loanForm.firstHome ? '생애최초 감면 반영' : '일반 세율'"></small>
+                    </div>
+                    <div class="loan-card" :class="loanCashGap() >= 0 ? 'loan-ok' : 'loan-short'">
+                        <span x-text="loanCashGap() >= 0 ? '현금 여유' : '현금 부족'"></span>
+                        <b x-text="fmtWon(Math.abs(loanCashGap()))"></b>
+                        <small x-text="'보유 현금 ' + fmtWon(loanResult.usedCash)"></small>
+                    </div>
+                </div>
+
+                <!-- 계산 전제 -->
+                <div class="loan-assume">
+                    <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'">
+                        <input type="checkbox" x-model="loanForm.firstHome" @change="runLoanEstimate()">
+                        <span>생애최초</span>
+                    </label>
+                    <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'"
+                           title="가입하면 방공제(소액임차보증금)를 차감하지 않습니다">
+                        <input type="checkbox" x-model="loanForm.mortgageInsured" @change="runLoanEstimate()">
+                        <span>MCI/MCG 가입</span>
+                    </label>
+                    <label class="loan-select" x-show="loanResult.productType === 'MORTGAGE'"
+                           title="규제지역과 함께 LTV 비율을 가릅니다">
+                        <span>보유 주택</span>
+                        <select x-model.number="loanForm.ownedHouseCount" @change="runLoanEstimate()">
+                            <option :value="0">무주택</option>
+                            <option :value="1">1주택</option>
+                            <option :value="2">2주택 이상</option>
+                        </select>
+                    </label>
+                    <span class="loan-assume-item">연소득 <b x-text="fmtWon(loanResult.usedAnnualIncome)"></b></span>
+                    <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b></span>
+                    <span class="loan-assume-item" x-show="loanResult.usedExistingLoan > 0">
+                        기존 대출 <b x-text="fmtWon(loanResult.usedExistingLoan)"></b>
+                        <small x-text="'(연 ' + fmtWon(loanResult.existingLoanAnnual) + ' 상환)'"></small>
+                    </span>
+                    <button class="btn btn-xs" type="button" @click="loanShowInputs = !loanShowInputs"
+                            x-text="loanShowInputs ? '접기' : '값 바꿔보기'"></button>
+                </div>
+
+                <!-- 임시 조건 변경 — 프로필은 건드리지 않는다 -->
+                <div class="loan-override" x-show="loanShowInputs" x-cloak>
+                    <div class="form-grid">
+                        <label>연소득 (원)
+                            <input type="number" min="0" x-model="loanOverride.annualIncome"
+                                   :placeholder="loanResult.usedAnnualIncome">
+                        </label>
+                        <label>보유 현금 (원)
+                            <input type="number" min="0" x-model="loanOverride.cash"
+                                   :placeholder="loanResult.usedCash">
+                        </label>
+                        <label>기존 대출액 (원)
+                            <input type="number" min="0" x-model="loanOverride.existingLoan"
+                                   :placeholder="loanResult.usedExistingLoan">
+                        </label>
+                    </div>
+                    <p class="loan-note">이 화면에서만 쓰는 값입니다. 프로필은 바뀌지 않습니다.</p>
+                    <button class="btn btn-primary btn-sm" type="button" @click="runLoanEstimate()" :disabled="loading">
+                        <span x-text="loading ? '계산 중…' : '다시 계산'"></span>
+                    </button>
+                </div>
+
+                <p class="loan-note">
+                    <b>예상 대출한도이며 실제 금융기관 심사 결과와 다를 수 있습니다.</b>
+                    <span x-show="loanResult.productType === 'MORTGAGE'">
+                        담보가치는 <span x-text="loanResult.collateralSourceLabel"></span> 기준이고,
+                    </span>
+                    <span x-show="loanResult.productType === 'JEONSE'">
+                        보증기관(HUG·HF·SGI)과 상품에 따라 보증비율·한도가 달라지며,
+                    </span>
+                    한도는 스트레스 금리를 더해 계산했습니다.
+                </p>
             </div>
+        </template>
+
+        <template x-if="!loanResult && !loading">
+            <p class="m2-empty">계산할 수 없습니다. 프로필에 연소득과 보유 현금을 입력했는지 확인해 주세요.</p>
+        </template>
+        <p class="form-error" x-show="error" x-text="error"></p>
+    </div>
+</div>
+
+<!-- D25 매물 코멘트 모달 (설계 I56) -->
+<div class="modal" x-show="showComments" x-cloak>
+    <div class="modal-backdrop" @click="closeComments()"></div>
+    <div class="modal-card modal-wide">
+        <button class="modal-close" @click="closeComments()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">코멘트</span>
+            <h3 x-text="commentProperty?.property?.name"></h3>
+            <p>이 매물에 대한 각자의 생각을 남깁니다. 한 사람당 한 건이며 언제든 고쳐 쓸 수 있습니다.</p>
+        </div>
+
+        <div class="comment-list">
+            <template x-if="comments.length === 0">
+                <p class="m2-empty">아직 남긴 코멘트가 없습니다.</p>
+            </template>
+            <template x-for="c in comments" :key="c.id">
+                <article class="comment" :class="{ mine: c.mine }">
+                    <div class="comment-head">
+                        <span class="comment-who" x-text="c.nickname"></span>
+                        <span class="badge b-mem" x-show="c.mine">나</span>
+                        <time class="comment-time" x-text="fmtTime(c.updatedAt || c.createdAt)"></time>
+                        <span class="comment-edited" x-show="c.updatedAt">수정됨</span>
+                        <div class="comment-actions" x-show="c.mine && commentEditingId !== c.id">
+                            <button class="btn btn-xs" @click="startEditComment(c)">수정</button>
+                            <button class="btn btn-xs btn-danger" @click="removeComment(c)">삭제</button>
+                        </div>
+                    </div>
+                    <p class="comment-body" x-show="commentEditingId !== c.id" x-text="c.content"></p>
+                    <div class="comment-edit" x-show="commentEditingId === c.id" x-cloak>
+                        <textarea rows="4" x-model="commentEditText" maxlength="2000"></textarea>
+                        <div class="comment-edit-actions">
+                            <button class="btn btn-sm" @click="cancelEditComment()">취소</button>
+                            <button class="btn btn-primary btn-sm" @click="saveEditComment(c)" :disabled="loading">저장</button>
+                        </div>
+                    </div>
+                </article>
+            </template>
+        </div>
+
+        <!-- 아직 안 남겼을 때만 입력칸을 연다 -->
+        <div class="comment-new" x-show="!myComment" x-cloak>
+            <label for="commentNew">내 코멘트</label>
+            <textarea id="commentNew" rows="4" x-model="commentNewText" maxlength="2000"
+                      placeholder="직접 보고 느낀 점, 걸리는 점을 남겨 주세요"></textarea>
+            <div class="comment-edit-actions">
+                <span class="comment-count" x-text="commentNewText.length + ' / 2000'"></span>
+                <button class="btn btn-primary btn-sm" @click="addComment()"
+                        :disabled="loading || !commentNewText.trim()">남기기</button>
+            </div>
+        </div>
+        <p class="form-error" x-show="error" x-text="error"></p>
+    </div>
+</div>
+
+<!-- D26 비교 우위 분석 모달 (설계 I61) -->
+<div class="modal" x-show="showCompare" x-cloak>
+    <div class="modal-backdrop" @click="closeCompare()"></div>
+    <div class="modal-card modal-xwide">
+        <button class="modal-close" @click="closeCompare()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">비교 우위</span>
+            <h3>매물 비교 분석</h3>
+            <p>등록된 매물 전체를 한 번에 견주어 순위를 매깁니다. 판매완료·작성 중 매물은 제외됩니다.</p>
+        </div>
+
+        <div class="compare-bar">
+            <span class="compare-count">
+                비교 대상 <b x-text="compareStatus ? compareStatus.propertyCount : 0"></b>건
+                <small x-text="'(최소 ' + (compareStatus ? compareStatus.minProperties : 4) + '건 필요)'"></small>
+            </span>
+            <button class="btn btn-primary btn-sm" @click="runCompare()"
+                    :disabled="compareRunning || !canCompare()">
+                <span x-text="compareRunning ? '분석 중…' : (hasCompareResult() ? '다시 분석' : '분석 실행')"></span>
+            </button>
+        </div>
+
+        <p class="compare-warn" x-show="!canCompare()" x-text="compareHint()"></p>
+        <p class="form-error" x-show="compareError" x-text="compareError"></p>
+
+        <template x-if="hasCompareResult()">
+            <div class="compare-list">
+                <template x-for="r in compareStatus.rankings" :key="r.propertyId">
+                    <article class="compare-row" :class="{ top: r.rank === 1 }">
+                        <div class="compare-rank">
+                            <b x-text="r.rank"></b><i x-text="'/ ' + r.propertyCount"></i>
+                        </div>
+                        <div class="compare-body">
+                            <div class="compare-title">
+                                <span class="compare-name" x-text="r.propertyName"></span>
+                                <span class="score-pill" :class="r.score >= 50 ? 'score-high' : 'score-low'">
+                                    <b x-text="fmtScore(r.score)"></b><i>점</i>
+                                </span>
+                            </div>
+                            <p class="compare-reason" x-text="r.reason"></p>
+                        </div>
+                    </article>
+                </template>
+                <p class="compare-meta">
+                    <span x-text="compareStatus.rankings[0].model"></span>
+                    <span x-text="fmtTime(compareStatus.rankings[0].computedAt)"></span>
+                </p>
+            </div>
+        </template>
+        <template x-if="!hasCompareResult() && !compareRunning">
+            <p class="m2-empty">아직 분석 결과가 없습니다.</p>
         </template>
     </div>
 </div>

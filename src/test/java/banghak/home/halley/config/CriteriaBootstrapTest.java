@@ -34,20 +34,20 @@ class CriteriaBootstrapTest {
         // then
         assertThat(criteria).extracting(Criterion::code)
                 .contains("COMFORT", "PRICE", "MOVE_IN", "COMMUTE", "AGE", "FLOOR",
-                        "STATION", "EDUCATION", "AMENITY", "PARKING", "GREEN", "BUILDING_COUNT");
+                        "STATION", "EDUCATION", "AMENITY", "PARKING", "GREEN", "HOUSEHOLDS");
         assertThat(weights).extracting(CriterionWeight::criterionCode)
                 .contains("COMFORT", "PRICE", "MOVE_IN", "COMMUTE", "AGE", "FLOOR",
-                        "STATION", "EDUCATION", "AMENITY", "PARKING", "GREEN", "BUILDING_COUNT");
+                        "STATION", "EDUCATION", "AMENITY", "PARKING", "GREEN", "HOUSEHOLDS");
     }
 
     @Test
-    @DisplayName("BUILDING_COUNT는 rank 12, 가중치 0.8로 시드된다")
-    void buildingCountHasLowestPriority() {
+    @DisplayName("HOUSEHOLDS는 rank 12, 가중치 0.8로 시드된다")
+    void householdsHasLowestPriority() {
         // when
-        final CriterionWeight buildingCount = criterionWeightRepository.findById("BUILDING_COUNT").orElseThrow();
+        final CriterionWeight households = criterionWeightRepository.findById("HOUSEHOLDS").orElseThrow();
 
         // then
-        assertThat(buildingCount.priorityRank()).isEqualTo(12);
-        assertThat(buildingCount.weight()).isEqualByComparingTo("0.8");
+        assertThat(households.priorityRank()).isEqualTo(12);
+        assertThat(households.weight()).isEqualByComparingTo("0.8");
     }
 }

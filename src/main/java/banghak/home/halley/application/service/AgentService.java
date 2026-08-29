@@ -72,6 +72,39 @@ public class AgentService {
         return propertyAgents(propertyId);
     }
 
+    /**
+     * 붙여넣기로 들어온 중개사를 등록·연결한다 (설계 I53).
+     * 등록번호가 같으면 기존 중개사를 최신 값으로 갱신하고, 없으면 새로 만든 뒤 대표 중개사로 연결한다.
+     */
+    @Transactional
+    public void upsertFromPaste(Long propertyId, AgentRequest request) {
+        if (request == null || isEmpty(request)) {
+            return;
+        }
+        final Agent agent = request.registrationNo() == null || request.registrationNo().isBlank()
+                ? agentRepository.save(toAgent(null, request))
+                : agentRepository.findByRegistrationNo(request.registrationNo())
+                        .map(existing -> agentRepository.update(toAgent(existing.id(), request)))
+                        .orElseGet(() -> agentRepository.save(toAgent(null, request)));
+        if (propertyAgentRepository.findById(propertyId, agent.id()).isEmpty()) {
+            propertyAgentRepository.save(new PropertyAgent(propertyId, agent.id(), true));
+        }
+    }
+
+    private boolean isEmpty(AgentRequest r) {
+        return isBlank(r.officeName()) && isBlank(r.agentName()) && isBlank(r.phone())
+                && isBlank(r.mobile()) && isBlank(r.registrationNo()) && isBlank(r.address());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
+    private Agent toAgent(Long id, AgentRequest r) {
+        return new Agent(id, r.officeName(), r.agentName(), r.phone(), r.mobile(),
+                r.registrationNo(), r.address(), r.lat(), r.lng());
+    }
+
     public List<PropertyAgentResponse> propertyAgents(Long propertyId) {
         propertyRepository.findById(propertyId).orElseThrow(NotFoundListingsException::new);
         return propertyAgentRepository.findByPropertyId(propertyId).stream()

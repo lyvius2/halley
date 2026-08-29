@@ -4,6 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.property.DealType;
@@ -31,8 +32,12 @@ class PropertyServiceGeocodeTest {
     private final GeoService geoService = mock(GeoService.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
 
+    private final UserRepository userRepository = mock(UserRepository.class);
+    private final AgentService agentService = mock(AgentService.class);
+
     private final PropertyService propertyService = new PropertyService(
-            propertyRepository, listingCheckLogRepository, editVersionStore, geoService, eventPublisher);
+            propertyRepository, userRepository, agentService,
+            listingCheckLogRepository, editVersionStore, geoService, eventPublisher);
 
     @Test
     @DisplayName("좌표가 없고 주소가 있으면 주소로 지오코딩한 좌표가 저장된다")
@@ -42,7 +47,7 @@ class PropertyServiceGeocodeTest {
         when(geoService.geocode("서울시 성북구 석관동 407"))
                 .thenReturn(Optional.of(new GeoSearchResult(
                         "서울 성북구 석관동 407", "서울시 성북구 석관동 407",
-                        new BigDecimal("37.612345"), new BigDecimal("127.065432"), "1129013600")));
+                        new BigDecimal("37.612345"), new BigDecimal("127.065432"), "1129013600", null)));
         when(propertyRepository.save(any(Property.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // when
@@ -104,7 +109,7 @@ class PropertyServiceGeocodeTest {
                 address, address, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 
@@ -114,7 +119,7 @@ class PropertyServiceGeocodeTest {
                 address, address, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

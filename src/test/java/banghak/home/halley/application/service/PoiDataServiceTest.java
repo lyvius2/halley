@@ -17,6 +17,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -68,6 +69,13 @@ class PoiDataServiceTest {
             };
         }
     }
+
+    /**
+     * 매물 등록 뒤 도는 비동기 보정(설계 I53)도 카카오를 호출한다. 이 테스트는 POI 수집 횟수를 세므로
+     * 보정이 끼어들면 결과가 타이밍에 따라 달라진다 — 여기서는 대상이 아니니 통째로 대체한다.
+     */
+    @MockitoBean
+    private PropertyEnrichmentService propertyEnrichmentService;
 
     @Autowired
     private StubConfig stubConfig;
@@ -148,7 +156,7 @@ class PoiDataServiceTest {
                 "서울시", null, lat, lng,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

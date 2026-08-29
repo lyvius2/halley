@@ -111,7 +111,8 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("dongHo").value()).isEqualTo("113동");
         assertThat(parsed.field("dealType").value()).isEqualTo("매매");
         assertThat(parsed.field("priceDeposit").value()).isEqualTo(1_000_000_000L);
-        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(150_000);
+        // 상단 요약(15만원)이 아니라 하단 상세의 '월 평균 26만 6,408원'을 쓴다 — 설계 I53
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(266_408);
         assertThat(parsed.field("roomBath").value()).isEqualTo("3/2개");
         assertThat(parsed.field("floor").value()).isEqualTo("1/12");
         assertThat(parsed.field("addressJibun").value()).isEqualTo("서울시 성북구 석관동 407");
@@ -136,6 +137,60 @@ class NaverListingTextParserTest {
         // then
         assertThat(parsed.field("dealType").confidence()).isEqualTo(Confidence.MISSING);
         assertThat(parsed.field("priceDeposit").confidence()).isEqualTo(Confidence.MISSING);
+    }
+
+    @Test
+    @DisplayName("중개사·중개보수·세금 블록을 파싱한다")
+    void parsesAgentBrokerageAndTax() {
+        // given
+        final String raw = fixture("naver_apt_sale_agent.txt");
+
+        // when
+        final ParsedListing parsed = parser.parse(raw);
+
+        // then — 중개사
+        assertThat(parsed.field("agentName").value()).isEqualTo("우성정");
+        assertThat(parsed.field("agentOfficeName").value()).isEqualTo("혜화공인중개사사무소");
+        // 유선·휴대폰이 줄바꿈 없이 붙어 온다: `02-764-4222010-7407-4222`
+        assertThat(parsed.field("agentPhone").value()).isEqualTo("02-764-4222");
+        assertThat(parsed.field("agentMobile").value()).isEqualTo("010-7407-4222");
+        assertThat(parsed.field("agentAddress").value()).isEqualTo("서울특별시 종로구 명륜2가 4 상가1층 6호");
+        assertThat(parsed.field("agentRegistrationNo").value()).isEqualTo("11110202200028");
+
+        // then — 중개보수·세금
+        assertThat(parsed.field("brokerageFee").value()).isEqualTo(5_600_000L);
+        assertThat(String.valueOf(parsed.field("brokerageRate").value())).isEqualTo("0.5");
+        assertThat(parsed.field("acquisitionTax").value()).isEqualTo(36_960_000L);
+        assertThat(parsed.field("propertyTax").value()).isEqualTo(1_050_000L);
+        assertThat(parsed.field("comprehensiveTax").value()).isEqualTo("과세대상 아님");
+    }
+
+    @Test
+    @DisplayName("관리비는 상단 요약이 아니라 상세의 '월 평균'을 쓴다")
+    void prefersDetailedMaintenanceFee() {
+        // given — 상단에는 '18만원', 상세에는 '월 평균 23만 4,762원'이 있다
+        final String raw = fixture("naver_apt_sale_agent.txt");
+
+        // when
+        final ParsedListing parsed = parser.parse(raw);
+
+        // then
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(234_762);
+        assertThat(parsed.field("maintenanceFee").confidence()).isEqualTo(Confidence.DERIVED);
+    }
+
+    @Test
+    @DisplayName("위치 라벨은 단지·중개사 양쪽에 있어 구간을 나눠 읽는다")
+    void resolvesDuplicateLocationLabel() {
+        // given
+        final String raw = fixture("naver_apt_sale_agent.txt");
+
+        // when
+        final ParsedListing parsed = parser.parse(raw);
+
+        // then — 단지 주소와 중개사 주소가 서로 섞이지 않는다
+        assertThat(parsed.field("addressJibun").value()).isEqualTo("서울시 종로구 명륜2가 4");
+        assertThat(parsed.field("agentAddress").value()).isEqualTo("서울특별시 종로구 명륜2가 4 상가1층 6호");
     }
 
     private String fixture(String name) {

@@ -27,17 +27,22 @@ public class AdminBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (userRepository.findByEmail(ADMIN_LOGIN).isPresent()) {
+        if (userRepository.findByLoginId(ADMIN_LOGIN).isPresent()) {
             return;
         }
         String password = randomPassword();
         userRepository.save(new User(
-                null, "admin", ADMIN_LOGIN, passwordEncoder.encode(password), UserRole.ADMIN,
+                null, ADMIN_LOGIN, "admin", null, passwordEncoder.encode(password), UserRole.ADMIN,
                 null, null, null,
-                true, 0L, true,
+                true, 0L, 0L, 0L, true,
                 null, null, null
         ));
-        log.info("★ 초기 관리자 계정 생성 ★ id={} / password={}", ADMIN_LOGIN, password);
+        log.info("==========================================================");
+        log.info("  Admin account initialized.");
+        log.info("  username : {}", ADMIN_LOGIN);
+        log.info("  password : {}", password);
+        log.info("  Please change the password after first login.");
+        log.info("==========================================================");
     }
 
     private String randomPassword() {

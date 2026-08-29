@@ -15,6 +15,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTra
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.DEAL_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.FLOOR_NO;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.ID;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.AREA_M2;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.PRICE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.PROPERTY_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.ReferenceTransactionTable.SOURCE;
@@ -39,6 +40,7 @@ public class ReferenceTransactionRepository {
                 .set(DEAL_TYPE, transaction.dealType() == null ? null : transaction.dealType().name())
                 .set(CONTRACT_DATE, toSqlDate(transaction.contractDate()))
                 .set(PRICE, transaction.price())
+                .set(AREA_M2, transaction.areaM2())
                 .set(FLOOR_NO, transaction.floorNo())
                 .set(SOURCE, transaction.source() == null ? null : transaction.source().name())
                 .returningResult(ID)
@@ -74,6 +76,7 @@ public class ReferenceTransactionRepository {
                 toEnum(ReferenceDealType.class, r.get(DEAL_TYPE)),
                 toLocalDate(r.get(CONTRACT_DATE)),
                 r.get(PRICE),
+                r.get(AREA_M2),
                 r.get(FLOOR_NO),
                 toEnum(ReferenceSource.class, r.get(SOURCE)),
                 toInstant(r.get(CACHED_AT))

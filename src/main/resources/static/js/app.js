@@ -26,6 +26,7 @@ function emptyPropertyForm() {
 
 function emptyUserForm() {
     return {
+        loginId: '',
         nickname: '',
         email: '',
         password: '',
@@ -33,9 +34,14 @@ function emptyUserForm() {
         workplaceName: '',
         workplaceLat: '',
         workplaceLng: '',
-        availableBudget: ''
+        availableBudget: '',
+        annualIncome: '',
+        existingLoan: ''
     };
 }
+
+/** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
+const COMPARE_MIN_PROPERTIES = 4;
 
 function halley() {
     return {
@@ -55,8 +61,11 @@ function halley() {
         checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
-        loanForm: { annualIncome: '', cash: '', firstHome: false },
+        loanForm: { firstHome: false, mortgageInsured: false, ownedHouseCount: 0 },
         loanResult: null,
+        loanAmount: 0,
+        loanShowInputs: false,
+        loanOverride: { annualIncome: '', cash: '', existingLoan: '' },
         showRefModal: false,
         refProperty: null,
         refForm: { legalDongCode: '', dealMonth: '' },
@@ -79,18 +88,33 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        workplaceQuery: '',
-        workplaceResults: [],
+        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+            availableBudget: '', annualIncome: '', existingLoan: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
         showM2: false,
         detailItem: null,
+        showCompare: false,
+        compareStatus: null,
+        compareRunning: false,
+        compareError: null,
+        showComments: false,
+        commentProperty: null,
+        comments: [],
+        commentNewText: '',
+        commentEditingId: null,
+        commentEditText: '',
+        detailAgents: [],
+        detailRef: null,
+        detailLlm: null,
         showSettings: false,
+        showUsers: false,
+        showProfileSetup: false,
+        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+            availableBudget: '', annualIncome: '', existingLoan: '' },
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
-        photoType: 'PHOTO',
-        photoFile: null,
         photoViewerIndex: -1,
         showAgentModal: false,
         agentProperty: null,
@@ -130,7 +154,7 @@ function halley() {
         roadviewProperty: null,
         roadviewState: 'loading',
         roadview: null,
-        loginForm: { email: '', password: '' },
+        loginForm: { loginId: '', password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
@@ -159,6 +183,14 @@ function halley() {
             } catch (e) {
                 body = null;
             }
+            // 초기 설정이 끝나기 전에는 서버가 API를 막는다(AccountSetupFilter).
+            // 어느 경로로 막히든 해당 단계의 모달을 띄워 사용자가 갇히지 않게 한다.
+            if (res.status === 403 && body && body.code === 'PROFILE_SETUP_REQUIRED') {
+                this.showProfileSetup = true;
+            }
+            if (res.status === 403 && body && body.code === 'MUST_CHANGE_PASSWORD') {
+                this.showPassword = true;
+            }
             return { ok: res.ok, status: res.status, body };
         },
 
@@ -171,10 +203,13 @@ function halley() {
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
-                if (this.session.role === 'ADMIN' && !this.showPassword) {
+                this.showProfileSetup = !this.showPassword && body.profileComplete === false;
+                // 초기 설정(비밀번호·프로필)이 끝나기 전에는 다른 API가 403이므로 호출하지 않는다
+                const setupPending = this.showPassword || this.showProfileSetup;
+                if (this.session.role === 'ADMIN' && !setupPending) {
                     await this.loadUsers();
                 }
-                if (!this.showPassword) {
+                if (!setupPending) {
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                 }
@@ -186,9 +221,6 @@ function halley() {
 
         setView(view) {
             this.view = view;
-            if (view === 'users') {
-                this.loadUsers();
-            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -196,6 +228,7 @@ function halley() {
                 this.loadProfile();
             }
             if (view === 'itinerary') {
+                this.loadStartLocation();
                 this.renderItinerary();
             }
         },
@@ -216,11 +249,25 @@ function halley() {
             this.error = null;
         },
 
+        /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
+        openUsers() {
+            if (this.session.role !== 'ADMIN') {
+                return;
+            }
+            this.showUsers = true;
+            this.error = null;
+            this.loadUsers();
+        },
+
+        closeUsers() {
+            this.showUsers = false;
+            this.error = null;
+        },
+
         async loadUsers() {
             const { ok, body } = await this.request('/api/users');
             if (ok) {
-                this.itinPlan = body;
-                this.renderItinerary();
+                this.users = body || [];
             }
         },
 
@@ -235,6 +282,7 @@ function halley() {
         openEditUser(u) {
             this.editingUserId = u.id;
             this.userForm = {
+                loginId: u.loginId,
                 nickname: u.nickname,
                 email: u.email,
                 password: '',
@@ -242,7 +290,9 @@ function halley() {
                 workplaceName: u.workplaceName || '',
                 workplaceLat: u.workplaceLat ?? '',
                 workplaceLng: u.workplaceLng ?? '',
-                availableBudget: u.availableBudget ?? ''
+                availableBudget: u.availableBudget ?? '',
+                annualIncome: u.annualIncome ?? '',
+                existingLoan: u.existingLoan ?? ''
             };
             this.error = null;
             this.showUserForm = true;
@@ -260,12 +310,15 @@ function halley() {
             this.error = null;
             const editing = this.editingUserId;
             const body = {
+                loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
-                email: this.userForm.email,
+                email: this.userForm.email || null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
-                availableBudget: toNum(this.userForm.availableBudget)
+                availableBudget: toNum(this.userForm.availableBudget),
+                annualIncome: toNum(this.userForm.annualIncome),
+                existingLoan: toNum(this.userForm.existingLoan)
             };
             if (!editing) {
                 body.password = this.userForm.password;
@@ -328,44 +381,148 @@ function halley() {
             const { ok, body } = await this.request('/api/users/me');
             if (ok) {
                 this.profile = body;
-                this.workplaceQuery = body.workplaceName || '';
+                this.profileForm = {
+                    nickname: body.nickname || '',
+                    email: body.email || '',
+                    workplaceName: body.workplaceName || '',
+                    workplaceLat: body.workplaceLat ?? '',
+                    workplaceLng: body.workplaceLng ?? '',
+                    availableBudget: body.availableBudget ?? '',
+                    annualIncome: body.annualIncome ?? '',
+                    existingLoan: body.existingLoan ?? ''
+                };
             }
         },
 
-        async searchWorkplace() {
-            const query = this.workplaceQuery;
-            if (!query || !query.trim()) {
+        /**
+         * 카카오(다음) 우편번호 서비스로 주소를 고르고, 선택한 주소를 지오코딩해 좌표까지 채운다.
+         * target: 'setup'(최초 설정 모달) | 'profile'(내 프로필 화면)
+         */
+        searchPostcodeFor(target) {
+            if (!window.daum || !window.daum.Postcode) {
+                this.error = '우편번호 서비스를 불러오지 못했습니다. 새로고침 후 다시 시도하세요.';
                 return;
             }
-            const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
-            this.workplaceResults = ok ? (body || []) : [];
+            new window.daum.Postcode({
+                oncomplete: async (data) => {
+                    const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
+                    const label = data.buildingName ? `${address} (${data.buildingName})` : address;
+                    const coords = await this.geocodeAddress(address);
+                    if (!coords) {
+                        this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
+                        return;
+                    }
+                    if (target === 'itinerary') {
+                        this.itinStart = { address: label, lat: coords.lat, lng: coords.lng };
+                        await this.rememberStartLocation();
+                        return;
+                    }
+                    const form = target === 'setup' ? this.setupForm : this.profileForm;
+                    form.workplaceName = label;
+                    form.workplaceLat = coords.lat;
+                    form.workplaceLng = coords.lng;
+                }
+            }).open();
         },
 
-        selectWorkplace(r) {
-            this.profile.workplaceName = r.addressName;
-            this.profile.workplaceLat = r.lat;
-            this.profile.workplaceLng = r.lng;
-            this.workplaceQuery = r.addressName;
-            this.workplaceResults = [];
+        /** 출발지는 입력이 끝나는 즉시 캐시한다 (TTL 7일 — 설계 I52). */
+        async rememberStartLocation() {
+            await this.request('/api/itinerary/start-location', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    address: this.itinStart.address || null,
+                    lat: toNum(this.itinStart.lat),
+                    lng: toNum(this.itinStart.lng)
+                })
+            });
         },
 
-        async saveWorkplace() {
+        async loadStartLocation() {
+            const { ok, body } = await this.request('/api/itinerary/start-location');
+            if (ok && body && body.lat != null) {
+                this.itinStart = { address: body.address || '', lat: body.lat, lng: body.lng };
+            }
+        },
+
+        async geocodeAddress(address) {
+            const { ok, body } = await this.request(`/api/geo/search?query=${encodeURIComponent(address)}`);
+            if (ok && Array.isArray(body) && body.length > 0) {
+                return { lat: body[0].lat, lng: body[0].lng };
+            }
+            return null;
+        },
+
+        async saveProfileSetup() {
+            if (!this.setupForm.email || !this.setupForm.email.includes('@')) {
+                this.error = '이메일을 입력해 주세요';
+                return;
+            }
+            if (!this.setupForm.workplaceLat || !this.setupForm.workplaceLng) {
+                this.error = '주소 검색으로 직장 위치를 선택해 주세요';
+                return;
+            }
+            if (!(toNum(this.setupForm.availableBudget) > 0)) {
+                this.error = '보유 현금을 0보다 큰 값으로 입력해 주세요';
+                return;
+            }
+            if (!(toNum(this.setupForm.annualIncome) > 0)) {
+                this.error = '연소득을 0보다 큰 값으로 입력해 주세요';
+                return;
+            }
             this.loading = true;
             this.error = null;
             try {
-                const { ok, body } = await this.request('/api/users/me/workplace', {
+                const { ok, body } = await this.request('/api/users/me/profile', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        workplaceName: this.profile.workplaceName || null,
-                        workplaceLat: toNum(this.profile.workplaceLat),
-                        workplaceLng: toNum(this.profile.workplaceLng)
+                        email: this.setupForm.email,
+                        workplaceName: this.setupForm.workplaceName,
+                        workplaceLat: toNum(this.setupForm.workplaceLat),
+                        workplaceLng: toNum(this.setupForm.workplaceLng),
+                        availableBudget: toNum(this.setupForm.availableBudget),
+                        annualIncome: toNum(this.setupForm.annualIncome),
+                        existingLoan: toNum(this.setupForm.existingLoan) ?? 0
+                    })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '프로필 저장에 실패했습니다';
+                    return;
+                }
+                this.showProfileSetup = false;
+                await this.checkSession();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async saveProfile() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/users/me/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nickname: this.profileForm.nickname || null,
+                        email: this.profileForm.email || null,
+                        workplaceName: this.profileForm.workplaceName || null,
+                        workplaceLat: toNum(this.profileForm.workplaceLat),
+                        workplaceLng: toNum(this.profileForm.workplaceLng),
+                        availableBudget: toNum(this.profileForm.availableBudget),
+                        annualIncome: toNum(this.profileForm.annualIncome),
+                        existingLoan: toNum(this.profileForm.existingLoan) ?? 0
                     })
                 });
                 if (ok) {
                     this.profile = body;
+                    this.session.nickname = body.nickname;
+                    await this.loadProperties();
                 } else {
-                    this.error = (body && body.message) || '직장 위치 저장에 실패했습니다';
+                    this.error = (body && body.message) || '프로필 저장에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
@@ -407,21 +564,256 @@ function halley() {
             }
         },
 
+        // ── 비교 우위 분석 (설계 I61) ─────────────────
+        /** 분석 대상은 판매완료·작성 중을 뺀 매물이다 — 서버의 판정과 같은 기준을 화면에서도 쓴다. */
+        comparableCount() {
+            return this.properties.filter(r => r.property.active && !r.property.isDraft).length;
+        },
+
+        canCompare() {
+            const min = this.compareStatus ? this.compareStatus.minProperties : COMPARE_MIN_PROPERTIES;
+            if (this.comparableCount() < min) {
+                return false;
+            }
+            // 현황을 아직 못 읽었으면 매물 수만으로 판단한다. 서버가 최종 판정을 다시 한다.
+            return this.compareStatus ? this.compareStatus.analysable : true;
+        },
+
+        /** 왜 못 누르는지 버튼에 붙여 준다. 비활성 이유가 안 보이면 고장으로 읽힌다. */
+        compareHint() {
+            const min = this.compareStatus ? this.compareStatus.minProperties : COMPARE_MIN_PROPERTIES;
+            const count = this.comparableCount();
+            if (count < min) {
+                return `매물이 ${min}건 이상이어야 비교할 수 있습니다 (현재 ${count}건)`;
+            }
+            if (this.compareStatus && !this.compareStatus.analysable) {
+                return 'AI 분석을 사용할 수 없습니다. LLM 연동 설정을 확인해 주세요';
+            }
+            return '등록된 매물 전체를 견주어 순위를 매깁니다';
+        },
+
+        hasCompareResult() {
+            return !!(this.compareStatus && this.compareStatus.rankings && this.compareStatus.rankings.length > 0);
+        },
+
+        async openCompare() {
+            this.compareError = null;
+            this.showCompare = true;
+            await this.loadCompareStatus();
+        },
+
+        closeCompare() {
+            this.showCompare = false;
+            this.compareError = null;
+        },
+
+        async loadCompareStatus() {
+            const { ok, body } = await this.request('/api/properties/comparative-analysis');
+            if (ok) {
+                this.compareStatus = body;
+            }
+        },
+
+        async runCompare() {
+            // 서버가 다시 검증하지만, 여기서 막아야 눌러 놓고 에러를 받는 일이 없다
+            if (!this.canCompare()) {
+                this.compareError = this.compareHint();
+                return;
+            }
+            this.compareRunning = true;
+            this.compareError = null;
+            try {
+                const { ok, body } = await this.request('/api/properties/comparative-analysis', { method: 'POST' });
+                if (ok) {
+                    this.compareStatus = body;
+                    // 순위가 바뀌면 전 매물의 총점이 함께 움직인다
+                    await this.loadProperties();
+                } else {
+                    this.compareError = (body && body.message) || '분석에 실패했습니다';
+                }
+            } catch (e) {
+                this.compareError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.compareRunning = false;
+            }
+        },
+
+        // ── 매물 코멘트 (설계 I56) ─────────────────────
+        openComments(item) {
+            this.commentProperty = item;
+            this.comments = [];
+            this.commentNewText = '';
+            this.commentEditingId = null;
+            this.error = null;
+            this.showComments = true;
+            this.loadComments();
+        },
+
+        closeComments() {
+            this.showComments = false;
+            this.commentProperty = null;
+            this.comments = [];
+            this.commentEditingId = null;
+            this.error = null;
+        },
+
+        async loadComments() {
+            const { ok, body } = await this.request(
+                `/api/properties/${this.commentProperty.property.id}/comments`);
+            this.comments = ok ? (body || []) : [];
+        },
+
+        /** 내가 이미 남긴 글. 있으면 입력칸 대신 수정 버튼을 보여준다. */
+        get myComment() {
+            return this.comments.find(c => c.mine) || null;
+        },
+
+        async addComment() {
+            const content = this.commentNewText.trim();
+            if (!content) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                if (ok) {
+                    this.commentNewText = '';
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 등록에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        startEditComment(comment) {
+            this.commentEditingId = comment.id;
+            this.commentEditText = comment.content;
+            this.error = null;
+        },
+
+        cancelEditComment() {
+            this.commentEditingId = null;
+            this.commentEditText = '';
+        },
+
+        async saveEditComment(comment) {
+            const content = this.commentEditText.trim();
+            if (!content) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments/${comment.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ content })
+                    });
+                if (ok) {
+                    this.commentEditingId = null;
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 수정에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async removeComment(comment) {
+            if (!confirm('이 코멘트를 삭제할까요?')) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${this.commentProperty.property.id}/comments/${comment.id}`,
+                    { method: 'DELETE' });
+                if (ok) {
+                    await this.loadComments();
+                } else {
+                    this.error = (body && body.message) || '코멘트 삭제에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
         openDetail(item) {
             this.detailItem = item;
+            this.detailAgents = [];
+            this.detailRef = null;
+            this.detailLlm = null;
             this.showM2 = true;
+            this.loadDetailExtras(item.property.id);
+        },
+
+        // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
+        async loadDetailExtras(propertyId) {
+            const [agents, ref, llm] = await Promise.all([
+                this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false }))
+            ]);
+            if (this.detailItem && this.detailItem.property.id !== propertyId) {
+                return;
+            }
+            this.detailAgents = agents.ok ? (agents.body || []) : [];
+            this.detailRef = ref.ok ? ref.body : null;
+            // 아직 산출 전이면 204라 body가 없다
+            this.detailLlm = llm.ok && llm.body ? llm.body : null;
+        },
+
+        /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */
+        async refreshLlm() {
+            const id = this.detailItem.property.id;
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${id}/llm-recommendation`, { method: 'POST' });
+                if (ok && body) {
+                    this.detailLlm = body;
+                    await this.loadProperties();
+                } else if (ok) {
+                    this.error = 'AI 추천도를 산출하지 못했습니다. LLM 연동 설정을 확인해 주세요';
+                } else {
+                    this.error = (body && body.message) || 'AI 추천도 산출에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         closeDetail() {
             this.showM2 = false;
             this.detailItem = null;
+            this.detailAgents = [];
+            this.detailRef = null;
         },
 
         async openPhotoModal(item) {
             this.photoProperty = item;
             this.photoImages = [];
-            this.photoType = 'PHOTO';
-            this.photoFile = null;
+            this.error = null;
             this.showPhotoModal = true;
             await this.loadPhotoImages();
         },
@@ -430,8 +822,17 @@ function halley() {
             this.showPhotoModal = false;
             this.photoProperty = null;
             this.photoImages = [];
-            this.photoFile = null;
             this.photoViewerIndex = -1;
+            this.error = null;
+        },
+
+        /** 평면도는 매물당 한 장 (설계 I63). */
+        get floorPlan() {
+            return this.photoImages.find(i => i.imageType === 'FLOOR_PLAN') || null;
+        },
+
+        get photos() {
+            return this.photoImages.filter(i => i.imageType === 'PHOTO');
         },
 
         openPhotoViewer(index) {
@@ -454,10 +855,6 @@ function halley() {
             }
         },
 
-        onPhotoFile(e) {
-            this.photoFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-        },
-
         async loadPhotoImages() {
             if (!this.photoProperty) {
                 return;
@@ -468,25 +865,57 @@ function halley() {
             }
         },
 
-        async uploadPhoto() {
-            if (!this.photoFile) {
+        /**
+         * 고른 파일을 종류에 맞춰 올린다. 매물사진은 여러 장을 한 번에 고를 수 있다.
+         * 파일을 고르는 순간 올라가므로 별도의 '업로드' 버튼이 없다 (설계 I63).
+         */
+        async uploadImages(event, imageType) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) {
                 return;
             }
             this.loading = true;
             this.error = null;
             try {
-                const form = new FormData();
-                form.append('file', this.photoFile);
-                form.append('imageType', this.photoType);
-                const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
-                    method: 'POST',
-                    body: form
-                });
-                if (res.ok) {
-                    this.photoFile = null;
+                for (const file of files) {
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('imageType', imageType);
+                    const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
+                        method: 'POST',
+                        body: form
+                    });
+                    if (!res.ok) {
+                        this.error = `${file.name} 업로드에 실패했습니다`;
+                        break;
+                    }
+                }
+                await this.loadPhotoImages();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                // 같은 파일을 다시 고를 수 있게 비운다
+                event.target.value = '';
+                this.loading = false;
+            }
+        },
+
+        async removeImage(image) {
+            const label = image.imageType === 'FLOOR_PLAN' ? '평면도' : '매물사진';
+            if (!confirm(`이 ${label}를 삭제할까요?`)) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok } = await this.request(
+                    `/api/properties/${this.photoProperty.property.id}/images/${image.id}`,
+                    { method: 'DELETE' });
+                if (ok) {
+                    this.photoViewerIndex = -1;
                     await this.loadPhotoImages();
                 } else {
-                    this.error = '업로드에 실패했습니다';
+                    this.error = '삭제에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
@@ -653,14 +1082,11 @@ function halley() {
                     body: JSON.stringify(this.passwordForm)
                 });
                 if (ok) {
-                    this.session.mustChangePassword = false;
                     this.passwordForm = { currentPassword: '', newPassword: '' };
                     this.showPassword = false;
                     this.error = null;
-                    if (this.session.role === 'ADMIN') {
-                        await this.loadUsers();
-                    }
-                    await this.loadProperties();
+                    // 세션을 다시 읽어야 다음 단계(프로필 설정)로 넘어간다. 목록 로드도 checkSession이 맡는다
+                    await this.checkSession();
                 } else {
                     this.error = (body && body.message) || '비밀번호 변경에 실패했습니다';
                 }
@@ -798,12 +1224,60 @@ function halley() {
             return { ALIVE: '생존', GONE: '삭제', BLOCKED: '차단', ERROR: '오류' }[verdict] || verdict;
         },
 
+        // 프로필에 연소득·보유 현금이 있으므로 모달을 열면 바로 계산한다 (설계 I55)
         openLoanModal(item) {
             this.loanProperty = item;
-            this.loanForm = { annualIncome: '', cash: '', firstHome: false };
+            this.loanForm = { firstHome: false, mortgageInsured: false, ownedHouseCount: 0 };
+            this.loanOverride = { annualIncome: '', cash: '', existingLoan: '' };
+            this.loanShowInputs = false;
             this.loanResult = null;
             this.error = null;
             this.showLoanModal = true;
+            this.runLoanEstimate();
+        },
+
+        /**
+         * 슬라이더로 대출액을 줄이면 월 상환액·필요 현금이 따라 움직인다.
+         * 서버가 월 이율과 기간을 함께 내려주므로 여기서 다시 계산한다 — 매번 서버를 부르지 않는다.
+         */
+        loanMonthlyAt(amount) {
+            const r = this.loanResult;
+            if (!r || !r.termMonths) {
+                return 0;
+            }
+            const rate = r.monthlyRate || 0;
+            if (rate === 0) {
+                return Math.round(amount / r.termMonths);
+            }
+            return Math.round(amount * rate / (1 - Math.pow(1 + rate, -r.termMonths)));
+        },
+
+        /** 매매가에서 대출을 뺀 자기자본. 취득세는 여기에 더 필요하다. */
+        loanOwnCapital() {
+            const asking = this.loanResult?.askingPrice || 0;
+            return Math.max(0, asking - this.loanAmount);
+        },
+
+        /** 보유 현금으로 자기자본 + 취득세를 감당할 수 있는가. 음수면 모자란다. */
+        loanCashGap() {
+            const need = this.loanOwnCapital() + (this.loanResult?.acquisitionTax || 0);
+            return (this.loanResult?.usedCash || 0) - need;
+        },
+
+        loanPercent(part, whole) {
+            if (!whole) {
+                return 0;
+            }
+            return Math.min(100, Math.max(0, Math.round(part * 1000 / whole) / 10));
+        },
+
+        /** 한도를 무엇이 묶고 있는지 — 규제(LTV)인지 소득(DSR)인지 */
+        loanBindingLabel() {
+            const r = this.loanResult;
+            if (!r) {
+                return '';
+            }
+            return r.dsrLimit <= r.ltvLimit ? '소득(DSR)이 한도를 정합니다' : '규제(LTV)가 한도를 정합니다';
         },
 
         closeLoanModal() {
@@ -821,14 +1295,19 @@ function halley() {
                     `/api/properties/${this.loanProperty.property.id}/loan-estimate`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
+                        // 값을 비워 보내면 서버가 내 프로필로 채운다. 이 모달에서 손댄 값만 덮어쓴다.
                         body: JSON.stringify({
-                            annualIncome: toNum(this.loanForm.annualIncome),
-                            cash: toNum(this.loanForm.cash),
-                            firstHome: this.loanForm.firstHome
+                            annualIncome: toNum(this.loanOverride.annualIncome),
+                            cash: toNum(this.loanOverride.cash),
+                            existingLoan: toNum(this.loanOverride.existingLoan),
+                            firstHome: this.loanForm.firstHome,
+                            mortgageInsured: this.loanForm.mortgageInsured,
+                            ownedHouseCount: this.loanForm.ownedHouseCount
                         })
                     });
                 if (ok) {
                     this.loanResult = body;
+                    this.loanAmount = body.finalLimit || 0;
                 } else {
                     this.error = (body && body.message) || '계산에 실패했습니다';
                 }
@@ -1226,6 +1705,30 @@ function halley() {
                 moveInType,
                 moveInDate,
                 naverArticleNo: value('naverArticleNo') || null,
+                // 붙여넣기 텍스트에는 URL이 없어 모달에서 직접 받는다 (설계 I62)
+                sourceUrl: value('sourceUrl') || null,
+                maintenanceFee: toNum(value('maintenanceFee')),
+                roomBath: value('roomBath') || null,
+                heatingType: value('heatingType') || null,
+                // 비용·세금 (설계 I53)
+                brokerageFee: toNum(value('brokerageFee')),
+                brokerageRate: toNum(value('brokerageRate')),
+                acquisitionTax: toNum(value('acquisitionTax')),
+                propertyTax: toNum(value('propertyTax')),
+                comprehensiveTax: value('comprehensiveTax') || null,
+                schoolName: value('school') || null,
+                schoolWalkMinutes: toNum(value('schoolMinutes')),
+                // 중개사 — 등록번호가 같으면 서버가 기존 중개사를 갱신해 연결한다
+                agent: {
+                    officeName: value('agentOfficeName') || null,
+                    agentName: value('agentName') || null,
+                    phone: value('agentPhone') || null,
+                    mobile: value('agentMobile') || null,
+                    registrationNo: value('agentRegistrationNo') || null,
+                    address: value('agentAddress') || null,
+                    lat: null,
+                    lng: null
+                },
                 rawPasteText: this.pasteText
             };
         },
@@ -1248,7 +1751,11 @@ function halley() {
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
                 totalHouseholds: '세대수', parkingPerHousehold: '주차(세대당)', moveIn: '입주가능일',
                 subway: '지하철', subwayMinutes: '역 도보(분)',
-                school: '배정 초등학교', schoolMinutes: '학교 도보(분)'
+                school: '배정 초등학교', schoolMinutes: '학교 도보(분)',
+                agentName: '중개인', agentOfficeName: '중개사무소', agentPhone: '중개사 전화',
+                agentMobile: '중개사 휴대폰', agentAddress: '중개사 위치', agentRegistrationNo: '등록번호',
+                brokerageFee: '중개보수(상한액)', brokerageRate: '상한 요율',
+                acquisitionTax: '취득세 합계', propertyTax: '재산세 합계', comprehensiveTax: '종합부동산세'
             }[key] || key;
         },
 
@@ -1266,6 +1773,7 @@ function halley() {
                 priceMonthly: p.priceMonthly ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
                 addressRoad: p.addressRoad || '',
+                sourceUrl: p.sourceUrl || '',
                 addressJibun: p.addressJibun || '',
                 lat: p.lat ?? '',
                 lng: p.lng ?? '',
@@ -1321,6 +1829,7 @@ function halley() {
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
+                sourceUrl: this.propertyForm.sourceUrl || null,
                 lat: toNum(this.propertyForm.lat),
                 lng: toNum(this.propertyForm.lng),
                 areaSupplyM2: toNum(this.propertyForm.areaSupplyM2),
@@ -1411,8 +1920,15 @@ function halley() {
                         body: JSON.stringify({ scores })
                     });
                 if (ok) {
-                    this.showScoreModal = false;
                     await this.loadProperties();
+                    // 저장 후 닫지 않고 갱신된 점수를 그대로 보여준다
+                    const fresh = (this.properties || []).find(
+                        r => r.property.id === this.scoreProperty.property.id);
+                    if (fresh) {
+                        this.openScoreModal(fresh);
+                    } else {
+                        this.showScoreModal = false;
+                    }
                 } else {
                     this.error = (body && body.message) || '채점 저장에 실패했습니다';
                 }
@@ -1677,7 +2193,23 @@ function halley() {
         },
 
         scoreSourceLabel(source) {
-            return { AUTO: '자동', MANUAL: '수동', FALLBACK: '폴백' }[source] || '';
+            return { AUTO: '자동', MANUAL: '수동', FALLBACK: '미산출' }[source] || '';
+        },
+
+        scoreSourceBadge(source) {
+            return { AUTO: 'b-on', MANUAL: 'b-admin', FALLBACK: 'b-off' }[source] || '';
+        },
+
+        scoreCount(source) {
+            return (this.scoreProperty?.scores || []).filter(s => s.scoreSource === source).length;
+        },
+
+        /** 미산출 사유를 중복 없이 모아 모달 상단에 한 번만 보여준다. */
+        scoreBlockers() {
+            const reasons = (this.scoreProperty?.scores || [])
+                .filter(s => s.scoreSource === 'FALLBACK' && s.fallbackReason)
+                .map(s => s.fallbackReason);
+            return [...new Set(reasons)];
         },
 
         fmtScore(n) {
@@ -1685,6 +2217,30 @@ function halley() {
                 return '-';
             }
             return Number(n).toFixed(0);
+        },
+
+        /** 등록자 배지의 원형 이니셜 — 닉네임 첫 글자 (설계 I57). */
+        ownerInitial(nickname) {
+            return nickname ? Array.from(nickname.trim())[0] : '';
+        },
+
+        /** ㎡와 평을 함께 보여준다. 1평 = 3.3058㎡ (설계 I53). */
+        fmtArea(m2) {
+            if (m2 == null || m2 === '') {
+                return '-';
+            }
+            const n = Number(m2);
+            return `${n}㎡ (${(n / 3.3058).toFixed(1)}평)`;
+        },
+
+        moveInLabel(p) {
+            if (p.moveInType === 'IMMEDIATE') {
+                return '즉시 입주';
+            }
+            if (p.moveInType === 'NEGOTIABLE') {
+                return p.moveInDate ? `${p.moveInDate} 협의 가능` : '협의 가능';
+            }
+            return p.moveInDate || '-';
         },
 
         fmtWon(won) {

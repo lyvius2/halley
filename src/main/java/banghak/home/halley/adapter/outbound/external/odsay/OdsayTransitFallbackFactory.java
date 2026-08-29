@@ -13,7 +13,7 @@ public class OdsayTransitFallbackFactory implements FallbackFactory<OdsayTransit
     @Override
     public OdsayTransitFeignClient create(Throwable cause) {
         return (apiKey, startX, startY, endX, endY) -> {
-            log.warn("ODsay 대중교통 경로 실패 — 폴백(MISSING) 반환. start=({},{}), end=({},{}), cause={}",
+            log.warn("ODsay transit search failed - returning fallback (MISSING). start=({},{}), end=({},{}), cause={}",
                     startX, startY, endX, endY, describe(cause));
             return null;
         };

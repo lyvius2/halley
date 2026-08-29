@@ -36,7 +36,7 @@ public class GeoService {
         try {
             return kakaoLocalPort.searchAddress(address.trim()).stream().findFirst();
         } catch (RuntimeException e) {
-            log.warn("지오코딩 실패 query={}: {}", address.trim(), e.getMessage());
+            log.warn("Geocoding failed. query={}, cause={}", address.trim(), e.getMessage());
             return Optional.empty();
         }
     }

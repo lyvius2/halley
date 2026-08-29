@@ -9,6 +9,7 @@ public record ReferenceTransaction(
         ReferenceDealType dealType,
         LocalDate contractDate,
         Long price,
+        java.math.BigDecimal areaM2,
         Integer floorNo,
         ReferenceSource source,
         Instant cachedAt

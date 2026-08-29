@@ -12,20 +12,24 @@ public class HalleyUserDetails implements UserDetails {
 
     private final Long id;
     private final String nickname;
+    private final String loginId;
     private final String email;
     private final String password;
     private final String role;
     private final boolean enabled;
     private boolean mustChangePassword;
+    private boolean profileComplete;
 
     public HalleyUserDetails(User user) {
         this.id = user.id();
         this.nickname = user.nickname();
+        this.loginId = user.loginId();
         this.email = user.email();
         this.password = user.passwordHash();
         this.role = user.role().name();
         this.enabled = user.enabled();
         this.mustChangePassword = user.mustChangePassword();
+        this.profileComplete = user.profileComplete();
     }
 
     public Long getId() {
@@ -44,6 +48,14 @@ public class HalleyUserDetails implements UserDetails {
         return mustChangePassword;
     }
 
+    public boolean isProfileComplete() {
+        return profileComplete;
+    }
+
+    public void setProfileComplete(boolean profileComplete) {
+        this.profileComplete = profileComplete;
+    }
+
     public void setMustChangePassword(boolean mustChangePassword) {
         this.mustChangePassword = mustChangePassword;
     }
@@ -60,7 +72,7 @@ public class HalleyUserDetails implements UserDetails {
 
     @Override
     public String getUsername() {
-        return email;
+        return loginId;
     }
 
     @Override

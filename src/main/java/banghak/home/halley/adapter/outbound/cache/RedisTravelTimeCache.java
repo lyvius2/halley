@@ -35,7 +35,7 @@ public class RedisTravelTimeCache implements TravelTimeCache {
             final String value = redisTemplate.opsForValue().get(key(mode, fromLng, fromLat, toLng, toLat));
             return value == null ? null : Integer.valueOf(value);
         } catch (RuntimeException e) {
-            log.warn("Redis 이동시간 캐시 조회 실패: {}", e.getMessage());
+            log.warn("Redis travel-time cache read failed. cause={}", e.getMessage());
             return null;
         }
     }
@@ -45,7 +45,7 @@ public class RedisTravelTimeCache implements TravelTimeCache {
         try {
             redisTemplate.opsForValue().set(key(mode, fromLng, fromLat, toLng, toLat), String.valueOf(minutes), TTL);
         } catch (RuntimeException e) {
-            log.warn("Redis 이동시간 캐시 저장 실패: {}", e.getMessage());
+            log.warn("Redis travel-time cache write failed. cause={}", e.getMessage());
         }
     }
 

@@ -35,3 +35,9 @@ out/
 
 ### VS Code ###
 .vscode/
+
+# macOS
+.DS_Store
+
+# 업로드된 이미지 (런타임 산출물)
+uploads/

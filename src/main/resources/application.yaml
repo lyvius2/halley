@@ -30,6 +30,13 @@ ministry:
   service-key: ${MINISTRY_API_KEY:}
   base-url: https://apis.data.go.kr/1613000
 
+# 국토교통부 공동주택/개별주택 공시가격 (V-World 국가공간정보 개방데이터) — 설계 I54
+vworld:
+  api-key: ${HOUSING_PRICE_API_KEY:}
+  base-url: https://api.vworld.kr
+  # 키 발급 시 등록한 URL. 도메인 제한이 걸린 키는 이 값이 없으면 자료가 0건으로 나올 수 있다
+  domain: ${HOUSING_PRICE_API_DOMAIN:}
+
 feign:
   client:
     config:
@@ -49,6 +56,13 @@ feign:
       ministry-reference:
         connectTimeout: 3000
         readTimeout: 8000
+      vworld-housing-price:
+        connectTimeout: 3000
+        readTimeout: 8000
+      claude-llm:
+        connectTimeout: 5000
+        # LLM은 생성에 시간이 걸린다. 비동기 보정에서만 부르므로 길게 잡아도 화면을 막지 않는다
+        readTimeout: 60000
 
 resilience4j:
   circuitbreaker:
@@ -83,6 +97,24 @@ resilience4j:
         baseConfig: default
         failureRateThreshold: 40
         waitDurationInOpenState: 30s
+      vworld-housing-price:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 30s
+      claude-llm:
+        baseConfig: default
+        slidingWindowSize: 5
+        failureRateThreshold: 40
+        waitDurationInOpenState: 60s
+        permittedNumberOfCallsInHalfOpenState: 2
+
+llm:
+  enabled: ${LLM_ENABLED:true}
+  provider: ${LLM_PROVIDER:claude}
+  claude:
+    api-key: ${ANTHROPIC_API_KEY:}
+    base-url: https://api.anthropic.com
+    model: ${LLM_CLAUDE_MODEL:claude-sonnet-4-5-20250929}
 
 slack:
   enabled: ${SLACK_ENABLED:false}

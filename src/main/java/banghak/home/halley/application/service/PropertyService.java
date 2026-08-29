@@ -9,14 +9,17 @@ import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.ConcurrentEditException;
 import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.property.SchoolSource;
 import banghak.home.halley.domain.property.SourceType;
 import banghak.home.halley.domain.geo.GeoSearchResult;
+import banghak.home.halley.domain.user.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.Authentication;
@@ -27,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Slf4j
@@ -34,17 +38,23 @@ import java.util.Optional;
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final UserRepository userRepository;
+    private final AgentService agentService;
     private final ListingCheckLogRepository listingCheckLogRepository;
     private final EditVersionStore editVersionStore;
     private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
 
     public PropertyService(PropertyRepository propertyRepository,
+                           UserRepository userRepository,
+                           AgentService agentService,
                            ListingCheckLogRepository listingCheckLogRepository,
                            EditVersionStore editVersionStore,
                            GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
+        this.userRepository = userRepository;
+        this.agentService = agentService;
         this.listingCheckLogRepository = listingCheckLogRepository;
         this.editVersionStore = editVersionStore;
         this.geoService = geoService;
@@ -93,8 +103,17 @@ public class PropertyService {
                 request.heatingType(),
                 request.buildingCount(),
                 request.kbPrice(),
+                request.brokerageFee(),
+                request.brokerageRate(),
+                request.acquisitionTax(),
+                request.propertyTax(),
+                request.comprehensiveTax(),
+                request.schoolName(),
+                request.schoolWalkMinutes(),
+                request.schoolName() == null || request.schoolName().isBlank() ? null : SchoolSource.PASTE,
+                null, null, null,
                 fromPaste ? SourceType.PASTE : SourceType.MANUAL,
-                request.sourceUrl(),
+                listingUrl(request.sourceUrl()),
                 request.naverArticleNo(),
                 request.rawPasteText(),
                 fromPaste ? "parser-v1" : null,
@@ -105,6 +124,7 @@ public class PropertyService {
                 null, 0, null,
                 currentUserId(),
                 Instant.now()));
+        agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         editVersionStore.bump(versionKey(saved.id()));
         return toResponse(saved);
@@ -122,7 +142,9 @@ public class PropertyService {
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
-                SourceType.PASTE, request.sourceUrl(), null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, null, null,
+                SourceType.PASTE, listingUrl(request.sourceUrl()), null, null, null, null,
                 true, ListingStatus.ACTIVE, true,
                 null, 0, null, currentUserId(), Instant.now()));
         return toResponse(saved);
@@ -162,8 +184,21 @@ public class PropertyService {
                 request.heatingType(),
                 request.buildingCount(),
                 request.kbPrice(),
+                request.brokerageFee(),
+                request.brokerageRate(),
+                request.acquisitionTax(),
+                request.propertyTax(),
+                request.comprehensiveTax(),
+                request.schoolName(),
+                request.schoolWalkMinutes(),
+                request.schoolName() == null || request.schoolName().isBlank() ? null
+                        : java.util.Objects.equals(request.schoolName(), existing.schoolName())
+                        ? existing.schoolSource() : SchoolSource.PASTE,
+                existing.pnu(),
+                existing.officialPrice(),
+                existing.officialPriceYear(),
                 existing.sourceType(),
-                existing.sourceUrl(),
+                listingUrl(request.sourceUrl()),
                 existing.naverArticleNo(),
                 existing.rawPasteText(),
                 existing.parserVersion(),
@@ -176,6 +211,7 @@ public class PropertyService {
                 existing.soldDetectedAt(),
                 existing.createdBy(),
                 existing.createdAt()));
+        agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
         return toResponse(updated);
     }
@@ -222,6 +258,23 @@ public class PropertyService {
                 log.evidence(), log.elapsedMs());
     }
 
+    /**
+     * 원본 URL은 화면에서 링크로 열리고 생존 확인 배치가 주기적으로 두드리는 값이라
+     * <b>http/https만</b> 받는다. `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간
+     * 스크립트가 도는 통로가 된다 (설계 I62).
+     */
+    private String listingUrl(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        final String trimmed = value.trim();
+        final String lower = trimmed.toLowerCase(Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            throw new InvalidPropertyRequestException("원본 URL은 http:// 또는 https:// 로 시작해야 합니다");
+        }
+        return trimmed;
+    }
+
     private void validate(PropertyRequest request) {
         if (request.dealType() == null) {
             throw new InvalidPropertyRequestException("거래유형은 필수입니다");
@@ -244,7 +297,7 @@ public class PropertyService {
         }
         final Optional<GeoSearchResult> geo = geoService.geocode(address);
         if (geo.isEmpty()) {
-            log.warn("주소 좌표 변환 실패, 좌표 없이 등록: {}", address);
+            log.warn("Geocoding failed - saving property without coordinates. address={}", address);
             return new Coordinates(null, null);
         }
         return new Coordinates(geo.get().lat(), geo.get().lng());
@@ -285,6 +338,14 @@ public class PropertyService {
     }
 
     private PropertyResponse toResponse(Property p) {
-        return PropertyResponse.from(p, editVersionStore.current(versionKey(p.id())));
+        return PropertyResponse.from(p, nicknameOf(p.createdBy()), editVersionStore.current(versionKey(p.id())));
+    }
+
+    /** 매물 카드에 등록자를 보여주기 위한 닉네임 (설계 I53). 삭제된 사용자면 null. */
+    private String nicknameOf(Long userId) {
+        if (userId == null) {
+            return null;
+        }
+        return userRepository.findById(userId).map(User::nickname).orElse(null);
     }
 }

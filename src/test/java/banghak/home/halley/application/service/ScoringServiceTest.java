@@ -82,7 +82,7 @@ class ScoringServiceTest {
     void listSortedAndSeparatedByDealType() {
         // given
         userService.create(new CreateUserRequest(
-                "예산보유자", "budget@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L));
+                "budget", "예산보유자", "budget@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L, 60_000_000L, 0L));
         final PropertyResponse cheap = propertyService.create(request("싼 매물", DealType.SALE, 300_000_000L));
         final PropertyResponse expensive = propertyService.create(request("비싼 매물", DealType.SALE, 800_000_000L));
         final PropertyResponse jeonse = propertyService.create(request("전세 매물", DealType.JEONSE, 400_000_000L));
@@ -146,7 +146,7 @@ class ScoringServiceTest {
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
-                null, null, null, 3, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
     }
 }

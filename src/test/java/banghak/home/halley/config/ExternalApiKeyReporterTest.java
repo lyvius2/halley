@@ -11,8 +11,8 @@ class ExternalApiKeyReporterTest {
     @DisplayName("키가 비어 있으면 미설정으로 표시해 빈 결과의 원인을 드러낸다")
     void reportsMissingKey() {
         // then
-        assertThat(ExternalApiKeyReporter.mask(null)).startsWith("미설정");
-        assertThat(ExternalApiKeyReporter.mask("   ")).startsWith("미설정");
+        assertThat(ExternalApiKeyReporter.mask(null)).startsWith("NOT SET");
+        assertThat(ExternalApiKeyReporter.mask("   ")).startsWith("NOT SET");
     }
 
     @Test
@@ -22,7 +22,7 @@ class ExternalApiKeyReporterTest {
         final String masked = ExternalApiKeyReporter.mask("7fd1d10f70f54d49a25555e4e7f761ec");
 
         // then
-        assertThat(masked).isEqualTo("설정됨 (7fd1****61ec)");
+        assertThat(masked).isEqualTo("set (7fd1****61ec)");
         assertThat(masked).doesNotContain("d10f70f54d49");
     }
 
@@ -30,6 +30,6 @@ class ExternalApiKeyReporterTest {
     @DisplayName("8자 이하의 짧은 값은 일부도 노출하지 않는다")
     void masksShortKeyEntirely() {
         // then
-        assertThat(ExternalApiKeyReporter.mask("abcd1234")).isEqualTo("설정됨 (****)");
+        assertThat(ExternalApiKeyReporter.mask("abcd1234")).isEqualTo("set (****)");
     }
 }

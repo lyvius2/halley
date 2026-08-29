@@ -1,7 +1,6 @@
 package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 public class AgeScorer implements CriterionScorer {
 
@@ -13,10 +12,6 @@ public class AgeScorer implements CriterionScorer {
         return "AGE";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.AUTO;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -24,6 +19,8 @@ public class AgeScorer implements CriterionScorer {
             return ScoreResult.missing("준공년도 없음");
         }
         final int age = ctx.referenceDate().getYear() - property.approvalYear();
-        return ScoreResult.scored(Math.clamp(100.0 - age * DEDUCTION_PER_YEAR, MIN_SCORE, 100.0));
+        return ScoreResult.scored(Math.clamp(100.0 - age * DEDUCTION_PER_YEAR, MIN_SCORE, 100.0),
+                String.format("%d년 준공 · 연식 %d년 → 100 − %d×%.1f (최저 %.0f점)",
+                        property.approvalYear(), age, age, DEDUCTION_PER_YEAR, MIN_SCORE));
     }
 }

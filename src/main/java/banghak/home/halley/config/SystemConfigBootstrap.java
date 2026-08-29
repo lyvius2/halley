@@ -41,14 +41,14 @@ public class SystemConfigBootstrap implements ApplicationRunner {
                     seed.key(), seed.value(), seed.valueType(), seed.category(),
                     seed.description(), false, null, null));
         }
-        log.info("★ 시스템 설정 {}건 시드 완료 ★", DEFAULTS.size());
+        log.info("Seeded {} system config entries.", DEFAULTS.size());
     }
 
     private void removeObsolete() {
         for (final String key : OBSOLETE_KEYS) {
             if (systemConfigRepository.findById(key).isPresent()) {
                 systemConfigRepository.delete(key);
-                log.info("사용하지 않는 시스템 설정 제거: {}", key);
+                log.info("Removed obsolete system config: {}", key);
             }
         }
     }

@@ -25,7 +25,7 @@ public class RedisEditVersionStore implements EditVersionStore {
             final String value = redisTemplate.opsForValue().get(PREFIX + key);
             return value == null ? 1L : Long.parseLong(value);
         } catch (RuntimeException e) {
-            log.warn("Redis 버전 조회 실패: {}", e.getMessage());
+            log.warn("Redis edit-version read failed. cause={}", e.getMessage());
             return 1L;
         }
     }
@@ -36,7 +36,7 @@ public class RedisEditVersionStore implements EditVersionStore {
             final Long value = redisTemplate.opsForValue().increment(PREFIX + key);
             return value == null ? 1L : value;
         } catch (RuntimeException e) {
-            log.warn("Redis 버전 증가 실패: {}", e.getMessage());
+            log.warn("Redis edit-version increment failed. cause={}", e.getMessage());
             return 1L;
         }
     }

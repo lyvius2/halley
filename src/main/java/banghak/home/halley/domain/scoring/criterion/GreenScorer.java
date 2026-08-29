@@ -3,7 +3,6 @@ package banghak.home.halley.domain.scoring.criterion;
 import banghak.home.halley.domain.geo.GreenCategory;
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 import java.util.List;
 import java.util.OptionalInt;
@@ -29,10 +28,6 @@ public class GreenScorer implements CriterionScorer {
         return "GREEN";
     }
 
-    @Override
-    public ScoringType type() {
-        return ScoringType.HYBRID;
-    }
 
     @Override
     public ScoreResult score(Property property, ScoringContext ctx) {
@@ -40,16 +35,23 @@ public class GreenScorer implements CriterionScorer {
                 .filter(f -> "GREEN".equals(f.category()))
                 .toList();
         if (green.isEmpty()) {
-            return ScoreResult.missing("녹색환경 데이터 없음");
+            if (property.lat() == null || property.lng() == null) {
+                return ScoreResult.missingCoordinates();
+            }
+            return ScoreResult.missing("반경 내 공원·산·하천이 없습니다");
         }
         double score = 0.0;
+        final List<String> parts = new java.util.ArrayList<>();
         for (final GreenCategory category : GreenCategory.values()) {
             final OptionalInt nearest = nearestWalkMinutes(green, category);
             if (nearest.isPresent()) {
                 score += scoreByWalkMinutes(nearest.getAsInt());
+                parts.add(String.format("%s 도보 %d분", label(category), nearest.getAsInt()));
             }
         }
-        return ScoreResult.scored(score);
+        return ScoreResult.scored(score, parts.isEmpty()
+                ? "공원·산·하천을 찾지 못했습니다"
+                : String.join(" · ", parts) + " (종류당 33.3점, 5분 이내 만점 ~ 20분 0점)");
     }
 
     /**
@@ -62,6 +64,14 @@ public class GreenScorer implements CriterionScorer {
                 .filter(f -> f.walkMinutes() != null)
                 .mapToInt(NearbyFacility::walkMinutes)
                 .min();
+    }
+
+    private static String label(GreenCategory category) {
+        return switch (category) {
+            case PARK -> "공원";
+            case MOUNTAIN -> "산";
+            case RIVER -> "하천";
+        };
     }
 
     private static double scoreByWalkMinutes(int walkMinutes) {

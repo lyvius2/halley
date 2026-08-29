@@ -37,13 +37,24 @@ class CommuteScorerTest {
     }
 
     @Test
-    @DisplayName("통근 데이터가 없으면 MISSING으로 기록된다")
+    @DisplayName("직장 좌표가 설정된 사용자가 없으면 그 사유로 MISSING을 남긴다")
     void missing() {
         // when
         final ScoreResult result = scorer.score(new PropertyBuilder().build(), TestContexts.context());
 
         // then
         assertThat(result.isComputed()).isFalse();
-        assertThat(result.fallbackReason()).isEqualTo("통근 데이터 없음");
+        assertThat(result.fallbackReason()).contains("직장 좌표");
+    }
+
+    @Test
+    @DisplayName("매물 좌표가 없으면 좌표를 채우라는 사유를 남긴다")
+    void missingCoordinates() {
+        // when
+        final ScoreResult result = scorer.score(new PropertyBuilder().noCoordinates().build(), TestContexts.context());
+
+        // then
+        assertThat(result.isComputed()).isFalse();
+        assertThat(result.fallbackReason()).contains("좌표");
     }
 }

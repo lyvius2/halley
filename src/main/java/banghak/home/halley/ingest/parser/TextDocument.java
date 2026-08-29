@@ -75,6 +75,29 @@ public final class TextDocument {
     }
 
     /**
+     * 라벨이 처음 등장한 지점 이후만 담은 문서를 돌려준다.
+     * `위치`처럼 단지·중개사 양쪽에 나오는 중복 라벨을 구간으로 갈라 읽을 때 쓴다 (설계 9.6).
+     */
+    public TextDocument after(String label) {
+        for (int i = 0; i < lines.size(); i++) {
+            if (lines.get(i).trim().equals(label)) {
+                return new TextDocument(String.join("\n", lines.subList(i + 1, lines.size())));
+            }
+        }
+        return new TextDocument("");
+    }
+
+    /** 원문 전체에서 정규식에 걸리는 모든 그룹(1)을 순서대로 반환한다. */
+    public List<String> allMatches(String regex) {
+        final Matcher matcher = Pattern.compile(regex, Pattern.MULTILINE).matcher(raw);
+        final List<String> result = new ArrayList<>();
+        while (matcher.find()) {
+            result.add(matcher.group(1));
+        }
+        return result;
+    }
+
+    /**
      * 원문 전체에서 첫 정규식 그룹(1)을 반환한다. MULTILINE 필수.
      */
     public Optional<String> firstMatch(String regex) {

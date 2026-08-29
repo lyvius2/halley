@@ -1,13 +1,11 @@
 package banghak.home.halley.domain.scoring.criterion;
 
 import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.scoring.ScoringType;
 
 public interface CriterionScorer {
 
+    /** 항목 코드. AUTO/MANUAL/HYBRID 분류는 `criterion` 테이블이 갖는다 (설계 I47). */
     String code();
-
-    ScoringType type();
 
     ScoreResult score(Property property, ScoringContext ctx);
 }

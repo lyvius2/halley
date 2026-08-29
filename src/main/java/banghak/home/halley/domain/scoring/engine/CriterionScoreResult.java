@@ -7,6 +7,7 @@ public record CriterionScoreResult(
         BigDecimal autoScore,
         BigDecimal manualScore,
         BigDecimal effectiveScore,
-        String fallbackReason
+        String fallbackReason,
+        String explanation
 ) {
 }

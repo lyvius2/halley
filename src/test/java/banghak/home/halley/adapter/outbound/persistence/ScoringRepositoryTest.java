@@ -45,7 +45,7 @@ class ScoringRepositoryTest {
         // given
         propertyScoreRepository.save(new PropertyScore(
                 null, 90_002L, "FLOOR", new BigDecimal("80"), null, new BigDecimal("80"),
-                ScoreSource.AUTO, null, null));
+                ScoreSource.AUTO, null, "5층 · 1층 0점 ~ 6층 100점 선형", null));
 
         // when
         propertyScoreRepository.deleteByPropertyId(90_002L);

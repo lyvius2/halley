@@ -59,8 +59,8 @@ public class ReferenceTransactionService {
                 ? dealMonth
                 : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         if (lawdCd == null) {
-            log.info("법정동코드를 찾지 못해 실거래가를 조회하지 않습니다. propertyId={}, 지번주소={} "
-                    + "(legal_dong_code 적재 범위를 확인하세요)", propertyId, property.addressJibun());
+            log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
+                    propertyId, property.addressJibun());
             return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null);
         }
 
@@ -71,7 +71,8 @@ public class ReferenceTransactionService {
                 .limit(20)
                 .map(trade -> referenceTransactionRepository.save(new ReferenceTransaction(
                         null, propertyId, ReferenceDealType.TRADE, trade.contractDate(),
-                        trade.dealAmount(), trade.floorNo(), ReferenceSource.MINISTRY_TRADE, Instant.now())))
+                        trade.dealAmount(), trade.areaM2(), trade.floorNo(),
+                        ReferenceSource.MINISTRY_TRADE, Instant.now())))
                 .toList();
         return toCard(property, saved);
     }
@@ -80,17 +81,23 @@ public class ReferenceTransactionService {
         return value == null || value.isBlank() ? null : value;
     }
 
+    /**
+     * 같은 단지이거나 전용면적이 ±15% 안이면 참고 대상으로 본다.
+     *
+     * <p>예전에는 <b>단지명만 같으면 면적을 보지 않고</b> 받아들였습니다. 그러면 84㎡ 매물에
+     * 같은 단지의 59㎡ 거래가 섞여 들어와, 이 값들로 담보가치를 매기면 크게 낮아집니다(설계 I65).
+     * 면적을 아는 경우에는 단지명이 같아도 면적을 함께 봅니다.
+     */
     private boolean matches(Property property, ReferenceTrade trade) {
-        if (property.name() != null && trade.apartmentName() != null
-                && property.name().equalsIgnoreCase(trade.apartmentName())) {
-            return true;
+        final boolean sameComplex = property.name() != null && trade.apartmentName() != null
+                && property.name().equalsIgnoreCase(trade.apartmentName());
+        final boolean areaKnown = property.areaExclusiveM2() != null && trade.areaM2() != null
+                && property.areaExclusiveM2().signum() > 0;
+        if (!areaKnown) {
+            return sameComplex;
         }
-        if (property.areaExclusiveM2() != null && trade.areaM2() != null
-                && property.areaExclusiveM2().signum() > 0) {
-            final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
-            return diff / property.areaExclusiveM2().doubleValue() <= 0.15;
-        }
-        return false;
+        final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
+        return diff / property.areaExclusiveM2().doubleValue() <= 0.15;
     }
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions) {
