@@ -351,7 +351,7 @@ class LlmRecommendationServiceTest {
                 1995, null, null, new BigDecimal("1.2"), 436, "개별난방", null, null,
                 null, null, null, null, null,
                 "서울혜화초등학교", 6, null, null, null, null,
-                SourceType.PASTE, null, null, null, null, null, null,
+                SourceType.PASTE, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
     }
 }

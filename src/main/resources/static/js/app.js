@@ -1588,8 +1588,8 @@ function halley() {
                 moveInType,
                 moveInDate,
                 naverArticleNo: value('naverArticleNo') || null,
-                // 파싱 대상이 아니라 붙여넣기 모달에서 직접 받는다 (설계 I62)
-                referenceUrl: value('referenceUrl') || null,
+                // 붙여넣기 텍스트에는 URL이 없어 모달에서 직접 받는다 (설계 I62)
+                sourceUrl: value('sourceUrl') || null,
                 maintenanceFee: toNum(value('maintenanceFee')),
                 roomBath: value('roomBath') || null,
                 heatingType: value('heatingType') || null,
@@ -1656,7 +1656,7 @@ function halley() {
                 priceMonthly: p.priceMonthly ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
                 addressRoad: p.addressRoad || '',
-                referenceUrl: p.referenceUrl || '',
+                sourceUrl: p.sourceUrl || '',
                 addressJibun: p.addressJibun || '',
                 lat: p.lat ?? '',
                 lng: p.lng ?? '',
@@ -1712,7 +1712,7 @@ function halley() {
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
-                referenceUrl: this.propertyForm.referenceUrl || null,
+                sourceUrl: this.propertyForm.sourceUrl || null,
                 lat: toNum(this.propertyForm.lat),
                 lng: toNum(this.propertyForm.lng),
                 areaSupplyM2: toNum(this.propertyForm.areaSupplyM2),

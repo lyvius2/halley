@@ -297,7 +297,7 @@ class ComparativeAnalysisServiceTest {
                 2010, null, null, new BigDecimal("1.2"), 400, "개별난방", null, null,
                 null, null, null, null, null,
                 null, null, null, null, null, null,
-                SourceType.MANUAL, null, null, null, null, null, null,
+                SourceType.MANUAL, null, null, null, null, null,
                 draft, active ? ListingStatus.ACTIVE : ListingStatus.SOLD_OUT, active,
                 null, 0, null, 1L, Instant.now());
     }

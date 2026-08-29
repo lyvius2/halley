@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Slf4j
@@ -112,8 +113,7 @@ public class PropertyService {
                 request.schoolName() == null || request.schoolName().isBlank() ? null : SchoolSource.PASTE,
                 null, null, null,
                 fromPaste ? SourceType.PASTE : SourceType.MANUAL,
-                request.sourceUrl(),
-                referenceUrl(request.referenceUrl()),
+                listingUrl(request.sourceUrl()),
                 request.naverArticleNo(),
                 request.rawPasteText(),
                 fromPaste ? "parser-v1" : null,
@@ -144,7 +144,7 @@ public class PropertyService {
                 null, null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, null,
-                SourceType.PASTE, request.sourceUrl(), null, null, null, null, null,
+                SourceType.PASTE, listingUrl(request.sourceUrl()), null, null, null, null,
                 true, ListingStatus.ACTIVE, true,
                 null, 0, null, currentUserId(), Instant.now()));
         return toResponse(saved);
@@ -198,8 +198,7 @@ public class PropertyService {
                 existing.officialPrice(),
                 existing.officialPriceYear(),
                 existing.sourceType(),
-                existing.sourceUrl(),
-                referenceUrl(request.referenceUrl()),
+                listingUrl(request.sourceUrl()),
                 existing.naverArticleNo(),
                 existing.rawPasteText(),
                 existing.parserVersion(),
@@ -260,17 +259,18 @@ public class PropertyService {
     }
 
     /**
-     * 참고 URL은 화면에서 링크로 열리므로 <b>http/https만</b> 받는다.
-     * `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간 스크립트가 도는 통로가 된다.
+     * 원본 URL은 화면에서 링크로 열리고 생존 확인 배치가 주기적으로 두드리는 값이라
+     * <b>http/https만</b> 받는다. `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간
+     * 스크립트가 도는 통로가 된다 (설계 I62).
      */
-    private String referenceUrl(String value) {
+    private String listingUrl(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         final String trimmed = value.trim();
-        final String lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+        final String lower = trimmed.toLowerCase(Locale.ROOT);
         if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
-            throw new InvalidPropertyRequestException("참고 URL은 http:// 또는 https:// 로 시작해야 합니다");
+            throw new InvalidPropertyRequestException("원본 URL은 http:// 또는 https:// 로 시작해야 합니다");
         }
         return trimmed;
     }

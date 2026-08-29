@@ -65,7 +65,6 @@ CREATE TABLE IF NOT EXISTS property (
     official_price_year   INTEGER,
     source_type           VARCHAR(20),
     source_url            VARCHAR(1000),
-    reference_url         VARCHAR(1000),
     naver_article_no      VARCHAR(50),
     raw_paste_text        VARCHAR(1000000),
     parser_version        VARCHAR(50),

@@ -1229,7 +1229,7 @@ tr.dragging { opacity: .5; background: var(--line2); }
 }
 .paste-extra .paste-field { display: block; }
 
-/* 참고 URL은 길어서 줄바꿈시킨다 — 모달 폭을 밀어내면 안 된다 */
+/* URL은 길어서 줄바꿈시킨다 — 모달 폭을 밀어내면 안 된다 */
 .m2-link {
     color: var(--ocean);
     word-break: break-all;

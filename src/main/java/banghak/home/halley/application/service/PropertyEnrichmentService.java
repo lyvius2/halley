@@ -257,7 +257,7 @@ public class PropertyEnrichmentService {
                 p.heatingType(), p.buildingCount(), p.kbPrice(),
                 p.brokerageFee(), p.brokerageRate(), p.acquisitionTax(), p.propertyTax(), p.comprehensiveTax(),
                 schoolName, schoolWalkMinutes, schoolSource, pnu, officialPrice, officialPriceYear,
-                p.sourceType(), p.sourceUrl(), p.referenceUrl(), p.naverArticleNo(), p.rawPasteText(), p.parserVersion(),
+                p.sourceType(), p.sourceUrl(), p.naverArticleNo(), p.rawPasteText(), p.parserVersion(),
                 p.parseConfidence(), p.isDraft(), p.listingStatus(), p.active(), p.lastCheckedAt(),
                 p.checkFailStreak(), p.soldDetectedAt(), p.createdBy(), p.createdAt());
     }

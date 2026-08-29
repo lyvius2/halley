@@ -77,8 +77,7 @@ CREATE TABLE property (
     official_price        BIGINT,                                        -- 공시가격(원)
     official_price_year   INTEGER,                                       -- 공시가격 기준연도
     source_type           VARCHAR(20),                                   -- MANUAL | PASTE | CRAWL
-    source_url            VARCHAR(1000),                                 -- 원본(네이버) URL — 생존 확인 배치 대상
-    reference_url         VARCHAR(1000),                                 -- 참고 URL — 사람이 붙이는 메모성 링크 (설계 I62)
+    source_url            VARCHAR(1000),                                 -- 원본(네이버) URL — 생존 확인 배치 대상 (설계 I62)
     naver_article_no      VARCHAR(50),                                   -- 매물번호
     raw_paste_text        TEXT,                                          -- 원문 보존 → 재파싱용
     parser_version        VARCHAR(50),
@@ -481,8 +480,6 @@ ALTER TABLE property ADD COLUMN IF NOT EXISTS pnu                 VARCHAR(19);
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price      BIGINT;
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price_year INTEGER;
 
--- 10) 참고 URL (설계 I62) — source_url은 생존 확인 배치가 쓰므로 별도 컬럼으로 둔다
-ALTER TABLE property ADD COLUMN IF NOT EXISTS reference_url VARCHAR(1000);
 
 -- 7) 연소득·기존 대출액 (설계 I55) — available_budget은 '보유 현금'으로 뜻이 확정됐다
 ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_income BIGINT NOT NULL DEFAULT 0;
