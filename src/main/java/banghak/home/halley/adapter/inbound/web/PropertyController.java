@@ -163,6 +163,12 @@ public class PropertyController {
         return propertyImageService.upload(id, file, imageType);
     }
 
+    @DeleteMapping("/{id}/images/{imageId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteImage(@PathVariable Long id, @PathVariable Long imageId) {
+        propertyImageService.delete(id, imageId);
+    }
+
     @GetMapping("/{id}/images")
     public List<PropertyImageResponse> images(@PathVariable Long id) {
         return propertyImageService.list(id);

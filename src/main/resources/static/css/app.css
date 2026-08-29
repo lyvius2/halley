@@ -780,15 +780,10 @@ input[type=checkbox], input[type=radio] {
 .temp-pw-value { font-family: 'JetBrains Mono', monospace; font-size: 18px; color: var(--ocean); margin-bottom: 10px; }
 
 /* ── 사진 (D12) ───────────────────────────────────── */
-.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
+.photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .photo-item { position: relative; border: 1px solid var(--line2); border-radius: 8px; overflow: hidden; display: block; padding: 0; cursor: zoom-in; }
 .photo-item img { width: 100%; height: 90px; object-fit: cover; display: block; }
-.photo-type {
-    position: absolute; left: 6px; bottom: 6px;
-    font-size: 9px; background: rgba(20,20,20,.7); color: #fff;
-    padding: 1px 6px; border-radius: 4px;
-}
-.photo-empty { font-size: 12px; color: var(--ink3); margin-top: 14px; }
+.photo-empty { font-size: 11.5px; color: var(--ink3); }
 
 /* ── 라이트박스 (D13) ──────────────────────────────── */
 .lightbox {
@@ -1235,3 +1230,59 @@ tr.dragging { opacity: .5; background: var(--line2); }
     word-break: break-all;
     text-align: right;
 }
+
+/* ── 이미지 업로드 — 평면도/매물사진 분리 (설계 I63) ────
+   한 칸에 종류를 골라 넣던 방식은 무엇이 무엇인지 올리고 나서야 알 수 있었다.
+   구역을 나눠 각자의 자리에 넣게 한다. */
+.img-sec {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid var(--line2);
+}
+.img-sec:first-of-type { border-top: none; padding-top: 0; }
+.img-sec-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.img-sec-head h4 {
+    font-size: 10px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--sand);
+}
+.img-sec-note { font-size: 10.5px; color: var(--ink3); }
+
+/* 파일을 고르는 순간 올라간다 — 별도 업로드 버튼이 없다 */
+.img-drop {
+    display: block;
+    margin-top: 10px;
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    text-align: center;
+    font-size: 11.5px;
+    color: var(--ink2);
+    cursor: pointer;
+    transition: .15s;
+}
+.img-drop:hover { border-color: var(--ocean); color: var(--ocean); background: var(--paper); }
+.img-drop input { display: none; }
+
+.img-single { display: flex; align-items: flex-start; gap: 10px; }
+.img-single .photo-item { width: 180px; }
+.img-single .photo-item img { height: 130px; }
+
+/* 사진마다 삭제 버튼을 겹쳐 둔다 */
+.photo-cell { position: relative; }
+.photo-del {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 20px;
+    height: 20px;
+    border: none;
+    border-radius: 50%;
+    background: rgba(20, 20, 20, .62);
+    color: #fff;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.photo-del:hover { background: var(--lava); }

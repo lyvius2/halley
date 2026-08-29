@@ -653,37 +653,58 @@
 <div class="modal" x-show="showPhotoModal" x-cloak>
     <div class="modal-backdrop" @click="closePhotoModal()"></div>
     <div class="modal-card modal-wide">
+        <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
-            <span class="modal-kicker">사진</span>
+            <span class="modal-kicker">이미지</span>
             <h3 x-text="photoProperty?.property?.name"></h3>
-            <p>도면 1장 + 실사 N장. 업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
+            <p>업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
         </div>
-        <div class="form-grid">
-            <label>종류
-                <select x-model="photoType">
-                    <option value="PHOTO">실사</option>
-                    <option value="FLOOR_PLAN">도면</option>
-                </select>
+
+        <!-- 평면도: 매물당 한 장. 올리면 기존 것을 대체한다 (설계 I63) -->
+        <section class="img-sec">
+            <div class="img-sec-head">
+                <h4>평면도</h4>
+                <span class="img-sec-note">한 장만 둡니다. 새로 올리면 기존 평면도를 대체합니다.</span>
+            </div>
+            <template x-if="floorPlan">
+                <div class="img-single">
+                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan))">
+                        <img :src="floorPlan.storagePath" alt="평면도">
+                    </button>
+                    <button class="btn btn-xs btn-danger" @click="removeImage(floorPlan)" :disabled="loading">삭제</button>
+                </div>
+            </template>
+            <label class="img-drop">
+                <input type="file" accept="image/*" @change="uploadImages($event, 'FLOOR_PLAN')">
+                <span x-text="floorPlan ? '평면도 교체하기' : '평면도 올리기'"></span>
             </label>
-            <label>파일
-                <input type="file" accept="image/*" @change="onPhotoFile($event)">
+        </section>
+
+        <!-- 매물사진: 여러 장 -->
+        <section class="img-sec">
+            <div class="img-sec-head">
+                <h4>매물사진</h4>
+                <span class="img-sec-note" x-text="photos.length + '장'"></span>
+            </div>
+            <div class="photo-grid" x-show="photos.length > 0">
+                <template x-for="img in photos" :key="img.id">
+                    <div class="photo-cell">
+                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img))">
+                            <img :src="img.storagePath" alt="매물사진">
+                        </button>
+                        <button class="photo-del" @click="removeImage(img)" :disabled="loading" title="삭제">×</button>
+                    </div>
+                </template>
+            </div>
+            <p class="photo-empty" x-show="photos.length === 0">등록된 매물사진이 없습니다.</p>
+            <label class="img-drop">
+                <input type="file" accept="image/*" multiple @change="uploadImages($event, 'PHOTO')">
+                <span>매물사진 올리기 (여러 장 선택 가능)</span>
             </label>
-        </div>
+        </section>
+
+        <p class="paste-hint" x-show="loading">업로드 중…</p>
         <p class="form-error" x-show="error" x-text="error"></p>
-        <div class="paste-actions">
-            <button class="btn btn-primary" @click="uploadPhoto()" :disabled="loading || !photoFile">업로드</button>
-        </div>
-        <div class="photo-grid">
-            <template x-for="(img, i) in photoImages" :key="img.id">
-                <button class="photo-item" @click="openPhotoViewer(i)">
-                    <img :src="img.storagePath" alt="">
-                    <span class="photo-type" x-text="img.imageType === 'FLOOR_PLAN' ? '도면' : '실사'"></span>
-                </button>
-            </template>
-            <template x-if="photoImages.length === 0">
-                <p class="photo-empty">등록된 사진이 없습니다.</p>
-            </template>
-        </div>
     </div>
 </div>
 

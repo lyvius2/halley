@@ -108,8 +108,6 @@ function halley() {
         showPhotoModal: false,
         photoProperty: null,
         photoImages: [],
-        photoType: 'PHOTO',
-        photoFile: null,
         photoViewerIndex: -1,
         showAgentModal: false,
         agentProperty: null,
@@ -734,8 +732,7 @@ function halley() {
         async openPhotoModal(item) {
             this.photoProperty = item;
             this.photoImages = [];
-            this.photoType = 'PHOTO';
-            this.photoFile = null;
+            this.error = null;
             this.showPhotoModal = true;
             await this.loadPhotoImages();
         },
@@ -744,8 +741,17 @@ function halley() {
             this.showPhotoModal = false;
             this.photoProperty = null;
             this.photoImages = [];
-            this.photoFile = null;
             this.photoViewerIndex = -1;
+            this.error = null;
+        },
+
+        /** 평면도는 매물당 한 장 (설계 I63). */
+        get floorPlan() {
+            return this.photoImages.find(i => i.imageType === 'FLOOR_PLAN') || null;
+        },
+
+        get photos() {
+            return this.photoImages.filter(i => i.imageType === 'PHOTO');
         },
 
         openPhotoViewer(index) {
@@ -768,10 +774,6 @@ function halley() {
             }
         },
 
-        onPhotoFile(e) {
-            this.photoFile = e.target.files && e.target.files[0] ? e.target.files[0] : null;
-        },
-
         async loadPhotoImages() {
             if (!this.photoProperty) {
                 return;
@@ -782,25 +784,57 @@ function halley() {
             }
         },
 
-        async uploadPhoto() {
-            if (!this.photoFile) {
+        /**
+         * 고른 파일을 종류에 맞춰 올린다. 매물사진은 여러 장을 한 번에 고를 수 있다.
+         * 파일을 고르는 순간 올라가므로 별도의 '업로드' 버튼이 없다 (설계 I63).
+         */
+        async uploadImages(event, imageType) {
+            const files = Array.from(event.target.files || []);
+            if (files.length === 0) {
                 return;
             }
             this.loading = true;
             this.error = null;
             try {
-                const form = new FormData();
-                form.append('file', this.photoFile);
-                form.append('imageType', this.photoType);
-                const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
-                    method: 'POST',
-                    body: form
-                });
-                if (res.ok) {
-                    this.photoFile = null;
+                for (const file of files) {
+                    const form = new FormData();
+                    form.append('file', file);
+                    form.append('imageType', imageType);
+                    const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
+                        method: 'POST',
+                        body: form
+                    });
+                    if (!res.ok) {
+                        this.error = `${file.name} 업로드에 실패했습니다`;
+                        break;
+                    }
+                }
+                await this.loadPhotoImages();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                // 같은 파일을 다시 고를 수 있게 비운다
+                event.target.value = '';
+                this.loading = false;
+            }
+        },
+
+        async removeImage(image) {
+            const label = image.imageType === 'FLOOR_PLAN' ? '평면도' : '매물사진';
+            if (!confirm(`이 ${label}를 삭제할까요?`)) {
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok } = await this.request(
+                    `/api/properties/${this.photoProperty.property.id}/images/${image.id}`,
+                    { method: 'DELETE' });
+                if (ok) {
+                    this.photoViewerIndex = -1;
                     await this.loadPhotoImages();
                 } else {
-                    this.error = '업로드에 실패했습니다';
+                    this.error = '삭제에 실패했습니다';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
