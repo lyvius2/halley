@@ -44,19 +44,22 @@ public class PropertyEnrichmentService {
     private final GeoService geoService;
     private final ReferenceTransactionService referenceTransactionService;
     private final LlmRecommendationService llmRecommendationService;
+    private final LandUseService landUseService;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
                                      HousingPricePort housingPricePort,
                                      GeoService geoService,
                                      ReferenceTransactionService referenceTransactionService,
-                                     LlmRecommendationService llmRecommendationService) {
+                                     LlmRecommendationService llmRecommendationService,
+                                     LandUseService landUseService) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
         this.geoService = geoService;
         this.referenceTransactionService = referenceTransactionService;
         this.llmRecommendationService = llmRecommendationService;
+        this.landUseService = landUseService;
     }
 
     /**
@@ -74,6 +77,7 @@ public class PropertyEnrichmentService {
             propertyRepository.update(enriched);
         }
         fetchReferenceTrades(propertyId);
+        fetchLandUse(propertyId);
         fetchLlmRecommendation(propertyId);
     }
 
@@ -218,6 +222,15 @@ public class PropertyEnrichmentService {
             referenceTransactionService.getReferences(propertyId, null, null);
         } catch (RuntimeException e) {
             log.warn("Reference trade prefetch failed. propertyId={}, cause={}", propertyId, e.getMessage());
+        }
+    }
+
+    /** 토지이용계획 (설계 I69) — 토지거래허가구역·정비구역을 매물 상세에 붙인다. */
+    private void fetchLandUse(Long propertyId) {
+        try {
+            landUseService.ensureLandUse(propertyId);
+        } catch (RuntimeException e) {
+            log.warn("Land use lookup failed. propertyId={}, cause={}", propertyId, e.getMessage());
         }
     }
 

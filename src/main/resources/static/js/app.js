@@ -126,6 +126,7 @@ function halley() {
         detailAgents: [],
         detailRef: null,
         detailLlm: null,
+        detailLandUse: [],
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
@@ -934,16 +935,18 @@ function halley() {
             this.detailAgents = [];
             this.detailRef = null;
             this.detailLlm = null;
+            this.detailLandUse = [];
             this.showM2 = true;
             this.loadDetailExtras(item.property.id);
         },
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
         async loadDetailExtras(propertyId) {
-            const [agents, ref, llm] = await Promise.all([
+            const [agents, ref, llm, landUse] = await Promise.all([
                 this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
-                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false }))
+                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false }))
             ]);
             if (this.detailItem && this.detailItem.property.id !== propertyId) {
                 return;
@@ -952,6 +955,54 @@ function halley() {
             this.detailRef = ref.ok ? ref.body : null;
             // 아직 산출 전이면 204라 body가 없다
             this.detailLlm = llm.ok && llm.body ? llm.body : null;
+            this.detailLandUse = landUse.ok ? (landUse.body || []) : [];
+        },
+
+        /** 매수 조건을 가르는 항목만 — 토지거래허가구역·정비구역 등 (설계 I69). */
+        notableLandUse() {
+            return this.detailLandUse.filter(l => l.notable);
+        },
+
+        /**
+         * 포함 / 저촉 / 접함으로 묶는다. 35건이 통째로 나오는데 나열만 하면 읽히지 않고,
+         * 무엇이 실제로 적용되는지도 가려지지 않는다 (설계 I69).
+         */
+        landUseGroups() {
+            const order = [
+                { key: 'INCLUDED', label: '포함' },
+                { key: 'OVERLAP', label: '저촉' },
+                { key: 'ADJACENT', label: '접함' }
+            ];
+            return order
+                .map(g => ({
+                    ...g,
+                    names: [...new Set(this.detailLandUse
+                        .filter(l => l.conflict === g.key)
+                        .map(l => l.zoneName))]
+                }))
+                .filter(g => g.names.length > 0);
+        },
+
+        async refreshLandUse() {
+            const id = this.detailItem.property.id;
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${id}/land-use`, { method: 'POST' });
+                if (ok) {
+                    this.detailLandUse = body || [];
+                    if (this.detailLandUse.length === 0) {
+                        this.error = '토지이용계획을 받지 못했습니다. 좌표·주소와 V-World 키를 확인해 주세요';
+                    }
+                } else {
+                    this.error = (body && body.message) || '토지이용계획 조회에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */

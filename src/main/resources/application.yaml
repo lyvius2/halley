@@ -59,6 +59,9 @@ feign:
       vworld-housing-price:
         connectTimeout: 3000
         readTimeout: 8000
+      vworld-land-use:
+        connectTimeout: 3000
+        readTimeout: 8000
       claude-llm:
         connectTimeout: 5000
         # LLM은 생성에 시간이 걸린다. 비동기 보정에서만 부르므로 길게 잡아도 화면을 막지 않는다
@@ -98,6 +101,10 @@ resilience4j:
         failureRateThreshold: 40
         waitDurationInOpenState: 30s
       vworld-housing-price:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 30s
+      vworld-land-use:
         baseConfig: default
         failureRateThreshold: 40
         waitDurationInOpenState: 30s

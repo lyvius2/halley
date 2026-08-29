@@ -17,6 +17,7 @@
 | **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
 | **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
 | **V-World 공시가격** | 공동주택·개별주택 공시가격(M2) — **채점 미반영** | 서버(Feign) | 인증키(`key`) | `HOUSING_PRICE_API_KEY` | `VworldHousingPriceFeignClient` | 사용 중(참고 전용) |
+| **V-World 토지이용계획** | 토지거래허가구역·정비구역 등(M2) | 서버(Feign) | 인증키(`key`, 공유) | `HOUSING_PRICE_API_KEY` | `VworldLandUseFeignClient` | 사용 중(참고 전용) |
 | **Claude (LLM)** | AI 추천도 — **채점 반영** | 서버(Feign) | `x-api-key` 헤더 | `ANTHROPIC_API_KEY` | `ClaudeFeignClient` | 사용 중 |
 | **금감원 주담대** | 은행별 금리·기간·상환방식 (대출 계산) | 서버(Feign) | `auth` 쿼리 파라미터 | `FSS_API_KEY` | — | **설계 예정** (5.8) |
 
@@ -439,7 +440,24 @@ PNU(19) = b_code(10) + 필지구분(1) + 본번(4, 0채움) + 부번(4, 0채움)
 
 구현은 `GeoSearchResult.pnu(...)`이며, 넷 중 하나라도 없으면 `null`을 돌려주고 조회를 건너뜁니다.
 
-### 5.6.6 호출 흐름
+### 5.6.6 토지이용계획 — 같은 키로 쓰는 다른 서비스 (설계 I69)
+
+`GET /ned/data/getLandUseAttr?pnu=…&key=…&format=json` — **공시가격과 같은 인증키**를 씁니다.
+
+응답의 `field[]` 항목: `prposAreaDstrcCodeNm`(지역·지구명) · `prposAreaDstrcCode`(코드) ·
+`cnflcAtNm`(**포함**/저촉/접함) · `pnu` · `manageNo`.
+
+> ⚠️ **투기과열지구·조정대상지역은 이 API에 없습니다.** 실측으로 확인했습니다(설계 I69).
+> 규제지역은 관리 화면에서 수동 등록합니다(I68).
+
+> ⚠️ **`cnflcAtNm`을 구분하지 않으면 오해를 만듭니다.** `포함`만 그 필지에 실제로 적용되고
+> `저촉`은 일부만 걸치며 `접함`은 인접할 뿐입니다. 실측에서 용도지역이 셋으로 나왔지만
+> 실제는 `제3종일반주거지역(포함)` 하나였습니다.
+
+> **같은 항목이 관리번호만 달리 반복됩니다.** 실측에서 토지거래허가구역 4번, 일반철도 5번.
+> `(코드, 이름, 관계)`로 중복을 제거하세요.
+
+### 5.6.7 호출 흐름
 
 ```mermaid
 sequenceDiagram
@@ -610,6 +628,7 @@ Content-Type: application/json
 | `OdsayTransitPort` | `OdsayTransitAdapter` | `OdsayTransitFeignClient` |
 | `MinistryReferencePort` | `MinistryReferenceAdapter` | `MinistryReferenceFeignClient` |
 | `HousingPricePort` | `VworldHousingPriceAdapter` | `VworldHousingPriceFeignClient` |
+| `LandUsePort` | `VworldLandUseAdapter` | `VworldLandUseFeignClient` |
 | `LlmPort` | `ClaudeLlmAdapter` | `ClaudeFeignClient` |
 | `SlackPort` | `SlackWebhookAdapter` | `SlackWebhookClient` |
 

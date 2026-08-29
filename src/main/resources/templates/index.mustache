@@ -1058,6 +1058,37 @@
                 </section>
 
                 <section class="m2-sec m2-sec-wide">
+                    <h4>토지이용계획</h4>
+                    <template x-if="detailLandUse.length === 0">
+                        <p class="m2-empty">조회된 토지이용계획이 없습니다.
+                            <button class="btn btn-xs" @click="refreshLandUse()" :disabled="loading">지금 조회</button>
+                        </p>
+                    </template>
+                    <template x-if="detailLandUse.length > 0">
+                        <div>
+                            <div class="lu-notable" x-show="notableLandUse().length > 0">
+                                <template x-for="l in notableLandUse()" :key="l.zoneName">
+                                    <span class="lu-badge" x-text="l.zoneName"></span>
+                                </template>
+                                <small>매수 조건에 영향을 주는 항목입니다</small>
+                            </div>
+                            <div class="lu-groups">
+                                <template x-for="g in landUseGroups()" :key="g.key">
+                                    <div class="lu-group">
+                                        <span class="lu-group-label" x-text="g.label"></span>
+                                        <span class="lu-names" x-text="g.names.join(' · ')"></span>
+                                    </div>
+                                </template>
+                            </div>
+                            <p class="m2-empty lu-note">
+                                <b>포함</b>만 이 필지에 실제로 적용됩니다. 저촉은 일부만 걸치고, 접함은 인접할 뿐입니다.
+                                <button class="btn btn-xs" @click="refreshLandUse()" :disabled="loading">다시 조회</button>
+                            </p>
+                        </div>
+                    </template>
+                </section>
+
+                <section class="m2-sec m2-sec-wide">
                     <h4>AI 추천도</h4>
                     <template x-if="!detailLlm">
                         <p class="m2-empty">아직 산출되지 않았습니다.
