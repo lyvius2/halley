@@ -30,7 +30,21 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     "방공제(소액임차보증금 최우선변제금, 원) — 서울 기준. "
                             + "주택임대차보호법 시행령 개정 시 갱신 필요. MCI/MCG 가입 시 미차감"),
             new Seed("valuation.officialPriceRatio", "0.7", RegulationValueType.DECIMAL,
-                    "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"));
+                    "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"),
+            // LTV 매트릭스 (설계 I66) — 지역 × 보유주택. 고시로 자주 바뀌므로 반드시 확인 후 조정
+            new Seed("ltv.rate.normal.none", "0.7", RegulationValueType.DECIMAL, "비규제·무주택 LTV"),
+            new Seed("ltv.rate.normal.one", "0.6", RegulationValueType.DECIMAL, "비규제·1주택 LTV"),
+            new Seed("ltv.rate.normal.multi", "0.6", RegulationValueType.DECIMAL, "비규제·다주택 LTV"),
+            new Seed("ltv.rate.adjustment.none", "0.5", RegulationValueType.DECIMAL, "조정대상지역·무주택 LTV"),
+            new Seed("ltv.rate.adjustment.one", "0.3", RegulationValueType.DECIMAL, "조정대상지역·1주택 LTV"),
+            new Seed("ltv.rate.adjustment.multi", "0", RegulationValueType.DECIMAL, "조정대상지역·다주택 LTV"),
+            new Seed("ltv.rate.speculation.none", "0.4", RegulationValueType.DECIMAL, "투기과열지구·무주택 LTV"),
+            new Seed("ltv.rate.speculation.one", "0.2", RegulationValueType.DECIMAL, "투기과열지구·1주택 LTV"),
+            new Seed("ltv.rate.speculation.multi", "0", RegulationValueType.DECIMAL, "투기과열지구·다주택 LTV"),
+            new Seed("ltv.rate.firstHome", "0.8", RegulationValueType.DECIMAL,
+                    "생애최초 우대 LTV — 지역·보유와 무관하게 적용"),
+            new Seed("ltv.cap.firstHome", "600000000", RegulationValueType.DECIMAL,
+                    "생애최초 대출 총액 상한(원)"));
 
     private final RegulationParamRepository regulationParamRepository;
 
@@ -48,7 +62,9 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     null, PROFILE, seed.key(), seed.value(), seed.valueType(),
                     seed.description(), null, null));
         }
-        log.info("Seeded {} regulation parameters (profile={}).", DEFAULTS.size(), PROFILE);
+        log.info("Seeded {} regulation parameters (profile={}). "
+                        + "LTV/lease-deduction values are defaults - verify against the current notice.",
+                DEFAULTS.size(), PROFILE);
     }
 
     private record Seed(String key, String value, RegulationValueType valueType, String description) {

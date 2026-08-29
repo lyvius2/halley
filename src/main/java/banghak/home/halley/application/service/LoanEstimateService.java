@@ -9,7 +9,11 @@ import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepo
 import banghak.home.halley.domain.property.ReferenceTransaction;
 import banghak.home.halley.domain.loan.CollateralValuation;
 import banghak.home.halley.domain.loan.CollateralValuator;
+import banghak.home.halley.domain.loan.HouseOwnership;
 import banghak.home.halley.domain.loan.LoanEstimateInput;
+import banghak.home.halley.domain.loan.LtvDecision;
+import banghak.home.halley.domain.loan.MortgagePolicy;
+import banghak.home.halley.domain.loan.RegulationZone;
 import banghak.home.halley.domain.loan.TradeSample;
 
 import java.time.LocalDate;
@@ -49,6 +53,7 @@ public class LoanEstimateService {
 
     private final PropertyRepository propertyRepository;
     private final ReferenceTransactionRepository referenceTransactionRepository;
+    private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
@@ -57,6 +62,7 @@ public class LoanEstimateService {
 
     public LoanEstimateService(PropertyRepository propertyRepository,
                                ReferenceTransactionRepository referenceTransactionRepository,
+                               RegulatedAreaService regulatedAreaService,
                                UserRepository userRepository,
                                RegulationParamRepository regulationParamRepository,
                                SystemConfigRepository systemConfigRepository,
@@ -64,6 +70,7 @@ public class LoanEstimateService {
                                ObjectMapper objectMapper) {
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
+        this.regulatedAreaService = regulatedAreaService;
         this.userRepository = userRepository;
         this.regulationParamRepository = regulationParamRepository;
         this.systemConfigRepository = systemConfigRepository;
@@ -75,7 +82,8 @@ public class LoanEstimateService {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
         final long askingPrice = property.priceDeposit() == null ? 0L : property.priceDeposit();
-        final RegulationParams params = loadParams();
+        final Map<String, String> rawParams = loadRawParams();
+        final RegulationParams params = loadParams(rawParams);
 
         // 입력이 비면 로그인 사용자의 프로필로 채운다 — 모달을 열자마자 결과가 보여야 한다 (설계 I55)
         final Optional<User> me = currentUser();
@@ -90,15 +98,21 @@ public class LoanEstimateService {
                 property.kbPrice(), tradeSamples(propertyId), property.areaExclusiveM2(),
                 property.officialPrice(), askingPrice, params.officialPriceRatio(), LocalDate.now());
 
-        final LoanEstimateResult result = new LoanCalculator(params.ltvRate(), params.totalCap())
+        // 규제지역·주택 보유 수로 LTV 비율을 정한다 (설계 I66)
+        final RegulationZone zone = regulatedAreaService.resolve(property);
+        final HouseOwnership ownership = HouseOwnership.of(request.ownedHouseCount());
+        final LtvDecision ltv = MortgagePolicy.decide(zone, ownership, firstHome, rawParams, params);
+
+        final LoanEstimateResult result = new LoanCalculator(ltv.rate(), ltv.cap())
                 .estimate(new LoanEstimateInput(askingPrice, collateral, annualIncome, cash,
-                        existingLoan, firstHome, insured), params);
+                        existingLoan, firstHome, insured), withLtv(params, ltv));
 
         loanEstimateRepository.save(new LoanEstimate(
-                null, propertyId, ProductType.MORTGAGE, params.ltvRate(),
+                null, propertyId, ProductType.MORTGAGE, ltv.rate(),
                 result.ltvLimit(), result.dsrLimit(), result.finalLimit(),
                 result.requiredCash(), result.acquisitionTax(),
-                assumptions(annualIncome, cash, existingLoan, firstHome, insured, result),
+                assumptions(annualIncome, cash, existingLoan, firstHome, insured, result,
+                        zone, ownership, ltv),
                 Instant.now()));
 
         return new LoanEstimateResponse(
@@ -110,6 +124,8 @@ public class LoanEstimateService {
                 result.collateralSource().label(),
                 result.collateralSampleCount(), result.collateralReliable(),
                 result.leaseDeduction(), insured,
+                zone, zone.label(), ownership, ownership.label(),
+                ltv.rate(), ltv.reason(),
                 result.monthlyRate(), result.termMonths());
     }
 
@@ -123,14 +139,25 @@ public class LoanEstimateService {
                 .toList();
     }
 
-    private RegulationParams loadParams() {
+    /** 판정된 LTV 비율·상한을 계산기가 쓰도록 갈아 끼운다. 다른 수치는 프로파일 그대로다. */
+    private RegulationParams withLtv(RegulationParams params, LtvDecision ltv) {
+        return new RegulationParams(
+                ltv.rate(), ltv.cap(), params.dsrRatio(), params.interestRate(), params.stressRate(),
+                params.termYears(), params.acquisitionTaxRate(), params.firstHomeDiscount(),
+                params.leaseDeduction(), params.officialPriceRatio());
+    }
+
+    /** 활성 프로파일의 원본 키·값. LTV 매트릭스처럼 레코드에 담기 어려운 값은 여기서 직접 읽는다. */
+    private Map<String, String> loadRawParams() {
         final String profile = systemConfigRepository.findById(PROFILE_KEY)
                 .map(SystemConfig::configValue)
                 .filter(value -> value != null && !value.isBlank())
                 .orElse(DEFAULT_PROFILE);
-        final Map<String, String> values = regulationParamRepository.findByProfile(profile).stream()
+        return regulationParamRepository.findByProfile(profile).stream()
                 .collect(Collectors.toMap(RegulationParam::paramKey, RegulationParam::paramValue));
+    }
 
+    private RegulationParams loadParams(Map<String, String> values) {
         final RegulationParams defaults = RegulationParams.defaults();
         return new RegulationParams(
                 decimal(values, "ltv.rate", defaults.ltvRate()),
@@ -158,7 +185,8 @@ public class LoanEstimateService {
 
     /** 어떤 전제로 계산했는지 남긴다. 나중에 값이 왜 그랬는지 되짚을 수 있어야 한다. */
     private ObjectNode assumptions(long annualIncome, long cash, long existingLoan,
-                                   boolean firstHome, boolean insured, LoanEstimateResult result) {
+                                   boolean firstHome, boolean insured, LoanEstimateResult result,
+                                   RegulationZone zone, HouseOwnership ownership, LtvDecision ltv) {
         return objectMapper.createObjectNode()
                 .put("annualIncome", annualIncome)
                 .put("cash", cash)
@@ -168,7 +196,10 @@ public class LoanEstimateService {
                 .put("collateralValue", result.collateralValue())
                 .put("collateralSource", result.collateralSource().name())
                 .put("leaseDeduction", result.leaseDeduction())
-                .put("collateralSampleCount", result.collateralSampleCount());
+                .put("collateralSampleCount", result.collateralSampleCount())
+                .put("zone", zone.name())
+                .put("ownership", ownership.name())
+                .put("ltvRate", ltv.rate().toPlainString());
     }
 
     private long orProfile(Long requested, Optional<Long> fromProfile) {

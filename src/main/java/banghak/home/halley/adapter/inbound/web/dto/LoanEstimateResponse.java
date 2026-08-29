@@ -13,10 +13,17 @@ package banghak.home.halley.adapter.inbound.web.dto;
  * @param collateralValue    LTV의 기준이 된 담보가치(원) — 호가와 다를 수 있다
  * @param collateralSource   담보가치 출처. 신뢰도가 달라 화면에 함께 표기한다 (설계 I64-1)
  * @param leaseDeduction     LTV 한도에서 차감한 방공제(원). MCI 가입 시 0
+ * @param zone               매물이 속한 규제지역 구분 (설계 I66)
+ * @param ltvRate            실제로 적용된 LTV 비율
+ * @param ltvReason          왜 이 비율인지 — 숫자만 있으면 납득할 수 없다
  * @param monthlyRate        월 이율(스트레스 포함)
  * @param termMonths         상환 기간(개월)
  */
 import banghak.home.halley.domain.loan.CollateralSource;
+import banghak.home.halley.domain.loan.HouseOwnership;
+import banghak.home.halley.domain.loan.RegulationZone;
+
+import java.math.BigDecimal;
 
 public record LoanEstimateResponse(
         Long propertyId,
@@ -39,6 +46,12 @@ public record LoanEstimateResponse(
         Boolean collateralReliable,
         Long leaseDeduction,
         Boolean mortgageInsured,
+        RegulationZone zone,
+        String zoneLabel,
+        HouseOwnership ownership,
+        String ownershipLabel,
+        BigDecimal ltvRate,
+        String ltvReason,
         Double monthlyRate,
         Integer termMonths
 ) {

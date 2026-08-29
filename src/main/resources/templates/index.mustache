@@ -1251,6 +1251,14 @@
                     </div>
                 </div>
 
+                <!-- 어떤 규정으로 이 LTV가 나왔는지 (설계 I66) -->
+                <div class="loan-policy">
+                    <span class="badge" :class="loanResult.zone === 'NORMAL' ? 'b-mem' : 'b-off'"
+                          x-text="loanResult.zoneLabel"></span>
+                    <span class="badge b-mem" x-text="loanResult.ownershipLabel"></span>
+                    <span class="loan-policy-reason" x-text="loanResult.ltvReason"></span>
+                </div>
+
                 <!-- 담보가치 — LTV의 기준. 호가와 다르고 출처마다 신뢰도가 다르다 (설계 I64·I65) -->
                 <div class="loan-collateral" :class="loanResult.collateralReliable ? '' : 'weak'">
                     <div class="loan-collateral-main">
@@ -1330,6 +1338,14 @@
                     <label class="loan-check" title="가입하면 방공제(소액임차보증금)를 차감하지 않습니다">
                         <input type="checkbox" x-model="loanForm.mortgageInsured" @change="runLoanEstimate()">
                         <span>MCI/MCG 가입</span>
+                    </label>
+                    <label class="loan-select" title="규제지역과 함께 LTV 비율을 가릅니다">
+                        <span>보유 주택</span>
+                        <select x-model.number="loanForm.ownedHouseCount" @change="runLoanEstimate()">
+                            <option :value="0">무주택</option>
+                            <option :value="1">1주택</option>
+                            <option :value="2">2주택 이상</option>
+                        </select>
                     </label>
                     <span class="loan-assume-item">연소득 <b x-text="fmtWon(loanResult.usedAnnualIncome)"></b></span>
                     <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b></span>

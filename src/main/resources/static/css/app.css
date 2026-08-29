@@ -1381,3 +1381,27 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .loan-collateral-main > b { font-family: 'JetBrains Mono', monospace; font-size: 15px; }
 .loan-collateral-src { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .loan-collateral-src small { font-size: 10px; color: var(--ink3); }
+
+/* ── LTV 판정 근거 (설계 I66) ─────────────────────
+   규제지역·보유주택이 한도를 어떻게 가렸는지 보여준다.
+   숫자만 있으면 왜 이 값인지 납득할 수 없다. */
+.loan-policy {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+}
+.loan-policy-reason { font-size: 11px; color: var(--ink2); }
+
+/* 전제 줄의 셀렉트 — 체크박스와 나란히 선다 */
+.loan-select { display: inline-flex; align-items: center; gap: 6px; }
+.loan-select > span { font-size: 11px; color: var(--ink2); white-space: nowrap; }
+.loan-select select {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 3px 6px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--card);
+}
