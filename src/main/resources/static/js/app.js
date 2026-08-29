@@ -2189,7 +2189,18 @@ function halley() {
             this.scoreProperty = item;
             const form = {};
             (item.scores || []).forEach(s => {
-                form[s.code] = s.manualScore != null ? String(s.manualScore) : '';
+                // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
+                // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
+                // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
+                if (s.manualScore != null) {
+                    form[s.code] = String(s.manualScore);
+                } else if (s.code === 'COMFORT') {
+                    // 쾌적함은 1~5 척도라 100점 만점 추정값을 넣으면 안 된다.
+                    // 애초에 사람만 매기는 항목이므로 비워 둔다
+                    form[s.code] = '';
+                } else {
+                    form[s.code] = s.effectiveScore != null ? String(s.effectiveScore) : '';
+                }
             });
             this.scoreForm = form;
             this.error = null;
@@ -2201,13 +2212,6 @@ function halley() {
             this.scoreProperty = null;
             this.scoreForm = {};
             this.error = null;
-        },
-
-        confirmHybridScore(code) {
-            const score = (this.scoreProperty.scores || []).find(s => s.code === code);
-            if (score && score.effectiveScore != null) {
-                this.scoreForm[code] = String(score.effectiveScore);
-            }
         },
 
         async saveScore() {

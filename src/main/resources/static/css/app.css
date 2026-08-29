@@ -1543,3 +1543,12 @@ tr.dragging { opacity: .5; background: var(--line2); }
     white-space: nowrap;
     min-width: 0;
 }
+
+/* 다른 사용자들의 평균 — 총점에 들어가는 값이 무엇인지 보여 준다 (설계 I76) */
+.score-item-others {
+    margin-top: 6px;
+    font-size: 11.5px;
+    color: var(--ink3);
+}
+.score-item-others b { color: var(--ocean); font-weight: 600; }
+.score-item-others-n { color: var(--ink3); opacity: .7; }
