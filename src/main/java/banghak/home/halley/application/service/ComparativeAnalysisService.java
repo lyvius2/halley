@@ -5,7 +5,9 @@ import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
 import banghak.home.halley.adapter.outbound.persistence.ComparativeAnalysisRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.domain.llm.LlmJobState;
 import banghak.home.halley.config.exception.InsufficientPropertiesException;
 import banghak.home.halley.config.exception.LlmUnavailableException;
 import banghak.home.halley.domain.llm.ComparativeAnalysis;
@@ -73,6 +75,7 @@ public class ComparativeAnalysisService {
 
     private final LlmPort llmPort;
     private final ComparativeAnalysisRepository analysisRepository;
+    private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final ScoringService scoringService;
@@ -81,6 +84,7 @@ public class ComparativeAnalysisService {
 
     public ComparativeAnalysisService(LlmPort llmPort,
                                       ComparativeAnalysisRepository analysisRepository,
+                                      LlmJobCache jobCache,
                                       PropertyRepository propertyRepository,
                                       UserRepository userRepository,
                                       ScoringService scoringService,
@@ -88,11 +92,20 @@ public class ComparativeAnalysisService {
                                       @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
         this.analysisRepository = analysisRepository;
+        this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.scoringService = scoringService;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
+    }
+
+    /** 비교 우위는 매물 단위가 아니라 전체 단위라 키가 하나다 (설계 I72). */
+    public static final String JOB_KEY = "compare";
+
+    /** 지금 분석이 진행 중인지. */
+    public boolean isRunning() {
+        return jobCache.get(JOB_KEY).map(LlmJobState::isRunning).orElse(false);
     }
 
     /** 저장된 분석 결과만 읽는다 — LLM을 부르지 않는다. 순위 오름차순. */
@@ -115,6 +128,7 @@ public class ComparativeAnalysisService {
                 .map(a -> ComparativeAnalysisResponse.from(a, names.getOrDefault(a.propertyId(), "")))
                 .toList();
         return new ComparativeAnalysisStatus(
+                isRunning(),
                 targets.size() >= MIN_PROPERTIES && enabled && llmPort.isEnabled(),
                 targets.size(), MIN_PROPERTIES, rankings);
     }
@@ -143,15 +157,25 @@ public class ComparativeAnalysisService {
             return cached;
         }
 
-        final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
-        if (!result.isPresent()) {
-            log.warn("Comparative analysis unavailable. cause={}", result.failureCause());
-            throw new LlmUnavailableException();
-        }
-        final List<Ranking> rankings = parse(result.text(), targets);
-        if (rankings.isEmpty()) {
-            log.warn("Comparative analysis could not be parsed. raw={}", result.text());
-            throw new LlmUnavailableException();
+        // 매물 전체를 한 번에 묻느라 오래 걸린다. 화면이 진행 중임을 알 수 있게 표시한다 (설계 I72)
+        jobCache.markRunning(JOB_KEY);
+        final LlmResult result;
+        final List<Ranking> rankings;
+        try {
+            result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            if (!result.isPresent()) {
+                log.warn("Comparative analysis unavailable. cause={}", result.failureCause());
+                throw new LlmUnavailableException();
+            }
+            rankings = parse(result.text(), targets);
+            if (rankings.isEmpty()) {
+                log.warn("Comparative analysis could not be parsed. raw={}", result.text());
+                throw new LlmUnavailableException();
+            }
+        } finally {
+            // 결과는 DB에서 읽는다(매물마다 한 행이라 캐시 한 칸에 담기 부적절).
+            // 여기서는 '진행 중' 표시만 걷어낸다
+            jobCache.clear(JOB_KEY);
         }
 
         final Instant now = Instant.now();

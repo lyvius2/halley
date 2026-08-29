@@ -43,6 +43,10 @@ function emptyUserForm() {
 /** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
 const COMPARE_MIN_PROPERTIES = 4;
 
+/** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
+const LLM_POLL_INTERVAL_MS = 2000;
+const LLM_POLL_MAX_ATTEMPTS = 60;
+
 function emptyRegAreaForm() {
     return {
         codePrefix: '',
@@ -127,6 +131,8 @@ function halley() {
         detailRef: null,
         detailLlm: null,
         detailLandUse: [],
+        llmPending: false,
+        _llmTimer: null,
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
@@ -786,6 +792,8 @@ function halley() {
             const { ok, body } = await this.request('/api/properties/comparative-analysis');
             if (ok) {
                 this.compareStatus = body;
+                // 다른 화면에서 시작된 분석이 아직 도는 중일 수 있다 (설계 I72)
+                this.compareRunning = !!body.pending;
             }
         },
 
@@ -936,6 +944,8 @@ function halley() {
             this.detailRef = null;
             this.detailLlm = null;
             this.detailLandUse = [];
+            this.llmPending = false;
+            this.stopLlmPolling();
             this.showM2 = true;
             this.loadDetailExtras(item.property.id);
         },
@@ -954,8 +964,14 @@ function halley() {
             this.detailAgents = agents.ok ? (agents.body || []) : [];
             this.detailRef = ref.ok ? ref.body : null;
             // 아직 산출 전이면 204라 body가 없다
-            this.detailLlm = llm.ok && llm.body ? llm.body : null;
+            // 폴링용으로 결과가 없어도 200이 온다. score로 유무를 가린다
+            this.detailLlm = llm.ok && llm.body && llm.body.score != null ? llm.body : null;
             this.detailLandUse = landUse.ok ? (landUse.body || []) : [];
+            // 결과가 아직 없고 분석이 도는 중이면 진행 표시 + 폴링 (설계 I72)
+            this.llmPending = !this.detailLlm && !!(llm.ok && llm.body && llm.body.pending);
+            if (this.llmPending) {
+                this.startLlmPolling(propertyId);
+            }
         },
 
         /** 매수 조건을 가르는 항목만 — 토지거래허가구역·정비구역 등 (설계 I69). */
@@ -1005,6 +1021,55 @@ function halley() {
             }
         },
 
+        /**
+         * AI 추천도가 아직 안 왔으면 결과가 올 때까지 짧게 폴링한다 (설계 I72).
+         *
+         * <p>멈추는 조건이 넷 다 있어야 한다 — 하나라도 빠지면 탭이 열려 있는 동안 계속 두드린다.
+         * ① 결과 도착 ② 진행 중이 아님 ③ 모달 닫힘 ④ 시도 상한.
+         */
+        startLlmPolling(propertyId) {
+            this.stopLlmPolling();
+            let attempts = 0;
+            this._llmTimer = setInterval(async () => {
+                // ③ 모달이 닫혔거나 다른 매물로 옮겨갔다
+                if (!this.showM2 || !this.detailItem || this.detailItem.property.id !== propertyId) {
+                    this.stopLlmPolling();
+                    return;
+                }
+                // ④ 2초 × 60 = 2분이면 그만 본다
+                if (++attempts > LLM_POLL_MAX_ATTEMPTS) {
+                    this.llmPending = false;
+                    this.stopLlmPolling();
+                    return;
+                }
+                const { ok, body } = await this.request(
+                    `/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false }));
+                if (!ok || !body) {
+                    return;
+                }
+                if (body.score != null) {
+                    // ① 결과가 왔다. 총점도 함께 움직이므로 목록을 다시 읽는다
+                    this.detailLlm = body;
+                    this.llmPending = false;
+                    this.stopLlmPolling();
+                    await this.loadProperties();
+                    return;
+                }
+                // ② 진행 중이 아닌데 결과도 없다 — 실패했거나 LLM이 꺼져 있다
+                if (!body.pending) {
+                    this.llmPending = false;
+                    this.stopLlmPolling();
+                }
+            }, LLM_POLL_INTERVAL_MS);
+        },
+
+        stopLlmPolling() {
+            if (this._llmTimer) {
+                clearInterval(this._llmTimer);
+                this._llmTimer = null;
+            }
+        },
+
         /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */
         async refreshLlm() {
             const id = this.detailItem.property.id;
@@ -1013,8 +1078,9 @@ function halley() {
             try {
                 const { ok, body } = await this.request(
                     `/api/properties/${id}/llm-recommendation`, { method: 'POST' });
-                if (ok && body) {
+                if (ok && body && body.score != null) {
                     this.detailLlm = body;
+                    this.llmPending = false;
                     await this.loadProperties();
                 } else if (ok) {
                     this.error = 'AI 추천도를 산출하지 못했습니다. LLM 연동 설정을 확인해 주세요';

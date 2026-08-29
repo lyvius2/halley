@@ -118,23 +118,25 @@ public class PropertyController {
         return landUseService.refresh(id);
     }
 
+    /**
+     * AI 추천도. 화면이 2초 간격으로 폴링하므로 <b>결과가 없어도 200</b>을 돌려주고
+     * `pending`으로 '분석 중'과 '미산출'을 가른다 (설계 I72).
+     */
     @GetMapping("/{id}/llm-recommendation")
-    public ResponseEntity<LlmRecommendationResponse> llmRecommendation(@PathVariable Long id) {
+    public LlmRecommendationResponse llmRecommendation(@PathVariable Long id) {
         return llmRecommendationService.find(id)
                 .map(LlmRecommendationResponse::from)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.noContent().build());
+                .orElseGet(() -> LlmRecommendationResponse.empty(id, llmRecommendationService.isRunning(id)));
     }
 
     /** 매물 정보나 직장 위치가 바뀐 뒤 다시 물어보고 싶을 때. 입력이 그대로면 재호출하지 않는다. */
     @PostMapping("/{id}/llm-recommendation")
-    public ResponseEntity<LlmRecommendationResponse> refreshLlmRecommendation(@PathVariable Long id) {
+    public LlmRecommendationResponse refreshLlmRecommendation(@PathVariable Long id) {
         final var refreshed = llmRecommendationService.ensureRecommendation(id);
         refreshed.ifPresent(r -> scoringService.rescore(id));
         return refreshed
                 .map(LlmRecommendationResponse::from)
-                .map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.noContent().build());
+                .orElseGet(() -> LlmRecommendationResponse.empty(id, llmRecommendationService.isRunning(id)));
     }
 
     @GetMapping("/{id}/comments")

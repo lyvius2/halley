@@ -642,6 +642,7 @@ Content-Type: application/json
 | Port | local (`@Profile("!live")`) | live (`@Profile("live")`) | TTL |
 |---|---|---|---|
 | `PoiCache` | `InMemoryPoiCache` | `RedisPoiCache` | 30일 (키에 수집 규칙 버전 포함 — 설계 I44) |
+| `LlmJobCache` | `InMemoryLlmJobCache` | `RedisLlmJobCache` | RUNNING 5분 / DONE 1일 (설계 I72) |
 | `TravelTimeCache` | `InMemoryTravelTimeCache` | `RedisTravelTimeCache` | 7일 (TRANSIT만, 설계 10.4) |
 
 > 두 Redis 어댑터 모두 **장애 시 조용히 건너뜁니다**. 캐시가 죽어도 외부 API 재호출로 흡수되어 느려질 뿐 기능은 유지됩니다(설계 2.1.1).

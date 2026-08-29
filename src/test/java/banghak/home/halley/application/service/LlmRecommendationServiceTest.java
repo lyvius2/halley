@@ -3,6 +3,8 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.cache.InMemoryLlmJobCache;
+import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmRecommendation;
@@ -22,6 +24,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -152,7 +155,8 @@ class LlmRecommendationServiceTest {
         final AtomicInteger calls = new AtomicInteger();
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
-                port, recommendationRepository, propertyRepository, userRepository, objectMapper, false);
+                port, recommendationRepository, jobCache, propertyRepository, userRepository,
+                objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -301,9 +305,116 @@ class LlmRecommendationServiceTest {
         assertThat(captor.getValue().workplaceCount()).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("호출 중에는 진행 중으로 보이고 끝나면 내려간다 (설계 I72)")
+    void marksRunningWhileCalling() {
+        // given — 호출 시점에 캐시 상태를 들여다본다
+        givenPropertyAndUsers();
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+        when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
+        final AtomicBoolean runningDuringCall = new AtomicBoolean();
+        final LlmPort port = new LlmPort() {
+            @Override
+            public String provider() {
+                return "stub";
+            }
+
+            @Override
+            public boolean isEnabled() {
+                return true;
+            }
+
+            @Override
+            public LlmResult complete(LlmMessage message) {
+                runningDuringCall.set(jobCache.get(LlmRecommendationService.jobKey(1L))
+                        .map(s -> s.isRunning()).orElse(false));
+                return LlmResult.of("{\"score\": 80, \"reason\": \"좋음\"}", "m");
+            }
+        };
+
+        // when
+        service(port).ensureRecommendation(1L);
+
+        // then
+        assertThat(runningDuringCall).isTrue();
+        assertThat(jobCache.get(LlmRecommendationService.jobKey(1L)))
+                .get().extracting(s -> s.isRunning()).isEqualTo(false);
+    }
+
+    @Test
+    @DisplayName("실패해도 진행 중 표시가 남지 않는다 — 남으면 화면이 영영 돈다")
+    void clearsRunningOnFailure() {
+        // given
+        givenPropertyAndUsers();
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+
+        // when — 응답을 못 받았다
+        service(stub(LlmResult.failed("timeout"))).ensureRecommendation(1L);
+
+        // then
+        assertThat(jobCache.get(LlmRecommendationService.jobKey(1L))).isEmpty();
+        assertThat(service(stub(LlmResult.failed("x"))).isRunning(1L)).isFalse();
+    }
+
+    @Test
+    @DisplayName("파싱 실패도 마찬가지로 표시를 걷어낸다")
+    void clearsRunningOnParseFailure() {
+        // given
+        givenPropertyAndUsers();
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
+
+        // when
+        service(stub(LlmResult.of("잘 모르겠습니다", "m"))).ensureRecommendation(1L);
+
+        // then
+        assertThat(jobCache.get(LlmRecommendationService.jobKey(1L))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("결과는 캐시에서 먼저 읽고, 캐시가 비면 DB로 내려가 다시 채운다")
+    void readsCacheFirstThenDb() {
+        // given — 캐시는 비었고 DB에만 있다
+        final LlmRecommendation stored = new LlmRecommendation(
+                9L, 1L, new BigDecimal("70.00"), "저장된 판단", "m", "hash", 2, Instant.now());
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(stored));
+        final LlmRecommendationService service = service(stub(LlmResult.failed("x")));
+
+        // when — 첫 조회는 DB를 본다
+        final Optional<LlmRecommendation> first = service.find(1L);
+
+        // then — 값이 나오고 캐시가 채워진다
+        assertThat(first).isPresent();
+        assertThat(first.get().reason()).isEqualTo("저장된 판단");
+        assertThat(jobCache.get(LlmRecommendationService.jobKey(1L))).isPresent();
+
+        // when — 캐시가 채워졌으니 두 번째는 DB를 보지 않는다
+        service.find(1L);
+
+        // then — DB 조회는 첫 번째 한 번뿐이다
+        verify(recommendationRepository, org.mockito.Mockito.times(1)).findByPropertyId(1L);
+    }
+
+    @Test
+    @DisplayName("캐시가 비어도 '결과 없음'으로 답하지 않는다 — DB에 있으면 그것을 쓴다")
+    void cacheMissDoesNotHideStoredResult() {
+        // given — 캐시를 통째로 비운다
+        jobCache.clear(LlmRecommendationService.jobKey(1L));
+        final LlmRecommendation stored = new LlmRecommendation(
+                9L, 1L, new BigDecimal("55.00"), "DB에만 있는 값", "m", "hash", 2, Instant.now());
+        when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.of(stored));
+
+        // when · then
+        assertThat(service(stub(LlmResult.failed("x"))).find(1L))
+                .get().extracting(LlmRecommendation::reason).isEqualTo("DB에만 있는 값");
+    }
+
+    /** 진행 표시 캐시는 로컬 인메모리 구현을 그대로 쓴다 — 실제 동작을 흉내 낼 필요가 없다. */
+    private final LlmJobCache jobCache = new InMemoryLlmJobCache();
+
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
-                port, recommendationRepository, propertyRepository, userRepository, objectMapper, true);
+                port, recommendationRepository, jobCache, propertyRepository, userRepository,
+                objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {
