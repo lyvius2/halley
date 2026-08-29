@@ -2397,6 +2397,46 @@ data.go.kr의 `국토교통부_토지이용규제정보서비스`(15058410)도 *
 | GET | `/api/properties/{id}/land-use` | 저장된 토지이용계획 |
 | POST | `/api/properties/{id}/land-use` | 다시 조회 |
 
+### I70. 서킷브레이커 이름과 TimeLimiter · **[확정 — 실측으로 드러난 버그]**
+
+브라우저 실측에서 Claude 호출이 **100% 타임아웃**했습니다. 로그를 보고 두 가지가 드러났습니다.
+
+**1. `resilience4j.*.instances.*` 설정이 어느 것에도 붙지 않고 있었습니다.**
+
+```
+TimeLimiter 'ClaudeFeignClientmessagesStringStringString' recorded a timeout exception
+```
+
+Spring Cloud OpenFeign은 서킷브레이커 ID를 **클래스명 + 메서드 시그니처**로 만듭니다.
+`claude-llm`·`kakao-local`·`odsay`처럼 `@FeignClient` name으로 잡아 둔 설정이 **전부 무시되고
+기본값으로 돌고 있었습니다.** 클라이언트별로 다르게 잡은 실패율·open 시간이 하나도 적용되지
+않은 상태였습니다.
+
+`CircuitBreakerNameResolver` 빈으로 **ID를 FeignClient name으로 고정**합니다. 메서드 시그니처가
+ID에 들어가면 파라미터를 하나 늘리는 것만으로도 설정이 조용히 떨어져 나가므로, 그 취약함도 함께 없앱니다.
+
+**2. TimeLimiter를 명시하지 않으면 기본 1초입니다.**
+
+Feign의 `readTimeout: 60000`을 아무리 늘려도 **TimeLimiter가 1초에 먼저 자릅니다.**
+로그 타임스탬프도 정확히 1초였습니다(`28.985 → 29.994`). LLM은 생성에 수 초가 걸리므로
+이 설정으로는 **한 번도 성공할 수 없었습니다.**
+
+`resilience4j.timelimiter`를 추가하고 각 값을 해당 클라이언트의 `readTimeout`보다 넉넉히 크게
+둡니다(기본 15s, Claude 70s). Feign 타임아웃이 실제 제어권을 갖게 하려는 것입니다.
+
+**3. 공시가격 페이지 수집이 조용히 잘리고 있었습니다.**
+
+```
+totalCount=8848, collected=5000   (56%)
+```
+
+한 필지의 한 해 자료가 **세대 수의 2배**로 나옵니다(은마 4,424세대 → 8,848건). `MAX_PAGES = 5`로
+잡아 둔 주석에 "은마 기준 5페이지면 전부 담긴다"고 썼는데 **틀렸습니다.**
+잘리면 특정 면적대가 통째로 빠져 엉뚱한 값이 붙을 수 있습니다.
+
+15페이지로 올리고, **그래도 모자라면 WARN을 남깁니다.** 잘린 채로 조용히 넘어가는 것이
+값이 틀리는 것보다 나쁩니다.
+
 ---
 
 ## 17. 부록: 패키지 구조 (제안)

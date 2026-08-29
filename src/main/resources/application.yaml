@@ -115,6 +115,35 @@ resilience4j:
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
 
+  # TimeLimiter를 명시하지 않으면 기본 1초가 걸린다 (설계 I70).
+  # Feign의 readTimeout을 아무리 늘려도 그 전에 잘려 LLM 호출이 100% 타임아웃했다.
+  # 각 값은 해당 클라이언트의 readTimeout보다 넉넉히 크게 둔다.
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 15s
+        cancelRunningFuture: true
+    instances:
+      kakao-local:
+        baseConfig: default
+      kakao-directions:
+        baseConfig: default
+      odsay:
+        baseConfig: default
+        timeoutDuration: 20s
+      slack-webhook:
+        baseConfig: default
+      ministry-reference:
+        baseConfig: default
+      vworld-housing-price:
+        baseConfig: default
+      vworld-land-use:
+        baseConfig: default
+      claude-llm:
+        baseConfig: default
+        # 생성에 시간이 걸린다. Feign readTimeout(60s)보다 크게 잡아야 그쪽이 제어권을 갖는다
+        timeoutDuration: 70s
+
 llm:
   enabled: ${LLM_ENABLED:true}
   provider: ${LLM_PROVIDER:claude}

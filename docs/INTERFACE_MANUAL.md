@@ -617,6 +617,11 @@ Content-Type: application/json
 
 - 모든 외부 API는 **OpenFeign `@FeignClient`** 로 선언하고, 각 클라이언트마다 **`FallbackFactory`를 필수 구현**
 - 타임아웃·서킷브레이커 임계는 **API별로 다르게** 설정(`feign.client.config.<name>` / `resilience4j.circuitbreaker.instances.<name>`)
+- ⚠️ **`resilience4j` 인스턴스 이름은 `@FeignClient`의 name과 맞아야 합니다.** 기본 ID는
+  `클래스명+메서드시그니처`라 이름으로 잡은 설정이 붙지 않습니다 —
+  `FeignSupportConfig`의 `CircuitBreakerNameResolver`가 ID를 name으로 고정합니다 (설계 I70)
+- ⚠️ **`resilience4j.timelimiter`를 반드시 명시하세요.** 없으면 기본 1초가 걸려
+  Feign `readTimeout`을 늘려도 그 전에 잘립니다. 특히 LLM은 100% 타임아웃합니다 (설계 I70)
 - `@EnableFeignClients(basePackages = "banghak.home.halley.adapter.outbound.external")` (`FeignSupportConfig`)
 
 ### 6.3 포트/어댑터 목록
