@@ -1357,3 +1357,27 @@ tr.dragging { opacity: .5; background: var(--line2); }
     color: var(--ink3);
     font-family: 'JetBrains Mono', monospace;
 }
+
+/* ── 담보가치 (설계 I64 · I65) ────────────────────
+   LTV의 기준이 호가가 아니라는 것과, 그 값을 어디서 얻었는지를 드러낸다.
+   호가로 계산한 값과 KB시세로 계산한 값이 같은 얼굴로 보이면 안 된다. */
+.loan-collateral {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border: 1px solid var(--line2);
+    border-left: 3px solid var(--ocean);
+    border-radius: 8px;
+    background: var(--paper);
+}
+/* 근거가 약하면(호가·소표본) 테두리 색으로 먼저 알린다 */
+.loan-collateral.weak { border-left-color: var(--sunset); }
+.loan-collateral-main { display: flex; align-items: baseline; gap: 10px; }
+.loan-collateral-main > span { font-size: 11px; color: var(--ink3); }
+.loan-collateral-main > b { font-family: 'JetBrains Mono', monospace; font-size: 15px; }
+.loan-collateral-src { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.loan-collateral-src small { font-size: 10px; color: var(--ink3); }

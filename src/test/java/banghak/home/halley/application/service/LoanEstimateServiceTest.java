@@ -39,7 +39,7 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, true));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, true, true));
 
         // then
         assertThat(result.ltvLimit()).isEqualTo(320_000_000L);

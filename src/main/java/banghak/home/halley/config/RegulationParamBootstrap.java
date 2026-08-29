@@ -24,7 +24,13 @@ public class RegulationParamBootstrap implements ApplicationRunner {
             new Seed("loan.stressRate", "0.01", RegulationValueType.DECIMAL, "스트레스 가산 금리"),
             new Seed("loan.termYears", "30", RegulationValueType.INT, "대출 기간(년)"),
             new Seed("tax.acquisitionRate", "0.01", RegulationValueType.DECIMAL, "취득세율"),
-            new Seed("tax.firstHomeDiscount", "0.5", RegulationValueType.DECIMAL, "생애최초 취득세 감면율"));
+            new Seed("tax.firstHomeDiscount", "0.5", RegulationValueType.DECIMAL, "생애최초 취득세 감면율"),
+            // 방공제·현실화율은 시행령·고시로 바뀐다. 값의 근거와 기준일을 설명에 남긴다 (설계 I64)
+            new Seed("ltv.leaseDeduction", "55000000", RegulationValueType.DECIMAL,
+                    "방공제(소액임차보증금 최우선변제금, 원) — 서울 기준. "
+                            + "주택임대차보호법 시행령 개정 시 갱신 필요. MCI/MCG 가입 시 미차감"),
+            new Seed("valuation.officialPriceRatio", "0.7", RegulationValueType.DECIMAL,
+                    "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"));
 
     private final RegulationParamRepository regulationParamRepository;
 

@@ -19,8 +19,8 @@ class LoanCalculatorExistingLoanTest {
         final long income = 60_000_000L;
 
         // when
-        final LoanEstimateResult none = calculator.estimate(asking, income, 0L, 0L, false, params);
-        final LoanEstimateResult withLoan = calculator.estimate(asking, income, 0L, 100_000_000L, false, params);
+        final LoanEstimateResult none = calculator.estimate(input(asking, income, 0L, 0L, false), params);
+        final LoanEstimateResult withLoan = calculator.estimate(input(asking, income, 0L, 100_000_000L, false), params);
 
         // then
         assertThat(withLoan.dsrLimit()).isLessThan(none.dsrLimit());
@@ -35,7 +35,7 @@ class LoanCalculatorExistingLoanTest {
     void hugeExistingLoanZeroesTheLimit() {
         // when
         final LoanEstimateResult result =
-                calculator.estimate(800_000_000L, 30_000_000L, 0L, 3_000_000_000L, false, params);
+                calculator.estimate(input(800_000_000L, 30_000_000L, 0L, 3_000_000_000L, false), params);
 
         // then
         assertThat(result.dsrLimit()).isZero();
@@ -48,7 +48,7 @@ class LoanCalculatorExistingLoanTest {
     void exposesRateAndTermForClientSideRecalc() {
         // when
         final LoanEstimateResult result =
-                calculator.estimate(800_000_000L, 60_000_000L, 0L, 0L, false, params);
+                calculator.estimate(input(800_000_000L, 60_000_000L, 0L, 0L, false), params);
 
         // then — 기본 프로파일: (4% + 1% 스트레스) / 12, 30년
         assertThat(result.termMonths()).isEqualTo(360);
@@ -63,11 +63,18 @@ class LoanCalculatorExistingLoanTest {
     @DisplayName("기존 대출이 없으면 예전 계산과 같다 — 회귀 방지")
     void matchesLegacyWhenNoExistingLoan() {
         // when
-        final LoanEstimateResult viaLegacy = calculator.estimate(800_000_000L, 60_000_000L, 0L, false, params);
-        final LoanEstimateResult viaNew = calculator.estimate(800_000_000L, 60_000_000L, 0L, 0L, false, params);
+        final LoanEstimateResult viaLegacy = calculator.estimate(input(800_000_000L, 60_000_000L, 0L, 0L, false), params);
+        final LoanEstimateResult viaNew = calculator.estimate(input(800_000_000L, 60_000_000L, 0L, 0L, false), params);
 
         // then
         assertThat(viaLegacy.finalLimit()).isEqualTo(viaNew.finalLimit());
         assertThat(viaLegacy.dsrLimit()).isEqualTo(viaNew.dsrLimit());
+    }
+
+    /** 담보가치는 호가와 같게 두고(별도 검증은 CollateralValuatorTest), MCI 가입으로 방공제를 뺀다. */
+    private LoanEstimateInput input(long asking, long income, long cash, long existingLoan, boolean firstHome) {
+        return new LoanEstimateInput(asking,
+                CollateralValuation.of(asking, CollateralSource.ASKING_PRICE),
+                income, cash, existingLoan, firstHome, true);
     }
 }

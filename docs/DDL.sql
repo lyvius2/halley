@@ -276,6 +276,7 @@ CREATE TABLE reference_transaction (
     deal_type     VARCHAR(20),                                           -- TRADE | RENT
     contract_date DATE,
     price         BIGINT,
+    area_m2       NUMERIC(10, 2),                                        -- 전용면적 — 단가 환산에 쓴다 (설계 I65)
     floor_no      INTEGER,
     source        VARCHAR(30),                                           -- MINISTRY_TRADE | MINISTRY_RENT
     cached_at     TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -479,6 +480,9 @@ ALTER TABLE property ADD COLUMN IF NOT EXISTS school_source       VARCHAR(20);
 ALTER TABLE property ADD COLUMN IF NOT EXISTS pnu                 VARCHAR(19);
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price      BIGINT;
 ALTER TABLE property ADD COLUMN IF NOT EXISTS official_price_year INTEGER;
+
+-- 10) 실거래 전용면적 (설계 I65) — 단가(원/㎡) 환산으로 담보가치를 보정한다
+ALTER TABLE reference_transaction ADD COLUMN IF NOT EXISTS area_m2 NUMERIC(10, 2);
 
 
 -- 7) 연소득·기존 대출액 (설계 I55) — available_budget은 '보유 현금'으로 뜻이 확정됐다

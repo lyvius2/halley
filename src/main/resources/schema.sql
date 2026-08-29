@@ -204,6 +204,7 @@ CREATE TABLE IF NOT EXISTS reference_transaction (
     deal_type     VARCHAR(20),
     contract_date DATE,
     price         BIGINT,
+    area_m2       NUMERIC(10, 2),
     floor_no      INTEGER,
     source        VARCHAR(30),
     cached_at     TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP

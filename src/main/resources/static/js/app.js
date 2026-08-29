@@ -61,7 +61,7 @@ function halley() {
         checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
-        loanForm: { firstHome: false },
+        loanForm: { firstHome: false, mortgageInsured: false },
         loanResult: null,
         loanAmount: 0,
         loanShowInputs: false,
@@ -1227,7 +1227,7 @@ function halley() {
         // 프로필에 연소득·보유 현금이 있으므로 모달을 열면 바로 계산한다 (설계 I55)
         openLoanModal(item) {
             this.loanProperty = item;
-            this.loanForm = { firstHome: false };
+            this.loanForm = { firstHome: false, mortgageInsured: false };
             this.loanOverride = { annualIncome: '', cash: '', existingLoan: '' };
             this.loanShowInputs = false;
             this.loanResult = null;
@@ -1300,7 +1300,8 @@ function halley() {
                             annualIncome: toNum(this.loanOverride.annualIncome),
                             cash: toNum(this.loanOverride.cash),
                             existingLoan: toNum(this.loanOverride.existingLoan),
-                            firstHome: this.loanForm.firstHome
+                            firstHome: this.loanForm.firstHome,
+                            mortgageInsured: this.loanForm.mortgageInsured
                         })
                     });
                 if (ok) {

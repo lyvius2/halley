@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ReferenceTransactionResponse;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ReferenceTrade;
@@ -45,7 +46,7 @@ class ReferenceTransactionServiceTest {
     private PropertyService propertyService;
 
     @Test
-    @DisplayName("단지명이 같은 최근 실거래만 필터링해 참고 카드를 만든다")
+    @DisplayName("같은 단지라도 전용면적이 다르면 뺀다 — 담보가치가 왜곡된다 (설계 I65)")
     void filtersAndBuildsCard() {
         // given
         final PropertyResponse property = propertyService.create(request("독립문삼호", new BigDecimal("84.98"), 1_500_000_000L));
@@ -53,9 +54,13 @@ class ReferenceTransactionServiceTest {
         // when
         final ReferenceCardResponse card = referenceTransactionService.getReferences(property.id(), "11010", "202607");
 
-        // then
-        assertThat(card.transactions()).hasSize(2);
+        // then — 84.98㎡ 매물에는 84.93㎡만 남는다.
+        // 같은 '독립문삼호'라도 113.04㎡는 ±15%를 벗어나므로 뺀다. 예전에는 단지명만 같으면
+        // 면적을 보지 않고 받아들여, 이 값들로 담보가치를 매기면 크게 틀어졌다
+        assertThat(card.transactions()).hasSize(1);
         assertThat(card.transactions().getFirst().price()).isEqualTo(925_000_000L);
+        assertThat(card.transactions()).extracting(ReferenceTransactionResponse::price)
+                .doesNotContain(1_440_000_000L);
         assertThat(card.askingPrice()).isEqualTo(1_500_000_000L);
         assertThat(card.gapPercent()).isEqualByComparingTo("62.2");
     }
@@ -71,7 +76,7 @@ class ReferenceTransactionServiceTest {
         final ReferenceCardResponse card = referenceTransactionService.getReferences(property.id(), null, null);
 
         // then
-        assertThat(card.transactions()).hasSize(2);
+        assertThat(card.transactions()).hasSize(1);
     }
 
     private PropertyRequest request(String name, BigDecimal areaExclusiveM2, Long priceDeposit) {

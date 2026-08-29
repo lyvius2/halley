@@ -5,6 +5,14 @@ import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.outbound.persistence.LoanEstimateRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
+import banghak.home.halley.domain.property.ReferenceTransaction;
+import banghak.home.halley.domain.loan.CollateralValuation;
+import banghak.home.halley.domain.loan.CollateralValuator;
+import banghak.home.halley.domain.loan.LoanEstimateInput;
+import banghak.home.halley.domain.loan.TradeSample;
+
+import java.time.LocalDate;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.user.User;
@@ -40,6 +48,7 @@ public class LoanEstimateService {
     private static final String DEFAULT_PROFILE = "2025-10-15";
 
     private final PropertyRepository propertyRepository;
+    private final ReferenceTransactionRepository referenceTransactionRepository;
     private final UserRepository userRepository;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
@@ -47,12 +56,14 @@ public class LoanEstimateService {
     private final ObjectMapper objectMapper;
 
     public LoanEstimateService(PropertyRepository propertyRepository,
+                               ReferenceTransactionRepository referenceTransactionRepository,
                                UserRepository userRepository,
                                RegulationParamRepository regulationParamRepository,
                                SystemConfigRepository systemConfigRepository,
                                LoanEstimateRepository loanEstimateRepository,
                                ObjectMapper objectMapper) {
         this.propertyRepository = propertyRepository;
+        this.referenceTransactionRepository = referenceTransactionRepository;
         this.userRepository = userRepository;
         this.regulationParamRepository = regulationParamRepository;
         this.systemConfigRepository = systemConfigRepository;
@@ -72,15 +83,22 @@ public class LoanEstimateService {
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
+        final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
+
+        // LTV는 호가가 아니라 담보가치에 매긴다 (설계 I64-1)
+        final CollateralValuation collateral = CollateralValuator.estimate(
+                property.kbPrice(), tradeSamples(propertyId), property.areaExclusiveM2(),
+                property.officialPrice(), askingPrice, params.officialPriceRatio(), LocalDate.now());
 
         final LoanEstimateResult result = new LoanCalculator(params.ltvRate(), params.totalCap())
-                .estimate(askingPrice, annualIncome, cash, existingLoan, firstHome, params);
+                .estimate(new LoanEstimateInput(askingPrice, collateral, annualIncome, cash,
+                        existingLoan, firstHome, insured), params);
 
         loanEstimateRepository.save(new LoanEstimate(
                 null, propertyId, ProductType.MORTGAGE, params.ltvRate(),
                 result.ltvLimit(), result.dsrLimit(), result.finalLimit(),
                 result.requiredCash(), result.acquisitionTax(),
-                assumptions(annualIncome, cash, existingLoan, firstHome),
+                assumptions(annualIncome, cash, existingLoan, firstHome, insured, result),
                 Instant.now()));
 
         return new LoanEstimateResponse(
@@ -88,6 +106,10 @@ public class LoanEstimateService {
                 result.requiredCash(), result.acquisitionTax(), result.monthlyPayment(),
                 askingPrice, annualIncome, cash, existingLoan,
                 result.dsrCapacity(), result.existingLoanAnnual(),
+                result.collateralValue(), result.collateralSource(),
+                result.collateralSource().label(),
+                result.collateralSampleCount(), result.collateralReliable(),
+                result.leaseDeduction(), insured,
                 result.monthlyRate(), result.termMonths());
     }
 
@@ -118,15 +140,35 @@ public class LoanEstimateService {
                 decimal(values, "loan.stressRate", defaults.stressRate()),
                 intValue(values, "loan.termYears", defaults.termYears()),
                 decimal(values, "tax.acquisitionRate", defaults.acquisitionTaxRate()),
-                decimal(values, "tax.firstHomeDiscount", defaults.firstHomeDiscount()));
+                decimal(values, "tax.firstHomeDiscount", defaults.firstHomeDiscount()),
+                longValue(values, "ltv.leaseDeduction", defaults.leaseDeduction()),
+                decimal(values, "valuation.officialPriceRatio", defaults.officialPriceRatio()));
     }
 
-    private ObjectNode assumptions(long annualIncome, long cash, long existingLoan, boolean firstHome) {
+    /**
+     * 담보가치를 매길 재료 — 이 매물의 최근 실거래가. 이미 수집해 둔 캐시만 읽고 국토부를 부르지 않는다
+     * (대출 계산이 외부 API 지연에 묶이면 안 된다).
+     */
+    private List<TradeSample> tradeSamples(Long propertyId) {
+        return referenceTransactionRepository.findByPropertyId(propertyId).stream()
+                .filter(t -> t.price() != null && t.price() > 0)
+                .map(t -> new TradeSample(t.price(), t.areaM2(), t.contractDate()))
+                .toList();
+    }
+
+    /** 어떤 전제로 계산했는지 남긴다. 나중에 값이 왜 그랬는지 되짚을 수 있어야 한다. */
+    private ObjectNode assumptions(long annualIncome, long cash, long existingLoan,
+                                   boolean firstHome, boolean insured, LoanEstimateResult result) {
         return objectMapper.createObjectNode()
                 .put("annualIncome", annualIncome)
                 .put("cash", cash)
                 .put("existingLoan", existingLoan)
-                .put("firstHome", firstHome);
+                .put("firstHome", firstHome)
+                .put("mortgageInsured", insured)
+                .put("collateralValue", result.collateralValue())
+                .put("collateralSource", result.collateralSource().name())
+                .put("leaseDeduction", result.leaseDeduction())
+                .put("collateralSampleCount", result.collateralSampleCount());
     }
 
     private long orProfile(Long requested, Optional<Long> fromProfile) {
