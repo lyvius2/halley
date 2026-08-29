@@ -1028,6 +1028,11 @@
                         </div>
                         <div class="m2-row"><span>입주</span><b x-text="moveInLabel(detailItem.property)"></b></div>
                         <div class="m2-row"><span>매물번호</span><b x-text="detailItem.property.naverArticleNo || '-'"></b></div>
+                        <!-- 공시가격·토지이용계획 조회 키. 값이 비면 그 둘이 왜 안 뜨는지 바로 알 수 있다 -->
+                        <div class="m2-row">
+                            <span>PNU</span>
+                            <b class="m2-mono" x-text="detailItem.property.pnu || '-'"></b>
+                        </div>
                         <div class="m2-row">
                             <span>원본 URL</span>
                             <b>

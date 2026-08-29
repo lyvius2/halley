@@ -1512,3 +1512,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
         50%      { opacity: 1; }
     }
 }
+
+/* PNU 같은 식별자는 값이 아니라 코드라 고정폭으로 둔다 — 자릿수를 세어야 할 때가 있다 */
+.m2-mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: -.02em; }

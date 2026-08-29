@@ -48,6 +48,7 @@ public record PropertyResponse(
         String schoolName,
         Integer schoolWalkMinutes,
         SchoolSource schoolSource,
+        String pnu,
         Long officialPrice,
         Integer officialPriceYear,
         SourceType sourceType,
@@ -71,7 +72,8 @@ public record PropertyResponse(
                 p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
                 p.parkingPerHousehold(), p.totalHouseholds(), p.heatingType(), p.buildingCount(), p.kbPrice(),
                 p.brokerageFee(), p.brokerageRate(), p.acquisitionTax(), p.propertyTax(), p.comprehensiveTax(),
-                p.schoolName(), p.schoolWalkMinutes(), p.schoolSource(), p.officialPrice(), p.officialPriceYear(),
+                p.schoolName(), p.schoolWalkMinutes(), p.schoolSource(), p.pnu(),
+                p.officialPrice(), p.officialPriceYear(),
                 p.sourceType(), p.sourceUrl(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
                 p.createdBy(), createdByNickname, editVersion);
     }
