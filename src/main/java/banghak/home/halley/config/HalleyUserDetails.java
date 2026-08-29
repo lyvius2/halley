@@ -13,7 +13,6 @@ public class HalleyUserDetails implements UserDetails {
     private final Long id;
     private final String nickname;
     private final String loginId;
-    private final String email;
     private final String password;
     private final String role;
     private final boolean enabled;
@@ -24,7 +23,6 @@ public class HalleyUserDetails implements UserDetails {
         this.id = user.id();
         this.nickname = user.nickname();
         this.loginId = user.loginId();
-        this.email = user.email();
         this.password = user.passwordHash();
         this.role = user.role().name();
         this.enabled = user.enabled();

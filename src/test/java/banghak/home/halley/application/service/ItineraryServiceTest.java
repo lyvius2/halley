@@ -79,11 +79,11 @@ class ItineraryServiceTest {
     @BeforeEach
     void setUpAuth() {
         stubConfig.transitCalls.set(0);
-        if (userRepository.findByEmail("itinerary@example.com").isEmpty()) {
+        if (userRepository.findByLoginId("itinerary").isEmpty()) {
             userService.create(new CreateUserRequest(
-                    "itinerary", "임장자", "itinerary@example.com", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                    "itinerary", "임장자", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         }
-        final User user = userRepository.findByEmail("itinerary@example.com").orElseThrow();
+        final User user = userRepository.findByLoginId("itinerary").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));

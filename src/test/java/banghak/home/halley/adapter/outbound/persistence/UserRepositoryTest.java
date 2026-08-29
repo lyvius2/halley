@@ -22,47 +22,47 @@ class UserRepositoryTest {
 
     @Test
     void saveAndFindById() {
-        User saved = userRepository.save(user("혜미", "hyemi@example.com"));
+        User saved = userRepository.save(user("혜미", "hyemi"));
 
         assertThat(saved.id()).isNotNull();
 
         Optional<User> found = userRepository.findById(saved.id());
         assertThat(found).isPresent();
-        assertThat(found.get().email()).isEqualTo("hyemi@example.com");
+        assertThat(found.get().loginId()).isEqualTo("hyemi");
         assertThat(found.get().nickname()).isEqualTo("혜미");
         assertThat(found.get().role()).isEqualTo(UserRole.MEMBER);
         assertThat(found.get().createdAt()).isNotNull();
     }
 
     @Test
-    void findByEmailAndNickname() {
-        userRepository.save(user("윤선", "yoon@example.com"));
+    void findByLoginIdAndNickname() {
+        userRepository.save(user("윤선", "yoon"));
 
-        assertThat(userRepository.findByEmail("yoon@example.com")).isPresent();
+        assertThat(userRepository.findByLoginId("yoon")).isPresent();
         assertThat(userRepository.findByNickname("윤선")).isPresent();
-        assertThat(userRepository.findByEmail("nobody@example.com")).isEmpty();
+        assertThat(userRepository.findByLoginId("nobody")).isEmpty();
     }
 
     @Test
     void findAll() {
-        userRepository.save(user("a", "a@example.com"));
-        userRepository.save(user("b", "b@example.com"));
+        userRepository.save(user("a", "a"));
+        userRepository.save(user("b", "b"));
 
         List<User> all = userRepository.findAll();
-        assertThat(all).extracting(User::email).contains("a@example.com", "b@example.com");
+        assertThat(all).extracting(User::nickname).contains("a", "b");
     }
 
     @Test
     void delete() {
-        User saved = userRepository.save(user("c", "c@example.com"));
+        User saved = userRepository.save(user("c", "c"));
         userRepository.delete(saved.id());
 
         assertThat(userRepository.findById(saved.id())).isEmpty();
     }
 
-    private User user(String nickname, String email) {
+    private User user(String nickname, String loginId) {
         return new User(
-                null, email.split("@")[0], nickname, email, "hash", UserRole.MEMBER,
+                null, loginId, nickname, "hash", UserRole.MEMBER,
                 null, null, null,
                 true, 0L, null, null, true,
                 null, null, null

@@ -616,3 +616,9 @@ CREATE TABLE IF NOT EXISTS regulation_notice (
     message       VARCHAR(500),
     updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- ===== 14. 회원 이메일 폐지 (설계 I74) =====
+-- 이메일은 로그인에도 알림에도 쓰지 않아 받아 두기만 하던 항목이었다.
+-- 표시 이름은 닉네임이 맡는다 — 매물 등록자 배지도 이미 닉네임을 쓴다.
+DROP INDEX IF EXISTS ux_users_email;
+ALTER TABLE users DROP COLUMN IF EXISTS email;

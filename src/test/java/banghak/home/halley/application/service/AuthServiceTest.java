@@ -49,7 +49,7 @@ class AuthServiceTest {
     @DisplayName("로그인 후 비밀번호를 변경하면 재변경 플래그가 해제된다")
     void loginThenChangePassword() {
         // given
-        userService.create(new CreateUserRequest("auth", "auth-user", "auth@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+        userService.create(new CreateUserRequest("auth", "auth-user", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final AuthResponse first = authService.login("auth", "password1!", new MockHttpServletRequest());
@@ -59,7 +59,7 @@ class AuthServiceTest {
         assertThat(first.role()).isEqualTo(UserRole.MEMBER);
 
         authService.changePassword("password1!", "newpassword2!");
-        final Boolean isMustChangePassword = userRepository.findByEmail("auth@example.com").map(User::mustChangePassword).orElse(null);
+        final Boolean isMustChangePassword = userRepository.findByLoginId("auth").map(User::mustChangePassword).orElse(null);
         assertThat(isMustChangePassword).isFalse();
 
         SecurityContextHolder.clearContext();
@@ -71,7 +71,7 @@ class AuthServiceTest {
     @DisplayName("잘못된 비밀번호로 로그인하면 InvalidCredentialsException이 발생한다")
     void loginWithWrongPasswordFails() {
         // given
-        userService.create(new CreateUserRequest("wrong", "wrong-user", "wrong@example.com", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+        userService.create(new CreateUserRequest("wrong", "wrong-user", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final InvalidCredentialsException ex = assertThrows(

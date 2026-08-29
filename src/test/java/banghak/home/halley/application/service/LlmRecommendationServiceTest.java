@@ -290,7 +290,7 @@ class LlmRecommendationServiceTest {
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
         when(userRepository.findAll()).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
-                new User(2L, "login2", "밥", "b@example.com", "hash", UserRole.MEMBER,
+                new User(2L, "login2", "밥", "hash", UserRole.MEMBER,
                         "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
                         true, null, null, Instant.now())));
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
@@ -449,7 +449,7 @@ class LlmRecommendationServiceTest {
     }
 
     private User user(Long id, String nickname, String workplace) {
-        return new User(id, "login" + id, nickname, nickname + "@example.com", "hash", UserRole.MEMBER,
+        return new User(id, "login" + id, nickname, "hash", UserRole.MEMBER,
                 workplace, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
     }

@@ -28,7 +28,6 @@ function emptyUserForm() {
     return {
         loginId: '',
         nickname: '',
-        email: '',
         password: '',
         role: 'MEMBER',
         workplaceName: '',
@@ -103,7 +102,7 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+        profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
             availableBudget: '', annualIncome: '', existingLoan: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
@@ -136,7 +135,7 @@ function halley() {
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
-        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+        setupForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
             availableBudget: '', annualIncome: '', existingLoan: '' },
         showPhotoModal: false,
         photoProperty: null,
@@ -313,7 +312,6 @@ function halley() {
             this.userForm = {
                 loginId: u.loginId,
                 nickname: u.nickname,
-                email: u.email,
                 password: '',
                 role: u.role,
                 workplaceName: u.workplaceName || '',
@@ -341,7 +339,6 @@ function halley() {
             const body = {
                 loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
-                email: this.userForm.email || null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
@@ -412,7 +409,6 @@ function halley() {
                 this.profile = body;
                 this.profileForm = {
                     nickname: body.nickname || '',
-                    email: body.email || '',
                     workplaceName: body.workplaceName || '',
                     workplaceLat: body.workplaceLat ?? '',
                     workplaceLng: body.workplaceLng ?? '',
@@ -483,8 +479,8 @@ function halley() {
         },
 
         async saveProfileSetup() {
-            if (!this.setupForm.email || !this.setupForm.email.includes('@')) {
-                this.error = '이메일을 입력해 주세요';
+            if (!this.setupForm.nickname || !this.setupForm.nickname.trim()) {
+                this.error = '닉네임을 입력해 주세요';
                 return;
             }
             if (!this.setupForm.workplaceLat || !this.setupForm.workplaceLng) {
@@ -506,7 +502,7 @@ function halley() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        email: this.setupForm.email,
+                        nickname: this.setupForm.nickname,
                         workplaceName: this.setupForm.workplaceName,
                         workplaceLat: toNum(this.setupForm.workplaceLat),
                         workplaceLng: toNum(this.setupForm.workplaceLng),
@@ -537,7 +533,6 @@ function halley() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nickname: this.profileForm.nickname || null,
-                        email: this.profileForm.email || null,
                         workplaceName: this.profileForm.workplaceName || null,
                         workplaceLat: toNum(this.profileForm.workplaceLat),
                         workplaceLng: toNum(this.profileForm.workplaceLng),
@@ -1344,7 +1339,7 @@ function halley() {
                     this.sessionExpiresAt = body.expiresInSeconds != null
                         ? Date.now() + body.expiresInSeconds * 1000 : 0;
                     this.startSessionTimer();
-                    this.loginForm = { email: '', password: '' };
+                    this.loginForm = { loginId: '', password: '' };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
                     if (this.session.role === 'ADMIN' && !this.showPassword) {

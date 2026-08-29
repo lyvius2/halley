@@ -40,7 +40,7 @@ class ParsePreviewApiIntegrationTest {
     void parsePreview() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "parse", "parse-user", "parse@example.com", "password1!", UserRole.MEMBER,
+                "parse", "parse-user", "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)

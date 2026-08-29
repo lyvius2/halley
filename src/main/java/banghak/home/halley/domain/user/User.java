@@ -7,7 +7,6 @@ public record User(
         Long id,
         String loginId,
         String nickname,
-        String email,
         String passwordHash,
         UserRole role,
         String workplaceName,
@@ -24,14 +23,14 @@ public record User(
 ) {
 
     /**
-     * 계정 초기 설정이 끝났는지 (설계 6.1 · I48 · I51).
-     * 이메일은 로그인 ID와 분리된 연락처 항목이라 최초 설정에서 받고,
+     * 계정 초기 설정이 끝났는지 (설계 6.1 · I48 · I51 · I74).
+     * 닉네임은 로그인 ID와 분리된 표시 이름이라 최초 설정에서 받고,
      * 직장 좌표가 없으면 `COMMUTE`가, 보유 현금이 0이면 `PRICE`가 계산되지 않는다.
      * 연소득은 대출 한도(DSR)의 유일한 입력이라 함께 받는다 (설계 I55).
      * 기존 대출액은 대부분 0이므로 필수로 보지 않는다.
      */
     public boolean profileComplete() {
-        return email != null && !email.isBlank()
+        return nickname != null && !nickname.isBlank()
                 && workplaceName != null && !workplaceName.isBlank()
                 && workplaceLat != null && workplaceLng != null
                 && availableBudget != null && availableBudget > 0

@@ -9,7 +9,6 @@ public record UserResponse(
         Long id,
         String loginId,
         String nickname,
-        String email,
         UserRole role,
         String workplaceName,
         BigDecimal workplaceLat,

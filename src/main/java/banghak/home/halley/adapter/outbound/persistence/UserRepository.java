@@ -18,7 +18,6 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EX
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.CREATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.DISABLED_BY;
-import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EMAIL;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.LOGIN_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ENABLED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
@@ -45,7 +44,6 @@ public class UserRepository {
         Long id = dsl.insertInto(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
-                .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
@@ -67,7 +65,6 @@ public class UserRepository {
                 id,
                 user.loginId(),
                 user.nickname(),
-                user.email(),
                 user.passwordHash(),
                 user.role(),
                 user.workplaceName(),
@@ -88,7 +85,6 @@ public class UserRepository {
         dsl.update(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
-                .set(EMAIL, user.email())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
@@ -120,12 +116,6 @@ public class UserRepository {
                 .map(this::map);
     }
 
-    public Optional<User> findByEmail(String email) {
-        return dsl.selectFrom(TABLE)
-                .where(EMAIL.eq(email))
-                .fetchOptional()
-                .map(this::map);
-    }
 
     public Optional<User> findByNickname(String nickname) {
         return dsl.selectFrom(TABLE)
@@ -151,7 +141,6 @@ public class UserRepository {
                 r.get(ID),
                 r.get(LOGIN_ID),
                 r.get(NICKNAME),
-                r.get(EMAIL),
                 r.get(PASSWORD_HASH),
                 r.get(ROLE) == null ? null : UserRole.valueOf(r.get(ROLE)),
                 r.get(WORKPLACE_NAME),

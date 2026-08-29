@@ -6,7 +6,6 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.config.exception.AuthenticationRequiredException;
-import banghak.home.halley.config.exception.DuplicateEmailException;
 import banghak.home.halley.config.exception.DuplicateLoginIdException;
 import banghak.home.halley.config.exception.DuplicateNicknameException;
 import banghak.home.halley.config.exception.LastAdminException;
@@ -65,16 +64,11 @@ public class UserService {
         if (!user.nickname().equals(nickname) && userRepository.findByNickname(nickname).isPresent()) {
             throw new DuplicateNicknameException();
         }
-        final String email = hasText(request.email()) ? request.email().trim() : user.email();
-        if (hasText(email) && !email.equals(user.email())
-                && userRepository.findByEmail(email).isPresent()) {
-            throw new DuplicateEmailException();
-        }
         final long newBudget = request.availableBudget() != null
                 ? request.availableBudget() : user.availableBudget();
 
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), nickname, email, user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
                 user.mustChangePassword(), newBudget,
                 request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
@@ -117,9 +111,6 @@ public class UserService {
         if (userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
         }
-        if (hasText(request.email()) && userRepository.findByEmail(request.email()).isPresent()) {
-            throw new DuplicateEmailException();
-        }
         if (userRepository.findByNickname(request.nickname()).isPresent()) {
             throw new DuplicateNicknameException();
         }
@@ -127,7 +118,6 @@ public class UserService {
                 null,
                 request.loginId(),
                 request.nickname(),
-                request.email(),
                 passwordEncoder.encode(request.password()),
                 request.role() == null ? UserRole.MEMBER : request.role(),
                 request.workplaceName(),
@@ -150,10 +140,6 @@ public class UserService {
                 && userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
         }
-        if (hasText(request.email()) && !request.email().equals(user.email())
-                && userRepository.findByEmail(request.email()).isPresent()) {
-            throw new DuplicateEmailException();
-        }
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
             throw new DuplicateNicknameException();
         }
@@ -161,7 +147,6 @@ public class UserService {
                 user.id(),
                 request.loginId(),
                 request.nickname(),
-                request.email(),
                 user.passwordHash(),
                 user.role(),
                 request.workplaceName(),
@@ -206,7 +191,7 @@ public class UserService {
         }
         final Instant now = Instant.now();
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(), user.email(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.mustChangePassword(), user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
@@ -224,7 +209,7 @@ public class UserService {
         final User user = get(id);
         final String temporaryPassword = randomPassword();
         userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(), user.email(),
+                user.id(), user.loginId(), user.nickname(),
                 passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 true, user.availableBudget(),
@@ -270,7 +255,7 @@ public class UserService {
 
     private UserResponse toResponse(User user) {
         return new UserResponse(
-                user.id(), user.loginId(), user.nickname(), user.email(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.availableBudget(), user.annualIncomeOrZero(), user.existingLoanOrZero(),
                 user.enabled(), user.mustChangePassword(), user.createdAt());

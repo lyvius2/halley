@@ -282,7 +282,7 @@ class ComparativeAnalysisServiceTest {
 
     private void givenUsers() {
         when(userRepository.findAll()).thenReturn(List.of(
-                new User(1L, "login1", "앨리스", "a@example.com", "hash", UserRole.MEMBER,
+                new User(1L, "login1", "앨리스", "hash", UserRole.MEMBER,
                         "강남역", new BigDecimal("37.49"), new BigDecimal("127.02"),
                         false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now())));
     }
