@@ -1405,3 +1405,29 @@ tr.dragging { opacity: .5; background: var(--line2); }
     border-radius: 5px;
     background: var(--card);
 }
+
+/* ── 규제 파라미터·규제지역 관리 (설계 I68) ────────── */
+.reg-profile-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--line2);
+    border-radius: 8px;
+    background: var(--paper);
+}
+.reg-profile-new { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.reg-profile-new input {
+    font-family: inherit;
+    font-size: 11px;
+    padding: 4px 8px;
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    background: var(--card);
+    width: 190px;
+}
+/* 파라미터 키는 값이 아니라 식별자라 고정폭으로 둔다 */
+.reg-key { font-family: 'JetBrains Mono', monospace; font-size: 11px; white-space: nowrap; }
+.reg-area-form { margin-top: 12px; margin-bottom: 10px; }

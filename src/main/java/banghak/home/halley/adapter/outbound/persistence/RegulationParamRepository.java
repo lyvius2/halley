@@ -17,7 +17,9 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationPa
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationParamTable.TABLE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationParamTable.UPDATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationParamTable.UPDATED_BY;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationParamTable.UPDATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.RegulationParamTable.VALUE_TYPE;
+import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toEnum;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toInstant;
 
@@ -56,6 +58,35 @@ public class RegulationParamRepository {
                 .where(PROFILE.eq(profile))
                 .fetch()
                 .map(this::map);
+    }
+
+    public RegulationParam update(RegulationParam param) {
+        dsl.update(TABLE)
+                .set(PARAM_VALUE, param.paramValue())
+                .set(DESCRIPTION, param.description())
+                .set(UPDATED_BY, param.updatedBy())
+                .set(UPDATED_AT, toOffset(param.updatedAt()))
+                .where(ID.eq(param.id()))
+                .execute();
+        return findById(param.id()).orElseThrow();
+    }
+
+    /** 등록된 프로파일 이름 목록 (중복 없이, 이름순). */
+    public List<String> findProfiles() {
+        return dsl.selectDistinct(PROFILE)
+                .from(TABLE)
+                .orderBy(PROFILE.asc())
+                .fetch(PROFILE);
+    }
+
+    /** 프로파일을 통째로 복제한다 — 규제가 바뀌면 새 프로파일을 만들어 옛 값을 남긴다 (설계 I64). */
+    public int copyProfile(String from, String to, Long updatedBy) {
+        final List<RegulationParam> source = findByProfile(from);
+        for (final RegulationParam param : source) {
+            save(new RegulationParam(null, to, param.paramKey(), param.paramValue(),
+                    param.valueType(), param.description(), updatedBy, null));
+        }
+        return source.size();
     }
 
     public void delete(Long id) {

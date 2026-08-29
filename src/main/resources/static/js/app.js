@@ -43,6 +43,17 @@ function emptyUserForm() {
 /** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
 const COMPARE_MIN_PROPERTIES = 4;
 
+function emptyRegAreaForm() {
+    return {
+        codePrefix: '',
+        zone: 'SPECULATION_OVERHEATED',
+        areaName: '',
+        designatedOn: '',
+        releasedOn: '',
+        note: ''
+    };
+}
+
 function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
@@ -98,6 +109,14 @@ function halley() {
         compareStatus: null,
         compareRunning: false,
         compareError: null,
+        regActiveProfile: '',
+        regProfiles: [],
+        regParams: [],
+        regParamForm: {},
+        regNewProfile: '',
+        regAreas: [],
+        regAreaForm: emptyRegAreaForm(),
+        regError: null,
         showComments: false,
         commentProperty: null,
         comments: [],
@@ -240,8 +259,10 @@ function halley() {
             }
             this.showSettings = true;
             this.error = null;
+            this.regError = null;
             this.loadSettings();
             this.loadNotifications();
+            this.loadRegulations();
         },
 
         closeSettings() {
@@ -559,6 +580,159 @@ function halley() {
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        // ── 규제 파라미터·규제지역 (설계 I68) ──────────
+        async loadRegulations() {
+            const [reg, areas] = await Promise.all([
+                this.request('/api/admin/regulations').catch(() => ({ ok: false })),
+                this.request('/api/admin/regulated-areas').catch(() => ({ ok: false }))
+            ]);
+            if (reg.ok && reg.body) {
+                this.applyRegulations(reg.body);
+            }
+            this.regAreas = areas.ok ? (areas.body || []) : [];
+        },
+
+        applyRegulations(body) {
+            this.regActiveProfile = body.activeProfile;
+            this.regProfiles = body.profiles || [];
+            this.regParams = body.params || [];
+            this.regParamForm = {};
+            this.regParams.forEach(p => {
+                this.regParamForm[p.id] = p.paramValue;
+            });
+        },
+
+        async saveRegParams() {
+            // 값이 바뀐 것만 보낸다 — 안 건드린 항목까지 갱신하면 updatedAt이 전부 흐려진다
+            const changed = this.regParams
+                .filter(p => String(this.regParamForm[p.id] ?? '') !== String(p.paramValue))
+                .map(p => ({ id: p.id, paramValue: String(this.regParamForm[p.id] ?? '').trim() }));
+            if (changed.length === 0) {
+                this.regError = '바뀐 값이 없습니다';
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulations/params', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(changed)
+                });
+                if (ok) {
+                    this.applyRegulations(body);
+                    // LTV·DSR은 가격 채점의 입력이라 값이 바뀌면 전 매물 점수가 달라진다
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async createRegProfile() {
+            const profile = this.regNewProfile.trim();
+            if (!profile) {
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulations/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // 활성 프로파일을 복제한다. 만들자마자 전환하지는 않는다 —
+                    // 값을 고친 뒤 전환해야 중간 상태로 채점되지 않는다
+                    body: JSON.stringify({ profile, copyFrom: this.regActiveProfile, activate: false })
+                });
+                if (ok) {
+                    this.regNewProfile = '';
+                    this.applyRegulations(body);
+                } else {
+                    this.regError = (body && body.message) || '프로파일 생성에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async activateRegProfile() {
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/admin/regulations/profiles/${encodeURIComponent(this.regActiveProfile)}/activate`,
+                    { method: 'PUT' });
+                if (ok) {
+                    this.applyRegulations(body);
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '프로파일 전환에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async addRegArea() {
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulated-areas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        codePrefix: this.regAreaForm.codePrefix.trim(),
+                        zone: this.regAreaForm.zone,
+                        areaName: this.regAreaForm.areaName || null,
+                        designatedOn: this.regAreaForm.designatedOn || null,
+                        releasedOn: this.regAreaForm.releasedOn || null,
+                        note: this.regAreaForm.note || null
+                    })
+                });
+                if (ok) {
+                    this.regAreas = body || [];
+                    this.regAreaForm = emptyRegAreaForm();
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '규제지역 등록에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteRegArea(area) {
+            if (!confirm(`${area.areaName || area.codePrefix} 지정을 삭제할까요?`)) {
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/admin/regulated-areas/${area.id}`, { method: 'DELETE' });
+                if (ok) {
+                    this.regAreas = body || [];
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '삭제에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
             }

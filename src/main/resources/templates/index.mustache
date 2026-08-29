@@ -813,6 +813,116 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <button class="btn btn-primary" @click="saveSettings()" :disabled="loading">설정 저장</button>
 
+        <!-- 규제 파라미터 (설계 I68) -->
+        <div class="settings-section">
+            <h4>규제 파라미터</h4>
+            <p class="settings-note">
+                LTV·DSR·방공제 등 대출 계산에 쓰는 값입니다. 공개 API가 없어 사람이 관리하며,
+                <b>규제가 바뀌면 값을 고치는 대신 새 프로파일을 만들어</b> 전환하세요 — 옛 값이 남아야
+                과거 산출값을 재현할 수 있습니다.
+            </p>
+            <div class="reg-profile-bar">
+                <label class="loan-select">
+                    <span>활성 프로파일</span>
+                    <select x-model="regActiveProfile" @change="activateRegProfile()">
+                        <template x-for="p in regProfiles" :key="p">
+                            <option :value="p" x-text="p"></option>
+                        </template>
+                    </select>
+                </label>
+                <div class="reg-profile-new">
+                    <input type="text" x-model="regNewProfile" placeholder="새 프로파일 (예: 2026-09-01)">
+                    <button class="btn btn-xs" @click="createRegProfile()" :disabled="loading || !regNewProfile.trim()">
+                        복제해서 만들기
+                    </button>
+                </div>
+            </div>
+            <div class="card table-wrap">
+                <table>
+                    <thead><tr><th>키</th><th>설명</th><th>값</th></tr></thead>
+                    <tbody>
+                    <template x-if="regParams.length === 0">
+                        <tr><td colspan="3" class="empty-cell">파라미터가 없습니다</td></tr>
+                    </template>
+                    <template x-for="p in regParams" :key="p.id">
+                        <tr>
+                            <td class="reg-key" x-text="p.paramKey"></td>
+                            <td x-text="p.description"></td>
+                            <td><input class="settings-input" type="text" x-model="regParamForm[p.id]"></td>
+                        </tr>
+                    </template>
+                    </tbody>
+                </table>
+            </div>
+            <p class="form-error" x-show="regError" x-text="regError"></p>
+            <button class="btn btn-primary" @click="saveRegParams()" :disabled="loading">규제 파라미터 저장</button>
+        </div>
+
+        <!-- 규제지역 (설계 I68) -->
+        <div class="settings-section">
+            <h4>규제지역</h4>
+            <p class="settings-note">
+                투기과열지구·조정대상지역은 국토부 고시로 지정·해제되며 <b>공개 API가 없습니다.</b>
+                고시 번호를 근거에 남겨 두면 나중에 검증할 수 있습니다.
+                등록이 없으면 전 매물이 비규제지역으로 계산됩니다.
+            </p>
+            <div class="card table-wrap">
+                <table>
+                    <thead>
+                    <tr><th>법정동코드</th><th>구분</th><th>지역명</th><th>지정일</th><th>해제일</th><th>근거</th><th>상태</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                    <template x-if="regAreas.length === 0">
+                        <tr><td colspan="8" class="empty-cell">등록된 규제지역이 없습니다 (전 매물 비규제 처리)</td></tr>
+                    </template>
+                    <template x-for="a in regAreas" :key="a.id">
+                        <tr>
+                            <td class="reg-key" x-text="a.codePrefix"></td>
+                            <td><span class="badge b-off" x-text="a.zoneLabel"></span></td>
+                            <td x-text="a.areaName || '-'"></td>
+                            <td x-text="a.designatedOn || '-'"></td>
+                            <td x-text="a.releasedOn || '-'"></td>
+                            <td x-text="a.note || '-'"></td>
+                            <td>
+                                <span class="badge" :class="a.active ? 'b-on' : 'b-off'"
+                                      x-text="a.active ? '유효' : '해제·대기'"></span>
+                            </td>
+                            <td>
+                                <button class="btn btn-xs btn-danger" @click="deleteRegArea(a)" :disabled="loading">삭제</button>
+                            </td>
+                        </tr>
+                    </template>
+                    </tbody>
+                </table>
+            </div>
+            <div class="form-grid reg-area-form">
+                <label>법정동코드
+                    <input type="text" x-model="regAreaForm.codePrefix" placeholder="11680 (시군구) 또는 1168010600 (법정동)">
+                </label>
+                <label>구분
+                    <select x-model="regAreaForm.zone">
+                        <option value="SPECULATION_OVERHEATED">투기과열지구</option>
+                        <option value="ADJUSTMENT_TARGET">조정대상지역</option>
+                    </select>
+                </label>
+                <label>지역명
+                    <input type="text" x-model="regAreaForm.areaName" placeholder="서울 강남구">
+                </label>
+                <label>지정일
+                    <input type="date" x-model="regAreaForm.designatedOn">
+                </label>
+                <label>해제일 (비우면 유효)
+                    <input type="date" x-model="regAreaForm.releasedOn">
+                </label>
+                <label>근거
+                    <input type="text" x-model="regAreaForm.note" placeholder="국토교통부 고시 제2026-000호">
+                </label>
+            </div>
+            <button class="btn btn-primary" @click="addRegArea()" :disabled="loading || !regAreaForm.codePrefix.trim()">
+                규제지역 추가
+            </button>
+        </div>
+
         <div class="settings-section">
             <h4>Slack 알림</h4>
             <p class="settings-note">Slack 연동은 서버 환경변수(SLACK_WEBHOOK_URL)로 관리됩니다. 설정 화면에서는 테스트 발송만 제공합니다.</p>
