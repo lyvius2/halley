@@ -44,7 +44,15 @@ public class RegulationParamBootstrap implements ApplicationRunner {
             new Seed("ltv.rate.firstHome", "0.8", RegulationValueType.DECIMAL,
                     "생애최초 우대 LTV — 지역·보유와 무관하게 적용"),
             new Seed("ltv.cap.firstHome", "600000000", RegulationValueType.DECIMAL,
-                    "생애최초 대출 총액 상한(원)"));
+                    "생애최초 대출 총액 상한(원)"),
+            // 전세자금대출 (설계 I67) — 보증기관·정책마다 다르고 자주 바뀐다
+            new Seed("jeonse.guaranteeRate", "0.8", RegulationValueType.DECIMAL,
+                    "전세자금대출 보증비율 — 보증금의 몇 %까지 보증하는지"),
+            new Seed("jeonse.guaranteeCap", "222000000", RegulationValueType.DECIMAL,
+                    "전세자금대출 보증기관 한도(원) — HUG/HF/SGI별로 다르다. 확인 후 조정"),
+            new Seed("jeonse.interestRate", "0.04", RegulationValueType.DECIMAL, "전세자금대출 기준 금리"),
+            new Seed("jeonse.termYears", "2", RegulationValueType.INT,
+                    "전세자금대출 기간(년) — 전세 계약 주기와 같다"));
 
     private final RegulationParamRepository regulationParamRepository;
 

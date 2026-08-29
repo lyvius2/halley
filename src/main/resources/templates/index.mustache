@@ -1233,7 +1233,7 @@
         <div class="modal-head">
             <span class="modal-kicker">대출 한도</span>
             <h3 x-text="loanProperty?.property?.name"></h3>
-            <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. LTV·DSR 기반 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
+            <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
 
         <template x-if="loanResult">
@@ -1241,18 +1241,23 @@
                 <!-- 한도 요약 -->
                 <div class="loan-hero">
                     <div class="loan-hero-main">
-                        <span class="loan-hero-label">최종 한도</span>
+                        <span class="loan-hero-label" x-text="loanResult.productLabel + ' 최종 한도'"></span>
                         <strong x-text="fmtWon(loanResult.finalLimit)"></strong>
                         <small x-text="loanBindingLabel()"></small>
                     </div>
                     <div class="loan-hero-side">
-                        <div><span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b></div>
+                        <div x-show="loanResult.productType === 'MORTGAGE'">
+                            <span>LTV 한도</span><b x-text="fmtWon(loanResult.ltvLimit)"></b>
+                        </div>
+                        <div x-show="loanResult.productType === 'JEONSE'">
+                            <span>보증 한도</span><b x-text="fmtWon(loanResult.guaranteeLimit)"></b>
+                        </div>
                         <div><span>DSR 한도</span><b x-text="fmtWon(loanResult.dsrLimit)"></b></div>
                     </div>
                 </div>
 
-                <!-- 어떤 규정으로 이 LTV가 나왔는지 (설계 I66) -->
-                <div class="loan-policy">
+                <!-- 어떤 규정으로 이 LTV가 나왔는지 (설계 I66) — 매매 전용 -->
+                <div class="loan-policy" x-show="loanResult.productType === 'MORTGAGE'">
                     <span class="badge" :class="loanResult.zone === 'NORMAL' ? 'b-mem' : 'b-off'"
                           x-text="loanResult.zoneLabel"></span>
                     <span class="badge b-mem" x-text="loanResult.ownershipLabel"></span>
@@ -1260,7 +1265,8 @@
                 </div>
 
                 <!-- 담보가치 — LTV의 기준. 호가와 다르고 출처마다 신뢰도가 다르다 (설계 I64·I65) -->
-                <div class="loan-collateral" :class="loanResult.collateralReliable ? '' : 'weak'">
+                <div class="loan-collateral" x-show="loanResult.productType === 'MORTGAGE'"
+                     :class="loanResult.collateralReliable ? '' : 'weak'">
                     <div class="loan-collateral-main">
                         <span>담보가치 (LTV 기준)</span>
                         <b x-text="fmtWon(loanResult.collateralValue)"></b>
@@ -1278,6 +1284,20 @@
                     </div>
                 </div>
 
+                <!-- 전세 전용 — 담보가 집이 아니라 보증기관의 보증이다 (설계 I67) -->
+                <div class="loan-collateral" x-show="loanResult.productType === 'JEONSE'">
+                    <div class="loan-collateral-main">
+                        <span>보증 기준</span>
+                        <b x-text="fmtWon(loanResult.guaranteeLimit)"></b>
+                    </div>
+                    <div class="loan-collateral-src">
+                        <span class="badge b-mem"
+                              x-text="'보증비율 ' + (loanResult.guaranteeRate * 100) + '%'"></span>
+                        <small x-text="'보증기관 한도 ' + fmtWon(loanResult.guaranteeCap)"></small>
+                        <small>담보는 집이 아니라 보증기관의 보증입니다 — 취득세·방공제가 없습니다</small>
+                    </div>
+                </div>
+
                 <!-- 매매가 대비 구성 -->
                 <div class="loan-stack">
                     <div class="loan-stack-bar">
@@ -1287,7 +1307,10 @@
                     <div class="loan-stack-legend">
                         <span><i class="dot dot-loan"></i>대출 <b x-text="fmtWon(loanAmount)"></b></span>
                         <span><i class="dot dot-cash"></i>자기자본 <b x-text="fmtWon(loanOwnCapital())"></b></span>
-                        <span class="loan-stack-total">매매가 <b x-text="fmtWon(loanResult.askingPrice)"></b></span>
+                        <span class="loan-stack-total">
+                            <span x-text="loanResult.productType === 'JEONSE' ? '보증금' : '매매가'"></span>
+                            <b x-text="fmtWon(loanResult.askingPrice)"></b>
+                        </span>
                     </div>
                 </div>
 
@@ -1310,14 +1333,16 @@
                     <div class="loan-card">
                         <span>월 상환액</span>
                         <b x-text="fmtWon(loanMonthlyAt(loanAmount))"></b>
-                        <small x-text="`${loanResult.termMonths / 12}년 원리금균등`"></small>
+                        <small x-text="loanResult.interestOnly
+                            ? `${loanResult.termMonths / 12}년 만기일시 · 이자만`
+                            : `${loanResult.termMonths / 12}년 원리금균등`"></small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>
                         <b x-text="fmtWon(loanOwnCapital())"></b>
-                        <small>매매가 − 대출</small>
+                        <small x-text="loanResult.productType === 'JEONSE' ? '보증금 − 대출' : '매매가 − 대출'"></small>
                     </div>
-                    <div class="loan-card">
+                    <div class="loan-card" x-show="loanResult.productType === 'MORTGAGE'">
                         <span>취득세</span>
                         <b x-text="fmtWon(loanResult.acquisitionTax)"></b>
                         <small x-text="loanForm.firstHome ? '생애최초 감면 반영' : '일반 세율'"></small>
@@ -1331,15 +1356,17 @@
 
                 <!-- 계산 전제 -->
                 <div class="loan-assume">
-                    <label class="loan-check">
+                    <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'">
                         <input type="checkbox" x-model="loanForm.firstHome" @change="runLoanEstimate()">
                         <span>생애최초</span>
                     </label>
-                    <label class="loan-check" title="가입하면 방공제(소액임차보증금)를 차감하지 않습니다">
+                    <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'"
+                           title="가입하면 방공제(소액임차보증금)를 차감하지 않습니다">
                         <input type="checkbox" x-model="loanForm.mortgageInsured" @change="runLoanEstimate()">
                         <span>MCI/MCG 가입</span>
                     </label>
-                    <label class="loan-select" title="규제지역과 함께 LTV 비율을 가릅니다">
+                    <label class="loan-select" x-show="loanResult.productType === 'MORTGAGE'"
+                           title="규제지역과 함께 LTV 비율을 가릅니다">
                         <span>보유 주택</span>
                         <select x-model.number="loanForm.ownedHouseCount" @change="runLoanEstimate()">
                             <option :value="0">무주택</option>
@@ -1381,7 +1408,12 @@
 
                 <p class="loan-note">
                     <b>예상 대출한도이며 실제 금융기관 심사 결과와 다를 수 있습니다.</b>
-                    담보가치는 <span x-text="loanResult.collateralSourceLabel"></span> 기준이고,
+                    <span x-show="loanResult.productType === 'MORTGAGE'">
+                        담보가치는 <span x-text="loanResult.collateralSourceLabel"></span> 기준이고,
+                    </span>
+                    <span x-show="loanResult.productType === 'JEONSE'">
+                        보증기관(HUG·HF·SGI)과 상품에 따라 보증비율·한도가 달라지며,
+                    </span>
                     한도는 스트레스 금리를 더해 계산했습니다.
                 </p>
             </div>

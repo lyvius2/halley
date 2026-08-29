@@ -6,10 +6,16 @@ import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateResponse;
 import banghak.home.halley.adapter.outbound.persistence.LoanEstimateRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
+import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ReferenceTransaction;
 import banghak.home.halley.domain.loan.CollateralValuation;
 import banghak.home.halley.domain.loan.CollateralValuator;
 import banghak.home.halley.domain.loan.HouseOwnership;
+import banghak.home.halley.domain.loan.JeonseEstimateInput;
+import banghak.home.halley.domain.loan.JeonseEstimateResult;
+import banghak.home.halley.domain.loan.JeonseLoanCalculator;
+import banghak.home.halley.domain.loan.JeonsePolicy;
+import banghak.home.halley.domain.loan.JeonseTerms;
 import banghak.home.halley.domain.loan.LoanEstimateInput;
 import banghak.home.halley.domain.loan.LtvDecision;
 import banghak.home.halley.domain.loan.MortgagePolicy;
@@ -78,10 +84,16 @@ public class LoanEstimateService {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 매물의 거래유형에 맞는 대출을 산정한다 (설계 I67).
+     *
+     * <p>매매는 주담대(LTV·DSR·취득세), 전세·월세는 전세자금대출(보증 한도·이자만 DSR)입니다.
+     * <b>전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.</b>
+     */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
-        final long askingPrice = property.priceDeposit() == null ? 0L : property.priceDeposit();
+        final long price = property.priceDeposit() == null ? 0L : property.priceDeposit();
         final Map<String, String> rawParams = loadRawParams();
         final RegulationParams params = loadParams(rawParams);
 
@@ -90,6 +102,19 @@ public class LoanEstimateService {
         final long annualIncome = orProfile(request.annualIncome(), me.map(User::annualIncomeOrZero));
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
+
+        if (property.dealType() != DealType.SALE) {
+            return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan,
+                    rawParams, params);
+        }
+        return estimateMortgage(propertyId, property, price, annualIncome, cash, existingLoan,
+                request, rawParams, params);
+    }
+
+    private LoanEstimateResponse estimateMortgage(Long propertyId, Property property, long askingPrice,
+                                                  long annualIncome, long cash, long existingLoan,
+                                                  LoanEstimateRequest request,
+                                                  Map<String, String> rawParams, RegulationParams params) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
@@ -111,22 +136,30 @@ public class LoanEstimateService {
                 null, propertyId, ProductType.MORTGAGE, ltv.rate(),
                 result.ltvLimit(), result.dsrLimit(), result.finalLimit(),
                 result.requiredCash(), result.acquisitionTax(),
-                assumptions(annualIncome, cash, existingLoan, firstHome, insured, result,
+                mortgageAssumptions(annualIncome, cash, existingLoan, firstHome, insured, result,
                         zone, ownership, ltv),
                 Instant.now()));
 
-        return new LoanEstimateResponse(
-                propertyId, result.ltvLimit(), result.dsrLimit(), result.finalLimit(),
-                result.requiredCash(), result.acquisitionTax(), result.monthlyPayment(),
-                askingPrice, annualIncome, cash, existingLoan,
-                result.dsrCapacity(), result.existingLoanAnnual(),
-                result.collateralValue(), result.collateralSource(),
-                result.collateralSource().label(),
-                result.collateralSampleCount(), result.collateralReliable(),
-                result.leaseDeduction(), insured,
-                zone, zone.label(), ownership, ownership.label(),
-                ltv.rate(), ltv.reason(),
-                result.monthlyRate(), result.termMonths());
+        return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
+                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason());
+    }
+
+    private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
+                                                long annualIncome, long cash, long existingLoan,
+                                                Map<String, String> rawParams, RegulationParams params) {
+        final JeonseTerms terms = JeonsePolicy.resolve(rawParams, params);
+        final JeonseEstimateResult result = new JeonseLoanCalculator(terms)
+                .estimate(new JeonseEstimateInput(deposit, annualIncome, cash, existingLoan), params);
+
+        // 전세는 LTV·취득세가 없다. 이력 테이블의 해당 칸은 비워 둔다
+        loanEstimateRepository.save(new LoanEstimate(
+                null, propertyId, ProductType.JEONSE, terms.guaranteeRate(),
+                result.guaranteeLimit(), result.dsrLimit(), result.finalLimit(),
+                result.requiredCash(), 0L,
+                jeonseAssumptions(annualIncome, cash, existingLoan, terms, result),
+                Instant.now()));
+
+        return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan);
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {
@@ -184,9 +217,9 @@ public class LoanEstimateService {
     }
 
     /** 어떤 전제로 계산했는지 남긴다. 나중에 값이 왜 그랬는지 되짚을 수 있어야 한다. */
-    private ObjectNode assumptions(long annualIncome, long cash, long existingLoan,
-                                   boolean firstHome, boolean insured, LoanEstimateResult result,
-                                   RegulationZone zone, HouseOwnership ownership, LtvDecision ltv) {
+    private ObjectNode mortgageAssumptions(long annualIncome, long cash, long existingLoan,
+                                           boolean firstHome, boolean insured, LoanEstimateResult result,
+                                           RegulationZone zone, HouseOwnership ownership, LtvDecision ltv) {
         return objectMapper.createObjectNode()
                 .put("annualIncome", annualIncome)
                 .put("cash", cash)
@@ -200,6 +233,18 @@ public class LoanEstimateService {
                 .put("zone", zone.name())
                 .put("ownership", ownership.name())
                 .put("ltvRate", ltv.rate().toPlainString());
+    }
+
+    private ObjectNode jeonseAssumptions(long annualIncome, long cash, long existingLoan,
+                                         JeonseTerms terms, JeonseEstimateResult result) {
+        return objectMapper.createObjectNode()
+                .put("annualIncome", annualIncome)
+                .put("cash", cash)
+                .put("existingLoan", existingLoan)
+                .put("guaranteeRate", terms.guaranteeRate().toPlainString())
+                .put("guaranteeCap", terms.guaranteeCap())
+                .put("interestOnlyDsr", true)
+                .put("dsrLimit", result.dsrLimit());
     }
 
     private long orProfile(Long requested, Optional<Long> fromProfile) {
