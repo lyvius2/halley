@@ -32,8 +32,12 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
 
     /** API 최대치. 대단지는 한 해에도 수천 세대가 나와 페이지를 넘겨야 한다. */
     private static final int MAX_ROWS = 1000;
-    /** 은마(4,424세대) 기준 5페이지면 전부 담긴다. 그보다 큰 단지는 잘리는 대신 호출 폭증을 막는다. */
-    private static final int MAX_PAGES = 5;
+    /**
+     * 한 필지의 한 해 자료가 세대 수보다 많이 나온다 — 실측(은마 4,424세대)에서 `totalCount = 8,848`로
+     * <b>세대 수의 2배</b>였습니다. 5페이지로 잡았을 때 56%만 받아 나머지가 조용히 잘렸습니다(설계 I70).
+     * 잘리면 특정 면적대가 통째로 빠져 엉뚱한 값이 붙을 수 있으므로 넉넉히 잡고, 그래도 모자라면 경고합니다.
+     */
+    private static final int MAX_PAGES = 15;
     /** 공동주택가격 공시는 매년 4월 말이라, 연초에는 올해 자료가 아직 없다. 최대 이만큼 거슬러 본다. */
     private static final int YEAR_LOOKBACK = 2;
 
@@ -97,8 +101,15 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
             }
             prices.addAll(parsed);
         }
-        log.info("VWorld price lookup done. kind={}, pnu={}, stdrYear={}, totalCount={}, collected={}",
-                kind, pnu, year, total, prices.size());
+        if (prices.size() < total) {
+            // 잘린 채로 조용히 넘어가면 특정 면적대가 빠진 줄 모르고 값을 쓴다
+            log.warn("VWorld price lookup truncated - some unit types may be missing. "
+                            + "kind={}, pnu={}, stdrYear={}, totalCount={}, collected={}, maxPages={}",
+                    kind, pnu, year, total, prices.size(), MAX_PAGES);
+        } else {
+            log.info("VWorld price lookup done. kind={}, pnu={}, stdrYear={}, totalCount={}, collected={}",
+                    kind, pnu, year, total, prices.size());
+        }
         return prices;
     }
 

@@ -43,6 +43,17 @@ function emptyUserForm() {
 /** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
 const COMPARE_MIN_PROPERTIES = 4;
 
+function emptyRegAreaForm() {
+    return {
+        codePrefix: '',
+        zone: 'SPECULATION_OVERHEATED',
+        areaName: '',
+        designatedOn: '',
+        releasedOn: '',
+        note: ''
+    };
+}
+
 function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
@@ -98,6 +109,14 @@ function halley() {
         compareStatus: null,
         compareRunning: false,
         compareError: null,
+        regActiveProfile: '',
+        regProfiles: [],
+        regParams: [],
+        regParamForm: {},
+        regNewProfile: '',
+        regAreas: [],
+        regAreaForm: emptyRegAreaForm(),
+        regError: null,
         showComments: false,
         commentProperty: null,
         comments: [],
@@ -107,6 +126,7 @@ function halley() {
         detailAgents: [],
         detailRef: null,
         detailLlm: null,
+        detailLandUse: [],
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
@@ -240,8 +260,10 @@ function halley() {
             }
             this.showSettings = true;
             this.error = null;
+            this.regError = null;
             this.loadSettings();
             this.loadNotifications();
+            this.loadRegulations();
         },
 
         closeSettings() {
@@ -564,6 +586,159 @@ function halley() {
             }
         },
 
+        // ── 규제 파라미터·규제지역 (설계 I68) ──────────
+        async loadRegulations() {
+            const [reg, areas] = await Promise.all([
+                this.request('/api/admin/regulations').catch(() => ({ ok: false })),
+                this.request('/api/admin/regulated-areas').catch(() => ({ ok: false }))
+            ]);
+            if (reg.ok && reg.body) {
+                this.applyRegulations(reg.body);
+            }
+            this.regAreas = areas.ok ? (areas.body || []) : [];
+        },
+
+        applyRegulations(body) {
+            this.regActiveProfile = body.activeProfile;
+            this.regProfiles = body.profiles || [];
+            this.regParams = body.params || [];
+            this.regParamForm = {};
+            this.regParams.forEach(p => {
+                this.regParamForm[p.id] = p.paramValue;
+            });
+        },
+
+        async saveRegParams() {
+            // 값이 바뀐 것만 보낸다 — 안 건드린 항목까지 갱신하면 updatedAt이 전부 흐려진다
+            const changed = this.regParams
+                .filter(p => String(this.regParamForm[p.id] ?? '') !== String(p.paramValue))
+                .map(p => ({ id: p.id, paramValue: String(this.regParamForm[p.id] ?? '').trim() }));
+            if (changed.length === 0) {
+                this.regError = '바뀐 값이 없습니다';
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulations/params', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(changed)
+                });
+                if (ok) {
+                    this.applyRegulations(body);
+                    // LTV·DSR은 가격 채점의 입력이라 값이 바뀌면 전 매물 점수가 달라진다
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async createRegProfile() {
+            const profile = this.regNewProfile.trim();
+            if (!profile) {
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulations/profiles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    // 활성 프로파일을 복제한다. 만들자마자 전환하지는 않는다 —
+                    // 값을 고친 뒤 전환해야 중간 상태로 채점되지 않는다
+                    body: JSON.stringify({ profile, copyFrom: this.regActiveProfile, activate: false })
+                });
+                if (ok) {
+                    this.regNewProfile = '';
+                    this.applyRegulations(body);
+                } else {
+                    this.regError = (body && body.message) || '프로파일 생성에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async activateRegProfile() {
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/admin/regulations/profiles/${encodeURIComponent(this.regActiveProfile)}/activate`,
+                    { method: 'PUT' });
+                if (ok) {
+                    this.applyRegulations(body);
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '프로파일 전환에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async addRegArea() {
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request('/api/admin/regulated-areas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        codePrefix: this.regAreaForm.codePrefix.trim(),
+                        zone: this.regAreaForm.zone,
+                        areaName: this.regAreaForm.areaName || null,
+                        designatedOn: this.regAreaForm.designatedOn || null,
+                        releasedOn: this.regAreaForm.releasedOn || null,
+                        note: this.regAreaForm.note || null
+                    })
+                });
+                if (ok) {
+                    this.regAreas = body || [];
+                    this.regAreaForm = emptyRegAreaForm();
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '규제지역 등록에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async deleteRegArea(area) {
+            if (!confirm(`${area.areaName || area.codePrefix} 지정을 삭제할까요?`)) {
+                return;
+            }
+            this.loading = true;
+            this.regError = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/admin/regulated-areas/${area.id}`, { method: 'DELETE' });
+                if (ok) {
+                    this.regAreas = body || [];
+                    await this.loadProperties();
+                } else {
+                    this.regError = (body && body.message) || '삭제에 실패했습니다';
+                }
+            } catch (e) {
+                this.regError = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
         // ── 비교 우위 분석 (설계 I61) ─────────────────
         /** 분석 대상은 판매완료·작성 중을 뺀 매물이다 — 서버의 판정과 같은 기준을 화면에서도 쓴다. */
         comparableCount() {
@@ -760,16 +935,18 @@ function halley() {
             this.detailAgents = [];
             this.detailRef = null;
             this.detailLlm = null;
+            this.detailLandUse = [];
             this.showM2 = true;
             this.loadDetailExtras(item.property.id);
         },
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
         async loadDetailExtras(propertyId) {
-            const [agents, ref, llm] = await Promise.all([
+            const [agents, ref, llm, landUse] = await Promise.all([
                 this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
-                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false }))
+                this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false }))
             ]);
             if (this.detailItem && this.detailItem.property.id !== propertyId) {
                 return;
@@ -778,6 +955,54 @@ function halley() {
             this.detailRef = ref.ok ? ref.body : null;
             // 아직 산출 전이면 204라 body가 없다
             this.detailLlm = llm.ok && llm.body ? llm.body : null;
+            this.detailLandUse = landUse.ok ? (landUse.body || []) : [];
+        },
+
+        /** 매수 조건을 가르는 항목만 — 토지거래허가구역·정비구역 등 (설계 I69). */
+        notableLandUse() {
+            return this.detailLandUse.filter(l => l.notable);
+        },
+
+        /**
+         * 포함 / 저촉 / 접함으로 묶는다. 35건이 통째로 나오는데 나열만 하면 읽히지 않고,
+         * 무엇이 실제로 적용되는지도 가려지지 않는다 (설계 I69).
+         */
+        landUseGroups() {
+            const order = [
+                { key: 'INCLUDED', label: '포함' },
+                { key: 'OVERLAP', label: '저촉' },
+                { key: 'ADJACENT', label: '접함' }
+            ];
+            return order
+                .map(g => ({
+                    ...g,
+                    names: [...new Set(this.detailLandUse
+                        .filter(l => l.conflict === g.key)
+                        .map(l => l.zoneName))]
+                }))
+                .filter(g => g.names.length > 0);
+        },
+
+        async refreshLandUse() {
+            const id = this.detailItem.property.id;
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request(
+                    `/api/properties/${id}/land-use`, { method: 'POST' });
+                if (ok) {
+                    this.detailLandUse = body || [];
+                    if (this.detailLandUse.length === 0) {
+                        this.error = '토지이용계획을 받지 못했습니다. 좌표·주소와 V-World 키를 확인해 주세요';
+                    }
+                } else {
+                    this.error = (body && body.message) || '토지이용계획 조회에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
         },
 
         /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */

@@ -177,7 +177,10 @@ public class LlmRecommendationService {
         sb.add("매매가/보증금(원): " + number(property.priceDeposit()));
         sb.add("월세(원): " + number(property.priceMonthly()));
         sb.add("관리비(원/월): " + number(property.maintenanceFee()));
-        sb.add("주소: " + text(firstNonBlank(property.addressRoad(), property.addressJibun())));
+        // 도로명만 주면 모델이 동 이름을 잘못 추정한다 — 실측에서 '삼성로 212'를 보고
+        // 대치동을 '삼성동'이라고 했다. 지번주소가 단지 식별에 더 정확하므로 둘 다 준다 (설계 I71)
+        sb.add("지번주소: " + text(property.addressJibun()));
+        sb.add("도로명주소: " + text(property.addressRoad()));
         sb.add("공급면적(㎡): " + number(property.areaSupplyM2()));
         sb.add("전용면적(㎡): " + number(property.areaExclusiveM2()));
         sb.add("해당층/총층: " + (property.floorNo() == null ? "정보 없음"
@@ -263,14 +266,6 @@ public class LlmRecommendationService {
         return value == null ? "정보 없음" : String.valueOf(value);
     }
 
-    private String firstNonBlank(String... values) {
-        for (final String value : values) {
-            if (value != null && !value.isBlank()) {
-                return value;
-            }
-        }
-        return null;
-    }
 
     record Verdict(BigDecimal score, String reason) {
     }

@@ -33,7 +33,7 @@ public class ClaudeLlmAdapter implements LlmPort {
     public ClaudeLlmAdapter(ClaudeFeignClient client,
                             ObjectMapper objectMapper,
                             @Value("${llm.claude.api-key:}") String apiKey,
-                            @Value("${llm.claude.model:claude-sonnet-4-5-20250929}") String model) {
+                            @Value("${llm.claude.model:claude-opus-5}") String model) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;

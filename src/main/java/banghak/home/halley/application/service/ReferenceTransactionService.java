@@ -27,6 +27,11 @@ import java.util.Optional;
 @Service
 public class ReferenceTransactionService {
 
+    /** 같은 타입으로 볼 전용면적 오차. */
+    private static final double AREA_TOLERANCE = 0.15;
+    /** 이보다 짧은 단지명은 우연히 걸린다 — 판정에 쓰지 않는다. */
+    private static final int MIN_NAME_LENGTH = 2;
+
     private final PropertyRepository propertyRepository;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final MinistryReferencePort ministryReferencePort;
@@ -82,22 +87,50 @@ public class ReferenceTransactionService {
     }
 
     /**
-     * 같은 단지이거나 전용면적이 ±15% 안이면 참고 대상으로 본다.
+     * 참고 대상 판정 — <b>같은 단지의 같은 면적대</b>여야 한다 (설계 I71).
      *
-     * <p>예전에는 <b>단지명만 같으면 면적을 보지 않고</b> 받아들였습니다. 그러면 84㎡ 매물에
-     * 같은 단지의 59㎡ 거래가 섞여 들어와, 이 값들로 담보가치를 매기면 크게 낮아집니다(설계 I65).
-     * 면적을 아는 경우에는 단지명이 같아도 면적을 함께 봅니다.
+     * <p>예전에는 면적만 맞으면 받아들였습니다. 그러면 <b>같은 법정동의 다른 단지</b> 거래가
+     * 통째로 섞입니다. 실측(대치동 84㎡)에서 21억·20.5억과 함께 9.85억·13억이 들어왔습니다 —
+     * 이 값들로 담보가치를 매기면 크게 틀어집니다.
+     *
+     * <p>단지명은 표기가 흔들립니다(`은마` / `은마아파트` / `은마아파트(테스트)`). 괄호·`아파트`·
+     * 공백을 걷어내고 <b>한쪽이 다른 쪽을 품는지</b>로 봅니다. 두 글자 미만은 우연히 걸리므로 뺍니다.
+     *
+     * <p>단지명을 확인할 수 없을 때만 면적으로 폴백합니다. <b>이름이 다르면 제외</b>합니다 —
+     * 참고 카드가 비는 것이 남의 단지 가격을 이 매물 것처럼 보여주는 것보다 낫습니다.
      */
     private boolean matches(Property property, ReferenceTrade trade) {
-        final boolean sameComplex = property.name() != null && trade.apartmentName() != null
-                && property.name().equalsIgnoreCase(trade.apartmentName());
+        final String propertyName = normalizeComplexName(property.name());
+        final String tradeName = normalizeComplexName(trade.apartmentName());
+        final boolean nameKnown = propertyName != null && tradeName != null;
         final boolean areaKnown = property.areaExclusiveM2() != null && trade.areaM2() != null
                 && property.areaExclusiveM2().signum() > 0;
+
+        if (nameKnown && !sameComplex(propertyName, tradeName)) {
+            return false;
+        }
         if (!areaKnown) {
-            return sameComplex;
+            return nameKnown;
         }
         final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
-        return diff / property.areaExclusiveM2().doubleValue() <= 0.15;
+        return diff / property.areaExclusiveM2().doubleValue() <= AREA_TOLERANCE;
+    }
+
+    private boolean sameComplex(String left, String right) {
+        return left.contains(right) || right.contains(left);
+    }
+
+    /** `은마아파트(테스트)` → `은마`. 표기 흔들림을 걷어낸다. */
+    private String normalizeComplexName(String name) {
+        if (name == null) {
+            return null;
+        }
+        final String normalized = name
+                .replaceAll("\\(.*?\\)", "")
+                .replaceAll("아파트|APT|apt", "")
+                .replaceAll("\\s+", "")
+                .toLowerCase(java.util.Locale.ROOT);
+        return normalized.length() < MIN_NAME_LENGTH ? null : normalized;
     }
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions) {

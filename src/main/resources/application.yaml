@@ -59,6 +59,9 @@ feign:
       vworld-housing-price:
         connectTimeout: 3000
         readTimeout: 8000
+      vworld-land-use:
+        connectTimeout: 3000
+        readTimeout: 8000
       claude-llm:
         connectTimeout: 5000
         # LLM은 생성에 시간이 걸린다. 비동기 보정에서만 부르므로 길게 잡아도 화면을 막지 않는다
@@ -101,6 +104,10 @@ resilience4j:
         baseConfig: default
         failureRateThreshold: 40
         waitDurationInOpenState: 30s
+      vworld-land-use:
+        baseConfig: default
+        failureRateThreshold: 40
+        waitDurationInOpenState: 30s
       claude-llm:
         baseConfig: default
         slidingWindowSize: 5
@@ -108,13 +115,42 @@ resilience4j:
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
 
+  # TimeLimiter를 명시하지 않으면 기본 1초가 걸린다 (설계 I70).
+  # Feign의 readTimeout을 아무리 늘려도 그 전에 잘려 LLM 호출이 100% 타임아웃했다.
+  # 각 값은 해당 클라이언트의 readTimeout보다 넉넉히 크게 둔다.
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 15s
+        cancelRunningFuture: true
+    instances:
+      kakao-local:
+        baseConfig: default
+      kakao-directions:
+        baseConfig: default
+      odsay:
+        baseConfig: default
+        timeoutDuration: 20s
+      slack-webhook:
+        baseConfig: default
+      ministry-reference:
+        baseConfig: default
+      vworld-housing-price:
+        baseConfig: default
+      vworld-land-use:
+        baseConfig: default
+      claude-llm:
+        baseConfig: default
+        # 생성에 시간이 걸린다. Feign readTimeout(60s)보다 크게 잡아야 그쪽이 제어권을 갖는다
+        timeoutDuration: 70s
+
 llm:
   enabled: ${LLM_ENABLED:true}
   provider: ${LLM_PROVIDER:claude}
   claude:
     api-key: ${ANTHROPIC_API_KEY:}
     base-url: https://api.anthropic.com
-    model: ${LLM_CLAUDE_MODEL:claude-sonnet-4-5-20250929}
+    model: ${LLM_CLAUDE_MODEL:claude-opus-5}
 
 slack:
   enabled: ${SLACK_ENABLED:false}

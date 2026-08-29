@@ -41,10 +41,11 @@ class PropertyEnrichmentServiceTest {
             mock(ReferenceTransactionService.class);
 
     private final LlmRecommendationService llmRecommendationService = mock(LlmRecommendationService.class);
+    private final LandUseService landUseService = mock(LandUseService.class);
 
     private final PropertyEnrichmentService service = new PropertyEnrichmentService(
             propertyRepository, kakaoLocalPort, housingPricePort, geoService,
-            referenceTransactionService, llmRecommendationService);
+            referenceTransactionService, llmRecommendationService, landUseService);
 
     @Test
     @DisplayName("초등학교가 비어 있으면 카카오 최근접 초등학교로 채우고 출처를 KAKAO로 남긴다")
