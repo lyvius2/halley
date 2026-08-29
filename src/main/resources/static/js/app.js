@@ -154,6 +154,7 @@ function halley() {
         propertyForm: emptyPropertyForm(),
         propertyQuery: '',
         propertyAddrResults: [],
+        propertyAddrError: null,
         showAddMenu: false,
         showPasteModal: false,
         pasteText: '',
@@ -2086,13 +2087,33 @@ function halley() {
             this.showPropertyForm = true;
         },
 
+        /**
+         * 주소로 좌표를 찾는다. <b>실패와 '결과 없음'을 구분해 알린다</b> — 예전에는 둘 다
+         * 빈 배열로 끝나 화면에 아무 변화가 없었고, 사용자에게는 '호출이 안 되는' 것으로 보였다.
+         */
         async searchPropertyAddress() {
             const query = this.propertyQuery;
             if (!query || !query.trim()) {
                 return;
             }
-            const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
-            this.propertyAddrResults = ok ? (body || []) : [];
+            this.propertyAddrError = null;
+            this.propertyAddrResults = [];
+            try {
+                const { ok, body } = await this.request('/api/geo/search?query=' + encodeURIComponent(query));
+                if (!ok) {
+                    this.propertyAddrError = (body && body.message) || '주소 검색에 실패했습니다';
+                    return;
+                }
+                this.propertyAddrResults = body || [];
+                if (this.propertyAddrResults.length === 0) {
+                    // 카카오 주소검색은 실제 주소를 매칭한다. '화성시 동탄'처럼 법정동이 아닌
+                    // 이름이나 단지명으로는 0건이 나온다
+                    this.propertyAddrError =
+                        '검색 결과가 없습니다. 지번 주소로 입력해 보세요 (예: 서울 강남구 대치동 316)';
+                }
+            } catch (e) {
+                this.propertyAddrError = '네트워크 오류가 발생했습니다';
+            }
         },
 
         selectPropertyAddress(r) {
@@ -2102,6 +2123,7 @@ function halley() {
             this.propertyForm.lng = r.lng != null ? String(r.lng) : '';
             this.propertyQuery = r.addressName || '';
             this.propertyAddrResults = [];
+            this.propertyAddrError = null;
         },
 
         closePropertyForm() {
