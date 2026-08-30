@@ -4,9 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class NaverListingTextParserTest {
 
@@ -233,10 +233,20 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("agentRegistrationNo").value()).isEqualTo("41450-2025-00088");
     }
 
+    /**
+     * 픽스처는 <b>저장소에 없습니다</b> (설계 I83). 실제 매물 페이지를 그대로 담고 있어
+     * 공인중개사 성함·휴대폰 번호 같은 개인정보가 들어갑니다.
+     *
+     * <p>없으면 <b>실패가 아니라 건너뜁니다.</b> 파일이 없다는 이유로 빨간 실패가 뜨면
+     * 진짜 회귀와 구분되지 않습니다 — 원인 모를 실패는 결국 무시하게 됩니다.
+     */
     private String fixture(String name) {
+        final var resource = getClass().getClassLoader().getResource("fixtures/" + name);
+        assumeTrue(resource != null,
+                "픽스처 " + name + " 없음 - 개인정보가 있어 저장소에 두지 않습니다 (설계 I83). "
+                        + "src/test/resources/fixtures/ 에 실제 붙여넣기를 두면 검증됩니다.");
         try {
-            final var resource = getClass().getClassLoader().getResource("fixtures/" + name);
-            return new String(Objects.requireNonNull(resource).openStream().readAllBytes(), StandardCharsets.UTF_8);
+            return new String(resource.openStream().readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("fixture 로드 실패: " + name, e);
         }
