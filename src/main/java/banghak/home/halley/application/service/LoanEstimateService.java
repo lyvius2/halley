@@ -38,6 +38,8 @@ import banghak.home.halley.domain.loan.LoanEstimate;
 import banghak.home.halley.domain.loan.LoanEstimateResult;
 import banghak.home.halley.domain.loan.ProductType;
 import banghak.home.halley.domain.loan.RegulationParam;
+import banghak.home.halley.domain.finance.LoanProductType;
+import banghak.home.halley.domain.finance.MarketRate;
 import banghak.home.halley.domain.loan.RegulationParams;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -65,6 +67,7 @@ public class LoanEstimateService {
     private final SystemConfigRepository systemConfigRepository;
     private final LoanEstimateRepository loanEstimateRepository;
     private final RegulationNoticeService regulationNoticeService;
+    private final MarketRateService marketRateService;
     private final ObjectMapper objectMapper;
 
     public LoanEstimateService(PropertyRepository propertyRepository,
@@ -75,6 +78,7 @@ public class LoanEstimateService {
                                SystemConfigRepository systemConfigRepository,
                                LoanEstimateRepository loanEstimateRepository,
                                RegulationNoticeService regulationNoticeService,
+                               MarketRateService marketRateService,
                                ObjectMapper objectMapper) {
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
@@ -84,6 +88,7 @@ public class LoanEstimateService {
         this.systemConfigRepository = systemConfigRepository;
         this.loanEstimateRepository = loanEstimateRepository;
         this.regulationNoticeService = regulationNoticeService;
+        this.marketRateService = marketRateService;
         this.objectMapper = objectMapper;
     }
 
@@ -112,7 +117,10 @@ public class LoanEstimateService {
                 .orElseThrow(NotFoundListingsException::new);
         final long price = property.priceDeposit() == null ? 0L : property.priceDeposit();
         final Map<String, String> rawParams = loadRawParams();
-        final RegulationParams params = loadParams(rawParams);
+        final boolean jeonse = property.dealType() != DealType.SALE;
+        final Optional<MarketRate> marketRate = marketRateService.find(
+                jeonse ? LoanProductType.JEONSE : LoanProductType.MORTGAGE);
+        final RegulationParams params = withMarketRate(loadParams(rawParams), marketRate);
 
         // 입력이 비면 로그인 사용자의 프로필로 채운다 — 모달을 열자마자 결과가 보여야 한다 (설계 I55)
         final Optional<User> me = currentUser();
@@ -120,18 +128,50 @@ public class LoanEstimateService {
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
 
-        if (property.dealType() != DealType.SALE) {
+        if (jeonse) {
             return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan,
-                    rawParams, params);
+                    rawParams, params, marketRate);
         }
         return estimateMortgage(propertyId, property, price, annualIncome, cash, existingLoan,
-                request, rawParams, params);
+                request, rawParams, params, marketRate);
+    }
+
+    /**
+     * 시장 금리를 받았으면 <b>`interestRate`만</b> 갈아 끼운다 (설계 I81).
+     *
+     * <p>한도 산식은 건드리지 않습니다. 금감원이 주는 `loan_lmt`는 `"LTV 70% 이내"` 같은
+     * 서술 문장이라, 파싱해서 얹으면 규제 파라미터와 같은 제약이 두 번 걸립니다.
+     *
+     * <p>{@code stressRate}도 그대로 둡니다 — DSR은 스트레스 금리로 계산합니다(I64-2).
+     * 시장 금리로 역산하면 한도가 부풀려집니다.
+     */
+    private RegulationParams withMarketRate(RegulationParams params, Optional<MarketRate> marketRate) {
+        return marketRate
+                .map(rate -> new RegulationParams(
+                        params.ltvRate(), params.totalCap(), params.dsrRatio(),
+                        rate.rate(), params.stressRate(), params.termYears(),
+                        params.acquisitionTaxRate(), params.firstHomeDiscount(),
+                        params.leaseDeduction(), params.officialPriceRatio()))
+                .orElse(params);
+    }
+
+    /**
+     * 금리가 어디서 왔는지 (설계 I81). 못 받아 기본값으로 떨어졌으면 <b>그 사실을 밝힙니다</b> —
+     * 조용히 다른 값을 쓰면 사용자는 검증할 수 없습니다.
+     */
+    private String rateSource(Optional<MarketRate> marketRate, RegulationParams params) {
+        return marketRate
+                .map(MarketRate::describe)
+                .orElseGet(() -> String.format("기본 금리 %s%% 적용 중 (공시 금리를 받지 못했습니다)",
+                        params.interestRate().multiply(java.math.BigDecimal.valueOf(100))
+                                .stripTrailingZeros().toPlainString()));
     }
 
     private LoanEstimateResponse estimateMortgage(Long propertyId, Property property, long askingPrice,
                                                   long annualIncome, long cash, long existingLoan,
                                                   LoanEstimateRequest request,
-                                                  Map<String, String> rawParams, RegulationParams params) {
+                                                  Map<String, String> rawParams, RegulationParams params,
+                                                  Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
@@ -158,12 +198,14 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
-                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning());
+                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning(),
+                rateSource(marketRate, params));
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
                                                 long annualIncome, long cash, long existingLoan,
-                                                Map<String, String> rawParams, RegulationParams params) {
+                                                Map<String, String> rawParams, RegulationParams params,
+                                                Optional<MarketRate> marketRate) {
         final JeonseTerms terms = JeonsePolicy.resolve(rawParams, params);
         final JeonseEstimateResult result = new JeonseLoanCalculator(terms)
                 .estimate(new JeonseEstimateInput(deposit, annualIncome, cash, existingLoan), params);
@@ -176,7 +218,8 @@ public class LoanEstimateService {
                 jeonseAssumptions(annualIncome, cash, existingLoan, terms, result),
                 Instant.now()));
 
-        return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan);
+        return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan,
+                rateSource(marketRate, params));
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {

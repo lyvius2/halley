@@ -2531,6 +2531,17 @@ function halley() {
             return p.moveInDate || '-';
         },
 
+        /**
+         * 월 이율을 연 이율 퍼센트로 되돌린다 (설계 I81).
+         * 서버는 스트레스 금리를 더한 월 이율을 주므로 화면 표기도 그 기준이다.
+         */
+        fmtRate(monthlyRate) {
+            if (monthlyRate == null) {
+                return '-';
+            }
+            return (monthlyRate * 12 * 100).toFixed(2) + '%';
+        },
+
         fmtWon(won) {
             if (won == null || won === 0) {
                 return '0원';

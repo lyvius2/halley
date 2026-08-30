@@ -222,8 +222,8 @@ system_config.loan.regulation.profile        ← 활성 프로파일 지정
 
 ## 6. 금감원 공시 금리를 어디에 쓰는가 (설계 I77)
 
-port와 adapter를 붙였습니다(`FinanceProductPort` · `FssFinanceProductAdapter`).
-**아직 서비스에 연결하지 않았습니다** — 무엇에 쓸지 정한 뒤 붙입니다.
+**연결했습니다**(I81). `FinanceProductPort` → `MarketRateService` → `LoanEstimateService`.
+아래는 무엇을 쓰고 무엇을 안 썼는지에 대한 기록입니다.
 
 ### 6.1 지금 금리가 어떻게 쓰이는가
 
@@ -292,12 +292,27 @@ loan.stressRate   = 0.055  ← DSR 역산
 | 실패 시 | **규제 파라미터의 기본 금리로 떨어뜨린다.** 금리는 보조 입력이고 대출 계산 자체는 계속 돌아야 한다 (12.2 원칙) |
 | 표시 | 떨어뜨렸으면 "기본 금리 4% 적용 중"이라고 밝힌다 — 조용히 다른 값을 쓰지 않는다 |
 
-### 6.6 남은 판단
+### 6.6 실제로 붙인 모습
 
-- **금리유형(고정/변동)을 사용자가 고를지, 앱이 정할지.** 지금은 변동이 기본이지만
-  상환 계획에 따라 갈립니다.
-- **전세대출 금리를 같은 흐름에 태울지.** `rentHouseLoanProductsSearch`는 붙여 뒀지만
-  전세는 이자만 내므로 월 상환액 계산이 다릅니다(I67).
+```
+LoanEstimateService.estimate()
+  └ MarketRateService.find(MORTGAGE | JEONSE)     ← 캐시 우선, 없으면 조회
+       └ withMarketRate(params, rate)             ← interestRate 하나만 교체
+            └ LoanCalculator / JeonseLoanCalculator (변경 없음)
+```
+
+전세도 같은 흐름에 태웠습니다 — `LoanProductType`으로 엔드포인트만 갈리고,
+월 상환액 계산이 다른 것은 `JeonseLoanCalculator`가 이미 처리합니다(I67).
+
+`MarketRateJob`이 매일 04:30에 갱신합니다. 규제지역(04:00)과 시간을 벌려
+기동 직후 외부 호출이 몰리지 않게 했습니다.
+
+### 6.7 남은 판단
+
+- **금리유형(고정/변동)을 사용자가 고를지.** 지금은 `loan.market-rate.type`으로
+  변동이 기본입니다. 상환 계획에 따라 갈리므로 화면에서 고르게 할 수 있습니다.
+- **권역을 넓힐지.** 지금은 은행만 봅니다. 저축은행·보험을 섞으면 중앙값이 왜곡되므로,
+  넓힌다면 사용자가 권역을 고르는 형태여야 합니다.
 
 ---
 
@@ -307,7 +322,7 @@ loan.stressRate   = 0.055  ← DSR 역산
 |---|---|---|
 | ~~**1**~~ | ~~방공제·담보가치 우선순위 반영 (2.1·2.3)~~ | **완료** — I64·I65 |
 | ~~**2**~~ | ~~생애최초·다주택·규제지역 분기 (`MortgagePolicy`)~~ | **완료** — I66 |
-| **3** | 금감원 상품·금리 연동 (`FinanceProductPort`) | **진행 중** — port·adapter 완료(I77), 서비스 연결 남음 |
+| ~~**3**~~ | ~~금감원 상품·금리 연동~~ | **완료** — I77·I81 |
 | ~~**4**~~ | ~~규제 프로파일 관리 화면~~ | **완료** — I68 (규제지역 관리 포함) |
 | **5** | 기존 부채 종류별 DSR 산정 | 작음 — 입력 항목 추가 |
 

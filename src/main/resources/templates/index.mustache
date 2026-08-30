@@ -1484,6 +1484,9 @@
                         <small x-text="loanResult.interestOnly
                             ? `${loanResult.termMonths / 12}년 만기일시 · 이자만`
                             : `${loanResult.termMonths / 12}년 원리금균등`"></small>
+                        <!-- 어디서 온 금리인지 안 보이면 사용자는 검증할 수 없다 (설계 I81) -->
+                        <small class="loan-rate-source" x-show="loanResult.rateSource"
+                               x-text="fmtRate(loanResult.monthlyRate) + ' · ' + loanResult.rateSource"></small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>

@@ -1552,3 +1552,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
 }
 .score-item-others b { color: var(--ocean); font-weight: 600; }
 .score-item-others-n { color: var(--ink3); opacity: .7; }
+
+/* 금리 출처 — 담보가치 출처와 같은 원칙으로, 숫자 옆에 근거를 붙인다 (설계 I81) */
+.loan-rate-source { color: var(--ink3); font-size: 10.5px; line-height: 1.35; }
