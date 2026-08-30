@@ -106,7 +106,7 @@ function halley() {
         itinPlan: null,
         _itinMarkers: {},
         _itinPolyline: null,
-        sessionExpiresAt: 0,
+        sessionExpiresAt: null,
         _sessionTimer: null,
         showSessionWarn: false,
         showUserForm: false,
@@ -313,8 +313,11 @@ function halley() {
             const { ok, body } = await this.request('/api/auth/session');
             if (ok) {
                 this.session = Object.assign({ authenticated: true }, body);
+                // 남은 시간을 모를 수도 있다. 0을 넣으면 tickSession이 '이미 만료'로 읽어
+                // 15초 만에 로그아웃시킨다 (설계 I120) — 임시 비밀번호 변경 화면이
+                // 갑자기 로그인 화면으로 바뀌던 원인이다. 모르는 것과 만료된 것은 다르다
                 this.sessionExpiresAt = body.expiresInSeconds != null
-                    ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                    ? Date.now() + body.expiresInSeconds * 1000 : null;
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
@@ -1668,7 +1671,7 @@ function halley() {
                 if (ok) {
                     this.session = Object.assign({ authenticated: true }, body);
                     this.sessionExpiresAt = body.expiresInSeconds != null
-                        ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                        ? Date.now() + body.expiresInSeconds * 1000 : null;
                     this.startSessionTimer();
                     this.loginForm = { loginId: '', password: '' };
                     this.showLogin = false;
@@ -1723,7 +1726,7 @@ function halley() {
             }
             this.stopSessionTimer();
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
-            this.sessionExpiresAt = 0;
+            this.sessionExpiresAt = null;
             this.users = [];
             this.properties = [];
             this.visibleProperties = [];
@@ -1752,6 +1755,10 @@ function halley() {
 
         tickSession() {
             if (!this.session.authenticated) {
+                return;
+            }
+            // 만료 시각을 모르면 아무 판단도 하지 않는다 (설계 I120)
+            if (this.sessionExpiresAt == null) {
                 return;
             }
             const remain = this.sessionExpiresAt - Date.now();
@@ -2609,6 +2616,17 @@ function halley() {
             if (fresh.ok && fresh.body) {
                 this.applyScoreForm(fresh.body);
             }
+        },
+
+        /**
+         * 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121).
+         *
+         * 쾌적함은 직접 가 보지 않으면 매길 수 없는 항목이라, 점수가 있다는 것은
+         * 임장을 다녀왔다는 뜻이다. 따로 '다녀옴' 칸을 두면 사람이 또 눌러야 한다.
+         */
+        hasVisited(scored) {
+            return (scored?.scores || []).some(
+                s => s.code === 'COMFORT' && s.effectiveScore != null);
         },
 
         /**

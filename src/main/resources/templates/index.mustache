@@ -93,6 +93,9 @@
                                         <span class="group-badge" x-show="r.property.groupName"
                                               :title="'그룹: ' + r.property.groupName"
                                               x-text="r.property.groupName"></span>
+                                        <!-- 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121) -->
+                                        <span class="badge b-visited" x-show="hasVisited(r)"
+                                              title="공간의 쾌적함이 채점되어 있습니다">🚩 임장완료</span>
                                         <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
@@ -521,7 +524,7 @@
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
             <h3>비밀번호 변경</h3>
-            <p>최초 로그인 또는 임시 비밀번호로 접속하셨습니다. 새 비밀번호를 설정해야 계속할 수 있습니다.</p>
+            <p>최초 로그인 또는 임시 비밀번호로 접속하셨습니다.<br>새 비밀번호를 설정해야 계속할 수 있습니다.</p>
         </div>
         <form class="form" @submit.prevent="changePassword()">
             <label>현재 비밀번호
@@ -541,7 +544,8 @@
 <!-- D2-2 프로필 확인 (강제 — 설계 6.1 · I48 · I100) -->
 <div class="modal" x-show="showProfileSetup" x-cloak>
     <div class="modal-backdrop"></div>
-    <div class="modal-card modal-wide">
+    <!-- 로그인·비밀번호 화면과 같은 결로 (설계 I121). 초기 설정 흐름은 하나로 읽혀야 한다 -->
+    <div class="modal-card modal-wide modal-login">
         <div class="modal-head">
             <span class="modal-kicker">최초 설정</span>
             <h3>프로필을 확인해 주세요</h3>

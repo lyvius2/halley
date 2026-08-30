@@ -964,6 +964,17 @@ tr.dragging { opacity: .5; background: var(--line2); }
     align-self: center;
     white-space: nowrap;
 }
+/* 임장 완료 — 쾌적함이 채점됐다는 뜻이다 (설계 I121) */
+.badge.b-visited {
+    background: rgba(196, 149, 76, .14);
+    color: var(--gold, #b98a3e);
+    border-color: rgba(196, 149, 76, .35);
+    white-space: nowrap;
+}
+/* 프로필 확인 화면은 폭이 넓어 본문 글자도 밝게 맞춘다 */
+.modal-login .settings-note,
+.modal-login .form-grid label,
+.modal-login .coord-cell i { color: rgba(244, 241, 234, .72); }
 /* 내가 매긴 쾌적함 점수 — 그룹 평균과 구분해서 보여 준다 (설계 I118) */
 .score-item-mine {
     grid-column: 1 / -1;
