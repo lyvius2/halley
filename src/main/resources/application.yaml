@@ -27,6 +27,9 @@ odsay:
   transit-path: /v1/api/searchPubTransPathT
 
 ministry:
+  reference:
+    # 국토부 API는 한 달치만 준다. 이만큼 거슬러 훑는다 (설계 I98)
+    lookback-months: ${MINISTRY_LOOKBACK_MONTHS:24}
   service-key: ${MINISTRY_API_KEY:}
   base-url: https://apis.data.go.kr/1613000
 
