@@ -64,7 +64,7 @@ class UserRepositoryTest {
         return new User(
                 null, loginId, nickname,null, "hash", UserRole.MEMBER,
                 null, null, null,
-                true, 0L, null, null, true,
+                true, false, 0L, null, null, true,
                 null, null, null
         );
     }

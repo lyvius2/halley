@@ -20,6 +20,13 @@ public record User(
         BigDecimal workplaceLat,
         BigDecimal workplaceLng,
         boolean mustChangePassword,
+        /**
+         * 본인이 프로필을 확인했는지 (설계 I100).
+         *
+         * <p>관리자가 대신 넣은 값은 <b>채워져 있을 뿐</b>입니다. 직장이 어디인지, 현금이
+         * 얼마인지는 본인만 압니다 — 한 번은 보고 넘어가야 합니다.
+         */
+        boolean profileConfirmed,
         Long availableBudget,
         Long annualIncome,
         Long existingLoan,
@@ -31,7 +38,7 @@ public record User(
 
     /** 그룹을 옮긴다 (설계 I87). */
     public User withGroupId(Long groupId) {
-        return new User(id(), loginId(), nickname(), groupId, passwordHash(), role(), workplaceName(), workplaceLat(), workplaceLng(), mustChangePassword(), availableBudget(), annualIncome(), existingLoan(), enabled(), disabledAt(), disabledBy(), createdAt());
+        return new User(id(), loginId(), nickname(), groupId, passwordHash(), role(), workplaceName(), workplaceLat(), workplaceLng(), mustChangePassword(), false, availableBudget(), annualIncome(), existingLoan(), enabled(), disabledAt(), disabledBy(), createdAt());
     }
 
 

@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
     workplace_lat        DECIMAL(12, 8),
     workplace_lng        DECIMAL(12, 8),
     must_change_password BOOLEAN       NOT NULL DEFAULT TRUE,
+    profile_confirmed    BOOLEAN       NOT NULL DEFAULT FALSE,
     available_budget     BIGINT        NOT NULL DEFAULT 0,
     annual_income        BIGINT       NOT NULL DEFAULT 0,
     existing_loan        BIGINT       NOT NULL DEFAULT 0,

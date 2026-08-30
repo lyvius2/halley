@@ -18,6 +18,7 @@ public class HalleyUserDetails implements UserDetails {
     private final boolean enabled;
     private boolean mustChangePassword;
     private boolean profileComplete;
+    private boolean profileConfirmed;
 
     public HalleyUserDetails(User user) {
         this.id = user.id();
@@ -28,6 +29,7 @@ public class HalleyUserDetails implements UserDetails {
         this.enabled = user.enabled();
         this.mustChangePassword = user.mustChangePassword();
         this.profileComplete = user.profileComplete();
+        this.profileConfirmed = user.profileConfirmed();
     }
 
     public Long getId() {
@@ -44,6 +46,14 @@ public class HalleyUserDetails implements UserDetails {
 
     public boolean isMustChangePassword() {
         return mustChangePassword;
+    }
+
+    public boolean isProfileConfirmed() {
+        return profileConfirmed;
+    }
+
+    public void setProfileConfirmed(boolean profileConfirmed) {
+        this.profileConfirmed = profileConfirmed;
     }
 
     public boolean isProfileComplete() {

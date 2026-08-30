@@ -1702,3 +1702,9 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 잘못 켜면 한도가 실제보다 높게 나오는 항목이라 눈에 띄어야 한다 */
 .loan-help-warn { margin: 0; color: #a8492f; }
 .loan-help-warn b { color: #a8492f; }
+
+/* 주소를 고르면 채워지는 좌표. 직접 넣는 값이 아니라 주소 바로 아래 붙인다 (설계 I100) */
+.coord-row { display: flex; gap: 8px; margin-top: 6px; }
+.coord-cell { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.coord-cell i { font-style: normal; font-size: 11px; color: var(--ink3); white-space: nowrap; }
+.coord-cell input { flex: 1; min-width: 0; }

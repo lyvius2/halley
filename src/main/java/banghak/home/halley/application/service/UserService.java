@@ -104,7 +104,8 @@ public class UserService {
         final User updated = userRepository.update(new User(
                 user.id(), user.loginId(), nickname,null, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                user.mustChangePassword(), newBudget,
+                // 저장했다는 것은 본인이 값을 보고 넘어갔다는 뜻이다 (설계 I100)
+                user.mustChangePassword(), true, newBudget,
                 request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
                 request.existingLoan() != null ? request.existingLoan() : user.existingLoanOrZero(),
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
@@ -179,9 +180,10 @@ public class UserService {
         if (!signUpOpen) {
             throw new SignUpClosedException();
         }
+        // 방금 자기가 정한 비밀번호다. 다시 바꾸라고 하지 않는다
         return create(new CreateUserRequest(
                 request.loginId(), request.nickname(), null, request.password(),
-                UserRole.MEMBER, null, null, null, 0L, 0L, 0L));
+                UserRole.MEMBER, null, null, null, 0L, 0L, 0L), false);
     }
 
     /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다. */
@@ -256,6 +258,16 @@ public class UserService {
     }
 
     public UserResponse create(CreateUserRequest request) {
+        return create(request, true);
+    }
+
+    /**
+     * @param mustChangePassword 첫 로그인에 비밀번호를 바꾸게 할지 (설계 I100).
+     *                           <b>관리자가 만든 계정은 그렇습니다</b> — 남이 정한 비밀번호를
+     *                           그대로 쓰면 안 됩니다. 스스로 가입한 사람은 방금 자기가
+     *                           정했으므로 다시 묻지 않습니다
+     */
+    public UserResponse create(CreateUserRequest request, boolean mustChangePassword) {
         if (userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
         }
@@ -273,7 +285,8 @@ public class UserService {
                 request.workplaceName(),
                 request.workplaceLat(),
                 request.workplaceLng(),
-                true,
+                mustChangePassword,
+                false,
                 request.availableBudget() == null ? 0L : request.availableBudget(),
                 request.annualIncome() == null ? 0L : request.annualIncome(),
                 request.existingLoan() == null ? 0L : request.existingLoan(),
@@ -302,7 +315,7 @@ public class UserService {
                 request.workplaceName(),
                 request.workplaceLat(),
                 request.workplaceLng(),
-                user.mustChangePassword(),
+                user.mustChangePassword(), false,
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
                 request.annualIncome() == null ? user.annualIncomeOrZero() : request.annualIncome(),
                 request.existingLoan() == null ? user.existingLoanOrZero() : request.existingLoan(),
@@ -343,7 +356,7 @@ public class UserService {
         final User updated = userRepository.update(new User(
                 user.id(), user.loginId(), user.nickname(), user.groupId(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(),
+                user.mustChangePassword(), false, user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
                 enabled ? null : now,
                 enabled ? null : currentAdminId(),
@@ -362,7 +375,7 @@ public class UserService {
                 user.id(), user.loginId(), user.nickname(), user.groupId(),
                 passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                true, user.availableBudget(),
+                true, false, user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         return new ResetPasswordResponse(temporaryPassword);

@@ -28,7 +28,7 @@ public final class GroupTestSupport {
         final UserGroup group = groups.save(new UserGroup(null, "테스트그룹" + n, null, null, Instant.now()));
         final User saved = users.save(new User(
                 null, "tester" + n, "테스터" + n, group.id(), "hash", UserRole.MEMBER,
-                null, null, null, false, 0L, 0L, 0L, true, null, null, Instant.now()));
+                null, null, null, false, false, 0L, 0L, 0L, true, null, null, Instant.now()));
         login(saved);
         return group.id();
     }

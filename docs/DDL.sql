@@ -685,3 +685,8 @@ ALTER TABLE property DROP COLUMN IF EXISTS price_monthly;
 -- 알림도 그룹 경계를 지켜야 한다. 전역 웹훅 하나로 보내면 우리 매물이
 -- 남의 채널에 뜬다. 매물 알림은 그 매물의 그룹 웹훅으로만 나간다.
 ALTER TABLE user_group ADD COLUMN IF NOT EXISTS slack_webhook_url VARCHAR(500);
+
+-- ===== 20. 프로필 확인 (설계 I100) =====
+-- 관리자가 대신 넣은 정보를 본인이 한 번 확인해야 한다.
+-- 값이 채워져 있는 것과 본인이 맞다고 한 것은 다르다.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_confirmed BOOLEAN NOT NULL DEFAULT FALSE;

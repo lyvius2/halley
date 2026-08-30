@@ -23,6 +23,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.EN
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.MUST_CHANGE_PASSWORD;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.GROUP_ID;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.PROFILE_CONFIRMED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.NICKNAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.PASSWORD_HASH;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ROLE;
@@ -52,6 +53,7 @@ public class UserRepository {
                 .set(WORKPLACE_LAT, user.workplaceLat())
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
+                .set(PROFILE_CONFIRMED, user.profileConfirmed())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
                 .set(ANNUAL_INCOME, user.annualIncomeOrZero())
                 .set(EXISTING_LOAN, user.existingLoanOrZero())
@@ -72,7 +74,7 @@ public class UserRepository {
                 user.workplaceName(),
                 user.workplaceLat(),
                 user.workplaceLng(),
-                user.mustChangePassword(),
+                user.mustChangePassword(), false,
                 user.availableBudget(),
                 user.annualIncomeOrZero(),
                 user.existingLoanOrZero(),
@@ -94,6 +96,7 @@ public class UserRepository {
                 .set(WORKPLACE_LAT, user.workplaceLat())
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
+                .set(PROFILE_CONFIRMED, user.profileConfirmed())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
                 .set(ANNUAL_INCOME, user.annualIncomeOrZero())
                 .set(EXISTING_LOAN, user.existingLoanOrZero())
@@ -164,6 +167,7 @@ public class UserRepository {
                 r.get(WORKPLACE_LAT),
                 r.get(WORKPLACE_LNG),
                 Boolean.TRUE.equals(r.get(MUST_CHANGE_PASSWORD)),
+                Boolean.TRUE.equals(r.get(PROFILE_CONFIRMED)),
                 r.get(AVAILABLE_BUDGET),
                 r.get(ANNUAL_INCOME),
                 r.get(EXISTING_LOAN),

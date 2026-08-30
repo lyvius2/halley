@@ -269,7 +269,11 @@ function halley() {
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
-                this.showProfileSetup = !this.showPassword && body.profileComplete === false;
+                // 값이 채워져 있는 것과 본인이 맞다고 한 것은 다르다 (설계 I100)
+                this.showProfileSetup = !this.showPassword && body.profileConfirmed === false;
+                if (this.showProfileSetup) {
+                    await this.prefillSetupForm();
+                }
                 // 초기 설정(비밀번호·프로필)이 끝나기 전에는 다른 API가 403이므로 호출하지 않는다
                 const setupPending = this.showPassword || this.showProfileSetup;
                 if (this.session.role === 'ADMIN' && !setupPending) {
@@ -663,6 +667,28 @@ function halley() {
             this.confirmState = null;
         },
 
+        /**
+         * 확인 화면을 지금 저장된 값으로 채운다 (설계 I100).
+         *
+         * 빈 화면을 주면 관리자가 넣어 둔 값을 <b>본인이 다시 타이핑</b>해야 하고,
+         * 그러다 원래 값이 뭐였는지 모른 채 덮어씁니다.
+         */
+        async prefillSetupForm() {
+            const { ok, body } = await this.request('/api/users/me');
+            if (!ok || !body) {
+                return;
+            }
+            this.setupForm = {
+                nickname: body.nickname || '',
+                workplaceName: body.workplaceName || '',
+                workplaceLat: body.workplaceLat ?? '',
+                workplaceLng: body.workplaceLng ?? '',
+                availableBudget: body.availableBudget ?? '',
+                annualIncome: body.annualIncome ?? '',
+                existingLoan: body.existingLoan ?? ''
+            };
+        },
+
         async loadProfile() {
             const { ok, body } = await this.request('/api/users/me');
             if (ok) {
@@ -702,7 +728,9 @@ function halley() {
                         await this.rememberStartLocation();
                         return;
                     }
-                    const form = target === 'setup' ? this.setupForm : this.profileForm;
+                    const form = target === 'setup' ? this.setupForm
+                        : target === 'user' ? this.userForm
+                        : this.profileForm;
                     form.workplaceName = label;
                     form.workplaceLat = coords.lat;
                     form.workplaceLng = coords.lng;

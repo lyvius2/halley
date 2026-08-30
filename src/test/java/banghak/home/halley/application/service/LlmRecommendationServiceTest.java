@@ -340,7 +340,7 @@ class LlmRecommendationServiceTest {
         when(userRepository.findByGroupId(7L)).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
                 new User(2L, "login2", "밥",null, "hash", UserRole.MEMBER,
-                        "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
+                        "판교역", null, null, false, false, 300_000_000L, 60_000_000L, 0L,
                         true, null, null, Instant.now())));
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
         when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -505,7 +505,7 @@ class LlmRecommendationServiceTest {
     private User user(Long id, String nickname, String workplace) {
         return new User(id, "login" + id, nickname,null, "hash", UserRole.MEMBER,
                 workplace, new BigDecimal("37.5"), new BigDecimal("127.0"),
-                false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
+                false, false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
     }
 
     private Property property() {
