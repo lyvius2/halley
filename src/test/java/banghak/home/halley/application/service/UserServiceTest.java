@@ -75,7 +75,7 @@ class UserServiceTest {
 
         // when
         final UserResponse updated = userService.update(created.id(), new UpdateUserRequest(
-                "update2", "update-user2", "새회사",
+                "update2", "update-user2", null, "새회사",
                 new BigDecimal("37.5"), new BigDecimal("127.0"), 100_000_000L, 60_000_000L, 0L));
 
         // then

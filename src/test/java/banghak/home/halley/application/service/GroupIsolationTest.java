@@ -1,7 +1,9 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
+import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
@@ -195,6 +197,50 @@ class GroupIsolationTest {
         // when · then — 남의 넷이 세어졌다면 실행 가능으로 나온다
         assertThat(comparativeAnalysisService.status().propertyCount()).isEqualTo(1);
         assertThat(comparativeAnalysisService.status().analysable()).isFalse();
+    }
+
+    @Test
+    @DisplayName("프로필을 저장해도 그룹은 그대로다 — 첫 로그인 확인 단계에서 그룹이 사라졌었다")
+    void savingProfileKeepsGroup() {
+        // given — 관리자가 그룹을 지정해 만든 회원
+        final String tag = "keep" + SEQ.incrementAndGet();
+        final Long groupId = userGroupRepository.save(
+                new UserGroup(null, "유지그룹" + tag, null, null, Instant.now())).id();
+        final Long userId = createMember(tag, groupId);
+        login(userId);
+
+        // when — 첫 로그인의 프로필 확인 단계
+        userService.updateProfile(new ProfileRequest("회원-" + tag, "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+
+        // then — 그룹이 사라지면 매물을 등록할 수도 볼 수도 없게 된다
+        assertThat(userRepository.findById(userId).orElseThrow().groupId()).isEqualTo(groupId);
+        login(userId);
+        assertThat(propertyService.create(request("확인 뒤 등록 " + tag)).id()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("관리자가 사용자 정보를 고쳐도 그룹과 프로필 확인 상태는 그대로다")
+    void adminEditKeepsGroupAndConfirmation() {
+        // given
+        final String tag = "edit" + SEQ.incrementAndGet();
+        final Long groupId = userGroupRepository.save(
+                new UserGroup(null, "수정그룹" + tag, null, null, Instant.now())).id();
+        final Long userId = createMember(tag, groupId);
+        login(userId);
+        userService.updateProfile(new ProfileRequest("회원-" + tag, "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+        GroupTestSupport.logout();
+
+        // when — 관리자가 닉네임만 고친다 (그룹은 안 보냄)
+        userService.update(userId, new UpdateUserRequest(
+                tag, "고친이름-" + tag, null, "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+
+        // then — 그룹도, 본인이 이미 한 확인도 유지된다
+        final var after = userRepository.findById(userId).orElseThrow();
+        assertThat(after.groupId()).isEqualTo(groupId);
+        assertThat(after.profileConfirmed()).isTrue();
     }
 
     private void loginAsNewMember(String tag) {

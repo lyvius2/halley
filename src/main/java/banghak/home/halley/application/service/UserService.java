@@ -102,7 +102,7 @@ public class UserService {
                 ? request.availableBudget() : user.availableBudget();
 
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), nickname,null, user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname, user.groupId(), user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
                 // 저장했다는 것은 본인이 값을 보고 넘어갔다는 뜻이다 (설계 I100)
                 user.mustChangePassword(), true, newBudget,
@@ -313,16 +313,21 @@ public class UserService {
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
             throw new DuplicateNicknameException();
         }
+        // 그룹을 안 보내면 지금 그룹을 그대로 둔다 (설계 I103)
+        final Long targetGroup = request.groupId() == null
+                ? user.groupId()
+                : resolveGroupId(user.role(), request.groupId());
         final User updated = userRepository.update(new User(
                 user.id(),
                 request.loginId(),
-                request.nickname(), user.groupId(),
+                request.nickname(), targetGroup,
                 user.passwordHash(),
                 user.role(),
                 request.workplaceName(),
                 request.workplaceLat(),
                 request.workplaceLng(),
-                user.mustChangePassword(), false,
+                // 관리자가 정보를 고쳤다고 본인 확인을 다시 받을 이유는 없다
+                user.mustChangePassword(), user.profileConfirmed(),
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
                 request.annualIncome() == null ? user.annualIncomeOrZero() : request.annualIncome(),
                 request.existingLoan() == null ? user.existingLoanOrZero() : request.existingLoan(),
@@ -333,7 +338,11 @@ public class UserService {
             scoringService.rescoreAll();
         }
         if (workplaceChanged(user, updated)) {
-            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
+            // 마지막 한 사람이 빠지면 그 그룹과 매물이 함께 사라진다 (규칙 4)
+        if (!java.util.Objects.equals(user.groupId(), targetGroup)) {
+            groupService.deleteIfEmpty(user.groupId());
+        }
+        eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -423,9 +432,16 @@ public class UserService {
         return null;
     }
 
+    /** 관리자 목록에서 누가 어느 그룹인지 보여야 옮길 판단을 할 수 있다 (설계 I103). */
+    private String groupNameOf(Long groupId) {
+        return groupId == null ? null
+                : userGroupRepository.findById(groupId).map(UserGroup::name).orElse(null);
+    }
+
     private UserResponse toResponse(User user) {
         return new UserResponse(
-                user.id(), user.loginId(), user.nickname(), user.role(),
+                user.id(), user.loginId(), user.nickname(),
+                user.groupId(), groupNameOf(user.groupId()), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.availableBudget(), user.annualIncomeOrZero(), user.existingLoanOrZero(),
                 user.enabled(), user.mustChangePassword(), user.createdAt());

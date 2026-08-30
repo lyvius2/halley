@@ -776,16 +776,21 @@
                 </label>
                 <!-- x-if 템플릿은 자식이 여럿이면 첫 번째만 렌더링한다 (설계 I100).
                      그래서 비밀번호·역할이 화면에서 사라져 있었다. 각 칸에 x-show를 건다 -->
-                <label x-show="!editingUserId">소속 그룹
+                <label x-show="userForm.role !== 'ADMIN'">소속 그룹
                     <select x-model="userForm.groupId">
-                        <option value="">새 그룹 자동 생성</option>
+                        <option value="" x-text="editingUserId ? '그대로 두기' : '새 그룹 자동 생성'"></option>
                         <template x-for="g in groups" :key="g.id">
                             <option :value="g.id"
                                     x-text="g.name + ' (' + g.memberCount + '명)'"></option>
                         </template>
                     </select>
-                    <span class="settings-note">비워 두면 이 회원만의 새 그룹이 만들어집니다.
-                        관리자는 그룹에 속하지 않습니다.</span>
+                    <span class="settings-note" x-show="!editingUserId">비워 두면 이 회원만의 새 그룹이
+                        만들어집니다. 관리자는 그룹에 속하지 않습니다.</span>
+                    <!-- 마지막 한 사람이 빠지면 그 그룹과 매물이 함께 사라진다 (규칙 4) -->
+                    <span class="settings-note" x-show="editingUserId">
+                        옮기면 원래 그룹의 매물은 이 회원에게 보이지 않습니다.
+                        <b>원래 그룹에 아무도 남지 않으면 그 그룹과 매물이 모두 삭제됩니다.</b>
+                    </span>
                 </label>
                 <label x-show="!editingUserId">비밀번호
                     <input type="password" x-model="userForm.password" minlength="8"
@@ -1003,13 +1008,14 @@
         <div class="card table-wrap">
             <table>
                 <thead>
-                <tr><th>ID</th><th>닉네임</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
+                <tr><th>ID</th><th>닉네임</th><th>그룹</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
                 </thead>
                 <tbody>
                 <template x-for="u in users" :key="u.id">
                     <tr>
                         <td class="strong" x-text="u.loginId"></td>
                         <td x-text="u.nickname"></td>
+                        <td><span class="group-badge" x-text="u.groupName || '—'"></span></td>
                         <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
                         <td class="num" x-text="fmtWon(u.availableBudget)"></td>
                         <td class="num" x-text="fmtWon(u.annualIncome)"></td>

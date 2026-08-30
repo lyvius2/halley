@@ -382,6 +382,8 @@ function halley() {
             this.userForm = {
                 loginId: u.loginId,
                 nickname: u.nickname,
+                // 지금 그룹을 미리 고르지 않는다 — 손대지 않으면 그대로 둔다는 뜻이다 (설계 I103)
+                groupId: '',
                 password: '',
                 role: u.role,
                 workplaceName: u.workplaceName || '',
