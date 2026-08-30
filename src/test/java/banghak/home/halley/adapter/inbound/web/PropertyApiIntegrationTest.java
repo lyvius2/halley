@@ -52,7 +52,7 @@ class PropertyApiIntegrationTest {
     void crudFlowWithAuthenticatedSession() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "prop", "prop-user", "password1!", UserRole.MEMBER,
+                "prop", "prop-user", null, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
 
         final MockHttpSession session = new MockHttpSession();
@@ -64,6 +64,15 @@ class PropertyApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
                 .andExpect(status().isNoContent());
+
+        // 프로필을 확인해야 나머지 API가 열린다 (설계 I100 · I105)
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
 
         final String createBody = """
                 {"name":"한빛아파트","dealType":"SALE","priceDeposit":550000000,"addressRoad":"서울시 도로명주소"}

@@ -38,15 +38,18 @@ public class PropertyCommentService {
     private static final int MAX_LENGTH = 2000;
 
     private final PropertyCommentRepository commentRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
 
     private final ApplicationEventPublisher eventPublisher;
 
-    public PropertyCommentService(PropertyCommentRepository commentRepository,
+    public PropertyCommentService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyCommentRepository commentRepository,
                                   ApplicationEventPublisher eventPublisher,
                                   PropertyRepository propertyRepository,
                                   UserRepository userRepository) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.commentRepository = commentRepository;
         this.eventPublisher = eventPublisher;
         this.propertyRepository = propertyRepository;
@@ -72,7 +75,7 @@ public class PropertyCommentService {
         final PropertyComment saved = commentRepository.save(new PropertyComment(
                 null, propertyId, me, validated(request), Instant.now(), null));
         // 코멘트는 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
         return toResponse(saved, nicknames(), me);
     }
 
@@ -82,7 +85,7 @@ public class PropertyCommentService {
         final PropertyComment updated = commentRepository.update(new PropertyComment(
                 existing.id(), existing.propertyId(), existing.userId(),
                 validated(request), existing.createdAt(), Instant.now()));
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
         return toResponse(updated, nicknames(), existing.userId());
     }
 
@@ -90,7 +93,12 @@ public class PropertyCommentService {
     public void delete(Long propertyId, Long commentId) {
         requireOwnComment(propertyId, commentId);
         commentRepository.delete(commentId);
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
+    }
+
+    /** 알림에 들어갈 이름. 탈퇴 스냅샷과 같은 이유로 조회 시점의 값을 쓴다 (설계 I88). */
+    private String myNickname() {
+        return userRepository.findById(requireCurrentUserId()).map(u -> u.nickname()).orElse(null);
     }
 
     private PropertyComment requireOwnComment(Long propertyId, Long commentId) {
@@ -118,7 +126,7 @@ public class PropertyCommentService {
     }
 
     private void requireProperty(Long propertyId) {
-        propertyRepository.findById(propertyId).orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
     }
 
     private Map<Long, String> nicknames() {

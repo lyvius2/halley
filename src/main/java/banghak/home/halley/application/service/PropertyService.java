@@ -5,7 +5,11 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
+import banghak.home.halley.application.event.PropertyInsightChanged;
+import banghak.home.halley.application.event.PropertyDeletedEvent;
+import banghak.home.halley.config.exception.AdminCannotOwnPropertyException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
+import banghak.home.halley.config.exception.NoGroupException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
@@ -38,6 +42,7 @@ import java.util.Optional;
 public class PropertyService {
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final UserRepository userRepository;
     private final AgentService agentService;
     private final ListingCheckLogRepository listingCheckLogRepository;
@@ -45,13 +50,15 @@ public class PropertyService {
     private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
 
-    public PropertyService(PropertyRepository propertyRepository,
+    public PropertyService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                            UserRepository userRepository,
                            AgentService agentService,
                            ListingCheckLogRepository listingCheckLogRepository,
                            EditVersionStore editVersionStore,
                            GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.agentService = agentService;
@@ -62,17 +69,43 @@ public class PropertyService {
     }
 
     public List<PropertyResponse> list() {
-        return propertyRepository.findAll().stream().map(this::toResponse).toList();
+        // admin은 전부, 회원은 자기 그룹만 (설계 I87)
+        final List<Property> properties = propertyAccessGuard.isAdmin()
+                ? propertyRepository.findAll()
+                : propertyAccessGuard.currentGroupId()
+                        .map(propertyRepository::findByGroupId)
+                        .orElseGet(List::of);
+        return properties.stream().map(this::toResponse).toList();
     }
 
     public PropertyResponse get(Long id) {
-        return toResponse(propertyRepository.findById(id)
-                .orElseThrow(NotFoundListingsException::new));
+        return toResponse(propertyAccessGuard.require(id));
     }
 
     @Transactional
+
+    /**
+     * 등록자의 그룹 (설계 I87). 매물은 <b>반드시</b> 그룹에 딸립니다.
+     *
+     * <p>admin은 어느 그룹에도 속하지 않으므로 등록할 수 없습니다 — 등록하면 아무도 볼 수 없고
+     * 그룹이 사라져도 남는 매물이 생깁니다.
+     */
+    private Long requireOwnerGroupId() {
+        if (propertyAccessGuard.isAdmin()) {
+            throw new AdminCannotOwnPropertyException();
+        }
+        return propertyAccessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+    }
+
+    /** 등록자 닉네임을 매물에 복사해 둔다 — 탈퇴해도 화면에 남아야 한다 (설계 I88). */
+    private String currentNickname() {
+        return propertyAccessGuard.currentUser().map(u -> u.nickname()).orElse(null);
+    }
+
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
+        final Long groupId = requireOwnerGroupId();
+        final String nickname = currentNickname();
         final Coordinates coords = resolveCoordinates(request);
         final boolean fromPaste = request.rawPasteText() != null && !request.rawPasteText().isBlank();
         final Property saved = propertyRepository.save(new Property(
@@ -81,7 +114,6 @@ public class PropertyService {
                 request.dongHo(),
                 request.dealType(),
                 request.priceDeposit(),
-                request.priceMonthly(),
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),
@@ -122,6 +154,7 @@ public class PropertyService {
                 ListingStatus.ACTIVE,
                 true,
                 null, 0, null,
+                groupId, nickname,
                 currentUserId(),
                 Instant.now()));
         agentService.upsertFromPaste(saved.id(), request.agent());
@@ -138,7 +171,7 @@ public class PropertyService {
         final String name = request.memo() == null || request.memo().isBlank()
                 ? "작성 중" : request.memo().trim();
         final Property saved = propertyRepository.save(new Property(
-                null, name, null, null, null, null, null,
+                null, name, null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -146,14 +179,14 @@ public class PropertyService {
                 null, null, null,
                 SourceType.PASTE, listingUrl(request.sourceUrl()), null, null, null, null,
                 true, ListingStatus.ACTIVE, true,
-                null, 0, null, currentUserId(), Instant.now()));
+                null, 0, null,
+                requireOwnerGroupId(), currentNickname(), currentUserId(), Instant.now()));
         return toResponse(saved);
     }
 
     public PropertyResponse update(Long id, PropertyRequest request, Long editVersion) {
         validate(request);
-        final Property existing = propertyRepository.findById(id)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property existing = propertyAccessGuard.require(id);
         checkEditVersion(id, editVersion);
         final Coordinates coords = resolveCoordinates(request);
         final Property updated = propertyRepository.update(new Property(
@@ -162,7 +195,6 @@ public class PropertyService {
                 request.dongHo(),
                 request.dealType(),
                 request.priceDeposit(),
-                request.priceMonthly(),
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),
@@ -209,25 +241,37 @@ public class PropertyService {
                 existing.lastCheckedAt(),
                 existing.checkFailStreak(),
                 existing.soldDetectedAt(),
+                existing.groupId(), existing.createdByNickname(),
                 existing.createdBy(),
                 existing.createdAt()));
         agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
+        // 바뀐 게 있으면 AI에게 다시 묻는다 (설계 I113). 면적·층·가격·주차가 그대로
+        // 프롬프트에 실리므로, 고쳐 놓고 옛 판단을 그대로 두면 안 된다.
+        //
+        // 무엇이 바뀌었는지 항목을 손으로 나열하지 않는다 — 그 목록은 필드가 늘 때마다
+        // 조용히 낡는다. 레코드끼리 통째로 비교하면 새 필드도 저절로 걸린다.
+        // 실제로 다시 물을지는 프롬프트 해시가 가린다(I59) — 프롬프트에 안 실리는 칸만
+        // 바뀌었으면 해시가 같아 호출 없이 끝난다
+        if (!existing.equals(updated)) {
+            eventPublisher.publishEvent(PropertyInsightChanged.edited(id, currentNickname()));
+        }
         return toResponse(updated);
     }
 
     public void delete(Long id) {
-        propertyRepository.findById(id)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property existing = propertyAccessGuard.require(id);
         propertyRepository.delete(id);
+        // 지우고 나면 이름도 그룹도 알 수 없어 미리 담아 보낸다 (설계 I96)
+        eventPublisher.publishEvent(
+                new PropertyDeletedEvent(existing.groupId(), existing.name()));
     }
 
     public PropertyResponse updateStatus(Long id, ListingStatus listingStatus) {
         if (listingStatus == null) {
             throw new InvalidPropertyRequestException("판매 상태는 필수입니다");
         }
-        final Property existing = propertyRepository.findById(id)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property existing = propertyAccessGuard.require(id);
         final boolean active = listingStatus != ListingStatus.SOLD_OUT && listingStatus != ListingStatus.ARCHIVED;
         propertyRepository.updateListingStatus(
                 id,
@@ -239,8 +283,7 @@ public class PropertyService {
     }
 
     public List<CheckLogResponse> checkLogs(Long id) {
-        propertyRepository.findById(id)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(id);
         return listingCheckLogRepository.findByPropertyId(id).stream()
                 .map(this::toCheckLogResponse)
                 .toList();

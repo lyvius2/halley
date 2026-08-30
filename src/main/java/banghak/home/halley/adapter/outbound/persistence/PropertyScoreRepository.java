@@ -4,6 +4,7 @@ import banghak.home.halley.domain.scoring.PropertyScore;
 import banghak.home.halley.domain.scoring.ScoreSource;
 import org.jooq.DSLContext;
 import org.jooq.Record;
+import org.jooq.impl.DSL;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -73,6 +74,43 @@ public class PropertyScoreRepository {
     public void deleteByPropertyId(Long propertyId) {
         dsl.deleteFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId))
+                .execute();
+    }
+
+    /**
+     * 한 매물의 채점을 통째로 갈아 끼운다 (설계 I84).
+     *
+     * <p><b>지우고 다시 넣지 않습니다.</b> 예전에는 `deleteByPropertyId` 뒤에 전부 insert 했는데,
+     * 등록 시점 채점과 비동기 보정의 재채점이 겹치면 유니크 제약에 걸려 터졌습니다. 항목마다
+     * upsert 하면 순서가 어떻게 되든 마지막 값이 남고 충돌하지 않습니다.
+     *
+     * <p>사라진 항목만 지웁니다 — 채점 기준이 빠졌을 때 옛 점수가 남지 않게 합니다.
+     */
+    public void replaceAll(Long propertyId, List<PropertyScore> scores) {
+        for (final PropertyScore score : scores) {
+            dsl.insertInto(TABLE)
+                    .set(PROPERTY_ID, propertyId)
+                    .set(CRITERION_CODE, score.criterionCode())
+                    .set(AUTO_SCORE, score.autoScore())
+                    .set(MANUAL_SCORE, score.manualScore())
+                    .set(EFFECTIVE_SCORE, score.effectiveScore())
+                    .set(SCORE_SOURCE, score.scoreSource() == null ? null : score.scoreSource().name())
+                    .set(FALLBACK_REASON, score.fallbackReason())
+                    .set(EXPLANATION, score.explanation())
+                    .onConflict(PROPERTY_ID, CRITERION_CODE)
+                    .doUpdate()
+                    .set(AUTO_SCORE, score.autoScore())
+                    .set(MANUAL_SCORE, score.manualScore())
+                    .set(EFFECTIVE_SCORE, score.effectiveScore())
+                    .set(SCORE_SOURCE, score.scoreSource() == null ? null : score.scoreSource().name())
+                    .set(FALLBACK_REASON, score.fallbackReason())
+                    .set(EXPLANATION, score.explanation())
+                    .execute();
+        }
+        final List<String> keep = scores.stream().map(PropertyScore::criterionCode).toList();
+        dsl.deleteFrom(TABLE)
+                .where(PROPERTY_ID.eq(propertyId))
+                .and(keep.isEmpty() ? DSL.trueCondition() : CRITERION_CODE.notIn(keep))
                 .execute();
     }
 

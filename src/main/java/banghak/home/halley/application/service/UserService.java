@@ -16,11 +16,29 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.event.WorkplacesChangedEvent;
 import banghak.home.halley.config.HalleyUserDetails;
 import org.springframework.context.ApplicationEventPublisher;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.domain.group.GroupNameGenerator;
+import banghak.home.halley.domain.group.UserGroup;
+import banghak.home.halley.config.exception.GroupNotFoundException;
+import banghak.home.halley.adapter.inbound.web.dto.NicknameCheckResponse;
+import banghak.home.halley.adapter.inbound.web.dto.SignUpRequest;
+import banghak.home.halley.adapter.inbound.web.dto.WithdrawRequest;
+import banghak.home.halley.config.exception.AdminCannotWithdrawException;
+import banghak.home.halley.config.exception.InvalidPasswordException;
+import org.springframework.transaction.annotation.Transactional;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtRequest;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtResponse;
+import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
+import banghak.home.halley.domain.loan.ExistingDebt;
+import banghak.home.halley.domain.loan.RegulationParams;
+import banghak.home.halley.config.exception.SignUpClosedException;
+import org.springframework.beans.factory.annotation.Value;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -29,6 +47,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Service
 public class UserService {
 
@@ -36,14 +55,29 @@ public class UserService {
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
 
     private final UserRepository userRepository;
+    private final UserGroupRepository userGroupRepository;
+    private final GroupService groupService;
+    private final NicknameSnapshotWriter nicknameSnapshotWriter;
+    private final UserDebtRepository userDebtRepository;
+    /** 회원가입 개방 여부 (설계 I95). */
+    private final boolean signUpOpen;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
     private final ApplicationEventPublisher eventPublisher;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+    public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
+                       GroupService groupService, NicknameSnapshotWriter nicknameSnapshotWriter,
+                       UserDebtRepository userDebtRepository,
+                       @Value("${membership.sign-up.open:true}") boolean signUpOpen,
+                       PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
+        this.userGroupRepository = userGroupRepository;
+        this.groupService = groupService;
+        this.nicknameSnapshotWriter = nicknameSnapshotWriter;
+        this.userDebtRepository = userDebtRepository;
+        this.signUpOpen = signUpOpen;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
         this.eventPublisher = eventPublisher;
@@ -68,9 +102,10 @@ public class UserService {
                 ? request.availableBudget() : user.availableBudget();
 
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), nickname, user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname, user.groupId(), user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                user.mustChangePassword(), newBudget,
+                // 저장했다는 것은 본인이 값을 보고 넘어갔다는 뜻이다 (설계 I100)
+                user.mustChangePassword(), true, newBudget,
                 request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
                 request.existingLoan() != null ? request.existingLoan() : user.existingLoanOrZero(),
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
@@ -88,10 +123,17 @@ public class UserService {
     }
 
     /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다. */
+    /**
+     * 세션에 든 값을 갱신한다 (설계 I100).
+     *
+     * <p>세션 응답은 DB가 아니라 <b>로그인할 때 담아 둔 principal</b>에서 읽습니다. 저장만
+     * 하고 여기를 안 고치면 방금 확인한 프로필인데도 확인 화면이 다시 뜹니다.
+     */
     private void refreshProfileFlag(User updated) {
         final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
             principal.setProfileComplete(updated.profileComplete());
+            principal.setProfileConfirmed(updated.profileConfirmed());
         }
     }
 
@@ -107,7 +149,132 @@ public class UserService {
         return id;
     }
 
+
+    /**
+     * 회원이 속할 그룹을 정한다 (설계 I87).
+     *
+     * <p><b>회원은 반드시 어느 그룹엔가 속합니다.</b> 그룹 없는 회원은 매물을 등록할 수도,
+     * 볼 수도 없어 아무것도 못 하는 상태가 됩니다. admin이 지정하지 않았으면 새 그룹을
+     * 만들어 넣습니다 — 이름은 무작위 한국어이고 나중에 그룹의 누구나 바꿉니다(규칙 14).
+     *
+     * <p>admin은 어느 그룹에도 속하지 않습니다(규칙 5).
+     */
+    private Long resolveGroupId(UserRole role, Long requested) {
+        if (role == UserRole.ADMIN) {
+            return null;
+        }
+        if (requested != null) {
+            return userGroupRepository.findById(requested)
+                    .map(UserGroup::id)
+                    .orElseThrow(GroupNotFoundException::new);
+        }
+        return userGroupRepository.save(
+                new UserGroup(null, GroupNameGenerator.generate(), null, null, Instant.now())).id();
+    }
+
+
+    /**
+     * 스스로 하는 회원가입 (설계 I89 · 규칙 13·14).
+     *
+     * <p><b>새 그룹이 함께 만들어집니다.</b> 그룹 없는 회원은 매물을 등록할 수도 볼 수도 없어
+     * 아무것도 못 하는 상태가 됩니다. 이름은 무작위 한국어이고 나중에 누구나 바꿉니다.
+     *
+     * <p>가입은 <b>회원(MEMBER)만</b> 됩니다 — 관리자를 스스로 만들 수 있으면 안 됩니다.
+     */
+    @Transactional
+    public UserResponse signUp(SignUpRequest request) {
+        // 화면에서 링크를 숨기는 것만으로는 부족하다 — 주소를 아는 사람은 그냥 부른다 (설계 I95)
+        if (!signUpOpen) {
+            throw new SignUpClosedException();
+        }
+        // 방금 자기가 정한 비밀번호다. 다시 바꾸라고 하지 않는다
+        return create(new CreateUserRequest(
+                request.loginId(), request.nickname(), null, request.password(),
+                UserRole.MEMBER, null, null, null, 0L, 0L, 0L), false);
+    }
+
+    /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다. */
+    public NicknameCheckResponse checkNickname(String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            return new NicknameCheckResponse(nickname, false);
+        }
+        final String trimmed = nickname.trim();
+        final Long myId = currentUserId();
+        final boolean taken = userRepository.findByNickname(trimmed)
+                .filter(u -> myId == null || !u.id().equals(myId))
+                .isPresent();
+        return new NicknameCheckResponse(trimmed, !taken);
+    }
+
+    /**
+     * 회원 탈퇴 (규칙 15·16).
+     *
+     * <p><b>닉네임을 빼고 모두 지웁니다.</b> 다만 이 회원이 남긴 매물·코멘트·쾌적함 점수는
+     * 그룹이 살아 있는 한 그대로 둡니다 — 함께 보던 사람에게는 여전히 필요한 자료입니다.
+     * 화면에 이름이 남아야 하므로 <b>닉네임은 매물·코멘트에 값으로 복사해</b> 둡니다(I88).
+     *
+     * <p>마지막 한 사람이 나가면 그룹과 매물이 함께 사라집니다(규칙 4).
+     */
+    @Transactional
+    public void withdraw(WithdrawRequest request) {
+        final User me = get(currentUserId());
+        if (request == null || request.password() == null
+                || !passwordEncoder.matches(request.password(), me.passwordHash())) {
+            throw new InvalidPasswordException();
+        }
+        if (me.role() == UserRole.ADMIN) {
+            throw new AdminCannotWithdrawException();
+        }
+        nicknameSnapshotWriter.snapshot(me.id(), me.nickname());
+        final Long groupId = me.groupId();
+        // 부채는 회원 정보다. 매물·코멘트와 달리 남길 이유가 없다 (규칙 16)
+        userDebtRepository.deleteByUserId(me.id());
+        userRepository.delete(me.id());
+        groupService.deleteIfEmpty(groupId);
+        log.info("User withdrew. userId={}, groupId={}", me.id(), groupId);
+    }
+
+
+    /**
+     * 종류별 기존 부채 (설계 I92 · 로드맵 5단계).
+     *
+     * <p>연간 상환액을 함께 돌려줍니다 — 같은 1억이라도 신용대출이면 주담대의 서너 배로
+     * 잡히는데, 숫자만 보면 그 이유를 알 수 없습니다.
+     */
+    public List<UserDebtResponse> myDebts() {
+        final double rate = defaultAnnualRate();
+        return userDebtRepository.findByUserId(currentUserId()).stream()
+                .map(debt -> UserDebtResponse.from(debt, rate))
+                .toList();
+    }
+
+    @Transactional
+    public List<UserDebtResponse> replaceMyDebts(List<UserDebtRequest> requests) {
+        final Long me = currentUserId();
+        userDebtRepository.replaceAll(me, requests == null ? List.of() : requests.stream()
+                .filter(r -> r.type() != null && r.amount() != null)
+                .map(r -> new ExistingDebt(r.type(), r.amount()))
+                .toList());
+        return myDebts();
+    }
+
+    /** 부담을 보여 주기 위한 기준 금리. 실제 계산은 대출 산정이 시장 금리로 다시 한다(I81). */
+    private double defaultAnnualRate() {
+        return RegulationParams.defaults().interestRate().doubleValue()
+                + RegulationParams.defaults().stressRate().doubleValue();
+    }
+
     public UserResponse create(CreateUserRequest request) {
+        return create(request, true);
+    }
+
+    /**
+     * @param mustChangePassword 첫 로그인에 비밀번호를 바꾸게 할지 (설계 I100).
+     *                           <b>관리자가 만든 계정은 그렇습니다</b> — 남이 정한 비밀번호를
+     *                           그대로 쓰면 안 됩니다. 스스로 가입한 사람은 방금 자기가
+     *                           정했으므로 다시 묻지 않습니다
+     */
+    public UserResponse create(CreateUserRequest request, boolean mustChangePassword) {
         if (userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
         }
@@ -118,12 +285,15 @@ public class UserService {
                 null,
                 request.loginId(),
                 request.nickname(),
+                resolveGroupId(request.role() == null ? UserRole.MEMBER : request.role(),
+                        request.groupId()),
                 passwordEncoder.encode(request.password()),
                 request.role() == null ? UserRole.MEMBER : request.role(),
                 request.workplaceName(),
                 request.workplaceLat(),
                 request.workplaceLng(),
-                true,
+                mustChangePassword,
+                false,
                 request.availableBudget() == null ? 0L : request.availableBudget(),
                 request.annualIncome() == null ? 0L : request.annualIncome(),
                 request.existingLoan() == null ? 0L : request.existingLoan(),
@@ -143,16 +313,21 @@ public class UserService {
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
             throw new DuplicateNicknameException();
         }
+        // 그룹을 안 보내면 지금 그룹을 그대로 둔다 (설계 I103)
+        final Long targetGroup = request.groupId() == null
+                ? user.groupId()
+                : resolveGroupId(user.role(), request.groupId());
         final User updated = userRepository.update(new User(
                 user.id(),
                 request.loginId(),
-                request.nickname(),
+                request.nickname(), targetGroup,
                 user.passwordHash(),
                 user.role(),
                 request.workplaceName(),
                 request.workplaceLat(),
                 request.workplaceLng(),
-                user.mustChangePassword(),
+                // 관리자가 정보를 고쳤다고 본인 확인을 다시 받을 이유는 없다
+                user.mustChangePassword(), user.profileConfirmed(),
                 request.availableBudget() == null ? user.availableBudget() : request.availableBudget(),
                 request.annualIncome() == null ? user.annualIncomeOrZero() : request.annualIncome(),
                 request.existingLoan() == null ? user.existingLoanOrZero() : request.existingLoan(),
@@ -163,7 +338,11 @@ public class UserService {
             scoringService.rescoreAll();
         }
         if (workplaceChanged(user, updated)) {
-            eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
+            // 마지막 한 사람이 빠지면 그 그룹과 매물이 함께 사라진다 (규칙 4)
+        if (!java.util.Objects.equals(user.groupId(), targetGroup)) {
+            groupService.deleteIfEmpty(user.groupId());
+        }
+        eventPublisher.publishEvent(new WorkplacesChangedEvent("user-updated:" + updated.id()));
         }
         return toResponse(updated);
     }
@@ -191,9 +370,9 @@ public class UserService {
         }
         final Instant now = Instant.now();
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                user.mustChangePassword(), user.availableBudget(),
+                user.mustChangePassword(), false, user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
                 enabled ? null : now,
                 enabled ? null : currentAdminId(),
@@ -209,10 +388,10 @@ public class UserService {
         final User user = get(id);
         final String temporaryPassword = randomPassword();
         userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(),
                 passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                true, user.availableBudget(),
+                true, false, user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
         return new ResetPasswordResponse(temporaryPassword);
@@ -253,9 +432,16 @@ public class UserService {
         return null;
     }
 
+    /** 관리자 목록에서 누가 어느 그룹인지 보여야 옮길 판단을 할 수 있다 (설계 I103). */
+    private String groupNameOf(Long groupId) {
+        return groupId == null ? null
+                : userGroupRepository.findById(groupId).map(UserGroup::name).orElse(null);
+    }
+
     private UserResponse toResponse(User user) {
         return new UserResponse(
-                user.id(), user.loginId(), user.nickname(), user.role(),
+                user.id(), user.loginId(), user.nickname(),
+                user.groupId(), groupNameOf(user.groupId()), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.availableBudget(), user.annualIncomeOrZero(), user.existingLoanOrZero(),
                 user.enabled(), user.mustChangePassword(), user.createdAt());

@@ -29,9 +29,12 @@ public final class JeonseLoanCalculator {
         final long byRate = (long) (deposit * terms.guaranteeRate().doubleValue());
         final long guaranteeLimit = Math.max(0L, Math.min(byRate, terms.guaranteeCap()));
 
-        // 스트레스 금리는 전세대출 DSR에도 얹는다 (설계 I64-2와 같은 이유)
-        final double annualRate = terms.interestRate().doubleValue() + params.stressRate().doubleValue();
-        final double monthlyRate = annualRate / 12.0;
+        // 스트레스 금리는 <b>한도를 역산할 때만</b> 쓴다 (설계 I97).
+        // 전세대출은 이자만 내므로 실제 월 이자는 실금리 기준이다
+        final double stressed = terms.interestRate().doubleValue()
+                + params.effectiveStressRate(RateType.VARIABLE).doubleValue();
+        final double annualRate = stressed;
+        final double monthlyRate = terms.interestRate().doubleValue() / 12.0;
         final int months = Math.max(1, terms.termYears()) * 12;
 
         final long dsrCapacity = (long) (input.annualIncome() * params.dsrRatio().doubleValue());
@@ -58,7 +61,8 @@ public final class JeonseLoanCalculator {
             return 0L;
         }
         final double monthlyRate =
-                (params.interestRate().doubleValue() + params.stressRate().doubleValue()) / 12.0;
+                (params.interestRate().doubleValue()
+                        + params.effectiveStressRate(RateType.VARIABLE).doubleValue()) / 12.0;
         final int months = params.termYears() * 12;
         if (monthlyRate == 0.0) {
             return (long) ((double) principal / months * 12);

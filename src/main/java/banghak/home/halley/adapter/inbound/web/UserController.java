@@ -19,6 +19,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import banghak.home.halley.adapter.inbound.web.dto.NicknameCheckResponse;
+import banghak.home.halley.adapter.inbound.web.dto.SignUpRequest;
+import banghak.home.halley.adapter.inbound.web.dto.WithdrawRequest;
+import org.springframework.web.bind.annotation.RequestParam;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtRequest;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtResponse;
 import java.util.List;
 
 @RestController
@@ -29,6 +35,37 @@ public class UserController {
 
     public UserController(UserService userService) {
         this.userService = userService;
+    }
+
+    /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다. */
+    @PostMapping("/sign-up")
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserResponse signUp(@RequestBody SignUpRequest request) {
+        return userService.signUp(request);
+    }
+
+    /** 닉네임 중복 확인 (규칙 17). */
+    @GetMapping("/nickname-check")
+    public NicknameCheckResponse checkNickname(@RequestParam("nickname") String nickname) {
+        return userService.checkNickname(nickname);
+    }
+
+    /** 종류별 기존 부채 (설계 I92). */
+    @GetMapping("/me/debts")
+    public List<UserDebtResponse> myDebts() {
+        return userService.myDebts();
+    }
+
+    @PutMapping("/me/debts")
+    public List<UserDebtResponse> replaceMyDebts(@RequestBody List<UserDebtRequest> requests) {
+        return userService.replaceMyDebts(requests);
+    }
+
+    /** 회원 탈퇴 (규칙 15·16). 비밀번호를 다시 받는다. */
+    @PostMapping("/me/withdraw")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void withdraw(@RequestBody WithdrawRequest request) {
+        userService.withdraw(request);
     }
 
     @GetMapping

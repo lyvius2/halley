@@ -65,10 +65,10 @@ public class AuthService {
                 .orElseThrow(NotFoundUserException::new);
 
         userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(),
                 passwordEncoder.encode(newPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
-                false, user.availableBudget(),
+                false, false, user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), user.enabled(),
                 user.disabledAt(), user.disabledBy(), user.createdAt()));
 
@@ -95,6 +95,7 @@ public class AuthService {
                 UserRole.valueOf(principal.getRole()),
                 principal.isMustChangePassword(),
                 principal.isProfileComplete(),
+                principal.isProfileConfirmed(),
                 remainingSessionSeconds(request));
     }
 

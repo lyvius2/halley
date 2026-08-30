@@ -37,7 +37,7 @@ class AdminSettingsApiIntegrationTest {
     void adminSettingsFlow() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings", "settings-admin", "password1!", UserRole.ADMIN,
+                "settings", "settings-admin", null, "password1!", UserRole.ADMIN,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
@@ -48,6 +48,15 @@ class AdminSettingsApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
                 .andExpect(status().isNoContent());
+
+        // 프로필을 확인해야 나머지 API가 열린다 (설계 I100 · I105)
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
 
         // when / then
         mockMvc.perform(get("/api/admin/settings").session(session))
@@ -70,7 +79,7 @@ class AdminSettingsApiIntegrationTest {
     void memberForbidden() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings-m", "settings-member", "password1!", UserRole.MEMBER,
+                "settings-m", "settings-member", null, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
@@ -81,6 +90,15 @@ class AdminSettingsApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
                 .andExpect(status().isNoContent());
+
+        // 프로필을 확인해야 나머지 API가 열린다 (설계 I100 · I105)
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
 
         // when
         mockMvc.perform(get("/api/admin/settings").session(session))

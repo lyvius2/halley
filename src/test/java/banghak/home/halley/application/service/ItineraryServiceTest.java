@@ -19,8 +19,11 @@ import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.support.GroupTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -62,7 +65,31 @@ class ItineraryServiceTest {
     }
 
     @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
+    }
+
+    @Autowired
     private StubConfig stubConfig;
+
+    /**
+     * 이 테스트는 이동시간 캐시만 본다. 비동기 보정이 끝나며 다시 채점하면
+     * 통근 조회가 딸려 가 호출 횟수가 어긋난다 — 보정 자체는 다른 테스트가 본다.
+     */
+    @MockitoBean
+    private PropertyEnrichmentService propertyEnrichmentService;
 
     @Autowired
     private ItineraryService itineraryService;
@@ -81,7 +108,7 @@ class ItineraryServiceTest {
         stubConfig.transitCalls.set(0);
         if (userRepository.findByLoginId("itinerary").isEmpty()) {
             userService.create(new CreateUserRequest(
-                    "itinerary", "임장자", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                    "itinerary", "임장자", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         }
         final User user = userRepository.findByLoginId("itinerary").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);
@@ -191,7 +218,7 @@ class ItineraryServiceTest {
 
     private PropertyRequest request(String name, String lat, String lng) {
         return new PropertyRequest(
-                name, null, DealType.SALE, 500_000_000L, null, null,
+                name, null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal(lat), new BigDecimal(lng),
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,

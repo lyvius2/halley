@@ -76,6 +76,7 @@ public class LlmRecommendationService {
     private final PoiDataService poiDataService;
     private final UserCriterionScoreRepository userCriterionScoreRepository;
     private final PropertyCommentRepository commentRepository;
+    private final ScoringService scoringService;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
 
@@ -87,6 +88,7 @@ public class LlmRecommendationService {
                                     PoiDataService poiDataService,
                                     UserCriterionScoreRepository userCriterionScoreRepository,
                                     PropertyCommentRepository commentRepository,
+                                    ScoringService scoringService,
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
@@ -97,6 +99,7 @@ public class LlmRecommendationService {
         this.poiDataService = poiDataService;
         this.userCriterionScoreRepository = userCriterionScoreRepository;
         this.commentRepository = commentRepository;
+        this.scoringService = scoringService;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
     }
@@ -171,7 +174,9 @@ public class LlmRecommendationService {
         }
         int refreshed = 0;
         int skipped = 0;
-        for (final Property property : propertyRepository.findAll()) {
+        // 직장이 바뀐 사람이 속한 그룹의 매물만 다시 묻는다 (설계 I91).
+        // 전 매물을 돌면 남의 그룹까지 LLM을 부르는데, 그쪽 판단은 달라지지 않는다
+        for (final Property property : propertiesToRefresh()) {
             final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(property.id());
             if (cached.isPresent() && workplaceCountOf(cached.get()) >= ENOUGH_WORKPLACES) {
                 skipped++;
@@ -188,6 +193,12 @@ public class LlmRecommendationService {
         return refreshed;
     }
 
+    private List<Property> propertiesToRefresh() {
+        return propertyRepository.findAll().stream()
+                .filter(p -> p.groupId() != null)
+                .toList();
+    }
+
     private int workplaceCountOf(LlmRecommendation recommendation) {
         return recommendation.workplaceCount() == null ? 0 : recommendation.workplaceCount();
     }
@@ -196,6 +207,25 @@ public class LlmRecommendationService {
      * 필요하면 LLM을 불러 추천도를 갱신한다. 입력이 그대로면 저장된 값을 그대로 쓴다.
      * 실패해도 예외를 던지지 않는다 — 나머지 채점은 그대로 나와야 한다.
      */
+    /**
+     * 보정이 시작될 때 미리 켠다 (설계 I109).
+     *
+     * <p>AI 추천도는 보정 사슬의 <b>맨 끝</b>이라, 실제 호출 전까지 수십 초가 흐릅니다.
+     * 그동안 진행 표시가 꺼져 있으면 화면은 "아직 산출되지 않았습니다"를 띄우고
+     * <b>폴링도 시작하지 않습니다</b> — 뒤늦게 결과가 나와도 모달을 다시 열기 전엔 안 보입니다.
+     * 그래서 표시를 <b>호출 시점이 아니라 보정 시작 시점</b>에 켭니다.
+     */
+    public void markPending(Long propertyId) {
+        jobCache.markRunning(jobKey(propertyId));
+    }
+
+    /** 보정이 끝났는데도 결과가 없으면 표시를 끈다. 켜 둔 채 두면 화면이 영영 돈다. */
+    public void clearPendingIfUnresolved(Long propertyId) {
+        if (recommendationRepository.findByPropertyId(propertyId).isEmpty()) {
+            jobCache.clear(jobKey(propertyId));
+        }
+    }
+
     public Optional<LlmRecommendation> ensureRecommendation(Long propertyId) {
         if (!enabled || !llmPort.isEnabled()) {
             log.debug("Skipping LLM recommendation - provider not enabled. provider={}", llmPort.provider());
@@ -206,7 +236,7 @@ public class LlmRecommendationService {
             return Optional.empty();
         }
         final Property property = found.get();
-        final List<User> buyers = activeBuyers();
+        final List<User> buyers = activeBuyers(property);
         final String prompt = buildPrompt(property, buyers, poiDataService.ensureNearby(property),
                 comfortScoresOf(propertyId), commentRepository.findByPropertyId(propertyId));
         final String hash = sha256(prompt);
@@ -224,7 +254,18 @@ public class LlmRecommendationService {
         jobCache.markRunning(key);
         boolean completed = false;
         try {
+            // 요청을 보낸 사실 자체를 남긴다 (설계 I107). 응답이 수십 초 걸려서,
+            // 이 줄이 없으면 "안 나온다"가 호출 전인지 응답 대기인지 구분할 수 없다
+            log.info("Asking LLM for recommendation. propertyId={}, provider={}, buyers={}, "
+                            + "workplaces={}, promptChars={}",
+                    propertyId, llmPort.provider(), buyers.size(), workplaces, prompt.length());
+            // 프롬프트 전문은 debug로. '지하철역 정보가 없다'는 식의 엉뚱한 답이 나왔을 때
+            // 실제로 무엇을 보냈는지 봐야 원인을 가릴 수 있다
+            log.debug("LLM prompt. propertyId={}\n{}", propertyId, prompt);
+            final long askedAt = System.currentTimeMillis();
             final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            log.info("LLM responded. propertyId={}, present={}, elapsedMs={}",
+                    propertyId, result.isPresent(), System.currentTimeMillis() - askedAt);
             if (!result.isPresent()) {
                 log.warn("LLM recommendation unavailable. propertyId={}, cause={}",
                         propertyId, result.failureCause());
@@ -244,6 +285,7 @@ public class LlmRecommendationService {
             completed = true;
             log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
                     propertyId, saved.score(), saved.model(), workplaces);
+            rescore(propertyId);
             return Optional.of(saved);
         } finally {
             // 실패·예외로 빠져나갔으면 RUNNING이 남지 않게 지운다
@@ -265,7 +307,6 @@ public class LlmRecommendationService {
         sb.add("동/호: " + text(property.dongHo()));
         sb.add("거래유형: " + (property.dealType() == null ? "정보 없음" : property.dealType().name()));
         sb.add("매매가/보증금(원): " + number(property.priceDeposit()));
-        sb.add("월세(원): " + number(property.priceMonthly()));
         sb.add("관리비(원/월): " + number(property.maintenanceFee()));
         // 도로명만 주면 모델이 동 이름을 잘못 추정한다 — 실측에서 '삼성로 212'를 보고
         // 대치동을 '삼성동'이라고 했다. 지번주소가 단지 식별에 더 정확하므로 둘 다 준다 (설계 I71)
@@ -392,9 +433,42 @@ public class LlmRecommendationService {
     private record NearbyCategory(String code, String label, int limit) {
     }
 
-    /** 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 해시가 달라진다. */
-    private List<User> activeBuyers() {
-        return userRepository.findAll().stream()
+
+    /**
+     * AI 추천도가 <b>새로 생겼을 때만</b> 다시 채점한다 (설계 I84).
+     *
+     * <p>채점 결과는 `property_score`에 저장해 두는데 AI 추천도는 <b>비동기로 나중에</b>
+     * 채워집니다. 등록 직후 채점될 때는 아직 없으므로, 다시 채점하지 않으면 비어 있던 그때의
+     * 결과가 그대로 남습니다 — <b>상세 모달에는 AI 추천이 보이는데 채점 모달에는 없는</b>
+     * 상태가 됩니다. 두 화면이 다른 곳을 읽기 때문입니다.
+     *
+     * <p>여기에 두는 이유는 <b>값이 실제로 저장된 자리</b>이기 때문입니다. 보정이 끝나는
+     * 지점에 두면 AI 결과가 안 바뀌었을 때도 매번 다시 채점해 POI·통근 조회까지 딸려 갑니다.
+     * 입력이 그대로면 프롬프트 해시가 같아 여기까지 오지 않습니다(I59).
+     */
+    private void rescore(Long propertyId) {
+        try {
+            scoringService.rescore(propertyId);
+        } catch (RuntimeException e) {
+            // 채점이 실패해도 방금 받은 추천 자체는 살아 있어야 한다
+            log.warn("Rescore after LLM recommendation failed. propertyId={}, cause={}",
+                    propertyId, e.toString());
+        }
+    }
+
+    /**
+     * 이 매물을 함께 보는 사람들 (설계 I91).
+     *
+     * <p><b>같은 그룹의 구성원만</b> 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
+     * <b>직장 주소가 프롬프트로 나가고</b>, 그 사람 기준의 통근까지 판단에 섞입니다.
+     *
+     * <p>세션이 아니라 매물의 그룹으로 좁힙니다 — 배경 보정에서도 도는데 그때는 로그인
+     * 사용자가 없습니다.
+     *
+     * <p>활성 사용자만, 아이디 순으로 — 순서가 흔들리면 프롬프트 해시가 달라집니다.
+     */
+    private List<User> activeBuyers(Property property) {
+        return userRepository.findByGroupId(property.groupId()).stream()
                 .filter(User::enabled)
                 .sorted(java.util.Comparator.comparing(User::id))
                 .toList();

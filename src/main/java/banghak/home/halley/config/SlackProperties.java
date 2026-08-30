@@ -9,7 +9,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "slack")
 public class SlackProperties {
     private boolean enabled = false;
-    private String webhookUrl = "";
     private boolean notifyPropertyCreated = false;
     private boolean notifySoldOut = false;
 }

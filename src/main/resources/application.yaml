@@ -27,6 +27,10 @@ odsay:
   transit-path: /v1/api/searchPubTransPathT
 
 ministry:
+  reference:
+    # 국토부 API는 한 달치만 준다. 이만큼 거슬러 훑는다 (설계 I98).
+    # 한 달에 한 번씩 부르므로 이 값이 그대로 호출 횟수다 — 늘리면 그만큼 느려진다
+    lookback-months: ${MINISTRY_LOOKBACK_MONTHS:12}
   service-key: ${MINISTRY_API_KEY:}
   base-url: https://apis.data.go.kr/1613000
 
@@ -146,9 +150,9 @@ llm:
     base-url: https://api.anthropic.com
     model: ${LLM_CLAUDE_MODEL:claude-opus-5}
 
+# 알림은 그룹마다 자기 웹훅으로 나간다 (설계 I96). 전역 주소는 없다
 slack:
   enabled: ${SLACK_ENABLED:false}
-  webhook-url: ${SLACK_WEBHOOK_URL:}
   notify:
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
     sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
@@ -163,3 +167,14 @@ law:
 fss:
   api-key: ${FSS_API_KEY:}
   base-url: https://finlife.fss.or.kr/finlifeapi
+
+# 회원가입 개방 여부 (설계 I95). false면 화면에서 숨기고 API도 막는다
+enrichment:
+  # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).
+  # 스레드가 아니라 그 끝에 붙은 외부 API를 지키려는 값이다 — 넘어선 작업은
+  # 거절되지 않고 자리가 날 때까지 기다린다
+  max-concurrency: ${ENRICHMENT_MAX_CONCURRENCY:400}
+
+membership:
+  sign-up:
+    open: ${MEMBERSHIP_SIGN_UP_OPEN:true}

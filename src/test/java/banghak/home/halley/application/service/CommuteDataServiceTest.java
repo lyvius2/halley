@@ -12,6 +12,9 @@ import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -47,6 +50,23 @@ class CommuteDataServiceTest {
     }
 
     @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
+    }
+
+    @Autowired
     private StubConfig stubConfig;
 
     @Autowired
@@ -74,7 +94,7 @@ class CommuteDataServiceTest {
     void fetchesAndCachesCommute() {
         // given
         userService.create(new CreateUserRequest(
-                "worker", "직장인", "pw12345!", UserRole.MEMBER,
+                "worker", "직장인", null, "pw12345!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("126.9"), 0L, 60_000_000L, 0L));
         stubConfig.calls.set(0); // 사용자 생성 시 rescoreAll 호출분 제외
         final User user = userRepository.findByLoginId("worker").orElseThrow();
@@ -95,7 +115,7 @@ class CommuteDataServiceTest {
     void userWithoutWorkplaceSkipped() {
         // given
         userService.create(new CreateUserRequest(
-                "no-worker", "무직장", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "no-worker", "무직장", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         stubConfig.calls.set(0); // 사용자 생성 시 rescoreAll 호출분 제외
         final User user = userRepository.findByLoginId("no-worker").orElseThrow();
         final Property property = propertyWithCoords();
@@ -110,7 +130,7 @@ class CommuteDataServiceTest {
 
     private Property propertyWithCoords() {
         return propertyRepository.findById(propertyService.create(new PropertyRequest(
-                "통근 매물", null, DealType.SALE, 500_000_000L, null, null,
+                "통근 매물", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,

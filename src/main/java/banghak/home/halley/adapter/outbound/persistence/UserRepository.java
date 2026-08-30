@@ -22,6 +22,8 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.LO
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ENABLED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.MUST_CHANGE_PASSWORD;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.GROUP_ID;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.PROFILE_CONFIRMED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.NICKNAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.PASSWORD_HASH;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ROLE;
@@ -44,12 +46,14 @@ public class UserRepository {
         Long id = dsl.insertInto(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
+                .set(GROUP_ID, user.groupId())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
                 .set(WORKPLACE_LAT, user.workplaceLat())
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
+                .set(PROFILE_CONFIRMED, user.profileConfirmed())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
                 .set(ANNUAL_INCOME, user.annualIncomeOrZero())
                 .set(EXISTING_LOAN, user.existingLoanOrZero())
@@ -64,13 +68,13 @@ public class UserRepository {
         return new User(
                 id,
                 user.loginId(),
-                user.nickname(),
+                user.nickname(), user.groupId(),
                 user.passwordHash(),
                 user.role(),
                 user.workplaceName(),
                 user.workplaceLat(),
                 user.workplaceLng(),
-                user.mustChangePassword(),
+                user.mustChangePassword(), false,
                 user.availableBudget(),
                 user.annualIncomeOrZero(),
                 user.existingLoanOrZero(),
@@ -85,12 +89,14 @@ public class UserRepository {
         dsl.update(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
+                .set(GROUP_ID, user.groupId())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
                 .set(WORKPLACE_LAT, user.workplaceLat())
                 .set(WORKPLACE_LNG, user.workplaceLng())
                 .set(MUST_CHANGE_PASSWORD, user.mustChangePassword())
+                .set(PROFILE_CONFIRMED, user.profileConfirmed())
                 .set(AVAILABLE_BUDGET, user.availableBudget())
                 .set(ANNUAL_INCOME, user.annualIncomeOrZero())
                 .set(EXISTING_LOAN, user.existingLoanOrZero())
@@ -130,6 +136,19 @@ public class UserRepository {
                 .map(this::map);
     }
 
+    /**
+     * 한 그룹의 구성원 (설계 I91).
+     *
+     * <p>채점 입력(보유 현금 합계·통근)과 LLM 프롬프트(직장 위치)가 <b>이 목록으로 좁혀져야</b>
+     * 합니다. 전 사용자를 훑으면 남의 그룹 사람의 현금이 우리 가격 점수에 섞이고,
+     * 남의 직장 주소가 프롬프트로 나갑니다.
+     */
+    public List<User> findByGroupId(Long groupId) {
+        return groupId == null ? List.of()
+                : dsl.selectFrom(TABLE).where(GROUP_ID.eq(groupId))
+                        .orderBy(ID.asc()).fetch().map(this::map);
+    }
+
     public void delete(Long id) {
         dsl.deleteFrom(TABLE)
                 .where(ID.eq(id))
@@ -141,12 +160,14 @@ public class UserRepository {
                 r.get(ID),
                 r.get(LOGIN_ID),
                 r.get(NICKNAME),
+                r.get(GROUP_ID),
                 r.get(PASSWORD_HASH),
                 r.get(ROLE) == null ? null : UserRole.valueOf(r.get(ROLE)),
                 r.get(WORKPLACE_NAME),
                 r.get(WORKPLACE_LAT),
                 r.get(WORKPLACE_LNG),
                 Boolean.TRUE.equals(r.get(MUST_CHANGE_PASSWORD)),
+                Boolean.TRUE.equals(r.get(PROFILE_CONFIRMED)),
                 r.get(AVAILABLE_BUDGET),
                 r.get(ANNUAL_INCOME),
                 r.get(EXISTING_LOAN),

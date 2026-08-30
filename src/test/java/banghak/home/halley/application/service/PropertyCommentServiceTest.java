@@ -14,6 +14,8 @@ import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.support.GroupTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -21,6 +23,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
+import banghak.home.halley.domain.group.UserGroup;
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -31,6 +35,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @ActiveProfiles("local")
 @DisplayName("매물 코멘트 (설계 I56)")
 class PropertyCommentServiceTest {
+
+    @Autowired
+    private UserGroupRepository userGroupRepository;
+
+
 
     @Autowired
     private PropertyCommentService commentService;
@@ -55,16 +64,19 @@ class PropertyCommentServiceTest {
     void setUp() {
         // 같은 스프링 컨텍스트를 공유하므로 테스트마다 아이디가 겹치지 않게 한다
         final String tag = "c" + SEQ.incrementAndGet();
+        // 둘은 같은 집을 함께 보는 사이다. 그룹이 다르면 서로의 매물이 보이지 않는다 (설계 I87)
+        final Long groupId = userGroupRepository.save(
+                new UserGroup(null, "코멘트그룹" + tag, null, null, Instant.now())).id();
         aliceId = userService.create(new CreateUserRequest(
-                "alice-" + tag, "앨리스-" + tag, "password1!", UserRole.MEMBER,
+                "alice-" + tag, "앨리스-" + tag, groupId, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L)).id();
         bobId = userService.create(new CreateUserRequest(
-                "bob-" + tag, "밥-" + tag, "password1!", UserRole.MEMBER,
+                "bob-" + tag, "밥-" + tag, groupId, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L)).id();
 
         login(aliceId);
         propertyId = propertyService.create(new PropertyRequest(
-                "코멘트 대상", null, DealType.SALE, 500_000_000L, null, null,
+                "코멘트 대상", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null,

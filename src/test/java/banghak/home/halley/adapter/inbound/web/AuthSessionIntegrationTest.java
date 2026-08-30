@@ -30,7 +30,7 @@ class AuthSessionIntegrationTest {
     @Test
     void loginThenChangePasswordWithSameSession() throws Exception {
         userService.create(new CreateUserRequest(
-                "session", "session-user", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "session", "session-user", null, "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         MockHttpSession session = new MockHttpSession();
 

@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -80,7 +81,7 @@ class GeoControllerIntegrationTest {
     void authenticatedSearchReturnsCoordinates() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "geo", "geo-user", "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "geo", "geo-user", null, "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
@@ -90,6 +91,15 @@ class GeoControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
                 .andExpect(status().isNoContent());
+
+        // 프로필을 확인해야 나머지 API가 열린다 (설계 I100 · I105)
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
 
         // when
         mockMvc.perform(get("/api/geo/search").param("query", "서울시").session(session))

@@ -7,6 +7,8 @@ import banghak.home.halley.application.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
+import banghak.home.halley.adapter.inbound.web.dto.PublicConfigResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,8 +22,12 @@ public class AuthController {
 
     private final AuthService authService;
 
-    public AuthController(AuthService authService) {
+    private final boolean signUpOpen;
+
+    public AuthController(AuthService authService,
+                          @Value("${membership.sign-up.open:true}") boolean signUpOpen) {
         this.authService = authService;
+        this.signUpOpen = signUpOpen;
     }
 
     @PostMapping("/login")
@@ -39,6 +45,16 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changePassword(@RequestBody PasswordChangeRequest request) {
         authService.changePassword(request.currentPassword(), request.newPassword());
+    }
+
+    /**
+     * 로그인 전에 화면이 알아야 하는 설정 (설계 I95).
+     *
+     * <p>세션 조회는 로그아웃 상태에서 401이라 여기에 담을 수 없습니다.
+     */
+    @GetMapping("/config")
+    public PublicConfigResponse config() {
+        return new PublicConfigResponse(signUpOpen);
     }
 
     @GetMapping("/session")

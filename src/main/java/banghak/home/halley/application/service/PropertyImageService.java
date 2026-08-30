@@ -30,12 +30,15 @@ public class PropertyImageService {
     private static final int THUMB_SIZE = 320;
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyImageRepository propertyImageRepository;
     private final String imagesDir;
 
-    public PropertyImageService(PropertyRepository propertyRepository,
+    public PropertyImageService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                                 PropertyImageRepository propertyImageRepository,
                                 @Value("${app.images.dir:uploads}") String imagesDir) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyImageRepository = propertyImageRepository;
         this.imagesDir = imagesDir;
@@ -51,8 +54,7 @@ public class PropertyImageService {
      * <p>정렬은 평면도가 항상 먼저(0), 매물사진이 그 뒤로 붙습니다. 목록에서 도면을 먼저 보게 하기 위한 것입니다.
      */
     public PropertyImageResponse upload(Long propertyId, MultipartFile file, ImageType type) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         if (file == null || file.isEmpty()) {
             throw new InvalidPropertyRequestException("이미지 파일이 필요합니다");
         }
@@ -111,8 +113,7 @@ public class PropertyImageService {
 
     /** 잘못 올린 사진을 지운다. 파일 삭제가 실패해도 레코드는 지운다 — 화면에 남는 편이 더 나쁘다. */
     public void delete(Long propertyId, Long imageId) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         final PropertyImage image = propertyImageRepository.findById(imageId)
                 .orElseThrow(NotFoundListingsException::new);
         if (!image.propertyId().equals(propertyId)) {
@@ -141,8 +142,7 @@ public class PropertyImageService {
 
     /** 평면도가 먼저, 그다음 매물사진 순. */
     public List<PropertyImageResponse> list(Long propertyId) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         return propertyImageRepository.findByPropertyId(propertyId).stream()
                 .sorted(Comparator.comparing((PropertyImage i) -> i.imageType() == ImageType.FLOOR_PLAN ? 0 : 1)
                         .thenComparing(PropertyImage::sortOrder))

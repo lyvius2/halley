@@ -3,16 +3,30 @@ package banghak.home.halley.domain.user;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * 회원.
+ *
+ * @param groupId 속한 그룹 (설계 I87). <b>admin은 null</b>이며 어느 그룹에도 속하지 않고
+ *                모든 그룹의 매물을 봅니다
+ */
 public record User(
         Long id,
         String loginId,
         String nickname,
+        Long groupId,
         String passwordHash,
         UserRole role,
         String workplaceName,
         BigDecimal workplaceLat,
         BigDecimal workplaceLng,
         boolean mustChangePassword,
+        /**
+         * 본인이 프로필을 확인했는지 (설계 I100).
+         *
+         * <p>관리자가 대신 넣은 값은 <b>채워져 있을 뿐</b>입니다. 직장이 어디인지, 현금이
+         * 얼마인지는 본인만 압니다 — 한 번은 보고 넘어가야 합니다.
+         */
+        boolean profileConfirmed,
         Long availableBudget,
         Long annualIncome,
         Long existingLoan,
@@ -21,6 +35,12 @@ public record User(
         Long disabledBy,
         Instant createdAt
 ) {
+
+    /** 그룹을 옮긴다 (설계 I87). */
+    public User withGroupId(Long groupId) {
+        return new User(id(), loginId(), nickname(), groupId, passwordHash(), role(), workplaceName(), workplaceLat(), workplaceLng(), mustChangePassword(), false, availableBudget(), annualIncome(), existingLoan(), enabled(), disabledAt(), disabledBy(), createdAt());
+    }
+
 
     /**
      * 계정 초기 설정이 끝났는지 (설계 6.1 · I48 · I51 · I74).

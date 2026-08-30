@@ -72,13 +72,13 @@ public final class PropertyBuilder {
 
     public Property build() {
         return new Property(
-                null, "테스트", null, DealType.SALE, priceDeposit, null, null,
+                null, "테스트", null, DealType.SALE, priceDeposit, null,
                 "서울시", null, lat, lng, null, null, null,
                 floorNo, null, floorBand,
                 null, null, approvalYear, moveInType, moveInDate,
                 parkingPerHousehold, null, null, buildingCount, null, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
-                null, 0, null, null, null);
+                null, 0, null, 1L, "테스터", null, null);
     }
 }

@@ -18,6 +18,7 @@ public final class UserTable {
     public static final Table<Record> TABLE = table(name(T));
 
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
+    public static final Field<Long> GROUP_ID = field(name(T, "group_id"), Long.class);
     public static final Field<String> NICKNAME = field(name(T, "nickname"), String.class);
     public static final Field<String> LOGIN_ID = field(name(T, "login_id"), String.class);
     public static final Field<String> PASSWORD_HASH = field(name(T, "password_hash"), String.class);
@@ -25,6 +26,8 @@ public final class UserTable {
     public static final Field<String> WORKPLACE_NAME = field(name(T, "workplace_name"), String.class);
     public static final Field<BigDecimal> WORKPLACE_LAT = field(name(T, "workplace_lat"), BigDecimal.class);
     public static final Field<BigDecimal> WORKPLACE_LNG = field(name(T, "workplace_lng"), BigDecimal.class);
+    public static final Field<Boolean> PROFILE_CONFIRMED =
+            field(name(T, "profile_confirmed"), Boolean.class);
     public static final Field<Boolean> MUST_CHANGE_PASSWORD = field(name(T, "must_change_password"), Boolean.class);
     public static final Field<Long> AVAILABLE_BUDGET = field(name(T, "available_budget"), Long.class);
     public static final Field<Long> ANNUAL_INCOME = field(name(T, "annual_income"), Long.class);

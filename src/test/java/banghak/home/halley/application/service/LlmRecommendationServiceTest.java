@@ -159,7 +159,7 @@ class LlmRecommendationServiceTest {
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, false);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -337,10 +337,10 @@ class LlmRecommendationServiceTest {
     void countsOnlyUsersWithCoordinates() {
         // given — 2명 중 1명만 좌표가 있다
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
-        when(userRepository.findAll()).thenReturn(List.of(
+        when(userRepository.findByGroupId(7L)).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
-                new User(2L, "login2", "밥", "hash", UserRole.MEMBER,
-                        "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
+                new User(2L, "login2", "밥",null, "hash", UserRole.MEMBER,
+                        "판교역", null, null, false, false, 300_000_000L, 60_000_000L, 0L,
                         true, null, null, Instant.now())));
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
         when(recommendationRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -463,11 +463,12 @@ class LlmRecommendationServiceTest {
     private final UserCriterionScoreRepository userCriterionScoreRepository =
             mock(UserCriterionScoreRepository.class);
     private final PropertyCommentRepository commentRepository = mock(PropertyCommentRepository.class);
+    private final ScoringService scoringService = mock(ScoringService.class);
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, true);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {
@@ -496,26 +497,26 @@ class LlmRecommendationServiceTest {
 
     private void givenPropertyAndUsers() {
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
-        when(userRepository.findAll()).thenReturn(List.of(
+        when(userRepository.findByGroupId(7L)).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
                 user(2L, "밥", "판교역")));
     }
 
     private User user(Long id, String nickname, String workplace) {
-        return new User(id, "login" + id, nickname, "hash", UserRole.MEMBER,
+        return new User(id, "login" + id, nickname,null, "hash", UserRole.MEMBER,
                 workplace, new BigDecimal("37.5"), new BigDecimal("127.0"),
-                false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
+                false, false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
     }
 
     private Property property() {
         return new Property(
-                1L, "테스트단지", "102동", DealType.SALE, 800_000_000L, null, 200_000,
+                1L, "테스트단지", "102동", DealType.SALE, 800_000_000L, 200_000,
                 null, "서울 강남구 대치동 316", new BigDecimal("37.5"), new BigDecimal("127.0"),
                 new BigDecimal("110.0"), new BigDecimal("84.9"), null, 14, 20, null, "3/2", "남향",
                 1995, null, null, new BigDecimal("1.2"), 436, "개별난방", null, null,
                 null, null, null, null, null,
                 "서울혜화초등학교", 6, null, null, null, null,
                 SourceType.PASTE, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null, 7L, "테스터", 1L, Instant.now());
     }
 }

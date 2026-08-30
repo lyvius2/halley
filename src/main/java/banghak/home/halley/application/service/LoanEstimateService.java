@@ -40,6 +40,9 @@ import banghak.home.halley.domain.loan.ProductType;
 import banghak.home.halley.domain.loan.RegulationParam;
 import banghak.home.halley.domain.finance.LoanProductType;
 import banghak.home.halley.domain.finance.MarketRate;
+import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
+import banghak.home.halley.domain.loan.ExistingDebt;
+import banghak.home.halley.domain.loan.RateType;
 import banghak.home.halley.domain.loan.RegulationParams;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -60,6 +63,7 @@ public class LoanEstimateService {
     private static final String DEFAULT_PROFILE = "2025-10-15";
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
@@ -68,9 +72,11 @@ public class LoanEstimateService {
     private final LoanEstimateRepository loanEstimateRepository;
     private final RegulationNoticeService regulationNoticeService;
     private final MarketRateService marketRateService;
+    private final UserDebtRepository userDebtRepository;
     private final ObjectMapper objectMapper;
 
-    public LoanEstimateService(PropertyRepository propertyRepository,
+    public LoanEstimateService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                                ReferenceTransactionRepository referenceTransactionRepository,
                                RegulatedAreaService regulatedAreaService,
                                UserRepository userRepository,
@@ -79,7 +85,9 @@ public class LoanEstimateService {
                                LoanEstimateRepository loanEstimateRepository,
                                RegulationNoticeService regulationNoticeService,
                                MarketRateService marketRateService,
+                               UserDebtRepository userDebtRepository,
                                ObjectMapper objectMapper) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.regulatedAreaService = regulatedAreaService;
@@ -89,6 +97,7 @@ public class LoanEstimateService {
         this.loanEstimateRepository = loanEstimateRepository;
         this.regulationNoticeService = regulationNoticeService;
         this.marketRateService = marketRateService;
+        this.userDebtRepository = userDebtRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -99,6 +108,16 @@ public class LoanEstimateService {
      * 잡힙니다. 실제가 투기과열지구(0.4)라면 <b>한도가 배 가까이 부풀려집니다.</b> 값이 틀린 것보다
      * 틀렸는지 모르는 것이 위험하므로 결과에 붙여 보냅니다.
      */
+    /**
+     * 로그인 사용자의 종류별 기존 부채 (설계 I92).
+     *
+     * <p>비어 있으면 프로필의 단일 금액(`existingLoan`)이 주담대로 쓰입니다 —
+     * 아직 종류를 입력하지 않은 사용자의 부채가 사라지면 한도가 부풀려집니다.
+     */
+    private List<ExistingDebt> myDebts() {
+        return currentUser().map(u -> userDebtRepository.findByUserId(u.id())).orElseGet(List::of);
+    }
+
     private String zoneWarning() {
         if (regulationNoticeService.isTrustworthy()) {
             return null;
@@ -109,12 +128,11 @@ public class LoanEstimateService {
     /**
      * 매물의 거래유형에 맞는 대출을 산정한다 (설계 I67).
      *
-     * <p>매매는 주담대(LTV·DSR·취득세), 전세·월세는 전세자금대출(보증 한도·이자만 DSR)입니다.
+     * <p>매매는 주담대(LTV·DSR·취득세), 전세는 전세자금대출(보증 한도·이자만 DSR)입니다.
      * <b>전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.</b>
      */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {
-        final Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property property = propertyAccessGuard.require(propertyId);
         final long price = property.priceDeposit() == null ? 0L : property.priceDeposit();
         final Map<String, String> rawParams = loadRawParams();
         final boolean jeonse = property.dealType() != DealType.SALE;
@@ -128,12 +146,15 @@ public class LoanEstimateService {
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
 
+        // 한도에는 안 들어가지만 화면에 병기한다 (설계 I114)
+        final long groupCash = groupCash(property.groupId());
+
         if (jeonse) {
-            return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan,
+            return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan, groupCash,
                     rawParams, params, marketRate);
         }
         return estimateMortgage(propertyId, property, price, annualIncome, cash, existingLoan,
-                request, rawParams, params, marketRate);
+                groupCash, request, rawParams, params, marketRate);
     }
 
     /**
@@ -151,7 +172,7 @@ public class LoanEstimateService {
                         params.ltvRate(), params.totalCap(), params.dsrRatio(),
                         rate.rate(), params.stressRate(), params.termYears(),
                         params.acquisitionTaxRate(), params.firstHomeDiscount(),
-                        params.leaseDeduction(), params.officialPriceRatio()))
+                        params.leaseDeduction(), params.officialPriceRatio(), params.stressApplyRatio()))
                 .orElse(params);
     }
 
@@ -167,12 +188,30 @@ public class LoanEstimateService {
                                 .stripTrailingZeros().toPlainString()));
     }
 
+    /**
+     * 같은 그룹 사용자들의 보유 현금 합계 (설계 I114).
+     *
+     * <p>한도 산식에는 넣지 않습니다 — 대출은 개인 명의로 나오고, 남의 현금이 내 LTV·DSR을
+     * 늘려 주지 않습니다. 화면에 <b>병기만</b> 해서 그룹이 실제로 모을 수 있는 돈을 함께 봅니다.
+     */
+    private long groupCash(Long groupId) {
+        if (groupId == null) {
+            return 0L;
+        }
+        return userRepository.findByGroupId(groupId).stream()
+                .filter(User::enabled)
+                .mapToLong(User::cashOrZero)
+                .sum();
+    }
+
     private LoanEstimateResponse estimateMortgage(Long propertyId, Property property, long askingPrice,
                                                   long annualIncome, long cash, long existingLoan,
-                                                  LoanEstimateRequest request,
+                                                  long groupCash, LoanEstimateRequest request,
                                                   Map<String, String> rawParams, RegulationParams params,
                                                   Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
+        // 금리유형이 스트레스 가산폭을 가른다 (설계 I97). 비우면 변동으로 본다
+        final RateType rateType = request.rateType() == null ? RateType.VARIABLE : request.rateType();
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
         // LTV는 호가가 아니라 담보가치에 매긴다 (설계 I64-1)
@@ -187,7 +226,7 @@ public class LoanEstimateService {
 
         final LoanEstimateResult result = new LoanCalculator(ltv.rate(), ltv.cap())
                 .estimate(new LoanEstimateInput(askingPrice, collateral, annualIncome, cash,
-                        existingLoan, firstHome, insured), withLtv(params, ltv));
+                        existingLoan, myDebts(), firstHome, insured, rateType), withLtv(params, ltv));
 
         loanEstimateRepository.save(new LoanEstimate(
                 null, propertyId, ProductType.MORTGAGE, ltv.rate(),
@@ -198,12 +237,13 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
-                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning(),
-                rateSource(marketRate, params));
+                existingLoan, groupCash, insured, zone, ownership, ltv.rate(), ltv.reason(),
+                zoneWarning(), rateSource(marketRate, params), rateType.label());
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
                                                 long annualIncome, long cash, long existingLoan,
+                                                long groupCash,
                                                 Map<String, String> rawParams, RegulationParams params,
                                                 Optional<MarketRate> marketRate) {
         final JeonseTerms terms = JeonsePolicy.resolve(rawParams, params);
@@ -219,12 +259,11 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan,
-                rateSource(marketRate, params));
+                groupCash, rateSource(marketRate, params));
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         return loanEstimateRepository.findByPropertyId(propertyId).stream()
                 .map(e -> new LoanEstimateHistoryResponse(
                         e.propertyId(), e.ltvLimit(), e.dsrLimit(), e.finalLimit(),
@@ -237,7 +276,7 @@ public class LoanEstimateService {
         return new RegulationParams(
                 ltv.rate(), ltv.cap(), params.dsrRatio(), params.interestRate(), params.stressRate(),
                 params.termYears(), params.acquisitionTaxRate(), params.firstHomeDiscount(),
-                params.leaseDeduction(), params.officialPriceRatio());
+                params.leaseDeduction(), params.officialPriceRatio(), params.stressApplyRatio());
     }
 
     /** 활성 프로파일의 원본 키·값. LTV 매트릭스처럼 레코드에 담기 어려운 값은 여기서 직접 읽는다. */
@@ -262,7 +301,8 @@ public class LoanEstimateService {
                 decimal(values, "tax.acquisitionRate", defaults.acquisitionTaxRate()),
                 decimal(values, "tax.firstHomeDiscount", defaults.firstHomeDiscount()),
                 longValue(values, "ltv.leaseDeduction", defaults.leaseDeduction()),
-                decimal(values, "valuation.officialPriceRatio", defaults.officialPriceRatio()));
+                decimal(values, "valuation.officialPriceRatio", defaults.officialPriceRatio()),
+                decimal(values, "loan.stressApplyRatio", defaults.stressApplyRatio()));
     }
 
     /**

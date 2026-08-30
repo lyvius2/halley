@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.application.port.out.external.HousingPricePort;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.property.OfficialPrice;
@@ -45,6 +46,8 @@ public class PropertyEnrichmentService {
     private final ReferenceTransactionService referenceTransactionService;
     private final LlmRecommendationService llmRecommendationService;
     private final LandUseService landUseService;
+    private final ScoringService scoringService;
+    private final VirtualThreadGate gate;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
@@ -52,7 +55,9 @@ public class PropertyEnrichmentService {
                                      GeoService geoService,
                                      ReferenceTransactionService referenceTransactionService,
                                      LlmRecommendationService llmRecommendationService,
-                                     LandUseService landUseService) {
+                                     LandUseService landUseService,
+                                     ScoringService scoringService,
+                                     VirtualThreadGate gate) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
@@ -60,25 +65,163 @@ public class PropertyEnrichmentService {
         this.referenceTransactionService = referenceTransactionService;
         this.llmRecommendationService = llmRecommendationService;
         this.landUseService = landUseService;
+        this.scoringService = scoringService;
+        this.gate = gate;
     }
 
     /**
-     * 보정은 한 번의 조회 · 한 번의 저장으로 끝낸다. 항목마다 update를 날리면 뒤 항목이 앞 항목을 덮어쓴다.
+     * 등록 요청이 <b>기다리는</b> 앞 단계 (설계 I110).
+     *
+     * <p>초등학교 · 토지이용계획 · 채점 — 셋은 서로의 결과를 쓰지 않으므로 가상 스레드로
+     * 한꺼번에 돕니다. 채점은 초등학교 칸도 공시가격도 읽지 않고 POI와 가격·대출만 보므로
+     * 학교 조회를 기다릴 필요가 없습니다.
+     *
+     * <p>여기까지 끝나야 응답을 돌려줍니다 — 화면은 그동안 진행 표시를 띄웁니다.
+     *
+     * <p><b>등록 트랜잭션 안에서 돌지 않습니다.</b> 외부 API를 부르는 동안 DB 커넥션을
+     * 붙잡고 있으면 동시 등록 몇 건에 풀이 마르고, 카카오가 죽었다고 매물 등록 자체가
+     * 되돌아갑니다 — 외부 연동 실패가 본 기능을 막지 않는다는 원칙(12.2)에 어긋납니다.
+     * 등록은 이미 커밋된 뒤이고, 여기서 실패해도 값이 비는 것 외에 부작용이 없습니다.
      */
-    public void enrich(Long propertyId) {
+    public void enrichCore(Long propertyId) {
         final Optional<Property> found = propertyRepository.findById(propertyId);
         if (found.isEmpty()) {
             return;
         }
         final Property property = found.get();
-        Property enriched = fillSchool(property);
-        enriched = fillOfficialPrice(enriched);
-        if (enriched != property) {
-            propertyRepository.update(enriched);
+        log.info("Enrichment(core) started. propertyId={}", propertyId);
+        final long startedAt = System.currentTimeMillis();
+        // AI 추천도 진행 표시를 지금 켠다 (설계 I109). 실제 호출은 뒤 단계라
+        // 그때 켜면 그전에 상세를 연 사람은 진행 표시도 폴링도 못 받는다
+        llmRecommendationService.markPending(propertyId);
+
+        final List<Property> filled = gate.runAll(List.of(
+                () -> step(propertyId, "school", () -> fillSchool(property)),
+                () -> step(propertyId, "land-use", () -> {
+                    fetchLandUse(propertyId);
+                    return null;
+                }),
+                () -> step(propertyId, "score", () -> {
+                    rescore(propertyId);
+                    return null;
+                })));
+
+        final Property school = filled.get(0) == null ? property : filled.get(0);
+        if (changed(property, school)) {
+            propertyRepository.update(school);
+            // 학교가 채워지기 전 점수로 저장됐을 수 있다. 값이 실제로 바뀐 때만 다시 센다
+            step(propertyId, "score-after-school", () -> {
+                rescore(propertyId);
+                return null;
+            });
         }
-        fetchReferenceTrades(propertyId);
-        fetchLandUse(propertyId);
-        fetchLlmRecommendation(propertyId);
+        log.info("Enrichment(core) finished. propertyId={}, elapsedMs={}",
+                propertyId, System.currentTimeMillis() - startedAt);
+    }
+
+    /**
+     * 응답을 돌려준 <b>뒤</b> 배경에서 도는 단계 (설계 I110).
+     *
+     * <p>실거래가와 공시가격은 서로 무관해 동시에 돕니다. <b>AI 추천도는 공시가격 뒤에</b>
+     * 옵니다 — 프롬프트에 `공시가격(원)` 줄이 들어가기 때문입니다. 셋을 나란히 돌리면
+     * 첫 판단이 공시가격을 '정보 없음'으로 본 채 나오고, 그 뒤로 다시 물을 계기가 없습니다.
+     */
+    public void enrichRest(Long propertyId) {
+        log.info("Enrichment(rest) started. propertyId={}", propertyId);
+        final long startedAt = System.currentTimeMillis();
+        gate.runAll(List.of(
+                () -> step(propertyId, "reference-trades", () -> {
+                    fetchReferenceTrades(propertyId);
+                    return null;
+                }),
+                () -> step(propertyId, "official-price-then-llm", () -> {
+                    fillOfficialPriceAndSave(propertyId);
+                    fetchLlmRecommendation(propertyId);
+                    return null;
+                })));
+        // 끝났는데도 결과가 없으면(키 미설정·호출 실패) 진행 표시를 끈다
+        llmRecommendationService.clearPendingIfUnresolved(propertyId);
+        log.info("Enrichment(rest) finished. propertyId={}, elapsedMs={}",
+                propertyId, System.currentTimeMillis() - startedAt);
+    }
+
+    /**
+     * 앞 단계를 기다렸다가 나머지를 배경으로 넘긴다.
+     *
+     * <p>뒤 단계를 이벤트로 띄우지 않는 이유: 커밋 직후에 띄우면 앞 단계와 <b>겹쳐 돌 수</b>
+     * 있고, 그러면 AI가 채점 전 상태를 보게 됩니다.
+     */
+    public void enrich(Long propertyId) {
+        enrichCore(propertyId);
+        Thread.ofVirtual().name("enrich-rest-" + propertyId).start(() -> {
+            try {
+                enrichRest(propertyId);
+            } catch (RuntimeException e) {
+                // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
+                log.error("Enrichment(rest) failed. propertyId={}, cause={}", propertyId, e.toString(), e);
+            }
+        });
+    }
+
+    /** 공시가격만 따로 저장한다 — 앞 단계에서 이미 학교를 저장했으므로 다시 읽어 덮어쓰기를 피한다. */
+    private void fillOfficialPriceAndSave(Long propertyId) {
+        final Optional<Property> found = propertyRepository.findById(propertyId);
+        if (found.isEmpty()) {
+            return;
+        }
+        final Property property = found.get();
+        final Property priced = fillOfficialPrice(property);
+        if (changed(property, priced)) {
+            propertyRepository.update(priced);
+        }
+    }
+
+    /** 바뀐 게 없으면 저장하지 않는다. 보정이 아무것도 못 채운 경우가 흔하다. */
+    private boolean changed(Property before, Property after) {
+        return !java.util.Objects.equals(before.schoolName(), after.schoolName())
+                || !java.util.Objects.equals(before.schoolWalkMinutes(), after.schoolWalkMinutes())
+                || !java.util.Objects.equals(before.schoolSource(), after.schoolSource())
+                || !java.util.Objects.equals(before.pnu(), after.pnu())
+                || !java.util.Objects.equals(before.officialPrice(), after.officialPrice())
+                || !java.util.Objects.equals(before.officialPriceYear(), after.officialPriceYear());
+    }
+
+    /**
+     * 한 단계를 재고 로그를 남긴다. 단계가 터져도 <b>다음 단계는 돌아야 한다</b> —
+     * 실거래가 조회가 막혔을 때 AI 추천도까지 통째로 날아간 적이 있다.
+     */
+    private <T> T step(Long propertyId, String name, java.util.function.Supplier<T> body) {
+        final long from = System.currentTimeMillis();
+        try {
+            return body.get();
+        } catch (RuntimeException e) {
+            log.warn("Enrichment step failed. propertyId={}, step={}, cause={}", propertyId, name, e.toString());
+            return null;
+        } finally {
+            log.info("Enrichment step done. propertyId={}, step={}, elapsedMs={}",
+                    propertyId, name, System.currentTimeMillis() - from);
+        }
+    }
+
+    /**
+     * 자동 채점 항목이 채워진 뒤 다시 채점한다 (설계 I84).
+     *
+     * <p>등록 직후에도 한 번 채점되지만 그때는 공시가격·배정 초등학교·토지이용계획이 아직
+     * 없습니다. 보정이 그 값들을 채우고도 다시 채점하지 않으면 `property_score`에 <b>비어 있던
+     * 그때의 결과가 그대로 남습니다.</b>
+     *
+     * <p>AI 추천도는 여기서 기다리지 않습니다 — 수십 초가 걸리고, 그 값이 저장될 때
+     * {@code LlmRecommendationService}가 다시 채점합니다. 그래야 <b>AI를 기다리는 동안에도
+     * 나머지 항목의 점수는 화면에 보입니다.</b>
+     */
+    private void rescore(Long propertyId) {
+        try {
+            scoringService.rescore(propertyId);
+        } catch (RuntimeException e) {
+            // 채점이 실패해도 보정으로 채운 값 자체는 살아 있어야 한다
+            log.warn("Rescore after enrichment failed. propertyId={}, cause={}",
+                    propertyId, e.toString());
+        }
     }
 
     /** 붙여넣기 원문에 배정 초등학교가 없으면 카카오로 가장 가까운 초등학교를 찾아 채운다 (설계 I53). */
@@ -219,7 +362,7 @@ public class PropertyEnrichmentService {
     /** 국토교통부 실거래가를 미리 받아 둔다 — 상세 모달이 버튼 없이 바로 보여줄 수 있어야 한다. */
     private void fetchReferenceTrades(Long propertyId) {
         try {
-            referenceTransactionService.getReferences(propertyId, null, null);
+            referenceTransactionService.prefetch(propertyId);
         } catch (RuntimeException e) {
             log.warn("Reference trade prefetch failed. propertyId={}, cause={}", propertyId, e.getMessage());
         }
@@ -263,7 +406,7 @@ public class PropertyEnrichmentService {
     private Property copy(Property p, String schoolName, Integer schoolWalkMinutes, SchoolSource schoolSource,
                           String pnu, Long officialPrice, Integer officialPriceYear) {
         return new Property(
-                p.id(), p.name(), p.dongHo(), p.dealType(), p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
+                p.id(), p.name(), p.dongHo(), p.dealType(), p.priceDeposit(), p.maintenanceFee(),
                 p.addressRoad(), p.addressJibun(), p.lat(), p.lng(), p.areaSupplyM2(), p.areaExclusiveM2(),
                 p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(), p.roomBath(), p.direction(),
                 p.approvalYear(), p.moveInType(), p.moveInDate(), p.parkingPerHousehold(), p.totalHouseholds(),
@@ -272,6 +415,7 @@ public class PropertyEnrichmentService {
                 schoolName, schoolWalkMinutes, schoolSource, pnu, officialPrice, officialPriceYear,
                 p.sourceType(), p.sourceUrl(), p.naverArticleNo(), p.rawPasteText(), p.parserVersion(),
                 p.parseConfidence(), p.isDraft(), p.listingStatus(), p.active(), p.lastCheckedAt(),
-                p.checkFailStreak(), p.soldDetectedAt(), p.createdBy(), p.createdAt());
+                p.checkFailStreak(), p.soldDetectedAt(),
+                p.groupId(), p.createdByNickname(), p.createdBy(), p.createdAt());
     }
 }

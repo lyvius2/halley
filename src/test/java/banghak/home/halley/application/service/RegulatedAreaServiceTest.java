@@ -137,13 +137,13 @@ class RegulatedAreaServiceTest {
 
     private Property property(String pnu, String addressJibun) {
         return new Property(
-                1L, "테스트", null, DealType.SALE, 800_000_000L, null, null,
+                1L, "테스트", null, DealType.SALE, 800_000_000L, null,
                 null, addressJibun, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, new BigDecimal("84.9"), null, 5, 20, null, null, null,
                 2010, null, null, null, 400, null, null, null,
                 null, null, null, null, null,
                 null, null, null, pnu, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null,null,null, 1L, Instant.now());
     }
 }

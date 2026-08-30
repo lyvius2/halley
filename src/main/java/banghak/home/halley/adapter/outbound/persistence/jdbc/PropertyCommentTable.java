@@ -19,6 +19,8 @@ public final class PropertyCommentTable {
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<Long> PROPERTY_ID = field(name(T, "property_id"), Long.class);
     public static final Field<Long> USER_ID = field(name(T, "user_id"), Long.class);
+    public static final Field<String> AUTHOR_NICKNAME =
+            field(name(T, "author_nickname"), String.class);
     public static final Field<String> CONTENT = field(name(T, "content"), String.class);
     public static final Field<OffsetDateTime> CREATED_AT = field(name(T, "created_at"), OffsetDateTime.class);
     public static final Field<OffsetDateTime> UPDATED_AT = field(name(T, "updated_at"), OffsetDateTime.class);

@@ -5,6 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UserResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ProfileRequest;
+import banghak.home.halley.adapter.inbound.web.dto.SignUpRequest;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.DuplicateLoginIdException;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
@@ -38,7 +39,7 @@ class UserServiceTest {
     void createAndList() {
         // given
         final CreateUserRequest request = new CreateUserRequest(
-                "member1", "member1", "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L, null, null);
+                "member1", "member1", null, "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L, null, null);
 
         // when
         final UserResponse created = userService.create(request);
@@ -54,12 +55,12 @@ class UserServiceTest {
     @DisplayName("중복 아이디로 생성하면 DuplicateLoginIdException이 발생한다")
     void createDuplicateLoginIdFails() {
         // given
-        userService.create(new CreateUserRequest("same-id", "id-user1", "pw12345!", null, null, null, null, null, null, null));
+        userService.create(new CreateUserRequest("same-id", "id-user1", null, "pw12345!", null, null, null, null, null, null, null));
 
         // when
         final DuplicateLoginIdException ex = assertThrows(
                 DuplicateLoginIdException.class,
-                () -> userService.create(new CreateUserRequest("same-id", "id-user2", "pw12345!", null, null, null, null, null, null, null)));
+                () -> userService.create(new CreateUserRequest("same-id", "id-user2", null, "pw12345!", null, null, null, null, null, null, null)));
 
         // then
         assertThat(ex.getCode()).isEqualTo("LOGIN_ID_DUPLICATED");
@@ -70,11 +71,11 @@ class UserServiceTest {
     void update() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "update", "update-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "update", "update-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final UserResponse updated = userService.update(created.id(), new UpdateUserRequest(
-                "update2", "update-user2", "새회사",
+                "update2", "update-user2", null, "새회사",
                 new BigDecimal("37.5"), new BigDecimal("127.0"), 100_000_000L, 60_000_000L, 0L));
 
         // then
@@ -83,11 +84,83 @@ class UserServiceTest {
     }
 
     @Test
+    @DisplayName("관리자가 만든 계정은 첫 로그인에 비밀번호를 바꿔야 한다 — 남이 정한 것을 그대로 쓰면 안 된다")
+    void adminCreatedUserMustChangePassword() {
+        // when
+        final UserResponse created = userService.create(new CreateUserRequest(
+                "by-admin", "관리자가만듦", null, "password1!", UserRole.MEMBER,
+                null, null, null, 0L, 0L, 0L));
+
+        // then
+        assertThat(created.mustChangePassword()).isTrue();
+    }
+
+    @Test
+    @DisplayName("스스로 가입하면 방금 정한 비밀번호를 다시 묻지 않는다")
+    void selfSignUpKeepsChosenPassword() {
+        // when
+        final UserResponse created = userService.signUp(
+                new SignUpRequest("self-signed", "스스로가입", "password1!"));
+
+        // then
+        assertThat(created.mustChangePassword()).isFalse();
+        // 다만 프로필은 아직 확인 전이다 — 값이 비어 있으므로 한 번은 보게 한다
+        assertThat(userRepository.findByLoginId("self-signed").orElseThrow().profileConfirmed())
+                .isFalse();
+    }
+
+    @Test
+    @DisplayName("프로필을 저장하면 확인한 것으로 본다 — 채워진 것과 본인이 맞다고 한 것은 다르다")
+    void savingProfileMarksItConfirmed() {
+        // given
+        final Long id = userService.create(new CreateUserRequest(
+                "confirmer", "확인자", null, "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"),
+                300_000_000L, 60_000_000L, 0L)).id();
+        assertThat(userRepository.findById(id).orElseThrow().profileConfirmed()).isFalse();
+        loginAs(id);
+
+        // when
+        userService.updateProfile(new ProfileRequest("확인자", "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+
+        // then
+        assertThat(userRepository.findById(id).orElseThrow().profileConfirmed()).isTrue();
+    }
+
+    @Test
+    @DisplayName("프로필을 저장하면 세션에도 반영된다 — 안 그러면 확인 화면이 다시 뜬다")
+    void savingProfileRefreshesSession() {
+        // given
+        final Long id = userService.create(new CreateUserRequest(
+                "session-refresh", "세션갱신", null, "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"),
+                300_000_000L, 60_000_000L, 0L)).id();
+        loginAs(id);
+
+        // when
+        userService.updateProfile(new ProfileRequest("세션갱신", "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+
+        // then — 세션 응답은 DB가 아니라 로그인할 때 담아 둔 principal에서 읽는다
+        final var principal = (HalleyUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        assertThat(principal.isProfileConfirmed()).isTrue();
+    }
+
+    private void loginAs(Long userId) {
+        final HalleyUserDetails details =
+                new HalleyUserDetails(userRepository.findById(userId).orElseThrow());
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(details, null, details.getAuthorities()));
+    }
+
+    @Test
     @DisplayName("비밀번호를 리셋하면 12자 임시 비밀번호가 반환되고 재변경 플래그가 켜진다")
     void resetPassword() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "reset", "reset-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "reset", "reset-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final ResetPasswordResponse reset = userService.resetPassword(created.id());
@@ -102,7 +175,7 @@ class UserServiceTest {
     void meAndWorkplace() {
         // given
         userService.create(new CreateUserRequest(
-                "me", "프로필", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "me", "프로필", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final User user = userRepository.findByLoginId("me").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);
         SecurityContextHolder.getContext().setAuthentication(
@@ -128,7 +201,7 @@ class UserServiceTest {
     void delete() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "delete", "delete-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "delete", "delete-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         userService.delete(created.id());

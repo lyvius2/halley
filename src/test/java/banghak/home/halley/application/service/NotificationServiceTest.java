@@ -12,6 +12,10 @@ import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -37,8 +41,28 @@ class NotificationServiceTest {
         @Bean
         @Primary
         SlackPort slackPort() {
-            return text -> !fail.get();
+            return (webhookUrl, text) -> !fail.get();
         }
+    }
+
+    @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        // 알림은 그룹 웹훅으로 나간다 (설계 I96). 없으면 보내지 않는 것이 맞는 동작이라
+        // 이 테스트는 웹훅이 있는 그룹을 만든다
+        final Long groupId = GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+        userGroupRepository.updateWebhook(groupId, "https://hooks.slack.com/services/T/B/test");
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
     }
 
     @Autowired
@@ -67,7 +91,6 @@ class NotificationServiceTest {
         stubConfig.fail.set(false);
         slackProperties.setEnabled(true);
         slackProperties.setNotifyPropertyCreated(true);
-        slackProperties.setWebhookUrl("https://hooks.slack.com/services/T");
     }
 
     @Test
@@ -75,7 +98,7 @@ class NotificationServiceTest {
     void sendPropertyCreatedRecordsSent() {
         // given
         userService.create(new CreateUserRequest(
-                "notify", "notify-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "notify", "notify-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final var property = propertyService.create(request("알림 테스트"));
 
         // when
@@ -83,8 +106,9 @@ class NotificationServiceTest {
 
         // then
         final List<NotificationLog> logs = notificationLogRepository.findLatest(50);
+        // 배치 알림은 propertyId가 없다 — 같은 목록에 섞여 있으므로 null을 먼저 거른다
         assertThat(logs).anyMatch(log ->
-                log.propertyId().equals(property.id())
+                property.id().equals(log.propertyId())
                         && log.status() == NotificationStatus.SENT);
     }
 
@@ -104,7 +128,7 @@ class NotificationServiceTest {
     void resendRetrying() {
         // given
         final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
-                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                null, NotificationEventType.PROPERTY_CREATED, retryTargetPropertyId(), "slack",
                 NotificationStatus.RETRYING, 1, null, objectMapper.createObjectNode(), null, null));
 
         // when
@@ -121,7 +145,7 @@ class NotificationServiceTest {
         // given
         stubConfig.fail.set(true);
         final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
-                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                null, NotificationEventType.PROPERTY_CREATED, retryTargetPropertyId(), "slack",
                 NotificationStatus.RETRYING, 0, null, objectMapper.createObjectNode(), null, null));
 
         // when
@@ -139,7 +163,7 @@ class NotificationServiceTest {
         // given
         stubConfig.fail.set(true);
         final NotificationLog retrying = notificationLogRepository.save(new NotificationLog(
-                null, NotificationEventType.BATCH_SUMMARY, null, "slack",
+                null, NotificationEventType.PROPERTY_CREATED, retryTargetPropertyId(), "slack",
                 NotificationStatus.RETRYING, 2, null, objectMapper.createObjectNode(), null, null));
 
         // when
@@ -153,11 +177,21 @@ class NotificationServiceTest {
 
     private PropertyRequest request(String name) {
         return new PropertyRequest(
-                name, null, DealType.SALE, 500_000_000L, null, null,
+                name, null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null);
+    }
+
+    /**
+     * 재발송 대상이 될 매물 (설계 I96).
+     *
+     * <p>시스템 알림을 두지 않으므로 <b>매물에 딸리지 않은 알림은 보낼 곳이 없습니다.</b>
+     * 재발송 테스트도 매물 알림이어야 합니다.
+     */
+    private Long retryTargetPropertyId() {
+        return propertyService.create(request("재발송 대상")).id();
     }
 }

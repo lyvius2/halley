@@ -12,7 +12,7 @@ public class SlackWebhookFallbackFactory implements FallbackFactory<SlackWebhook
 
     @Override
     public SlackWebhookClient create(Throwable cause) {
-        return (payload, contentType) -> {
+        return (webhookUrl, payload, contentType) -> {
             log.warn("Slack webhook post failed - returning fallback (recorded as FAILED in NOTIFICATION_LOG). cause={}", describe(cause));
             return null;
         };

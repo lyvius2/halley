@@ -27,8 +27,7 @@ public class ExternalApiKeyReporter implements ApplicationRunner {
                                   @Value("${vworld.api-key:}") String vworldApiKey,
                                   @Value("${llm.claude.api-key:}") String claudeApiKey,
                                   @Value("${law.oc:}") String lawOc,
-                                  @Value("${fss.api-key:}") String fssApiKey,
-                                  @Value("${slack.webhook-url:}") String slackWebhookUrl) {
+                                  @Value("${fss.api-key:}") String fssApiKey) {
         keys.put("kakao.js-key", kakaoJsKey);
         keys.put("kakao.rest-key", kakaoRestKey);
         keys.put("odsay.api-key", odsayApiKey);
@@ -37,7 +36,6 @@ public class ExternalApiKeyReporter implements ApplicationRunner {
         keys.put("llm.claude.api-key", claudeApiKey);
         keys.put("law.oc", lawOc);
         keys.put("fss.api-key", fssApiKey);
-        keys.put("slack.webhook-url", slackWebhookUrl);
     }
 
     @Override

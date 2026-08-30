@@ -1,5 +1,6 @@
 package banghak.home.halley.config;
 
+import banghak.home.halley.domain.user.UserRole;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -49,11 +50,20 @@ public class AccountSetupFilter extends OncePerRequestFilter {
             return;
         }
 
+        // 관리자는 이 흐름을 타지 않는다 (설계 I105). 직장·보유 현금은 매물을 보는 사람의
+        // 값이고 admin은 어느 그룹에도 속하지 않는다 — 요구하면 관리 자체가 막힌다
+        if (UserRole.ADMIN.name().equals(principal.getRole())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         if (principal.isMustChangePassword() && !PASSWORD_STEP_ALLOWED.contains(uri)) {
             reject(response, "MUST_CHANGE_PASSWORD");
             return;
         }
-        if (!principal.isProfileComplete() && !PROFILE_STEP_ALLOWED.contains(uri)) {
+        // 화면과 같은 기준으로 막는다 (설계 I100). 한쪽은 확인 여부로, 다른 쪽은
+        // 완성 여부로 보면 확인을 마쳐도 API가 계속 403을 준다
+        if (!principal.isProfileConfirmed() && !PROFILE_STEP_ALLOWED.contains(uri)) {
             reject(response, "PROFILE_SETUP_REQUIRED");
             return;
         }

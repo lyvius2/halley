@@ -1,6 +1,9 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:halley;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    # DB_CLOSE_DELAY=-1 는 빼면 안 된다. H2 인메모리 DB는 마지막 커넥션이 닫히는 순간
+    # 스키마째 사라진다 — HikariCP가 커넥션을 수명(기본 30분)만큼 쓰고 교체하는 틈에
+    # 전부 닫히면 그 뒤 모든 질의가 `Table "property" not found`로 터진다 (설계 I107).
+    url: jdbc:h2:mem:halley;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
     driver-class-name: org.h2.Driver
     username: sa
     password:

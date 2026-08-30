@@ -11,6 +11,8 @@ import banghak.home.halley.domain.notification.NotificationEventType;
 import banghak.home.halley.domain.notification.NotificationLog;
 import banghak.home.halley.domain.notification.NotificationStatus;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.domain.group.UserGroup;
 import banghak.home.halley.domain.property.Property;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -25,6 +27,7 @@ import java.util.List;
 public class NotificationService {
 
     private final SlackPort slackPort;
+    private final UserGroupRepository userGroupRepository;
     private final SlackProperties slackProperties;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
@@ -33,6 +36,7 @@ public class NotificationService {
     private final ObjectMapper objectMapper;
 
     public NotificationService(SlackPort slackPort,
+                               UserGroupRepository userGroupRepository,
                                SlackProperties slackProperties,
                                PropertyRepository propertyRepository,
                                UserRepository userRepository,
@@ -40,6 +44,7 @@ public class NotificationService {
                                NotificationLogRepository notificationLogRepository,
                                ObjectMapper objectMapper) {
         this.slackPort = slackPort;
+        this.userGroupRepository = userGroupRepository;
         this.slackProperties = slackProperties;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
@@ -56,11 +61,76 @@ public class NotificationService {
         if (property == null) {
             return;
         }
-        sendEvent(NotificationEventType.PROPERTY_CREATED, propertyId, buildCreatedMessage(property));
+        final String webhook = webhookOfGroup(property.groupId());
+        if (webhook == null) {
+            return;
+        }
+        sendEvent(NotificationEventType.PROPERTY_CREATED, propertyId,
+                buildCreatedMessage(property), webhook);
+    }
+
+    /**
+     * 매물이 지워졌다 (설계 I96).
+     *
+     * <p><b>이름을 인자로 받습니다.</b> 알림은 커밋 뒤에 나가는데 그때는 이미 매물이 없어
+     * 조회로는 이름을 알 수 없습니다.
+     */
+    public void sendPropertyDeleted(Long groupId, String propertyName) {
+        send(NotificationEventType.PROPERTY_DELETED, null, groupId,
+                ":wastebasket: 매물이 삭제되었습니다 — " + text(propertyName));
+    }
+
+    public void sendCommentCreated(Long propertyId, String nickname) {
+        sendForProperty(NotificationEventType.COMMENT_CREATED, propertyId,
+                property -> ":speech_balloon: " + text(nickname) + "님이 "
+                        + text(property.name()) + "에 의견을 남겼습니다");
+    }
+
+    public void sendComfortScored(Long propertyId, String nickname) {
+        sendForProperty(NotificationEventType.COMFORT_SCORED, propertyId,
+                property -> ":sparkles: " + text(nickname) + "님이 "
+                        + text(property.name()) + "의 공간 쾌적함을 평가했습니다");
+    }
+
+    /** 매물을 찾아 그 그룹으로 보낸다. 매물이 없으면 보낼 곳도 없다. */
+    private void sendForProperty(NotificationEventType eventType, Long propertyId,
+                                 java.util.function.Function<Property, String> message) {
+        if (!shouldSend()) {
+            return;
+        }
+        propertyRepository.findById(propertyId).ifPresent(property ->
+                send(eventType, propertyId, property.groupId(), message.apply(property)));
+    }
+
+    private void send(NotificationEventType eventType, Long propertyId, Long groupId, String text) {
+        if (!shouldSend()) {
+            return;
+        }
+        final String webhook = webhookOfGroup(groupId);
+        if (webhook == null) {
+            return;
+        }
+        sendEvent(eventType, propertyId, text, webhook);
+    }
+
+    private String text(String value) {
+        return value == null || value.isBlank() ? "(이름 없음)" : value;
     }
 
     public void sendListingsSoldOut(List<Property> soldOut) {
         if (!shouldSend() || !slackProperties.isNotifySoldOut()) {
+            return;
+        }
+        // 그룹별로 나눠 보낸다 (설계 I96). 한 메시지에 담으면 우리 매물이 남의 채널에 뜬다
+        soldOut.stream()
+                .filter(p -> p.groupId() != null)
+                .collect(java.util.stream.Collectors.groupingBy(Property::groupId))
+                .forEach(this::sendSoldOutForGroup);
+    }
+
+    private void sendSoldOutForGroup(Long groupId, List<Property> soldOut) {
+        final String webhook = webhookOfGroup(groupId);
+        if (webhook == null) {
             return;
         }
         final List<ScoredPropertyResponse> scored = soldOut.stream()
@@ -79,34 +149,12 @@ public class NotificationService {
             }
             sb.append('\n');
         }
-        sendEvent(NotificationEventType.LISTING_SOLD_OUT, null, sb.toString());
+        sendEvent(NotificationEventType.LISTING_SOLD_OUT, null, sb.toString(), webhook);
     }
 
-    public void sendBatchBlocked() {
-        if (!shouldSend()) {
-            return;
-        }
-        sendEvent(NotificationEventType.BATCH_BLOCKED, null, ":no_entry: 생존 확인 배치가 봇 차단(403/429)으로 중단되었습니다.");
-    }
-
-    public void sendBatchCircuitOpen() {
-        if (!shouldSend()) {
-            return;
-        }
-        sendEvent(NotificationEventType.BATCH_CIRCUIT_OPEN, null,
-                ":warning: 전체 매물의 과반이 GONE 판정 — 배치 서킷 개방, 상태 변경 없음.");
-    }
-
-    public void sendBatchSummary(int total, int alive, int gone, int error) {
-        if (!shouldSend()) {
-            return;
-        }
-        sendEvent(NotificationEventType.BATCH_SUMMARY, null,
-                "점검 " + total + "건 / 정상 " + alive + " · GONE " + gone + " · 오류 " + error);
-    }
-
-    public boolean testSend() {
-        return slackPort.send(":tada: Halley에서 테스트 메시지를 보냅니다.");
+    /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 그룹 설정 화면에서 부른다. */
+    public boolean testSend(String webhookUrl) {
+        return slackPort.send(webhookUrl, ":tada: Halley에서 테스트 메시지를 보냅니다.");
     }
 
     public List<NotificationLogResponse> recentNotifications() {
@@ -129,7 +177,13 @@ public class NotificationService {
             if (text == null) {
                 continue;
             }
-            final boolean sent = slackPort.send(text);
+            // 재발송도 원래 나가야 했던 곳으로 보낸다 (설계 I96).
+            // 전역으로 돌리면 재시도 한 번에 남의 채널로 새어 나간다
+            final String webhook = webhookForRetry(log);
+            if (webhook == null) {
+                continue;
+            }
+            final boolean sent = slackPort.send(webhook, text);
             if (sent) {
                 notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
             } else {
@@ -143,19 +197,51 @@ public class NotificationService {
             case PROPERTY_CREATED -> log.propertyId() == null ? null
                     : propertyRepository.findById(log.propertyId()).map(this::buildCreatedMessage).orElse(null);
             case LISTING_SOLD_OUT -> "판매완료 알림 (재전송)";
-            case BATCH_BLOCKED -> ":no_entry: 생존 확인 배치가 봇 차단으로 중단되었습니다. (재전송)";
-            case BATCH_CIRCUIT_OPEN -> ":warning: 과반 GONE — 배치 서킷 개방. (재전송)";
-            case BATCH_SUMMARY -> "배치 요약 (재전송)";
-            case BATCH_ERROR -> "배치 오류 (재전송)";
+            case PROPERTY_DELETED -> "매물 삭제 알림 (재전송)";
+            case COMMENT_CREATED -> "코멘트 알림 (재전송)";
+            case COMFORT_SCORED -> "쾌적함 평가 알림 (재전송)";
         };
     }
 
-    private void sendEvent(NotificationEventType eventType, Long propertyId, String text) {
+    /**
+     * 재발송할 알림이 원래 나가야 했던 곳 (설계 I96).
+     *
+     * <p>매물에 딸린 알림이면 그 매물의 그룹, 아니면 운영자에게 갑니다. 그룹 웹훅이
+     * 그 사이에 지워졌으면 <b>보내지 않습니다</b> — 옛 알림을 엉뚱한 곳에 흘리지 않습니다.
+     */
+    private String webhookForRetry(NotificationLog log) {
+        if (log.propertyId() == null) {
+            // 매물에 딸리지 않은 알림은 보낼 곳이 없다 (설계 I96) — 시스템 알림을 두지 않는다
+            return null;
+        }
+        return propertyRepository.findById(log.propertyId())
+                .map(p -> webhookOfGroup(p.groupId()))
+                .orElse(null);
+    }
+
+    /**
+     * 그룹의 알림이 나갈 곳 (설계 I96).
+     *
+     * <p><b>없으면 보내지 않습니다.</b> 전역 웹훅으로 흘려보내면 그게 곧 누수입니다 —
+     * 우리 매물이 남의 채널에 뜹니다.
+     */
+    private String webhookOfGroup(Long groupId) {
+        if (groupId == null) {
+            return null;
+        }
+        return userGroupRepository.findById(groupId)
+                .filter(UserGroup::hasWebhook)
+                .map(UserGroup::slackWebhookUrl)
+                .orElse(null);
+    }
+
+    private void sendEvent(NotificationEventType eventType, Long propertyId, String text,
+                           String webhookUrl) {
         final NotificationLog log = notificationLogRepository.save(new NotificationLog(
                 null, eventType, propertyId, "slack",
                 NotificationStatus.RETRYING, 0, null, payload(propertyId), null, null));
 
-        final boolean sent = slackPort.send(text);
+        final boolean sent = slackPort.send(webhookUrl, text);
         if (sent) {
             notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
         } else {
@@ -163,10 +249,15 @@ public class NotificationService {
         }
     }
 
+    /**
+     * 알림 기능이 켜져 있는지 (설계 I96).
+     *
+     * <p><b>전역 웹훅 주소는 더 이상 보지 않습니다.</b> 보낼 곳은 매물의 그룹마다 다르므로
+     * 여기서 전역 주소로 막으면 그룹 웹훅을 넣어 둔 사람도 알림을 못 받습니다.
+     * 주소가 없는 경우는 발송 직전에 각자 걸러집니다.
+     */
     private boolean shouldSend() {
-        return slackProperties.isEnabled()
-                && slackProperties.getWebhookUrl() != null
-                && !slackProperties.getWebhookUrl().isBlank();
+        return slackProperties.isEnabled();
     }
 
     private ObjectNode payload(Long propertyId) {
@@ -215,7 +306,6 @@ public class NotificationService {
         return switch (type) {
             case SALE -> "매매";
             case JEONSE -> "전세";
-            case MONTHLY -> "월세";
         };
     }
 

@@ -13,22 +13,52 @@ import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.SourceType;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import banghak.home.halley.application.event.PropertyInsightChanged;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
+@RecordApplicationEvents
 @ActiveProfiles("local")
 @Transactional
 class PropertyServiceTest {
+
+    @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
+    }
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Autowired
     private PropertyService propertyService;
@@ -58,7 +88,7 @@ class PropertyServiceTest {
     void createRequiresDealType() {
         // given
         final PropertyRequest request = new PropertyRequest(
-                "거래유형 없음", null, null, 100_000_000L, null, null,
+                "거래유형 없음", null, null, 100_000_000L, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -176,7 +206,7 @@ class PropertyServiceTest {
         // given
         final PropertyResponse created = propertyService.create(request("수정 전", DealType.SALE, 400_000_000L));
         final PropertyRequest updateRequest = new PropertyRequest(
-                "수정 후", "102동 501호", DealType.JEONSE, 300_000_000L, null, 15,
+                "수정 후", "102동 501호", DealType.JEONSE, 300_000_000L, 15,
                 "서울시 새주소", null, new BigDecimal("37.6"), new BigDecimal("127.1"),
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
@@ -212,7 +242,7 @@ class PropertyServiceTest {
         // given
         final PropertyRequest base = request("한빛아파트", DealType.SALE, 500_000_000L);
         final PropertyRequest pasteRequest = new PropertyRequest(
-                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(), base.priceMonthly(),
+                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(),
                 base.maintenanceFee(), base.addressRoad(), base.addressJibun(), base.lat(), base.lng(),
                 base.areaSupplyM2(), base.areaExclusiveM2(), base.floorRaw(), base.floorNo(), base.floorTotal(),
                 base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
@@ -244,9 +274,45 @@ class PropertyServiceTest {
         assertThat(propertyRepository.findById(created.id())).isEmpty();
     }
 
+    @Test
+    @DisplayName("수정에서 바뀐 게 없으면 AI에게 다시 묻지 않는다 (설계 I113)")
+    void doesNotAskAgainWhenNothingChanged() {
+        // given
+        final PropertyResponse created = propertyService.create(request("그대로 매물", DealType.SALE, 550_000_000L));
+        events.clear();
+
+        // when — 같은 값을 그대로 저장한다
+        propertyService.update(created.id(), request("그대로 매물", DealType.SALE, 550_000_000L), null);
+
+        // then
+        assertThat(editEvents()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("수정에서 값이 바뀌면 AI에게 다시 묻는다 (설계 I113)")
+    void asksAgainWhenDataChanged() {
+        // given
+        final PropertyResponse created = propertyService.create(request("바뀌는 매물", DealType.SALE, 550_000_000L));
+        events.clear();
+
+        // when — 가격이 바뀌었다. 프롬프트에 실리는 값이다
+        propertyService.update(created.id(), request("바뀌는 매물", DealType.SALE, 600_000_000L), null);
+
+        // then
+        assertThat(editEvents())
+                .singleElement()
+                .satisfies(e -> assertThat(e.propertyId()).isEqualTo(created.id()));
+    }
+
+    private List<PropertyInsightChanged> editEvents() {
+        return events.stream(PropertyInsightChanged.class)
+                .filter(e -> e.kind() == PropertyInsightChanged.Kind.EDIT)
+                .toList();
+    }
+
     private PropertyRequest request(String name, DealType dealType, Long priceDeposit) {
         return new PropertyRequest(
-                name, null, dealType, priceDeposit, null, null,
+                name, null, dealType, priceDeposit, null,
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
@@ -286,7 +352,7 @@ class PropertyServiceTest {
 
     private PropertyRequest requestWithSourceUrl(String sourceUrl) {
         return new PropertyRequest(
-                "참고URL테스트", null, DealType.SALE, 500_000_000L, null, null,
+                "참고URL테스트", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,

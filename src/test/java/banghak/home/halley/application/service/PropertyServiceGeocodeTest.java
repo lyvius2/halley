@@ -10,6 +10,7 @@ import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.Property;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -34,10 +35,17 @@ class PropertyServiceGeocodeTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final AgentService agentService = mock(AgentService.class);
+    private final PropertyAccessGuard propertyAccessGuard = mock(PropertyAccessGuard.class);
 
     private final PropertyService propertyService = new PropertyService(
-            propertyRepository, userRepository, agentService,
+            propertyAccessGuard, propertyRepository, userRepository, agentService,
             listingCheckLogRepository, editVersionStore, geoService, eventPublisher);
+
+    @BeforeEach
+    void stubGroup() {
+        // 매물은 그룹에 딸린다. 이 테스트는 지오코딩만 보므로 그룹은 있다고 친다 (설계 I87)
+        when(propertyAccessGuard.currentGroupId()).thenReturn(Optional.of(1L));
+    }
 
     @Test
     @DisplayName("좌표가 없고 주소가 있으면 주소로 지오코딩한 좌표가 저장된다")
@@ -105,7 +113,7 @@ class PropertyServiceGeocodeTest {
 
     private static PropertyRequest requestWithCoords(String address) {
         return new PropertyRequest(
-                "한빛아파트", null, DealType.SALE, 550_000_000L, null, null,
+                "한빛아파트", null, DealType.SALE, 550_000_000L, null,
                 address, address, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
@@ -115,7 +123,7 @@ class PropertyServiceGeocodeTest {
 
     private static PropertyRequest requestWithoutCoords(String address) {
         return new PropertyRequest(
-                "한빛아파트", null, DealType.SALE, 550_000_000L, null, null,
+                "한빛아파트", null, DealType.SALE, 550_000_000L, null,
                 address, address, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,

@@ -41,8 +41,19 @@ public record LoanEstimateResponse(
         Long askingPrice,
         Long usedAnnualIncome,
         Long usedCash,
+        /**
+         * 같은 그룹 사용자들의 보유 현금 합계 (설계 I114).
+         *
+         * <p>한도 계산에는 <b>내 현금만</b> 들어갑니다 — 대출은 개인 명의로 받으니까요.
+         * 그런데 이 앱은 그룹이 현금을 모아 집을 사려고 만든 것이라, 화면에는 둘 다 보여야
+         * "왜 내 현금 기준으로 부족하다고 나오는가"를 오해 없이 읽을 수 있습니다.
+         */
+        Long groupCash,
         Long usedExistingLoan,
         Double monthlyRate,
+        /** DSR 한도를 역산할 때 쓴 연이율 (설계 I97). 실금리보다 높다 */
+        Double dsrRate,
+        String rateTypeLabel,
         Integer termMonths,
         /**
          * 금리 출처 한 줄 (설계 I81). `은행 12개 상품 변동금리 중앙값 (2026년 1월 공시)` 또는
@@ -81,16 +92,17 @@ public record LoanEstimateResponse(
 
     public static LoanEstimateResponse mortgage(Long propertyId, LoanEstimateResult r,
                                                 long askingPrice, long annualIncome, long cash,
-                                                long existingLoan, boolean insured,
+                                                long existingLoan, long groupCash, boolean insured,
                                                 RegulationZone zone, HouseOwnership ownership,
                                                 BigDecimal ltvRate, String ltvReason,
-                                                String zoneWarning, String rateSource) {
+                                                String zoneWarning, String rateSource,
+                                                String rateTypeLabel) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.MORTGAGE, "주택담보대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), false,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
-                askingPrice, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(), rateSource,
+                askingPrice, annualIncome, cash, groupCash, existingLoan,
+                r.monthlyRate(), r.dsrMonthlyRate() * 12, rateTypeLabel, r.termMonths(), rateSource,
                 r.ltvLimit(), r.acquisitionTax(),
                 r.collateralValue(), r.collateralSource(), r.collateralSource().label(),
                 r.collateralSampleCount(), r.collateralReliable(),
@@ -101,13 +113,13 @@ public record LoanEstimateResponse(
 
     public static LoanEstimateResponse jeonse(Long propertyId, JeonseEstimateResult r,
                                               long deposit, long annualIncome, long cash,
-                                              long existingLoan, String rateSource) {
+                                              long existingLoan, long groupCash, String rateSource) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.JEONSE, "전세자금대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), true,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
-                deposit, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(), rateSource,
+                deposit, annualIncome, cash, groupCash, existingLoan,
+                r.monthlyRate(), null, null, r.termMonths(), rateSource,
                 null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null,
                 r.guaranteeLimit(), r.guaranteeRate(), r.guaranteeCap());

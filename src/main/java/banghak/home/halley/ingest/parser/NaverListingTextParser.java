@@ -11,7 +11,6 @@ import banghak.home.halley.ingest.parser.extractor.IntegerValueExtractor;
 import banghak.home.halley.ingest.parser.extractor.LabelValueExtractor;
 import banghak.home.halley.ingest.parser.extractor.ValueCleaner;
 import banghak.home.halley.ingest.parser.extractor.MaintenanceFeeExtractor;
-import banghak.home.halley.ingest.parser.extractor.MonthlyRentExtractor;
 import banghak.home.halley.ingest.parser.extractor.MoveInExtractor;
 import banghak.home.halley.ingest.parser.extractor.NameExtractor;
 import banghak.home.halley.ingest.parser.extractor.ParkingExtractor;
@@ -41,7 +40,6 @@ public class NaverListingTextParser {
                 // 전세는 실제 페이지가 `전세가`로 적는다. `보증금`만 보던 탓에 전세 매물의
                 // 가격이 통째로 비었다 (설계 I82)
                 new WonValueExtractor("priceDeposit", true, "매매가", "전세가", "보증금"),
-                new MonthlyRentExtractor(),
                 new WonValueExtractor("kbPrice", false, "KB시세"),
                 new MaintenanceFeeExtractor(),
                 new AreaValueExtractor("areaSupplyM2", "공급면적"),

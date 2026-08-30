@@ -4,7 +4,6 @@ function emptyPropertyForm() {
         name: '',
         dealType: 'SALE',
         priceDeposit: '',
-        priceMonthly: '',
         maintenanceFee: '',
         addressRoad: '',
         addressJibun: '',
@@ -18,9 +17,13 @@ function emptyPropertyForm() {
         approvalYear: '',
         buildingCount: '',
         totalHouseholds: '',
+        parkingPerHousehold: '',
         moveInType: '',
         moveInDate: '',
-        editVersion: null
+        editVersion: null,
+        // 이 폼이 보여 주지 않는 칸들 (설계 I113). 수정 요청은 매물 전체를 덮어쓰므로
+        // 안 보내면 지워진다 — 화면에 없는 값도 그대로 돌려보내야 한다
+        carry: {}
     };
 }
 
@@ -28,6 +31,7 @@ function emptyUserForm() {
     return {
         loginId: '',
         nickname: '',
+        groupId: '',
         password: '',
         role: 'MEMBER',
         workplaceName: '',
@@ -43,6 +47,13 @@ function emptyUserForm() {
 const COMPARE_MIN_PROPERTIES = 4;
 
 /** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
+/**
+ * 채점 판 번호를 확인하는 주기 (설계 I85).
+ * 보정과 AI 응답은 수 초~수십 초가 걸린다. 이보다 촘촘히 물어도 답이 달라지지 않는다.
+ */
+const SCORE_WATCH_MS = 3000;
+// 응답이 이보다 빨리 오면 진행 막대를 띄우지 않는다 — 번쩍임이 더 거슬린다 (설계 I115)
+const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
 
@@ -64,6 +75,7 @@ function halley() {
         mobileTab: 'map',
         dealTypeFilter: 'ALL',
         properties: [],
+        scoreWatchTimer: null,
         visibleProperties: [],
         showSoldOut: false,
         users: [],
@@ -75,10 +87,11 @@ function halley() {
         checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
-        loanForm: { firstHome: false, mortgageInsured: false, ownedHouseCount: 0 },
+        loanForm: { firstHome: false, mortgageInsured: false, ownedHouseCount: 0, rateType: 'VARIABLE' },
         loanResult: null,
         loanAmount: 0,
         loanShowInputs: false,
+        showMciHelp: false,
         loanOverride: { annualIncome: '', cash: '', existingLoan: '' },
         showRefModal: false,
         refProperty: null,
@@ -169,6 +182,13 @@ function halley() {
         showScoreModal: false,
         scoreProperty: null,
         scoreForm: {},
+        // 연 시점의 채점 값. 저장할 때 달라진 항목만 가려내는 데 쓴다 (설계 I111).
+        // Alpine은 선언된 것만 프록시에 올린다 — 여기 없으면 읽는 순간 던진다
+        _scoreFormAtOpen: {},
+        // 모달별 로딩 표시 (설계 I115). Alpine은 선언된 것만 프록시에 올린다 —
+        // 여기 없으면 템플릿이 읽는 순간 던진다
+        _loading: {},
+        _loadingTimers: {},
         weights: [],
         settings: [],
         settingsForm: {},
@@ -181,11 +201,68 @@ function halley() {
         roadviewState: 'loading',
         roadview: null,
         loginForm: { loginId: '', password: '' },
+        signUpOpen: false,
+        showSignUp: false,
+        signUpForm: { loginId: '', nickname: '', password: '' },
+        signUpNickname: null,
+        profileNickname: null,
+        debts: [],
+        debtForm: [],
+        debtTypes: [
+            { code: 'MORTGAGE', label: '주택담보대출' },
+            { code: 'CREDIT', label: '신용대출' },
+            { code: 'NEGATIVE_ACCOUNT', label: '마이너스통장 (한도)' },
+            { code: 'JEONSE', label: '전세자금대출' },
+            { code: 'OTHER_SECURED', label: '기타담보대출' },
+            { code: 'INSTALLMENT', label: '할부·리스' }
+        ],
+        myGroup: null,
+        groups: [],
+        newGroupName: '',
+        /** 가중치 드래그 중인 항목 (설계 I105). 선언하지 않으면 템플릿이 읽을 때 터진다 */
+        _dragIndex: null,
+        groupForm: { name: '', slackWebhookUrl: '' },
+        joinForm: { code: '' },
+        inviteCode: null,
+        withdrawForm: { password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
 
+        /**
+         * 로그인 전에 알아야 하는 설정 (설계 I95).
+         *
+         * 세션 조회는 로그아웃 상태에서 401이라 거기 담을 수 없다.
+         * 못 받으면 <b>닫힌 것으로 본다</b> — 열어 두는 쪽으로 틀리면 안 된다.
+         */
+        async loadPublicConfig() {
+            const { ok, body } = await this.request('/api/auth/config');
+            this.signUpOpen = ok && body ? body.signUpOpen === true : false;
+        },
+
+        /**
+         * 숫자 칸 위에서 휠을 굴려도 값이 바뀌지 않게 한다 (설계 I101).
+         *
+         * `type="number"`는 <b>포커스된 상태에서 휠에 반응</b>합니다. 페이지를 스크롤하다
+         * 커서가 그 칸 위에 있으면 값이 조용히 오르내립니다 — 실제로 보유 현금
+         * 550,000,000이 549,999,997로 바뀌어 저장됐습니다. 세 칸 내려간 것입니다.
+         *
+         * 금액·좌표를 다루는 앱이라 <b>한 자리가 틀리면 판단이 통째로 어긋납니다.</b>
+         * 값을 되돌리는 대신 포커스를 놓아 휠이 스크롤로만 동작하게 합니다.
+         */
+        guardNumberInputs() {
+            document.addEventListener('wheel', (event) => {
+                const el = event.target;
+                if (el instanceof HTMLInputElement && el.type === 'number'
+                        && document.activeElement === el) {
+                    el.blur();
+                }
+            }, { passive: true });
+        },
+
         async init() {
+            this.guardNumberInputs();
+            await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
                     this.map.relayout();
@@ -217,6 +294,18 @@ function halley() {
             if (res.status === 403 && body && body.code === 'MUST_CHANGE_PASSWORD') {
                 this.showPassword = true;
             }
+            // 세션이 끊기면 모든 호출이 조용히 실패한다 — 사용자에게는 '아무 반응이 없는' 상태다.
+            // 다만 <b>로그인 전에는 401이 정상</b>이다. 첫 접속의 세션 확인도 401로 온다 —
+            // 그때까지 '풀렸다'고 하면 아무 일도 없었는데 경고부터 보게 된다
+            if (res.status === 401) {
+                const hadSession = this.session.authenticated;
+                this.session = { authenticated: false, userId: null, nickname: null,
+                    role: null, mustChangePassword: false };
+                this.showLogin = true;
+                if (hadSession) {
+                    this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
+                }
+            }
             return { ok: res.ok, status: res.status, body };
         },
 
@@ -229,15 +318,24 @@ function halley() {
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
-                this.showProfileSetup = !this.showPassword && body.profileComplete === false;
+                // 값이 채워져 있는 것과 본인이 맞다고 한 것은 다르다 (설계 I100)
+                this.showProfileSetup = !this.showPassword && body.profileConfirmed === false;
+                if (this.showProfileSetup) {
+                    await this.prefillSetupForm();
+                }
                 // 초기 설정(비밀번호·프로필)이 끝나기 전에는 다른 API가 403이므로 호출하지 않는다
                 const setupPending = this.showPassword || this.showProfileSetup;
                 if (this.session.role === 'ADMIN' && !setupPending) {
                     await this.loadUsers();
+                    await this.loadGroups();
                 }
                 if (!setupPending) {
+                    await this.loadMyGroup();
+                    await this.loadDebts();
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
+                    // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
+                    this.startScoreWatch();
                 }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
@@ -284,11 +382,12 @@ function halley() {
             }
             this.showUsers = true;
             this.error = null;
-            this.loadUsers();
+            this.withLoading('users', () => this.loadUsers());
         },
 
         closeUsers() {
             this.showUsers = false;
+            this.users = [];
             this.error = null;
         },
 
@@ -300,18 +399,23 @@ function halley() {
         },
 
 
-        openAddUser() {
+        async openAddUser() {
             this.editingUserId = null;
             this.userForm = emptyUserForm();
             this.error = null;
             this.showUserForm = true;
+            // 열 때마다 다시 읽는다 (설계 I112). 세션 확인 때 한 번 읽은 게 전부였는데,
+            // 초기 설정이 남아 있으면 그 호출을 건너뛰어 목록이 영영 비어 있었다
+            await this.withLoading('groups', () => this.loadGroups());
         },
 
-        openEditUser(u) {
+        async openEditUser(u) {
             this.editingUserId = u.id;
             this.userForm = {
                 loginId: u.loginId,
                 nickname: u.nickname,
+                // 지금 그룹을 미리 고르지 않는다 — 손대지 않으면 그대로 둔다는 뜻이다 (설계 I103)
+                groupId: '',
                 password: '',
                 role: u.role,
                 workplaceName: u.workplaceName || '',
@@ -323,6 +427,7 @@ function halley() {
             };
             this.error = null;
             this.showUserForm = true;
+            await this.withLoading('groups', () => this.loadGroups());
         },
 
         closeUserForm() {
@@ -339,6 +444,7 @@ function halley() {
             const body = {
                 loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
+                groupId: this.userForm.groupId ? Number(this.userForm.groupId) : null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
@@ -348,7 +454,8 @@ function halley() {
             };
             if (!editing) {
                 body.password = this.userForm.password;
-                body.role = this.userForm.role;
+                // 관리자 계정은 화면에서 만들지 않는다 (설계 I105)
+                body.role = 'MEMBER';
             }
             try {
                 const { ok, body: resBody } = await this.request(
@@ -387,6 +494,222 @@ function halley() {
             });
         },
 
+
+        // ── 그룹 (설계 I89) ──────────────────────────────
+
+        openSignUp() {
+            this.showLogin = false;
+            this.showSignUp = true;
+            this.error = null;
+            this.signUpNickname = null;
+        },
+
+        openLogin() {
+            this.showSignUp = false;
+            this.showLogin = true;
+            this.error = null;
+        },
+
+        /** 가입하면 새 그룹이 함께 만들어진다 (규칙 14). 바로 로그인까지 이어 준다. */
+        async signUp() {
+            if (this.signUpNickname === false) {
+                this.error = '다른 닉네임을 골라주세요';
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/users/sign-up', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.signUpForm)
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '가입에 실패했습니다';
+                    return;
+                }
+                this.loginForm = { loginId: this.signUpForm.loginId, password: this.signUpForm.password };
+                this.showSignUp = false;
+                this.signUpForm = { loginId: '', nickname: '', password: '' };
+                await this.login();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        /** @param target 'signUp' 또는 'profile' — 어느 칸의 닉네임을 확인하는지 */
+        async checkNickname(target) {
+            const nickname = target === 'signUp' ? this.signUpForm.nickname : this.profileForm.nickname;
+            if (!nickname) {
+                return;
+            }
+            const { ok, body } = await this.request(
+                '/api/users/nickname-check?nickname=' + encodeURIComponent(nickname));
+            const available = ok && body ? body.available : false;
+            if (target === 'signUp') {
+                this.signUpNickname = available;
+            } else {
+                this.profileNickname = available;
+            }
+        },
+
+        /** admin 전용 그룹 목록 (규칙 7·12). 회원은 이 API를 부를 수 없다. */
+        async loadGroups() {
+            const { ok, body } = await this.request('/api/admin/groups');
+            this.groups = ok && body ? body : [];
+        },
+
+        async createGroupAsAdmin() {
+            this.error = null;
+            const { ok, body } = await this.request('/api/admin/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.newGroupName.trim() || null })
+            });
+            if (!ok) {
+                this.error = (body && body.message) || '그룹을 만들지 못했습니다';
+                return;
+            }
+            this.newGroupName = '';
+            await this.loadGroups();
+        },
+
+        /** 종류별 기존 부채 (설계 I92). 연간 부담을 함께 보여 준다. */
+        async loadDebts() {
+            const { ok, body } = await this.request('/api/users/me/debts');
+            this.debts = ok && body ? body : [];
+            this.debtForm = this.debts.map(d => ({ type: d.type, amount: String(d.amount) }));
+        },
+
+        addDebt() {
+            this.debtForm.push({ type: 'CREDIT', amount: '' });
+        },
+
+        removeDebt(index) {
+            this.debtForm.splice(index, 1);
+        },
+
+        async saveDebts() {
+            const payload = this.debtForm
+                .filter(d => d.type && toNum(d.amount) > 0)
+                .map(d => ({ type: d.type, amount: toNum(d.amount) }));
+            const { ok, body } = await this.request('/api/users/me/debts', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!ok) {
+                this.error = (body && body.message) || '부채를 저장하지 못했습니다';
+                return;
+            }
+            this.debts = body || [];
+            this.debtForm = this.debts.map(d => ({ type: d.type, amount: String(d.amount) }));
+        },
+
+        async loadMyGroup() {
+            // admin은 어느 그룹에도 속하지 않으므로 그룹 정보가 없다 (규칙 5)
+            const { ok, body } = await this.request('/api/groups/me');
+            this.myGroup = ok ? body : null;
+            this.groupForm.name = this.myGroup ? this.myGroup.name : '';
+            this.groupForm.slackWebhookUrl = this.myGroup ? (this.myGroup.slackWebhookUrl || '') : '';
+        },
+
+        async renameGroup() {
+            const { ok, body } = await this.request('/api/groups/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.groupForm.name })
+            });
+            if (ok) {
+                this.myGroup = body;
+            } else {
+                this.error = (body && body.message) || '그룹 이름을 바꾸지 못했습니다';
+            }
+        },
+
+        /** 알림이 나갈 곳 (설계 I96). 비우면 알림이 나가지 않는다. */
+        async saveWebhook() {
+            const { ok, body } = await this.request('/api/groups/me/webhook', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slackWebhookUrl: this.groupForm.slackWebhookUrl || null })
+            });
+            if (ok) {
+                this.myGroup = body;
+            } else {
+                this.error = (body && body.message) || '웹훅을 저장하지 못했습니다';
+            }
+        },
+
+        /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 주소를 잘못 넣어도 조용히 안 갈 뿐이다. */
+        async testWebhook() {
+            const { ok, body } = await this.request('/api/groups/me/webhook/test', { method: 'POST' });
+            this.error = (ok && body && body.sent)
+                ? null
+                : '테스트 메시지를 보내지 못했습니다. 웹훅 주소를 확인해 주세요';
+        },
+
+        async createInvite() {
+            const { ok, body } = await this.request('/api/groups/me/invites', { method: 'POST' });
+            if (ok) {
+                this.inviteCode = body;
+            } else {
+                this.error = (body && body.message) || '초대 코드를 만들지 못했습니다';
+            }
+        },
+
+        /**
+         * 그룹을 옮기기 전에 경고한다 (규칙 11).
+         *
+         * 지금 그룹에 나만 남아 있으면 <b>그 그룹의 매물이 전부 사라집니다</b>(규칙 4).
+         * 되돌릴 수 없으므로 그 경우를 따로 알린다.
+         */
+        confirmJoinGroup() {
+            const alone = this.myGroup && this.myGroup.memberCount <= 1;
+            const message = alone
+                ? `지금 그룹('${this.myGroup.name}')에는 회원님만 있습니다.\n`
+                    + '옮기면 이 그룹과 여기 등록된 매물이 모두 삭제되며 되돌릴 수 없습니다.\n\n계속할까요?'
+                : `지금 그룹('${this.myGroup ? this.myGroup.name : ''}')에서 나가 초대받은 그룹으로 옮깁니다.\n`
+                    + '옮기면 지금 그룹의 매물은 더 이상 보이지 않습니다.\n\n계속할까요?';
+            this.askConfirm('그룹 변경', message, async () => {
+                const { ok, body } = await this.request('/api/groups/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: this.joinForm.code.trim() })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '그룹 가입에 실패했습니다';
+                    return;
+                }
+                this.joinForm.code = '';
+                this.inviteCode = null;
+                await this.loadMyGroup();
+                await this.loadProperties();
+            });
+        },
+
+        confirmWithdraw() {
+            const alone = this.myGroup && this.myGroup.memberCount <= 1;
+            const message = (alone
+                ? `그룹('${this.myGroup.name}')에 회원님만 있습니다. 탈퇴하면 그룹과 매물이 모두 삭제됩니다.\n`
+                : '올리신 매물과 코멘트는 그룹에 남습니다.\n')
+                + '닉네임을 제외한 모든 정보가 삭제되며 되돌릴 수 없습니다.\n\n정말 탈퇴할까요?';
+            this.askConfirm('회원 탈퇴', message, async () => {
+                const { ok, body } = await this.request('/api/users/me/withdraw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.withdrawForm.password })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '탈퇴에 실패했습니다';
+                    return;
+                }
+                window.location.reload();
+            });
+        },
+
         askConfirm(title, message, action) {
             this.confirmState = { title, message, action };
         },
@@ -403,6 +726,28 @@ function halley() {
             this.confirmState = null;
         },
 
+        /**
+         * 확인 화면을 지금 저장된 값으로 채운다 (설계 I100).
+         *
+         * 빈 화면을 주면 관리자가 넣어 둔 값을 <b>본인이 다시 타이핑</b>해야 하고,
+         * 그러다 원래 값이 뭐였는지 모른 채 덮어씁니다.
+         */
+        async prefillSetupForm() {
+            const { ok, body } = await this.request('/api/users/me');
+            if (!ok || !body) {
+                return;
+            }
+            this.setupForm = {
+                nickname: body.nickname || '',
+                workplaceName: body.workplaceName || '',
+                workplaceLat: body.workplaceLat ?? '',
+                workplaceLng: body.workplaceLng ?? '',
+                availableBudget: body.availableBudget ?? '',
+                annualIncome: body.annualIncome ?? '',
+                existingLoan: body.existingLoan ?? ''
+            };
+        },
+
         async loadProfile() {
             const { ok, body } = await this.request('/api/users/me');
             if (ok) {
@@ -417,6 +762,9 @@ function halley() {
                     existingLoan: body.existingLoan ?? ''
                 };
             }
+            // 프로필 화면을 열 때 그룹도 함께 받는다 (설계 I102).
+            // 로그인 때 한 번만 받으면, 그 사이 그룹을 옮겼을 때 옛 이름이 남는다
+            await this.loadMyGroup();
         },
 
         /**
@@ -442,7 +790,9 @@ function halley() {
                         await this.rememberStartLocation();
                         return;
                     }
-                    const form = target === 'setup' ? this.setupForm : this.profileForm;
+                    const form = target === 'setup' ? this.setupForm
+                        : target === 'user' ? this.userForm
+                        : this.profileForm;
                     form.workplaceName = label;
                     form.workplaceLat = coords.lat;
                     form.workplaceLng = coords.lng;
@@ -825,7 +1175,7 @@ function halley() {
             this.commentEditingId = null;
             this.error = null;
             this.showComments = true;
-            this.loadComments();
+            this.withLoading('comments', () => this.loadComments());
         },
 
         closeComments() {
@@ -943,7 +1293,7 @@ function halley() {
             this.llmPending = false;
             this.stopLlmPolling();
             this.showM2 = true;
-            this.loadDetailExtras(item.property.id);
+            this.withLoading('detail', () => this.loadDetailExtras(item.property.id));
         },
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
@@ -1071,6 +1421,11 @@ function halley() {
             this.detailItem = null;
             this.detailAgents = [];
             this.detailRef = null;
+            // 남겨 두면 다음에 연 매물의 자리에 이전 매물 값이 잠깐 비친다 (설계 I112)
+            this.detailLlm = null;
+            this.detailLandUse = [];
+            this.llmPending = false;
+            this.stopLlmPolling();
         },
 
         async openPhotoModal(item) {
@@ -1078,7 +1433,7 @@ function halley() {
             this.photoImages = [];
             this.error = null;
             this.showPhotoModal = true;
-            await this.loadPhotoImages();
+            await this.withLoading('photos', () => this.loadPhotoImages());
         },
 
         closePhotoModal() {
@@ -1425,6 +1780,58 @@ function halley() {
             }
         },
 
+        /**
+         * 뒤에서 채점이 끝나면 화면을 맞춘다 (설계 I85).
+         *
+         * 채점은 사용자가 보고 있는 동안 두 번 더 바뀐다 — 보정이 끝날 때, AI 응답이 올 때.
+         * 목록을 통째로 다시 받아 비교하면 무거우니 판 번호만 확인하고 달라졌을 때만 받는다.
+         *
+         * 탭이 가려져 있으면 쉬었다가, 돌아올 때 한 번 맞춘다. 안 보이는 화면을 위해
+         * 계속 물어볼 이유가 없다.
+         */
+        startScoreWatch() {
+            if (this.scoreWatchTimer) {
+                return;
+            }
+            this.scoreWatchTimer = setInterval(() => this.checkScoreVersions(), SCORE_WATCH_MS);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    this.checkScoreVersions();
+                }
+            });
+        },
+
+        async checkScoreVersions() {
+            if (document.hidden || !this.session.authenticated || this.properties.length === 0) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/properties/score-versions');
+            if (!ok || !body) {
+                return;
+            }
+            const latest = new Map(body.map(v => [v.propertyId, v.scoreVersion]));
+            const changed = this.properties.some(
+                r => latest.has(r.property.id) && latest.get(r.property.id) !== r.scoreVersion);
+            // 매물이 늘거나 줄어도 목록을 다시 받아야 한다
+            if (changed || latest.size !== this.properties.length) {
+                await this.loadProperties();
+                if (this.detailItem) {
+                    this.syncDetailItem();
+                }
+            }
+        },
+
+        /** 상세 모달이 열려 있으면 그 안의 점수도 함께 갱신한다 — 목록만 바뀌면 어긋난다. */
+        syncDetailItem() {
+            const fresh = this.properties.find(r => r.property.id === this.detailItem.property.id);
+            if (fresh) {
+                this.detailItem = fresh;
+                if (this.showScoreModal && this.scoreProperty) {
+                    this.scoreProperty = fresh;
+                }
+            }
+        },
+
         applySoldOutFilter() {
             this.visibleProperties = this.showSoldOut
                 ? this.properties
@@ -1490,13 +1897,17 @@ function halley() {
         // 프로필에 연소득·보유 현금이 있으므로 모달을 열면 바로 계산한다 (설계 I55)
         openLoanModal(item) {
             this.loanProperty = item;
-            this.loanForm = { firstHome: false, mortgageInsured: false, ownedHouseCount: 0 };
+            // MCI/MCG는 기본으로 켠다 (설계 I114). 대부분 가입하고, 꺼져 있으면 방공제
+            // 5,500만원이 빠진 한도가 첫 화면에 뜬다 — 실제보다 낮게 보여 오해를 부른다.
+            // 열자마자 켠 상태로 계산하므로 호출은 한 번뿐이다
+            this.loanForm = { firstHome: false, mortgageInsured: true, ownedHouseCount: 0,
+                rateType: 'VARIABLE' };
             this.loanOverride = { annualIncome: '', cash: '', existingLoan: '' };
             this.loanShowInputs = false;
             this.loanResult = null;
             this.error = null;
             this.showLoanModal = true;
-            this.runLoanEstimate();
+            this.withLoading('loan', () => this.runLoanEstimate());
         },
 
         /**
@@ -1565,7 +1976,8 @@ function halley() {
                             existingLoan: toNum(this.loanOverride.existingLoan),
                             firstHome: this.loanForm.firstHome,
                             mortgageInsured: this.loanForm.mortgageInsured,
-                            ownedHouseCount: this.loanForm.ownedHouseCount
+                            ownedHouseCount: this.loanForm.ownedHouseCount,
+                            rateType: this.loanForm.rateType
                         })
                     });
                 if (ok) {
@@ -1933,7 +2345,7 @@ function halley() {
 
         buildPasteRequest() {
             const value = (k) => (this.pasteForm[k] != null ? String(this.pasteForm[k]).trim() : '');
-            const dealCode = { 매매: 'SALE', 전세: 'JEONSE', 월세: 'MONTHLY' }[value('dealType')] || null;
+            const dealCode = { 매매: 'SALE', 전세: 'JEONSE' }[value('dealType')] || null;
             const floor = value('floor').split('/');
             const moveIn = value('moveIn');
             let moveInType = null;
@@ -1954,7 +2366,6 @@ function halley() {
                 name: value('name'),
                 dealType: dealCode,
                 priceDeposit: toNum(value('priceDeposit')),
-                priceMonthly: toNum(value('priceMonthly')),
                 kbPrice: toNum(value('kbPrice')),
                 areaSupplyM2: toNum(value('areaSupplyM2')),
                 areaExclusiveM2: toNum(value('areaExclusiveM2')),
@@ -2007,8 +2418,7 @@ function halley() {
         fieldLabel(key) {
             return {
                 name: '단지명', naverArticleNo: '매물번호', dongHo: '동/호', dealType: '거래유형',
-                priceDeposit: '매매가/보증금', priceMonthly: '월세', kbPrice: 'KB시세',
-                maintenanceFee: '관리비',
+                priceDeposit: '매매가/보증금',                maintenanceFee: '관리비',
                 areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
                 roomBath: '방/욕실', direction: '향', heatingType: '난방',
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
@@ -2033,7 +2443,6 @@ function halley() {
                 name: p.name || '',
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
-                priceMonthly: p.priceMonthly ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
                 addressRoad: p.addressRoad || '',
                 sourceUrl: p.sourceUrl || '',
@@ -2048,9 +2457,26 @@ function halley() {
                 approvalYear: p.approvalYear ?? '',
                 buildingCount: p.buildingCount ?? '',
                 totalHouseholds: p.totalHouseholds ?? '',
+                parkingPerHousehold: p.parkingPerHousehold ?? '',
                 moveInType: p.moveInType || '',
                 moveInDate: p.moveInDate || '',
-                editVersion: p.editVersion ?? null
+                editVersion: p.editVersion ?? null,
+                // 폼에 칸이 없는 값들. 손대지 않고 그대로 돌려보낸다 (설계 I113)
+                carry: {
+                    dongHo: p.dongHo ?? null,
+                    floorRaw: p.floorRaw ?? null,
+                    floorBand: p.floorBand ?? null,
+                    roomBath: p.roomBath ?? null,
+                    heatingType: p.heatingType ?? null,
+                    kbPrice: p.kbPrice ?? null,
+                    brokerageFee: p.brokerageFee ?? null,
+                    brokerageRate: p.brokerageRate ?? null,
+                    acquisitionTax: p.acquisitionTax ?? null,
+                    propertyTax: p.propertyTax ?? null,
+                    comprehensiveTax: p.comprehensiveTax ?? null,
+                    schoolName: p.schoolName ?? null,
+                    schoolWalkMinutes: p.schoolWalkMinutes ?? null
+                }
             };
             this.propertyQuery = '';
             this.propertyAddrResults = [];
@@ -2106,10 +2532,12 @@ function halley() {
             this.loading = true;
             this.error = null;
             const body = {
+                // 폼에 칸이 없는 값을 먼저 깔고, 폼이 가진 값으로 덮는다 (설계 I113).
+                // 이게 없으면 수정할 때마다 주차·방/욕실·난방·중개보수가 조용히 지워졌다
+                ...(this.propertyForm.carry || {}),
                 name: this.propertyForm.name,
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
-                priceMonthly: toNum(this.propertyForm.priceMonthly),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
@@ -2124,6 +2552,7 @@ function halley() {
                 approvalYear: toNum(this.propertyForm.approvalYear),
                 buildingCount: toNum(this.propertyForm.buildingCount),
                 totalHouseholds: toNum(this.propertyForm.totalHouseholds),
+                parkingPerHousehold: toNum(this.propertyForm.parkingPerHousehold),
                 moveInType: this.propertyForm.moveInType || null,
                 moveInDate: this.propertyForm.moveInDate || null
             };
@@ -2161,10 +2590,32 @@ function halley() {
             });
         },
 
-        openScoreModal(item) {
-            this.scoreProperty = item;
+        async openScoreModal(item) {
+            // 먼저 열고 나중에 채운다 (설계 I115). 응답을 기다렸다 열면 그동안
+            // 화면에 아무 일도 일어나지 않아 눌린 건지 알 수 없다 — PostgreSQL 쪽이
+            // 느릴 때 특히 그렇다. 목록에 실린 값으로 즉시 그리고, 새 값이 오면 갈아 끼운다
+            this.applyScoreForm(item);
+            this.error = null;
+            this.showScoreModal = true;
+
+            // 목록에 실린 값이 아니라 지금 값을 읽는다 (설계 I112). 보정·AI가 배경에서
+            // 채우고 있어 목록을 받아 둔 시점과 지금이 다를 수 있다
+            const fresh = await this.withLoading('score',
+                () => this.request(`/api/properties/${item.property.id}`).catch(() => ({ ok: false })));
+            // 기다리는 사이에 닫았거나 다른 매물로 옮겨 갔으면 덮어쓰지 않는다
+            if (!this.showScoreModal || this.scoreProperty?.property?.id !== item.property.id) {
+                return;
+            }
+            if (fresh.ok && fresh.body) {
+                this.applyScoreForm(fresh.body);
+            }
+        },
+
+        /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */
+        applyScoreForm(scored) {
+            this.scoreProperty = scored;
             const form = {};
-            (item.scores || []).forEach(s => {
+            (scored.scores || []).forEach(s => {
                 // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
                 // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
                 // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
@@ -2179,26 +2630,54 @@ function halley() {
                 }
             });
             this.scoreForm = form;
-            this.error = null;
-            this.showScoreModal = true;
+            // 연 시점의 값을 그대로 남겨 둔다. 저장할 때 이것과 달라진 항목만 보낸다
+            // (설계 I111) — 안 그러면 추정값으로 채워진 칸이 전부 수동 채점이 된다
+            this._scoreFormAtOpen = { ...form };
+        },
+
+        /**
+         * 이미 자동으로 채점된 AUTO 항목인지 (설계 I111).
+         *
+         * HYBRID(교육여건·녹색환경)는 사람이 고치라고 만든 것이라 잠그지 않는다.
+         * AUTO라도 산출에 실패해 값이 없으면 사람이 채울 수 있어야 한다.
+         */
+        scoreLocked(s) {
+            return s.scoringType === 'AUTO' && s.autoScore != null;
         },
 
         closeScoreModal() {
             this.showScoreModal = false;
             this.scoreProperty = null;
             this.scoreForm = {};
+            this._scoreFormAtOpen = {};
             this.error = null;
         },
 
         async saveScore() {
             this.loading = true;
             this.error = null;
+            // 내가 실제로 고친 항목만 보낸다 (설계 I111). 전부 보내면 추정값으로
+            // 채워 둔 칸까지 저장돼 자동 채점이 통째로 수동으로 굳고 산출 근거가 사라진다
+            const before = this._scoreFormAtOpen || {};
+            const locked = new Set((this.scoreProperty?.scores || [])
+                .filter(s => this.scoreLocked(s)).map(s => s.code));
             const scores = {};
             for (const code in this.scoreForm) {
+                if (locked.has(code)) {
+                    continue;
+                }
+                if (String(this.scoreForm[code] ?? '') === String(before[code] ?? '')) {
+                    continue;
+                }
                 const value = toNum(this.scoreForm[code]);
                 if (value != null) {
                     scores[code] = value;
                 }
+            }
+            if (Object.keys(scores).length === 0) {
+                this.loading = false;
+                this.showScoreModal = false;
+                return;
             }
             try {
                 const { ok, body } = await this.request(
@@ -2213,7 +2692,7 @@ function halley() {
                     const fresh = (this.properties || []).find(
                         r => r.property.id === this.scoreProperty.property.id);
                     if (fresh) {
-                        this.openScoreModal(fresh);
+                        await this.openScoreModal(fresh);
                     } else {
                         this.showScoreModal = false;
                     }
@@ -2300,23 +2779,6 @@ function halley() {
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async testSlack() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/admin/settings/slack/test', { method: 'POST' });
-                if (ok && body && body.sent) {
-                    alert('Slack 테스트 메시지를 보냈습니다.');
-                } else {
-                    alert('Slack 전송에 실패했습니다. 환경변수(SLACK_WEBHOOK_URL)를 확인하세요.');
-                }
-            } catch (e) {
-                alert('네트워크 오류가 발생했습니다');
             } finally {
                 this.loading = false;
             }
@@ -2473,11 +2935,11 @@ function halley() {
         },
 
         dealLabel(type) {
-            return { SALE: '매매', JEONSE: '전세', MONTHLY: '월세' }[type] || type;
+            return { SALE: '매매', JEONSE: '전세' }[type] || type;
         },
 
         dealBadge(type) {
-            return { SALE: 'b-sale', JEONSE: 'b-jeonse', MONTHLY: 'b-monthly' }[type] || '';
+            return { SALE: 'b-sale', JEONSE: 'b-jeonse' }[type] || '';
         },
 
         scoreSourceLabel(source) {
@@ -2540,6 +3002,61 @@ function halley() {
                 return '-';
             }
             return (monthlyRate * 12 * 100).toFixed(2) + '%';
+        },
+
+        /**
+         * 금액 입력칸 위에 띄우는 읽기 도움말 (설계 I86).
+         *
+         * 자릿수가 많은 금액은 눈으로 세기 어렵다 — `150000000`이 1억 5천인지 15억인지
+         * 한눈에 안 들어온다. 치는 동안 `1억 5,000만원`으로 되읽어 준다.
+         *
+         * 비었거나 0이면 아무것도 띄우지 않는다. 아직 안 적은 칸에 `0원`이 떠 있으면
+         * 이미 입력한 것처럼 보인다.
+         */
+        /**
+         * 금액 칸은 `type="text"`다 (설계 I114).
+         *
+         * <p>`type="number"`는 휠에 반응해 값이 조용히 바뀐다 — 550000000을 넣었는데
+         * 549999997이 된 적이 있다(I101). 휠을 막아 뒀지만 근본은 타입이었다.
+         * 대신 숫자 말고는 아예 들어가지 않게 여기서 거른다.
+         *
+         * <p>DOM 값도 함께 바꾼다. 모델만 고치면 화면에는 걸러지기 전 글자가 잠깐 남는다.
+         */
+        /**
+         * 모달이 데이터를 받아 오는 동안 진행 막대를 띄운다 (설계 I115).
+         *
+         * <p>바로 켜지 않고 <b>{@code SHOW_DELAY_MS} 뒤에</b> 켭니다. 빠른 응답에도 켜면
+         * 막대가 번쩍였다 사라져 오히려 어수선합니다 — 기다릴 만할 때만 보여 줍니다.
+         *
+         * <p>{@code finally}에서 반드시 끕니다. 호출이 실패해도 막대가 남으면
+         * 화면이 영영 도는 것처럼 보입니다.
+         */
+        async withLoading(key, fn) {
+            clearTimeout(this._loadingTimers[key]);
+            this._loadingTimers[key] = setTimeout(() => {
+                this._loading[key] = true;
+            }, SHOW_LOADING_AFTER_MS);
+            try {
+                return await fn();
+            } finally {
+                clearTimeout(this._loadingTimers[key]);
+                this._loading[key] = false;
+            }
+        },
+
+        isLoading(key) {
+            return this._loading[key] === true;
+        },
+
+        numericInput(e) {
+            const cleaned = String(e.target.value).replace(/[^0-9]/g, '');
+            e.target.value = cleaned;
+            return cleaned;
+        },
+
+        moneyHint(value) {
+            const n = toNum(value);
+            return n == null || n === 0 ? '' : this.fmtWon(n);
         },
 
         fmtWon(won) {

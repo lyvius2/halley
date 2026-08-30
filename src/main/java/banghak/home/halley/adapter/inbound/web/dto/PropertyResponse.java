@@ -18,7 +18,6 @@ public record PropertyResponse(
         String dongHo,
         DealType dealType,
         Long priceDeposit,
-        Long priceMonthly,
         Integer maintenanceFee,
         String addressRoad,
         String addressJibun,
@@ -60,13 +59,22 @@ public record PropertyResponse(
         Instant createdAt,
         Long createdBy,
         String createdByNickname,
+        /** admin에게만 보이는 소속 그룹 (설계 I87 · 규칙 5) */
+        Long groupId,
+        String groupName,
         Long editVersion
 ) {
 
     public static PropertyResponse from(Property p, String createdByNickname, Long editVersion) {
+        return from(p, createdByNickname, editVersion, null);
+    }
+
+    /** @param groupName admin 화면의 그룹 badge용. 회원에게는 null이다 */
+    public static PropertyResponse from(Property p, String createdByNickname, Long editVersion,
+                                        String groupName) {
         return new PropertyResponse(
                 p.id(), p.name(), p.dongHo(), p.dealType(),
-                p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
+                p.priceDeposit(), p.maintenanceFee(),
                 p.addressRoad(), p.addressJibun(), p.lat(), p.lng(),
                 p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
                 p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),
@@ -75,6 +83,6 @@ public record PropertyResponse(
                 p.schoolName(), p.schoolWalkMinutes(), p.schoolSource(), p.pnu(),
                 p.officialPrice(), p.officialPriceYear(),
                 p.sourceType(), p.sourceUrl(), p.listingStatus(), p.active(), p.isDraft(), p.soldDetectedAt(), p.createdAt(),
-                p.createdBy(), createdByNickname, editVersion);
+                p.createdBy(), createdByNickname, p.groupId(), groupName, editVersion);
     }
 }

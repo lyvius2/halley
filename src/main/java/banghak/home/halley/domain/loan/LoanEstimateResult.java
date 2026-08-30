@@ -28,6 +28,8 @@ public record LoanEstimateResult(
         boolean collateralReliable,
         long leaseDeduction,
         double monthlyRate,
+        /** DSR 한도를 역산할 때 쓴 월 이율 (설계 I97). 실금리 + 실효 스트레스 */
+        double dsrMonthlyRate,
         int termMonths
 ) {
 }

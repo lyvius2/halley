@@ -1,6 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 import org.junit.jupiter.api.DisplayName;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -54,7 +55,7 @@ class JeonseLoanCalculatorTest {
         final LoanEstimateResult asMortgage = new LoanCalculator(params.ltvRate(), params.totalCap())
                 .estimate(new LoanEstimateInput(1_000_000_000L,
                         CollateralValuation.of(1_000_000_000L, CollateralSource.ASKING_PRICE),
-                        50_000_000L, 0L, 0L, false, true), params);
+                        50_000_000L, 0L, 0L, List.of(), false, true, RateType.VARIABLE), params);
         assertThat(result.dsrLimit()).isGreaterThan(asMortgage.dsrLimit());
     }
 
@@ -87,8 +88,9 @@ class JeonseLoanCalculatorTest {
         final JeonseEstimateResult result = calculator.estimate(
                 new JeonseEstimateInput(200_000_000L, 200_000_000L, 100_000_000L, 0L), params);
 
-        // then — 1.6억 × 5% ÷ 12 = 약 66.7만원
-        assertThat(result.monthlyPayment()).isBetween(660_000L, 670_000L);
+        // then — 실제로 내는 이자는 실금리 기준이다 (설계 I97). 1.6억 × 4% ÷ 12 = 약 53.3만원.
+        // 예전에는 스트레스를 얹은 5%로 계산해 실제보다 많아 보였다
+        assertThat(result.monthlyPayment()).isBetween(530_000L, 540_000L);
         assertThat(result.termMonths()).isEqualTo(24);
     }
 

@@ -100,7 +100,7 @@ class JooqRepositoryIntegrationTest {
     @Test
     void propertyRoundTrip() {
         Property saved = propertyRepository.save(new Property(
-                null, "독립문삼호", "101동", DealType.SALE, 1_350_000_000L, null, 300_000,
+                null, "독립문삼호", "101동", DealType.SALE, 1_350_000_000L, 300_000,
                 "서울 서대문구 통일로", "서울 서대문구 홍제동",
                 new BigDecimal("37.57"), new BigDecimal("126.96"),
                 new BigDecimal("84.93"), new BigDecimal("59.90"),
@@ -108,7 +108,7 @@ class JooqRepositoryIntegrationTest {
                 new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.PASTE, "https://example.com", "12345", "raw", "v1",
                 objectMapper.createObjectNode().put("price", "EXACT"),
-                false, ListingStatus.ACTIVE, true, null, 0, null, null, null));
+                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, "테스터", null, null));
 
         Property found = propertyRepository.findById(saved.id()).orElseThrow();
         assertThat(found.name()).isEqualTo("독립문삼호");
