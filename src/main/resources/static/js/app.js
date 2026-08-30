@@ -2602,6 +2602,20 @@ function halley() {
             return (monthlyRate * 12 * 100).toFixed(2) + '%';
         },
 
+        /**
+         * 금액 입력칸 위에 띄우는 읽기 도움말 (설계 I86).
+         *
+         * 자릿수가 많은 금액은 눈으로 세기 어렵다 — `150000000`이 1억 5천인지 15억인지
+         * 한눈에 안 들어온다. 치는 동안 `1억 5,000만원`으로 되읽어 준다.
+         *
+         * 비었거나 0이면 아무것도 띄우지 않는다. 아직 안 적은 칸에 `0원`이 떠 있으면
+         * 이미 입력한 것처럼 보인다.
+         */
+        moneyHint(value) {
+            const n = toNum(value);
+            return n == null || n === 0 ? '' : this.fmtWon(n);
+        },
+
         fmtWon(won) {
             if (won == null || won === 0) {
                 return '0원';
