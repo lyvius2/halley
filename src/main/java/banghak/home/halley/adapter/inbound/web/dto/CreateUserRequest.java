@@ -7,7 +7,6 @@ import java.math.BigDecimal;
 public record CreateUserRequest(
         String loginId,
         String nickname,
-        String email,
         String password,
         UserRole role,
         String workplaceName,

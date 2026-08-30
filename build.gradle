@@ -24,6 +24,9 @@ ext {
 }
 
 dependencies {
+    // 국토부 규제지역 고시는 본문이 아니라 첨부 PDF에 현황표로 들어 있다 (설계 I73)
+    implementation 'org.apache.pdfbox:pdfbox:3.0.3'
+
     implementation 'org.springframework.boot:spring-boot-starter-webmvc'
     implementation 'org.springframework.boot:spring-boot-starter-mustache'
     implementation 'org.springframework.boot:spring-boot-starter-security'

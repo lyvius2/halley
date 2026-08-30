@@ -34,8 +34,6 @@ ministry:
 vworld:
   api-key: ${HOUSING_PRICE_API_KEY:}
   base-url: https://api.vworld.kr
-  # 키 발급 시 등록한 URL. 도메인 제한이 걸린 키는 이 값이 없으면 자료가 0건으로 나올 수 있다
-  domain: ${HOUSING_PRICE_API_DOMAIN:}
 
 feign:
   client:
@@ -115,9 +113,6 @@ resilience4j:
         waitDurationInOpenState: 60s
         permittedNumberOfCallsInHalfOpenState: 2
 
-  # TimeLimiter를 명시하지 않으면 기본 1초가 걸린다 (설계 I70).
-  # Feign의 readTimeout을 아무리 늘려도 그 전에 잘려 LLM 호출이 100% 타임아웃했다.
-  # 각 값은 해당 클라이언트의 readTimeout보다 넉넉히 크게 둔다.
   timelimiter:
     configs:
       default:
@@ -141,7 +136,6 @@ resilience4j:
         baseConfig: default
       claude-llm:
         baseConfig: default
-        # 생성에 시간이 걸린다. Feign readTimeout(60s)보다 크게 잡아야 그쪽이 제어권을 갖는다
         timeoutDuration: 70s
 
 llm:
@@ -158,3 +152,14 @@ slack:
   notify:
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
     sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
+
+# 법제처 국가법령정보 — 규제지역 고시 조회 (설계 I73). OC는 키가 아니라 이메일 ID다
+# base-url은 https여야 한다 — http는 301로 넘기는데 Feign이 프로토콜 전환을 안 따라간다
+law:
+  oc: ${LAW_OC:}
+  base-url: https://www.law.go.kr
+
+# 금융감독원 금융상품통합비교공시 — 주담대·전세 공시 금리 (설계 I77)
+fss:
+  api-key: ${FSS_API_KEY:}
+  base-url: https://finlife.fss.or.kr/finlifeapi

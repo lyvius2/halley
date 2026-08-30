@@ -44,6 +44,11 @@ public record LoanEstimateResponse(
         Long usedExistingLoan,
         Double monthlyRate,
         Integer termMonths,
+        /**
+         * 금리 출처 한 줄 (설계 I81). `은행 12개 상품 변동금리 중앙값 (2026년 1월 공시)` 또는
+         * 못 받았을 때 `기본 금리 4% 적용 중`. 어디서 온 숫자인지 안 보이면 검증할 수 없다
+         */
+        String rateSource,
 
         // ── 매매(주담대) 전용 ─────────────────────
         Long ltvLimit,
@@ -61,6 +66,12 @@ public record LoanEstimateResponse(
         String ownershipLabel,
         BigDecimal ltvRate,
         String ltvReason,
+        /**
+         * 규제지역 값을 믿을 수 없을 때 그 사유 (설계 I73). 규제지역이 비면 비규제로 판정되어
+         * LTV 0.7이 잡히는데, 실제가 투기과열지구(0.4)면 <b>한도를 과대평가</b>한다.
+         * 조용히 틀리지 않도록 화면에 그대로 실어 보낸다. 정상이면 null
+         */
+        String zoneWarning,
 
         // ── 전세 전용 ────────────────────────────
         Long guaranteeLimit,
@@ -72,32 +83,33 @@ public record LoanEstimateResponse(
                                                 long askingPrice, long annualIncome, long cash,
                                                 long existingLoan, boolean insured,
                                                 RegulationZone zone, HouseOwnership ownership,
-                                                BigDecimal ltvRate, String ltvReason) {
+                                                BigDecimal ltvRate, String ltvReason,
+                                                String zoneWarning, String rateSource) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.MORTGAGE, "주택담보대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), false,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 askingPrice, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(),
+                r.monthlyRate(), r.termMonths(), rateSource,
                 r.ltvLimit(), r.acquisitionTax(),
                 r.collateralValue(), r.collateralSource(), r.collateralSource().label(),
                 r.collateralSampleCount(), r.collateralReliable(),
                 r.leaseDeduction(), insured,
-                zone, zone.label(), ownership, ownership.label(), ltvRate, ltvReason,
+                zone, zone.label(), ownership, ownership.label(), ltvRate, ltvReason, zoneWarning,
                 null, null, null);
     }
 
     public static LoanEstimateResponse jeonse(Long propertyId, JeonseEstimateResult r,
                                               long deposit, long annualIncome, long cash,
-                                              long existingLoan) {
+                                              long existingLoan, String rateSource) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.JEONSE, "전세자금대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), true,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 deposit, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(),
+                r.monthlyRate(), r.termMonths(), rateSource,
                 null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 r.guaranteeLimit(), r.guaranteeRate(), r.guaranteeCap());
     }
 }

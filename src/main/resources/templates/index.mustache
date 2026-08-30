@@ -234,7 +234,6 @@
                             <div class="card profile-panel">
                                 <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
                                 <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
-                                <div class="profile-row"><span>이메일</span><b x-text="profile.email"></b></div>
                                 <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
                                 <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
                                 <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
@@ -249,9 +248,6 @@
                             <div class="form-grid">
                                 <label>닉네임
                                     <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
-                                </label>
-                                <label>이메일
-                                    <input type="email" x-model="profileForm.email" placeholder="name@example.com">
                                 </label>
                                 <label class="span2">직장 주소
                                     <div class="workplace-search">
@@ -328,7 +324,8 @@
 <!-- D2 비밀번호 강제 변경 모달 -->
 <div class="modal" x-show="showPassword" x-cloak>
     <div class="modal-backdrop"></div>
-    <div class="modal-card">
+    <!-- 로그인과 같은 관문이라 배경도 같게 둔다 — 여기서 막힌 사용자는 아직 앱을 못 본 상태다 -->
+    <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
             <h3>비밀번호 변경</h3>
@@ -359,9 +356,9 @@
             <p>직장 위치와 보유 현금이 있어야 <b>직주근접</b>과 <b>가격</b> 항목이 채점됩니다. 연소득은 <b>대출 한도</b>를 매물마다 바로 보여주는 데 씁니다.</p>
         </div>
         <div class="form-grid">
-            <label class="span2">이메일
-                <input type="email" x-model="setupForm.email" placeholder="name@example.com">
-                <span class="settings-note">로그인 아이디와 별개인 연락처입니다.</span>
+            <label class="span2">닉네임
+                <input type="text" x-model="setupForm.nickname" placeholder="리스트·코멘트에 표시되는 이름">
+                <span class="settings-note">로그인 아이디와 별개인 표시 이름입니다. 매물을 등록하면 이 이름이 붙습니다.</span>
             </label>
             <label class="span2">직장 주소
                 <div class="workplace-search">
@@ -486,6 +483,7 @@
                             <span class="badge b-mem">직접 입력</span>
                         </span>
                         <input type="url" x-model="pasteForm.sourceUrl"
+                               :title="pasteForm.sourceUrl"
                                placeholder="https://fin.land.naver.com/articles/...">
                         <span class="paste-note">붙여넣기 텍스트에는 주소가 없어 파싱되지 않습니다.
                             넣어 두면 <b>판매완료를 자동으로 감지</b>합니다.</span>
@@ -555,9 +553,6 @@
                 </label>
                 <label>닉네임
                     <input type="text" x-model="userForm.nickname" required>
-                </label>
-                <label class="span2">이메일
-                    <input type="email" x-model="userForm.email" placeholder="비워두면 본인이 첫 로그인 때 입력합니다">
                 </label>
                 <template x-if="!editingUserId">
                     <label>비밀번호
@@ -751,14 +746,13 @@
         <div class="card table-wrap">
             <table>
                 <thead>
-                <tr><th>ID</th><th>닉네임</th><th>이메일</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
+                <tr><th>ID</th><th>닉네임</th><th>역할</th><th>보유 현금</th><th>연소득</th><th>상태</th><th>관리</th></tr>
                 </thead>
                 <tbody>
                 <template x-for="u in users" :key="u.id">
                     <tr>
                         <td class="strong" x-text="u.loginId"></td>
                         <td x-text="u.nickname"></td>
-                        <td x-text="u.email || '-'"></td>
                         <td><span class="badge" :class="u.role==='ADMIN' ? 'b-admin' : 'b-mem'" x-text="u.role==='ADMIN' ? '관리자' : '회원'"></span></td>
                         <td class="num" x-text="fmtWon(u.availableBudget)"></td>
                         <td class="num" x-text="fmtWon(u.annualIncome)"></td>
@@ -1033,17 +1027,6 @@
                             <span>PNU</span>
                             <b class="m2-mono" x-text="detailItem.property.pnu || '-'"></b>
                         </div>
-                        <div class="m2-row">
-                            <span>원본 URL</span>
-                            <b>
-                                <template x-if="detailItem.property.sourceUrl">
-                                    <a class="m2-link" :href="detailItem.property.sourceUrl"
-                                       target="_blank" rel="noopener noreferrer"
-                                       x-text="detailItem.property.sourceUrl"></a>
-                                </template>
-                                <template x-if="!detailItem.property.sourceUrl"><span>-</span></template>
-                            </b>
-                        </div>
                     </div>
                 </section>
 
@@ -1102,10 +1085,9 @@
                             <div class="ai-progress-bar"><i></i></div>
                         </div>
                     </template>
+                    <!-- 재질의는 쾌적함·코멘트가 바뀔 때 백엔드에서 트리거된다 (설계 I78) -->
                     <template x-if="!detailLlm && !llmPending">
-                        <p class="m2-empty">아직 산출되지 않았습니다.
-                            <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">지금 물어보기</button>
-                        </p>
+                        <p class="m2-empty">아직 산출되지 않았습니다.</p>
                     </template>
                     <template x-if="detailLlm">
                         <div class="llm-box">
@@ -1117,7 +1099,6 @@
                                 <div class="llm-meta">
                                     <span x-text="detailLlm.model"></span>
                                     <span x-text="fmtTime(detailLlm.computedAt)"></span>
-                                    <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">다시 물어보기</button>
                                 </div>
                             </div>
                         </div>
@@ -1151,6 +1132,16 @@
                     </template>
                 </section>
             </div>
+
+            <!-- 원본 매물 페이지. 상세를 다 읽고 마지막에 직접 확인하러 가는 자리라 하단에 둔다 -->
+            <template x-if="detailItem.property.sourceUrl">
+                <a class="m2-source" :href="detailItem.property.sourceUrl"
+                   :title="detailItem.property.sourceUrl"
+                   target="_blank" rel="noopener noreferrer">
+                    <span class="m2-source-label">원본 매물 보기</span>
+                    <span class="m2-source-url" x-text="detailItem.property.sourceUrl"></span>
+                </a>
+            </template>
 
             <div class="m2-actions">
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
@@ -1314,14 +1305,17 @@
                                :max="s.code === 'COMFORT' ? 5 : 100"
                                :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
                                :aria-label="s.name + ' 점수 입력'">
-                        <button class="btn btn-xs" x-show="s.scoringType==='HYBRID' && s.effectiveScore != null"
-                                @click="confirmHybridScore(s.code)">추정값 확정</button>
                     </div>
 
                     <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
                     <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
                     <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.effectiveScore == null">
                         방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
+                    </p>
+                    <!-- 총점에는 사용자들의 평균이 들어간다. 내 점수만 보이면 왜 그 총점인지 알 수 없다 -->
+                    <p class="score-item-others" x-show="s.othersAverage != null">
+                        다른 사용자들은 평균 <b x-text="s.othersAverage"></b>점으로 평가했습니다.
+                        <span class="score-item-others-n" x-text="'(' + s.othersCount + '명)'"></span>
                     </p>
                 </div>
             </template>
@@ -1490,6 +1484,9 @@
                         <small x-text="loanResult.interestOnly
                             ? `${loanResult.termMonths / 12}년 만기일시 · 이자만`
                             : `${loanResult.termMonths / 12}년 원리금균등`"></small>
+                        <!-- 어디서 온 금리인지 안 보이면 사용자는 검증할 수 없다 (설계 I81) -->
+                        <small class="loan-rate-source" x-show="loanResult.rateSource"
+                               x-text="fmtRate(loanResult.monthlyRate) + ' · ' + loanResult.rateSource"></small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>

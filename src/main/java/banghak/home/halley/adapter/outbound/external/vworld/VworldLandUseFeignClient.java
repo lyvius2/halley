@@ -18,6 +18,5 @@ public interface VworldLandUseFeignClient {
                    @RequestParam("pnu") String pnu,
                    @RequestParam("format") String format,
                    @RequestParam("numOfRows") int numOfRows,
-                   @RequestParam("pageNo") int pageNo,
-                   @RequestParam("domain") String domain);
+                   @RequestParam("pageNo") int pageNo);
 }

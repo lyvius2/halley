@@ -56,10 +56,10 @@ class PropertyCommentServiceTest {
         // 같은 스프링 컨텍스트를 공유하므로 테스트마다 아이디가 겹치지 않게 한다
         final String tag = "c" + SEQ.incrementAndGet();
         aliceId = userService.create(new CreateUserRequest(
-                "alice-" + tag, "앨리스-" + tag, "alice-" + tag + "@example.com", "password1!", UserRole.MEMBER,
+                "alice-" + tag, "앨리스-" + tag, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L)).id();
         bobId = userService.create(new CreateUserRequest(
-                "bob-" + tag, "밥-" + tag, "bob-" + tag + "@example.com", "password1!", UserRole.MEMBER,
+                "bob-" + tag, "밥-" + tag, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L)).id();
 
         login(aliceId);

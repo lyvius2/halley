@@ -38,6 +38,8 @@ import banghak.home.halley.domain.scoring.engine.PropertyScoringResult;
 import banghak.home.halley.domain.scoring.engine.ScoringEngine;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import banghak.home.halley.application.event.PropertyInsightChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,10 +74,12 @@ public class ScoringService {
     private final EditVersionStore editVersionStore;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
 
-    public ScoringService(PropertyRepository propertyRepository,
+    public ScoringService(ApplicationEventPublisher eventPublisher,
+                          PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
                           ComparativeAnalysisRepository comparativeAnalysisRepository,
@@ -90,6 +94,7 @@ public class ScoringService {
                           SystemConfigRepository systemConfigRepository,
                           ScoringEngine scoringEngine,
                           List<CriterionScorer> scorers) {
+        this.eventPublisher = eventPublisher;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
@@ -172,6 +177,8 @@ public class ScoringService {
             }
             userCriterionScoreRepository.upsert(new UserCriterionScore(
                     propertyId, currentUserId(), COMFORT_CODE, v));
+            // 쾌적함은 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
+            eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(propertyId));
         } else {
             if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0) {
                 throw new InvalidScoreException("채점 점수는 0~100 사이여야 합니다");
@@ -235,7 +242,9 @@ public class ScoringService {
                     s.effectiveScore(),
                     s.scoreSource() == null ? null : s.scoreSource().name(),
                     s.fallbackReason(),
-                    s.explanation()));
+                    s.explanation(),
+                    othersAverage(property.id(), s.criterionCode()),
+                    othersCount(property.id(), s.criterionCode())));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
@@ -258,10 +267,47 @@ public class ScoringService {
                         c.effectiveScore(),
                         sourceOf(c).name(),
                         c.fallbackReason(),
-                        c.explanation()))
+                        c.explanation(),
+                        othersAverage(property.id(), c.code()),
+                        othersCount(property.id(), c.code())))
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
                 editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+    }
+
+
+    /**
+     * 나를 뺀 다른 사용자들의 평균 (설계 I76).
+     *
+     * <p>`COMFORT`는 사람마다 다르게 매기고 총점에는 <b>평균</b>이 들어간다. 내 점수만 보이면
+     * 왜 총점이 그렇게 나왔는지 알 수 없으므로 다른 사람들이 어떻게 봤는지 함께 보여 준다.
+     * 나를 빼는 이유는 "다른 사람은 어떻게 봤나"가 질문이기 때문이다 — 내 점수가 섞이면
+     * 내가 매긴 값에 끌려간다.
+     */
+    private BigDecimal othersAverage(Long propertyId, String code) {
+        final List<Integer> others = othersScores(propertyId, code);
+        if (others.isEmpty()) {
+            return null;
+        }
+        return BigDecimal.valueOf(others.stream().mapToInt(Integer::intValue).average().orElse(0.0))
+                .setScale(1, RoundingMode.HALF_UP);
+    }
+
+    private Integer othersCount(Long propertyId, String code) {
+        final int count = othersScores(propertyId, code).size();
+        return count == 0 ? null : count;
+    }
+
+    private List<Integer> othersScores(Long propertyId, String code) {
+        if (!COMFORT_CODE.equals(code)) {
+            return List.of();
+        }
+        final Long me = currentUserId();
+        return userCriterionScoreRepository.findByPropertyId(propertyId).stream()
+                .filter(s -> code.equals(s.criterionCode()))
+                .filter(s -> me == null || !me.equals(s.userId()))
+                .map(UserCriterionScore::score)
+                .toList();
     }
 
     /** 매물 카드의 등록자 표시용 닉네임 (설계 I53). */

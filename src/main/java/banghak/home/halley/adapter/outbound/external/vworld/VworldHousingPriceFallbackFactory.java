@@ -15,7 +15,7 @@ public class VworldHousingPriceFallbackFactory implements FallbackFactory<Vworld
         return new VworldHousingPriceFeignClient() {
             @Override
             public String fetchApartmentPrice(String key, String pnu, String stdrYear, String format,
-                                              int numOfRows, int pageNo, String domain) {
+                                              int numOfRows, int pageNo) {
                 log.warn("VWorld apartment price lookup failed - returning fallback (no price). pnu={}, cause={}",
                         pnu, describe(cause));
                 return null;
@@ -23,7 +23,7 @@ public class VworldHousingPriceFallbackFactory implements FallbackFactory<Vworld
 
             @Override
             public String fetchDetachedHousePrice(String key, String pnu, String stdrYear, String format,
-                                                  int numOfRows, int pageNo, String domain) {
+                                                  int numOfRows, int pageNo) {
                 log.warn("VWorld detached house price lookup failed - returning fallback (no price). pnu={}, cause={}",
                         pnu, describe(cause));
                 return null;

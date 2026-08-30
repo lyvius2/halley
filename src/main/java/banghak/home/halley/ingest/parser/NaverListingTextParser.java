@@ -9,6 +9,7 @@ import banghak.home.halley.ingest.parser.extractor.DongHoExtractor;
 import banghak.home.halley.ingest.parser.extractor.FloorExtractor;
 import banghak.home.halley.ingest.parser.extractor.IntegerValueExtractor;
 import banghak.home.halley.ingest.parser.extractor.LabelValueExtractor;
+import banghak.home.halley.ingest.parser.extractor.ValueCleaner;
 import banghak.home.halley.ingest.parser.extractor.MaintenanceFeeExtractor;
 import banghak.home.halley.ingest.parser.extractor.MonthlyRentExtractor;
 import banghak.home.halley.ingest.parser.extractor.MoveInExtractor;
@@ -37,15 +38,17 @@ public class NaverListingTextParser {
                 new LabelValueExtractor("naverArticleNo", "매물번호"),
                 new DongHoExtractor(),
                 new DealTypeExtractor(),
-                new WonValueExtractor("priceDeposit", true, "매매가", "보증금"),
+                // 전세는 실제 페이지가 `전세가`로 적는다. `보증금`만 보던 탓에 전세 매물의
+                // 가격이 통째로 비었다 (설계 I82)
+                new WonValueExtractor("priceDeposit", true, "매매가", "전세가", "보증금"),
                 new MonthlyRentExtractor(),
                 new WonValueExtractor("kbPrice", false, "KB시세"),
                 new MaintenanceFeeExtractor(),
                 new AreaValueExtractor("areaSupplyM2", "공급면적"),
                 new AreaValueExtractor("areaExclusiveM2", "전용면적"),
                 new FloorExtractor(),
-                new LabelValueExtractor("roomBath", "방/욕실", "방수/욕실수"),
-                new LabelValueExtractor("direction", "향"),
+                new LabelValueExtractor("roomBath", ValueCleaner.ROOM_BATH, "방/욕실", "방수/욕실수"),
+                new LabelValueExtractor("direction", ValueCleaner.DIRECTION, "향"),
                 new LabelValueExtractor("heatingType", "난방"),
                 new LabelValueExtractor("addressJibun", "지번주소", "위치"),
                 new LabelValueExtractor("subway", "지하철"),

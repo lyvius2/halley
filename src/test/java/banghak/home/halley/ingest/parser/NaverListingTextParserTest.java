@@ -4,9 +4,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 class NaverListingTextParserTest {
 
@@ -113,7 +113,8 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("priceDeposit").value()).isEqualTo(1_000_000_000L);
         // 상단 요약(15만원)이 아니라 하단 상세의 '월 평균 26만 6,408원'을 쓴다 — 설계 I53
         assertThat(parsed.field("maintenanceFee").value()).isEqualTo(266_408);
-        assertThat(parsed.field("roomBath").value()).isEqualTo("3/2개");
+        // 실물은 `3/2개`로 오지만 저장은 `3/2`로 통일한다 (설계 I82)
+        assertThat(parsed.field("roomBath").value()).isEqualTo("3/2");
         assertThat(parsed.field("floor").value()).isEqualTo("1/12");
         assertThat(parsed.field("addressJibun").value()).isEqualTo("서울시 성북구 석관동 407");
         assertThat(parsed.field("approvalYear").value()).isEqualTo(2009);
@@ -193,10 +194,59 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("agentAddress").value()).isEqualTo("서울특별시 종로구 명륜2가 4 상가1층 6호");
     }
 
+    @Test
+    @DisplayName("전세 실물에서 전세가를 읽는다 — `보증금`만 보던 탓에 값이 통째로 비었다")
+    void parsesRealJeonseFixture() {
+        // given — 미사강변트래지안 실제 붙여넣기
+        final ParsedListing parsed = parser.parse(fixture("naver_apt_jeonse_real.txt"));
+
+        // then
+        assertThat(parsed.field("dealType").value()).isEqualTo("전세");
+        assertThat(parsed.field("priceDeposit").value()).isEqualTo(650_000_000L);
+        assertThat(parsed.field("name").value()).isEqualTo("미사강변트래지안");
+        assertThat(parsed.field("maintenanceFee").value()).isEqualTo(250_000);
+        assertThat(String.valueOf(parsed.field("areaExclusiveM2").value())).isEqualTo("59.3");
+        assertThat(parsed.field("addressJibun").value()).isEqualTo("경기도 하남시 망월동 938");
+    }
+
+    @Test
+    @DisplayName("표기가 흔들리는 값을 다듬는다 — 같은 값이 두 모양으로 저장되면 안 된다")
+    void cleansNoisyValues() {
+        // given — 실물은 `3/2개`, `(거실 기준) 남동향`으로 온다
+        final ParsedListing parsed = parser.parse(fixture("naver_apt_jeonse_real.txt"));
+
+        // then
+        assertThat(parsed.field("roomBath").value()).isEqualTo("3/2");
+        assertThat(parsed.field("direction").value()).isEqualTo("남동향");
+    }
+
+    @Test
+    @DisplayName("중개사 이름과 사무소명을 사무소명 기준으로 가른다 — 줄 순서만 믿으면 밀린다")
+    void anchorsAgentBlockOnOfficeName() {
+        // given — `중개소` 아래에 `중개사 프로필 이미지`라는 이미지 대체텍스트가 한 줄 더 있다.
+        // 순서대로 읽으면 이름 자리에 그 문구가, 사무소명 자리에 사람 이름이 들어간다
+        final ParsedListing parsed = parser.parse(fixture("naver_apt_jeonse_real.txt"));
+
+        // then
+        assertThat(parsed.field("agentName").value()).isEqualTo("김덕림");
+        assertThat(parsed.field("agentOfficeName").value()).isEqualTo("미사강변휴플러스공인중개사사무소");
+        assertThat(parsed.field("agentRegistrationNo").value()).isEqualTo("41450-2025-00088");
+    }
+
+    /**
+     * 픽스처는 <b>저장소에 없습니다</b> (설계 I83). 실제 매물 페이지를 그대로 담고 있어
+     * 공인중개사 성함·휴대폰 번호 같은 개인정보가 들어갑니다.
+     *
+     * <p>없으면 <b>실패가 아니라 건너뜁니다.</b> 파일이 없다는 이유로 빨간 실패가 뜨면
+     * 진짜 회귀와 구분되지 않습니다 — 원인 모를 실패는 결국 무시하게 됩니다.
+     */
     private String fixture(String name) {
+        final var resource = getClass().getClassLoader().getResource("fixtures/" + name);
+        assumeTrue(resource != null,
+                "픽스처 " + name + " 없음 - 개인정보가 있어 저장소에 두지 않습니다 (설계 I83). "
+                        + "src/test/resources/fixtures/ 에 실제 붙여넣기를 두면 검증됩니다.");
         try {
-            final var resource = getClass().getClassLoader().getResource("fixtures/" + name);
-            return new String(Objects.requireNonNull(resource).openStream().readAllBytes(), StandardCharsets.UTF_8);
+            return new String(resource.openStream().readAllBytes(), StandardCharsets.UTF_8);
         } catch (Exception e) {
             throw new IllegalStateException("fixture 로드 실패: " + name, e);
         }

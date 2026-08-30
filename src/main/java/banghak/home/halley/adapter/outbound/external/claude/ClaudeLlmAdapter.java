@@ -64,7 +64,9 @@ public class ClaudeLlmAdapter implements LlmPort {
 
     private String requestBody(LlmMessage message) {
         final ObjectNode root = objectMapper.createObjectNode();
-        root.put("model", model);
+        // 호출자가 모델을 고르지 않았으면 기본값을 쓴다 (설계 I73)
+        root.put("model", message.model() == null || message.model().isBlank()
+                ? model : message.model());
         root.put("max_tokens", message.maxTokens());
         if (message.system() != null && !message.system().isBlank()) {
             root.put("system", message.system());

@@ -52,7 +52,7 @@ class PropertyApiIntegrationTest {
     void crudFlowWithAuthenticatedSession() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "prop", "prop-user", "prop@example.com", "password1!", UserRole.MEMBER,
+                "prop", "prop-user", "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
 
         final MockHttpSession session = new MockHttpSession();

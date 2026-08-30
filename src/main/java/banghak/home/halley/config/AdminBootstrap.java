@@ -32,7 +32,7 @@ public class AdminBootstrap implements ApplicationRunner {
         }
         String password = randomPassword();
         userRepository.save(new User(
-                null, ADMIN_LOGIN, "admin", null, passwordEncoder.encode(password), UserRole.ADMIN,
+                null, ADMIN_LOGIN, "admin", passwordEncoder.encode(password), UserRole.ADMIN,
                 null, null, null,
                 true, 0L, 0L, 0L, true,
                 null, null, null

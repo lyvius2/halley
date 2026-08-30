@@ -39,7 +39,7 @@ class VworldLandUseAdapterTest {
             """;
 
     private final VworldLandUseAdapter adapter = new VworldLandUseAdapter(
-            mock(VworldLandUseFeignClient.class), new ObjectMapper(), "dummy-key", null);
+            mock(VworldLandUseFeignClient.class), new ObjectMapper(), "dummy-key");
 
     @Test
     @DisplayName("같은 지역·지구가 관리번호만 달리 반복돼도 한 번만 남긴다")
@@ -117,12 +117,12 @@ class VworldLandUseAdapterTest {
     void skipsInvalidPnu() {
         // given
         final java.util.concurrent.atomic.AtomicInteger calls = new java.util.concurrent.atomic.AtomicInteger();
-        final VworldLandUseFeignClient client = (key, pnu, format, rows, page, domain) -> {
+        final VworldLandUseFeignClient client = (key, pnu, format, rows, page) -> {
             calls.incrementAndGet();
             return EUNMA;
         };
         final VworldLandUseAdapter withStub =
-                new VworldLandUseAdapter(client, new ObjectMapper(), "dummy-key", null);
+                new VworldLandUseAdapter(client, new ObjectMapper(), "dummy-key");
 
         // when
         final List<LandUse> result = withStub.fetch("11680106");

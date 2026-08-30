@@ -28,7 +28,6 @@ function emptyUserForm() {
     return {
         loginId: '',
         nickname: '',
-        email: '',
         password: '',
         role: 'MEMBER',
         workplaceName: '',
@@ -103,7 +102,7 @@ function halley() {
         tempPassword: null,
         confirmState: null,
         profile: null,
-        profileForm: { nickname: '', email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+        profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
             availableBudget: '', annualIncome: '', existingLoan: '' },
         showChangePw: false,
         changePwForm: { currentPassword: '', newPassword: '' },
@@ -136,7 +135,7 @@ function halley() {
         showSettings: false,
         showUsers: false,
         showProfileSetup: false,
-        setupForm: { email: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
+        setupForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
             availableBudget: '', annualIncome: '', existingLoan: '' },
         showPhotoModal: false,
         photoProperty: null,
@@ -313,7 +312,6 @@ function halley() {
             this.userForm = {
                 loginId: u.loginId,
                 nickname: u.nickname,
-                email: u.email,
                 password: '',
                 role: u.role,
                 workplaceName: u.workplaceName || '',
@@ -341,7 +339,6 @@ function halley() {
             const body = {
                 loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
-                email: this.userForm.email || null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
@@ -412,7 +409,6 @@ function halley() {
                 this.profile = body;
                 this.profileForm = {
                     nickname: body.nickname || '',
-                    email: body.email || '',
                     workplaceName: body.workplaceName || '',
                     workplaceLat: body.workplaceLat ?? '',
                     workplaceLng: body.workplaceLng ?? '',
@@ -483,8 +479,8 @@ function halley() {
         },
 
         async saveProfileSetup() {
-            if (!this.setupForm.email || !this.setupForm.email.includes('@')) {
-                this.error = '이메일을 입력해 주세요';
+            if (!this.setupForm.nickname || !this.setupForm.nickname.trim()) {
+                this.error = '닉네임을 입력해 주세요';
                 return;
             }
             if (!this.setupForm.workplaceLat || !this.setupForm.workplaceLng) {
@@ -506,7 +502,7 @@ function halley() {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        email: this.setupForm.email,
+                        nickname: this.setupForm.nickname,
                         workplaceName: this.setupForm.workplaceName,
                         workplaceLat: toNum(this.setupForm.workplaceLat),
                         workplaceLng: toNum(this.setupForm.workplaceLng),
@@ -537,7 +533,6 @@ function halley() {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         nickname: this.profileForm.nickname || null,
-                        email: this.profileForm.email || null,
                         workplaceName: this.profileForm.workplaceName || null,
                         workplaceLat: toNum(this.profileForm.workplaceLat),
                         workplaceLng: toNum(this.profileForm.workplaceLng),
@@ -1071,30 +1066,6 @@ function halley() {
             }
         },
 
-        /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */
-        async refreshLlm() {
-            const id = this.detailItem.property.id;
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request(
-                    `/api/properties/${id}/llm-recommendation`, { method: 'POST' });
-                if (ok && body && body.score != null) {
-                    this.detailLlm = body;
-                    this.llmPending = false;
-                    await this.loadProperties();
-                } else if (ok) {
-                    this.error = 'AI 추천도를 산출하지 못했습니다. LLM 연동 설정을 확인해 주세요';
-                } else {
-                    this.error = (body && body.message) || 'AI 추천도 산출에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
         closeDetail() {
             this.showM2 = false;
             this.detailItem = null;
@@ -1344,7 +1315,7 @@ function halley() {
                     this.sessionExpiresAt = body.expiresInSeconds != null
                         ? Date.now() + body.expiresInSeconds * 1000 : 0;
                     this.startSessionTimer();
-                    this.loginForm = { email: '', password: '' };
+                    this.loginForm = { loginId: '', password: '' };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
                     if (this.session.role === 'ADMIN' && !this.showPassword) {
@@ -2194,7 +2165,18 @@ function halley() {
             this.scoreProperty = item;
             const form = {};
             (item.scores || []).forEach(s => {
-                form[s.code] = s.manualScore != null ? String(s.manualScore) : '';
+                // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
+                // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
+                // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
+                if (s.manualScore != null) {
+                    form[s.code] = String(s.manualScore);
+                } else if (s.code === 'COMFORT') {
+                    // 쾌적함은 1~5 척도라 100점 만점 추정값을 넣으면 안 된다.
+                    // 애초에 사람만 매기는 항목이므로 비워 둔다
+                    form[s.code] = '';
+                } else {
+                    form[s.code] = s.effectiveScore != null ? String(s.effectiveScore) : '';
+                }
             });
             this.scoreForm = form;
             this.error = null;
@@ -2206,13 +2188,6 @@ function halley() {
             this.scoreProperty = null;
             this.scoreForm = {};
             this.error = null;
-        },
-
-        confirmHybridScore(code) {
-            const score = (this.scoreProperty.scores || []).find(s => s.code === code);
-            if (score && score.effectiveScore != null) {
-                this.scoreForm[code] = String(score.effectiveScore);
-            }
         },
 
         async saveScore() {
@@ -2554,6 +2529,17 @@ function halley() {
                 return p.moveInDate ? `${p.moveInDate} 협의 가능` : '협의 가능';
             }
             return p.moveInDate || '-';
+        },
+
+        /**
+         * 월 이율을 연 이율 퍼센트로 되돌린다 (설계 I81).
+         * 서버는 스트레스 금리를 더한 월 이율을 주므로 화면 표기도 그 기준이다.
+         */
+        fmtRate(monthlyRate) {
+            if (monthlyRate == null) {
+                return '-';
+            }
+            return (monthlyRate * 12 * 100).toFixed(2) + '%';
         },
 
         fmtWon(won) {

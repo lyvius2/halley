@@ -602,3 +602,23 @@ COMMIT;
 --   - legal_dong_code: 행정안전부 공개 데이터 일괄 적재
 --   - regulation_param: loan.regulation.profile 기준 기본 프로파일 시드
 -- =============================================================================
+
+-- ===== 13. 규제지역 고시 적재 상태 (설계 I73) =====
+-- 규제지역 데이터가 없으면 비규제(LTV 0.7)로 계산되어 한도를 과대평가한다.
+-- 그 사실을 화면에 실어 보내려면 적재가 끝났는지를 알아야 한다.
+
+CREATE TABLE IF NOT EXISTS regulation_notice (
+    zone          VARCHAR(30) PRIMARY KEY,
+    notice_no     VARCHAR(50),
+    announced_on  DATE,
+    seed_status   VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED',
+    area_count    INT NOT NULL DEFAULT 0,
+    message       VARCHAR(500),
+    updated_at    TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ===== 14. 회원 이메일 폐지 (설계 I74) =====
+-- 이메일은 로그인에도 알림에도 쓰지 않아 받아 두기만 하던 항목이었다.
+-- 표시 이름은 닉네임이 맡는다 — 매물 등록자 배지도 이미 닉네임을 쓴다.
+DROP INDEX IF EXISTS ux_users_email;
+ALTER TABLE users DROP COLUMN IF EXISTS email;

@@ -35,16 +35,13 @@ public class VworldLandUseAdapter implements LandUsePort {
     private final VworldLandUseFeignClient client;
     private final ObjectMapper objectMapper;
     private final String apiKey;
-    private final String domain;
 
     public VworldLandUseAdapter(VworldLandUseFeignClient client,
                                 ObjectMapper objectMapper,
-                                @Value("${vworld.api-key:}") String apiKey,
-                                @Value("${vworld.domain:}") String domain) {
+                                @Value("${vworld.api-key:}") String apiKey) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
-        this.domain = domain == null || domain.isBlank() ? null : domain;
     }
 
     @Override
@@ -62,7 +59,7 @@ public class VworldLandUseAdapter implements LandUsePort {
             log.info("Skipping land use lookup - invalid PNU. pnu={}", pnu);
             return List.of();
         }
-        final String body = client.landUse(apiKey, pnu, "json", MAX_ROWS, 1, domain);
+        final String body = client.landUse(apiKey, pnu, "json", MAX_ROWS, 1);
         if (body == null) {
             return List.of();
         }

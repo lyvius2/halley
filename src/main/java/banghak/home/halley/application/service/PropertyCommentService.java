@@ -16,6 +16,8 @@ import banghak.home.halley.domain.property.PropertyComment;
 import banghak.home.halley.domain.user.User;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import banghak.home.halley.application.event.PropertyInsightChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,10 +41,14 @@ public class PropertyCommentService {
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
 
+    private final ApplicationEventPublisher eventPublisher;
+
     public PropertyCommentService(PropertyCommentRepository commentRepository,
+                                  ApplicationEventPublisher eventPublisher,
                                   PropertyRepository propertyRepository,
                                   UserRepository userRepository) {
         this.commentRepository = commentRepository;
+        this.eventPublisher = eventPublisher;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
     }
@@ -65,6 +71,8 @@ public class PropertyCommentService {
         }
         final PropertyComment saved = commentRepository.save(new PropertyComment(
                 null, propertyId, me, validated(request), Instant.now(), null));
+        // 코멘트는 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
         return toResponse(saved, nicknames(), me);
     }
 
@@ -74,6 +82,7 @@ public class PropertyCommentService {
         final PropertyComment updated = commentRepository.update(new PropertyComment(
                 existing.id(), existing.propertyId(), existing.userId(),
                 validated(request), existing.createdAt(), Instant.now()));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
         return toResponse(updated, nicknames(), existing.userId());
     }
 
@@ -81,6 +90,7 @@ public class PropertyCommentService {
     public void delete(Long propertyId, Long commentId) {
         requireOwnComment(propertyId, commentId);
         commentRepository.delete(commentId);
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId));
     }
 
     private PropertyComment requireOwnComment(Long propertyId, Long commentId) {
