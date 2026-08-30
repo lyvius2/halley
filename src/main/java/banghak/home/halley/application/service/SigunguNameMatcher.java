@@ -9,6 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -39,18 +40,6 @@ public class SigunguNameMatcher {
     /** 행정구역 접미사와 공백. 이것만 떼면 고시 표기와 정식명칭이 같아진다. */
     private static final Pattern SUFFIX = Pattern.compile("[시군구\\s]");
     private static final int SIGUNGU_CODE_LENGTH = 5;
-
-    /** 시도 표기 흔들림 흡수 — 고시는 `서울`, 법정동코드는 `서울특별시`. */
-    private static final Map<String, String> SIDO_ALIASES = Map.ofEntries(
-            Map.entry("서울", "서울특별시"), Map.entry("부산", "부산광역시"),
-            Map.entry("대구", "대구광역시"), Map.entry("인천", "인천광역시"),
-            Map.entry("광주", "광주광역시"), Map.entry("대전", "대전광역시"),
-            Map.entry("울산", "울산광역시"), Map.entry("세종", "세종특별자치시"),
-            Map.entry("경기", "경기도"), Map.entry("강원", "강원특별자치도"),
-            Map.entry("충북", "충청북도"), Map.entry("충남", "충청남도"),
-            Map.entry("전북", "전북특별자치도"), Map.entry("전남", "전라남도"),
-            Map.entry("경북", "경상북도"), Map.entry("경남", "경상남도"),
-            Map.entry("제주", "제주특별자치도"));
 
     /**
      * @param areaNames `서울 강남구` · `경기 화성동탄` 형식. 시도 접두어가 붙어 있어야 한다
@@ -88,13 +77,37 @@ public class SigunguNameMatcher {
         if (space <= 0) {
             return Optional.empty();
         }
-        final String sido = normalizeSido(areaName.substring(0, space));
         final String key = normalize(areaName.substring(space + 1));
-        return Optional.ofNullable(bySido.get(sido))
+        return resolveSido(areaName.substring(0, space), bySido.keySet())
+                .map(bySido::get)
                 .map(names -> names.get(key))
                 .map(code -> new Matched(
                         code.code().substring(0, SIGUNGU_CODE_LENGTH),
                         code.sido() + " " + code.sigungu()));
+    }
+
+    /**
+     * 고시의 짧은 시도 표기를 사전의 정식명칭에 맞춘다 — `서울` → `서울특별시`.
+     *
+     * <p><b>별칭표를 두지 않습니다.</b> 시도 이름도 바뀝니다(광주광역시와 전라남도가
+     * `전남광주통합특별시`로 통합됐습니다). 박아 두면 낡아도 낡은 줄 모르므로 사전에서 찾습니다.
+     *
+     * <p>여러 개에 걸리면 <b>고르지 않습니다.</b> 잘못 고르면 엉뚱한 시도의 같은 이름 구가
+     * 규제지역이 되는데, 그건 값이 없는 것보다 위험합니다.
+     */
+    private Optional<String> resolveSido(String token, Set<String> candidates) {
+        final String trimmed = token.trim();
+        if (candidates.contains(trimmed)) {
+            return Optional.of(trimmed);
+        }
+        final List<String> matched = candidates.stream()
+                .filter(name -> name.startsWith(trimmed) || name.contains(trimmed))
+                .toList();
+        if (matched.size() != 1) {
+            log.warn("Cannot resolve sido from notice. token={}, candidates={}", trimmed, matched);
+            return Optional.empty();
+        }
+        return Optional.of(matched.getFirst());
     }
 
     /** 시도별로 `정규화된 시군구명 → 코드` 색인을 만든다. */
@@ -109,11 +122,6 @@ public class SigunguNameMatcher {
                     .putIfAbsent(normalize(entry.sigungu()), entry);
         }
         return bySido;
-    }
-
-    private String normalizeSido(String sido) {
-        final String trimmed = sido.trim();
-        return SIDO_ALIASES.getOrDefault(trimmed, trimmed);
     }
 
     private String normalize(String name) {

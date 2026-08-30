@@ -58,6 +58,14 @@ public class LegalDongCodeRepository {
         return dsl.selectFrom(TABLE).fetch().map(this::map);
     }
 
+    /**
+     * 시군구 대표코드(뒤 5자리가 0)의 수. 사전이 이미 채워졌는지 보는 값이라,
+     * 채워져 있으면 기동할 때마다 V-World를 다시 부르지 않는다 (설계 I78).
+     */
+    public int countSigungu() {
+        return dsl.fetchCount(TABLE, CODE.like("_____00000"));
+    }
+
     public void delete(String code) {
         dsl.deleteFrom(TABLE)
                 .where(CODE.eq(code))

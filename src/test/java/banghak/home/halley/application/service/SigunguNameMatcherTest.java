@@ -78,6 +78,37 @@ class SigunguNameMatcherTest {
     }
 
     @Test
+    @DisplayName("시도 이름이 바뀌어도 사전에서 찾는다 — 별칭표를 박아 두지 않는다")
+    void resolvesSidoFromDictionary() {
+        // given — 광주광역시와 전라남도가 통합된 형태. 별칭표였다면 '광주광역시'를 찾다 실패한다
+        final List<LegalDongCode> dict = dictionary(
+                "2911000000", "전남광주통합특별시", "동구");
+
+        // when
+        final Map<String, SigunguNameMatcher.Matched> matched =
+                matcher.match(List.of("광주 동구"), dict);
+
+        // then
+        assertThat(matched.get("광주 동구").name()).isEqualTo("전남광주통합특별시 동구");
+    }
+
+    @Test
+    @DisplayName("시도 후보가 여럿이면 고르지 않는다 — 잘못 고르면 엉뚱한 구가 규제지역이 된다")
+    void refusesAmbiguousSido() {
+        // given — '광주'가 두 시도에 걸린다
+        final List<LegalDongCode> dict = dictionary(
+                "2911000000", "전남광주통합특별시", "동구",
+                "4161000000", "경기도 광주시권", "동구");
+
+        // when
+        final Map<String, SigunguNameMatcher.Matched> matched =
+                matcher.match(List.of("광주 동구"), dict);
+
+        // then
+        assertThat(matched).isEmpty();
+    }
+
+    @Test
     @DisplayName("실물 고시 40곳이 전부 매칭된다")
     void matchesEveryAreaInRealNotice() throws IOException {
         // given — 국토교통부공고 제2026-883호에서 뽑은 이름들

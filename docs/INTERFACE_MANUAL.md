@@ -488,6 +488,42 @@ sequenceDiagram
 
 ---
 
+### 5.6.7 행정구역 코드 조회 (설계 I78)
+
+규제지역 고시는 지역을 **이름으로** 적는데(`화성동탄`) 저장은 코드로 한다. 그 사이를 잇는
+시군구 사전이 필요하고, `legal_dong_code`는 카카오로 채우는 지연 캐시라 기동 시 비어 있다.
+
+**계층마다 엔드포인트가 다르다.** `admCodeList`는 `admCode`를 줘도 무시하고 시도만 돌려준다 —
+실측으로 확인했다.
+
+```
+GET /ned/data/admCodeList?key={key}&format=json&numOfRows=1000&pageNo=1
+→ {"admVOList": {"pageNo": "1", "admVOList": [
+     {"admCode": "11", "admCodeNm": "서울특별시", "lowestAdmCodeNm": "서울특별시"},
+     {"admCode": "12", "admCodeNm": "전남광주통합특별시", ...}]}}
+
+GET /ned/data/admSiList?key={key}&admCode=41&format=json&numOfRows=1000&pageNo=1
+→ {"admVOList": {"admVOList": [
+     {"admCode": "41597", "admCodeNm": "경기도 화성시 동탄구",
+      "lowestAdmCodeNm": "화성시 동탄구"}]}}
+```
+
+| 필드 | 쓰임 |
+|---|---|
+| `admCode` | 시도 2자리 / 시군구 5자리 |
+| `admCodeNm` | 상위를 포함한 전체 이름 |
+| `lowestAdmCodeNm` | **상위를 뺀 이름.** 규제지역 매칭이 쓰는 값 |
+
+> ⚠️ **래퍼 이름이 안팎으로 같다** — `{"admVOList": {"admVOList": [...]}}`.
+> 이름으로 찾으면 바깥 객체에 걸리므로 **배열인 자식**을 찾아야 한다.
+
+> **행정구역 목록을 코드에 박지 마세요.** 실측 응답에 `전남광주통합특별시`가 있었습니다 —
+> 광주광역시와 전라남도가 통합된 것입니다. 박아 둔 목록은 낡아도 낡은 줄 모르고,
+> 그 상태로 규제지역이 엉뚱한 코드에 붙습니다.
+
+기동 시 1 + 시도 수만큼 부르지만 `legal_dong_code`에 저장하므로 **한 번 채우면 다시 부르지
+않습니다**(`SigunguCodeBootstrap`).
+
 ## 5.7 Claude (LLM) — AI 추천도
 
 ### 5.7.1 역할
@@ -653,7 +689,7 @@ GET http://law.go.kr/flDownload.do?flSeq=166503271
 | `강남구` | 서울특별시 강남구 |
 
 **양쪽에서 `시·군·구`와 공백을 떼면 같아진다** — `화성동탄` = `화성시 동탄구`.
-시도 범위 안에서만 찾아 `중구` 같은 동명이인을 가른다. 사전은 `data/sigungu-code.csv`.
+시도 범위 안에서만 찾아 `중구` 같은 동명이인을 가른다. 사전은 V-World에서 받는다(5.6.7).
 
 > **전부 아니면 전무다.** 하나라도 코드로 못 바꾸면 통째로 버린다. 일부만 넣으면 빠진 지역이
 > 비규제(0.7)로 잡혀 한도를 과대평가하는데, 값이 있으니 맞는 줄 알게 되어 더 위험하다.
