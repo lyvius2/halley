@@ -205,6 +205,7 @@ function halley() {
         ],
         myGroup: null,
         groups: [],
+        newGroupName: '',
         groupForm: { name: '', slackWebhookUrl: '' },
         joinForm: { code: '' },
         inviteCode: null,
@@ -528,16 +529,18 @@ function halley() {
         },
 
         async createGroupAsAdmin() {
+            this.error = null;
             const { ok, body } = await this.request('/api/admin/groups', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: null })
+                body: JSON.stringify({ name: this.newGroupName.trim() || null })
             });
-            if (ok) {
-                await this.loadGroups();
-            } else {
+            if (!ok) {
                 this.error = (body && body.message) || '그룹을 만들지 못했습니다';
+                return;
             }
+            this.newGroupName = '';
+            await this.loadGroups();
         },
 
         /** 종류별 기존 부채 (설계 I92). 연간 부담을 함께 보여 준다. */

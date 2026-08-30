@@ -7,6 +7,8 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.config.exception.AlreadyInGroupException;
+import banghak.home.halley.config.exception.DuplicateGroupNameException;
+import banghak.home.halley.config.exception.TooManyEmptyGroupsException;
 import banghak.home.halley.config.exception.GroupNotFoundException;
 import banghak.home.halley.config.exception.InviteExpiredException;
 import banghak.home.halley.config.exception.InviteNotFoundException;
@@ -38,6 +40,9 @@ public class GroupService {
     private static final Duration INVITE_TTL = Duration.ofHours(24);
     /** 코드가 겹치면 다시 뽑는다. 살아 있는 코드가 많아도 이 횟수면 넉넉하다. */
     private static final int MAX_CODE_ATTEMPTS = 10;
+    /** 회원이 없는 그룹 상한 (설계 I104). 빈 그룹은 쓸모가 없고 목록만 어지럽힌다. */
+    private static final int MAX_EMPTY_GROUPS = 2;
+    private static final int MAX_NAME_ATTEMPTS = 20;
 
     private final UserGroupRepository userGroupRepository;
     private final GroupInviteRepository inviteRepository;
@@ -193,13 +198,48 @@ public class GroupService {
                 new UserGroup(null, GroupNameGenerator.generate(), null, null, Instant.now()));
     }
 
-    /** admin이 그룹을 미리 만든다 (규칙 12). 이름을 비우면 무작위 한국어로 짓는다. */
+    /**
+     * admin이 그룹을 미리 만든다 (규칙 12 · 설계 I104).
+     *
+     * <p>이름을 비우면 무작위 한국어로 짓습니다. <b>이름은 겹칠 수 없습니다</b> — 같은 이름이
+     * 둘이면 회원을 넣을 때 어느 쪽인지 화면에서 가릴 수 없습니다.
+     *
+     * <p><b>회원이 없는 그룹은 {@value #MAX_EMPTY_GROUPS}개까지입니다.</b> 빈 그룹은 아무
+     * 쓸모가 없는데, 버튼을 누를 때마다 쌓이면 그룹 목록이 금방 못 쓰게 됩니다.
+     */
     @Transactional
     public GroupResponse createByAdmin(String name) {
-        final String resolved = name == null || name.isBlank()
-                ? GroupNameGenerator.generate() : name.trim();
+        if (countEmptyGroups() >= MAX_EMPTY_GROUPS) {
+            throw new TooManyEmptyGroupsException();
+        }
+        final String resolved = resolveNewName(name);
         return toResponse(userGroupRepository.save(
                 new UserGroup(null, resolved, null, null, Instant.now())));
+    }
+
+    /** 비우면 무작위로 짓되, 그것도 겹치면 다시 뽑는다. */
+    private String resolveNewName(String name) {
+        if (name != null && !name.isBlank()) {
+            final String trimmed = name.trim();
+            if (userGroupRepository.findByName(trimmed).isPresent()) {
+                throw new DuplicateGroupNameException();
+            }
+            return trimmed;
+        }
+        for (int attempt = 0; attempt < MAX_NAME_ATTEMPTS; attempt++) {
+            final String candidate = GroupNameGenerator.generate();
+            if (userGroupRepository.findByName(candidate).isEmpty()) {
+                return candidate;
+            }
+        }
+        // 조합이 다 쓰였다면 뒤에 번호를 붙인다 — 만들지 못하는 것보다 낫다
+        return GroupNameGenerator.generate() + " " + (countEmptyGroups() + 1);
+    }
+
+    private long countEmptyGroups() {
+        return userGroupRepository.findAll().stream()
+                .filter(g -> userRepository.findByGroupId(g.id()).isEmpty())
+                .count();
     }
 
     /** admin 전용 — 회원은 다른 그룹이 있는지도 알 수 없다 (규칙 7). */

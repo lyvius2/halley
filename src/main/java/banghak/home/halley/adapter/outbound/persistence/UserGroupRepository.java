@@ -48,6 +48,11 @@ public class UserGroupRepository {
         return dsl.selectFrom(TABLE).orderBy(ID.asc()).fetch().map(this::map);
     }
 
+    public Optional<UserGroup> findByName(String name) {
+        return name == null ? Optional.empty()
+                : dsl.selectFrom(TABLE).where(NAME.eq(name)).fetchOptional().map(this::map);
+    }
+
     public void rename(Long id, String name) {
         dsl.update(TABLE).set(NAME, name).where(ID.eq(id)).execute();
     }
