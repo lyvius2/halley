@@ -1028,6 +1028,11 @@
                         </div>
                         <div class="m2-row"><span>입주</span><b x-text="moveInLabel(detailItem.property)"></b></div>
                         <div class="m2-row"><span>매물번호</span><b x-text="detailItem.property.naverArticleNo || '-'"></b></div>
+                        <!-- 공시가격·토지이용계획 조회 키. 값이 비면 그 둘이 왜 안 뜨는지 바로 알 수 있다 -->
+                        <div class="m2-row">
+                            <span>PNU</span>
+                            <b class="m2-mono" x-text="detailItem.property.pnu || '-'"></b>
+                        </div>
                         <div class="m2-row">
                             <span>원본 URL</span>
                             <b>
@@ -1090,7 +1095,14 @@
 
                 <section class="m2-sec m2-sec-wide">
                     <h4>AI 추천도</h4>
-                    <template x-if="!detailLlm">
+                    <!-- 처음 분석이 도는 중이면 진행 표시 (설계 I72) -->
+                    <template x-if="!detailLlm && llmPending">
+                        <div class="ai-progress">
+                            <span class="ai-progress-label">AI가 데이터를 분석 중입니다…</span>
+                            <div class="ai-progress-bar"><i></i></div>
+                        </div>
+                    </template>
+                    <template x-if="!detailLlm && !llmPending">
                         <p class="m2-empty">아직 산출되지 않았습니다.
                             <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">지금 물어보기</button>
                         </p>
@@ -1188,6 +1200,7 @@
                         <button class="btn" type="button" @click="searchPropertyAddress()">검색</button>
                     </div>
                 </label>
+                <p class="form-error span2" x-show="propertyAddrError" x-text="propertyAddrError"></p>
                 <template x-if="propertyAddrResults.length > 0">
                     <div class="workplace-results span2">
                         <template x-for="(r, i) in propertyAddrResults" :key="i">
@@ -1668,6 +1681,12 @@
                     <span x-text="compareStatus.rankings[0].model"></span>
                     <span x-text="fmtTime(compareStatus.rankings[0].computedAt)"></span>
                 </p>
+            </div>
+        </template>
+        <template x-if="!hasCompareResult() && compareRunning">
+            <div class="ai-progress">
+                <span class="ai-progress-label">AI가 데이터를 분석 중입니다…</span>
+                <div class="ai-progress-bar"><i></i></div>
             </div>
         </template>
         <template x-if="!hasCompareResult() && !compareRunning">

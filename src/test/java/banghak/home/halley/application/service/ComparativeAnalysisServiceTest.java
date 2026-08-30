@@ -3,6 +3,8 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.ComparativeAnalysisRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.adapter.outbound.cache.InMemoryLlmJobCache;
+import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.config.exception.InsufficientPropertiesException;
 import banghak.home.halley.config.exception.LlmUnavailableException;
@@ -193,7 +195,7 @@ class ComparativeAnalysisServiceTest {
         // given
         givenProperties(4);
         final ComparativeAnalysisService service = new ComparativeAnalysisService(
-                stub(LlmResult.of("{}", "m")), analysisRepository, propertyRepository,
+                stub(LlmResult.of("{}", "m")), analysisRepository, jobCache, propertyRepository,
                 userRepository, scoringService, objectMapper, false);
 
         // when · then
@@ -222,8 +224,10 @@ class ComparativeAnalysisServiceTest {
         assertThat(prompt).contains("[구매자들의 직장 위치]").contains("앨리스: 강남역");
     }
 
+    private final LlmJobCache jobCache = new InMemoryLlmJobCache();
+
     private ComparativeAnalysisService service(LlmPort port) {
-        return new ComparativeAnalysisService(port, analysisRepository, propertyRepository,
+        return new ComparativeAnalysisService(port, analysisRepository, jobCache, propertyRepository,
                 userRepository, scoringService, objectMapper, true);
     }
 

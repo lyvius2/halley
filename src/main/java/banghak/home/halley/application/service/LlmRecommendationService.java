@@ -3,7 +3,9 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.domain.llm.LlmJobState;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.domain.llm.LlmResult;
@@ -57,6 +59,7 @@ public class LlmRecommendationService {
 
     private final LlmPort llmPort;
     private final LlmRecommendationRepository recommendationRepository;
+    private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
@@ -64,12 +67,14 @@ public class LlmRecommendationService {
 
     public LlmRecommendationService(LlmPort llmPort,
                                     LlmRecommendationRepository recommendationRepository,
+                                    LlmJobCache jobCache,
                                     PropertyRepository propertyRepository,
                                     UserRepository userRepository,
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
         this.recommendationRepository = recommendationRepository;
+        this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.objectMapper = objectMapper;
@@ -79,9 +84,56 @@ public class LlmRecommendationService {
     /** 직장 위치가 이만큼 모이면 판단이 충분히 안정된다고 본다 (설계 I60). */
     static final int ENOUGH_WORKPLACES = 3;
 
-    /** 저장된 추천도만 읽는다 — LLM을 부르지 않는다. */
+    /** 화면이 "지금 분석 중인가"를 물어볼 키 (설계 I72). */
+    public static String jobKey(Long propertyId) {
+        return "rec:" + propertyId;
+    }
+
+    /**
+     * 저장된 추천도를 읽는다 — LLM을 부르지 않는다 (설계 I72).
+     *
+     * <p><b>캐시 우선, DB 폴백</b>입니다. 폴링이 2초마다 두드리므로 캐시가 DB를 막아 줍니다.
+     * 다만 캐시가 비었다고 "결과 없음"으로 답하면 <b>DB에 멀쩡히 있는 값을 못 산출로</b>
+     * 보여주게 되므로, 미스가 나면 반드시 DB를 보고 캐시를 다시 채웁니다.
+     */
     public Optional<LlmRecommendation> find(Long propertyId) {
-        return recommendationRepository.findByPropertyId(propertyId);
+        final String key = jobKey(propertyId);
+        final Optional<LlmRecommendation> fromCache = jobCache.get(key)
+                .filter(state -> !state.isRunning())
+                .map(LlmJobState::payload)
+                .flatMap(this::readCached);
+        if (fromCache.isPresent()) {
+            return fromCache;
+        }
+        final Optional<LlmRecommendation> fromDb = recommendationRepository.findByPropertyId(propertyId);
+        fromDb.ifPresent(found -> cacheResult(key, found));
+        return fromDb;
+    }
+
+    private void cacheResult(String key, LlmRecommendation recommendation) {
+        try {
+            jobCache.markDone(key, objectMapper.writeValueAsString(recommendation));
+        } catch (RuntimeException e) {
+            // 캐시는 가속기다. 못 담아도 DB에서 읽히므로 기능이 멈추지 않는다
+            log.warn("Failed to cache LLM recommendation. key={}, cause={}", key, e.getMessage());
+        }
+    }
+
+    private Optional<LlmRecommendation> readCached(String payload) {
+        try {
+            return Optional.of(objectMapper.readValue(payload, LlmRecommendation.class));
+        } catch (RuntimeException e) {
+            log.warn("Failed to read cached LLM recommendation - falling back to DB. cause={}", e.getMessage());
+            return Optional.empty();
+        }
+    }
+
+    /**
+     * 지금 이 매물의 분석이 진행 중인지 (설계 I72).
+     * 캐시가 비었으면(TTL 만료·Redis 재시작) 진행 중이 아닌 것으로 본다 — 호출 측이 DB를 본다.
+     */
+    public boolean isRunning(Long propertyId) {
+        return jobCache.get(jobKey(propertyId)).map(LlmJobState::isRunning).orElse(false);
     }
 
     /**
@@ -146,22 +198,38 @@ public class LlmRecommendationService {
             return cached;
         }
 
-        final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
-        if (!result.isPresent()) {
-            log.warn("LLM recommendation unavailable. propertyId={}, cause={}", propertyId, result.failureCause());
-            return cached;
+        // 화면이 진행 중임을 알 수 있게 표시한다 (설계 I72)
+        final String key = jobKey(propertyId);
+        jobCache.markRunning(key);
+        boolean completed = false;
+        try {
+            final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            if (!result.isPresent()) {
+                log.warn("LLM recommendation unavailable. propertyId={}, cause={}",
+                        propertyId, result.failureCause());
+                return cached;
+            }
+            final Optional<Verdict> verdict = parse(result.text());
+            if (verdict.isEmpty()) {
+                log.warn("LLM recommendation could not be parsed. propertyId={}, raw={}",
+                        propertyId, result.text());
+                return cached;
+            }
+            final LlmRecommendation saved = recommendationRepository.upsert(new LlmRecommendation(
+                    null, propertyId, verdict.get().score(), verdict.get().reason(),
+                    result.model(), hash, workplaces, Instant.now()));
+            // DB에 먼저 넣은 뒤 캐시에 담는다. 순서가 뒤집히면 DB보다 앞선 값이 보인다
+            cacheResult(key, saved);
+            completed = true;
+            log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
+                    propertyId, saved.score(), saved.model(), workplaces);
+            return Optional.of(saved);
+        } finally {
+            // 실패·예외로 빠져나갔으면 RUNNING이 남지 않게 지운다
+            if (!completed) {
+                jobCache.clear(key);
+            }
         }
-        final Optional<Verdict> verdict = parse(result.text());
-        if (verdict.isEmpty()) {
-            log.warn("LLM recommendation could not be parsed. propertyId={}, raw={}", propertyId, result.text());
-            return cached;
-        }
-        final LlmRecommendation saved = recommendationRepository.upsert(new LlmRecommendation(
-                null, propertyId, verdict.get().score(), verdict.get().reason(),
-                result.model(), hash, workplaces, Instant.now()));
-        log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
-                propertyId, saved.score(), saved.model(), workplaces);
-        return Optional.of(saved);
     }
 
     /**
