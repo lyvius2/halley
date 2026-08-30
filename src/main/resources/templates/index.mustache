@@ -397,7 +397,7 @@
                                 </label>
                                 <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                                     <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000">
+                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
                                         <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
                                               x-text="moneyHint(profileForm.availableBudget)"></span>
                                     </span>
@@ -405,7 +405,7 @@
                                 </label>
                                 <label>연소득 (원)
                                     <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000">
+                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
                                         <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
                                               x-text="moneyHint(profileForm.annualIncome)"></span>
                                     </span>
@@ -413,7 +413,7 @@
                                 </label>
                                 <label>기존 대출액 (원)
                                     <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0">
+                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
                                         <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
                                               x-text="moneyHint(profileForm.existingLoan)"></span>
                                     </span>
@@ -569,7 +569,7 @@
             </label>
             <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                 <span class="money-row">
-                    <input type="text" inputmode="numeric" :value="setupForm.availableBudget" @input="setupForm.availableBudget = numericInput($event)" placeholder="300000000">
+                    <input type="text" inputmode="numeric" :value="setupForm.availableBudget" @input="setupForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
                     <span class="money-hint" x-show="moneyHint(setupForm.availableBudget)"
                           x-text="moneyHint(setupForm.availableBudget)"></span>
                 </span>
@@ -577,7 +577,7 @@
             </label>
             <label>연소득 (원)
                 <span class="money-row">
-                    <input type="text" inputmode="numeric" :value="setupForm.annualIncome" @input="setupForm.annualIncome = numericInput($event)" placeholder="50000000">
+                    <input type="text" inputmode="numeric" :value="setupForm.annualIncome" @input="setupForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
                     <span class="money-hint" x-show="moneyHint(setupForm.annualIncome)"
                           x-text="moneyHint(setupForm.annualIncome)"></span>
                 </span>
@@ -585,7 +585,7 @@
             </label>
             <label>기존 대출액 (원)
                 <span class="money-row">
-                    <input type="text" inputmode="numeric" :value="setupForm.existingLoan" @input="setupForm.existingLoan = numericInput($event)" placeholder="0">
+                    <input type="text" inputmode="numeric" :value="setupForm.existingLoan" @input="setupForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
                     <span class="money-hint" x-show="moneyHint(setupForm.existingLoan)"
                           x-text="moneyHint(setupForm.existingLoan)"></span>
                 </span>
@@ -753,6 +753,11 @@
             <span class="modal-kicker">사용자 관리</span>
             <h3 x-text="editingUserId ? '사용자 정보 수정' : '사용자 추가'"></h3>
         </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('groups')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
+        </div>
         <form class="form" @submit.prevent="saveUser()">
             <div class="form-grid">
                 <!-- label이 아니라 div다 (설계 I104). label 안에 버튼을 두면 라벨 아무 데나
@@ -832,21 +837,21 @@
                 </label>
                 <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                     <span class="money-row">
-                        <input type="text" inputmode="numeric" :value="userForm.availableBudget" @input="userForm.availableBudget = numericInput($event)">
+                        <input type="text" inputmode="numeric" :value="userForm.availableBudget" @input="userForm.availableBudget = numericInput($event)" style="width:50%">
                         <span class="money-hint" x-show="moneyHint(userForm.availableBudget)"
                               x-text="moneyHint(userForm.availableBudget)"></span>
                     </span>
                 </label>
                 <label>연소득
                     <span class="money-row">
-                        <input type="text" inputmode="numeric" :value="userForm.annualIncome" @input="userForm.annualIncome = numericInput($event)">
+                        <input type="text" inputmode="numeric" :value="userForm.annualIncome" @input="userForm.annualIncome = numericInput($event)" style="width:50%">
                         <span class="money-hint" x-show="moneyHint(userForm.annualIncome)"
                               x-text="moneyHint(userForm.annualIncome)"></span>
                     </span>
                 </label>
                 <label>기존 대출액
                     <span class="money-row">
-                        <input type="text" inputmode="numeric" :value="userForm.existingLoan" @input="userForm.existingLoan = numericInput($event)">
+                        <input type="text" inputmode="numeric" :value="userForm.existingLoan" @input="userForm.existingLoan = numericInput($event)" style="width:50%">
                         <span class="money-hint" x-show="moneyHint(userForm.existingLoan)"
                               x-text="moneyHint(userForm.existingLoan)"></span>
                     </span>
@@ -927,6 +932,11 @@
             <span class="modal-kicker">이미지</span>
             <h3 x-text="photoProperty?.property?.name"></h3>
             <p>업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('photos')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
         </div>
 
         <!-- 평면도: 매물당 한 장. 올리면 기존 것을 대체한다 (설계 I63) -->
@@ -1010,6 +1020,11 @@
             <span class="modal-kicker">사용자 관리</span>
             <h3>계정 <span x-text="users.length"></span>명</h3>
             <p>가입 절차가 없는 폐쇄형 서비스입니다. 계정은 관리자가 이곳에서 만들고 관리합니다.</p>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('users')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
         </div>
         <div class="card table-wrap">
             <table>
@@ -1227,6 +1242,11 @@
                 <span class="modal-kicker">매물 상세</span>
                 <h3 x-text="detailItem.property.name + (detailItem.property.dongHo ? ' ' + detailItem.property.dongHo : '')"></h3>
             </div>
+            <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+            <div class="progress-strip" x-show="isLoading('detail')" x-cloak>
+                <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+                <div class="progress-strip-bar"><i></i></div>
+            </div>
             <div class="m2-meta">
                 <span class="badge" :class="dealBadge(detailItem.property.dealType)" x-text="dealLabel(detailItem.property.dealType)"></span>
                 <span class="m2-price" x-text="fmtWon(detailItem.property.priceDeposit)"></span>
@@ -1345,9 +1365,9 @@
                     <h4>AI 추천도</h4>
                     <!-- 처음 분석이 도는 중이면 진행 표시 (설계 I72) -->
                     <template x-if="!detailLlm && llmPending">
-                        <div class="ai-progress">
-                            <span class="ai-progress-label">AI가 데이터를 분석 중입니다…</span>
-                            <div class="ai-progress-bar"><i></i></div>
+                        <div class="progress-strip">
+                            <span class="progress-strip-label">AI가 데이터를 분석 중입니다…</span>
+                            <div class="progress-strip-bar"><i></i></div>
                         </div>
                     </template>
                     <!-- 재질의는 쾌적함·코멘트가 바뀔 때 백엔드에서 트리거된다 (설계 I78) -->
@@ -1533,11 +1553,11 @@
             <p class="form-error" x-show="error" x-text="error"></p>
             <!-- 등록은 초등학교·토지이용계획·채점이 끝나야 응답이 온다 (설계 I110).
                  몇 초 걸리므로 무엇을 기다리는지 말해 준다 -->
-            <div class="ai-progress" x-show="loading">
-                <span class="ai-progress-label"
+            <div class="progress-strip" x-show="loading">
+                <span class="progress-strip-label"
                       x-text="propertyForm.id ? '저장 중입니다…'
                               : '저장 중입니다… 학교·규제·점수를 확인하고 있습니다'"></span>
-                <div class="ai-progress-bar"><i></i></div>
+                <div class="progress-strip-bar"><i></i></div>
             </div>
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '저장 중…' : (propertyForm.id ? '저장' : '등록')"></span>
@@ -1555,6 +1575,11 @@
             <span class="modal-kicker">평가 채점</span>
             <h3 x-text="scoreProperty?.property?.name"></h3>
             <p>자동으로 계산되지 않은 항목은 직접 점수를 넣을 수 있습니다. 입력한 값은 자동 점수보다 우선합니다.</p>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('score')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
         </div>
 
         <div class="score-summary">
@@ -1672,6 +1697,11 @@
             <span class="modal-kicker">대출 한도</span>
             <h3 x-text="loanProperty?.property?.name"></h3>
             <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('loan')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
         </div>
 
         <template x-if="loanResult">
@@ -1877,17 +1907,17 @@
                     <div class="form-grid">
                         <label>연소득 (원)
                             <span class="money-row">
-                                <input type="text" inputmode="numeric" :value="loanOverride.annualIncome" @input="loanOverride.annualIncome = numericInput($event)" :placeholder="loanResult.usedAnnualIncome">
+                                <input type="text" inputmode="numeric" :value="loanOverride.annualIncome" @input="loanOverride.annualIncome = numericInput($event)" :placeholder="loanResult.usedAnnualIncome" style="width:50%">
                                 <span class="money-hint" x-show="moneyHint(loanOverride.annualIncome)"
                                       x-text="moneyHint(loanOverride.annualIncome)"></span>
                             </span>
                         </label>
                         <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
-                            <input type="text" inputmode="numeric" :value="loanOverride.cash" @input="loanOverride.cash = numericInput($event)" :placeholder="loanResult.usedCash">
+                            <input type="text" inputmode="numeric" :value="loanOverride.cash" @input="loanOverride.cash = numericInput($event)" :placeholder="loanResult.usedCash" style="width:50%">
                         </label>
                         <label>기존 대출액 (원)
                             <span class="money-row">
-                                <input type="text" inputmode="numeric" :value="loanOverride.existingLoan" @input="loanOverride.existingLoan = numericInput($event)" :placeholder="loanResult.usedExistingLoan">
+                                <input type="text" inputmode="numeric" :value="loanOverride.existingLoan" @input="loanOverride.existingLoan = numericInput($event)" :placeholder="loanResult.usedExistingLoan" style="width:50%">
                                 <span class="money-hint" x-show="moneyHint(loanOverride.existingLoan)"
                                       x-text="moneyHint(loanOverride.existingLoan)"></span>
                             </span>
@@ -1928,6 +1958,11 @@
             <span class="modal-kicker">코멘트</span>
             <h3 x-text="commentProperty?.property?.name"></h3>
             <p>이 매물에 대한 각자의 생각을 남깁니다. 한 사람당 한 건이며 언제든 고쳐 쓸 수 있습니다.</p>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('comments')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
         </div>
 
         <div class="comment-list">
@@ -2023,9 +2058,9 @@
             </div>
         </template>
         <template x-if="!hasCompareResult() && compareRunning">
-            <div class="ai-progress">
-                <span class="ai-progress-label">AI가 데이터를 분석 중입니다…</span>
-                <div class="ai-progress-bar"><i></i></div>
+            <div class="progress-strip">
+                <span class="progress-strip-label">AI가 데이터를 분석 중입니다…</span>
+                <div class="progress-strip-bar"><i></i></div>
             </div>
         </template>
         <template x-if="!hasCompareResult() && !compareRunning">

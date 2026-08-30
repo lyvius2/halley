@@ -52,6 +52,8 @@ const COMPARE_MIN_PROPERTIES = 4;
  * 보정과 AI 응답은 수 초~수십 초가 걸린다. 이보다 촘촘히 물어도 답이 달라지지 않는다.
  */
 const SCORE_WATCH_MS = 3000;
+// 응답이 이보다 빨리 오면 진행 막대를 띄우지 않는다 — 번쩍임이 더 거슬린다 (설계 I115)
+const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
 
@@ -183,6 +185,10 @@ function halley() {
         // 연 시점의 채점 값. 저장할 때 달라진 항목만 가려내는 데 쓴다 (설계 I111).
         // Alpine은 선언된 것만 프록시에 올린다 — 여기 없으면 읽는 순간 던진다
         _scoreFormAtOpen: {},
+        // 모달별 로딩 표시 (설계 I115). Alpine은 선언된 것만 프록시에 올린다 —
+        // 여기 없으면 템플릿이 읽는 순간 던진다
+        _loading: {},
+        _loadingTimers: {},
         weights: [],
         settings: [],
         settingsForm: {},
@@ -376,7 +382,7 @@ function halley() {
             }
             this.showUsers = true;
             this.error = null;
-            this.loadUsers();
+            this.withLoading('users', () => this.loadUsers());
         },
 
         closeUsers() {
@@ -400,7 +406,7 @@ function halley() {
             this.showUserForm = true;
             // 열 때마다 다시 읽는다 (설계 I112). 세션 확인 때 한 번 읽은 게 전부였는데,
             // 초기 설정이 남아 있으면 그 호출을 건너뛰어 목록이 영영 비어 있었다
-            await this.loadGroups();
+            await this.withLoading('groups', () => this.loadGroups());
         },
 
         async openEditUser(u) {
@@ -421,7 +427,7 @@ function halley() {
             };
             this.error = null;
             this.showUserForm = true;
-            await this.loadGroups();
+            await this.withLoading('groups', () => this.loadGroups());
         },
 
         closeUserForm() {
@@ -1169,7 +1175,7 @@ function halley() {
             this.commentEditingId = null;
             this.error = null;
             this.showComments = true;
-            this.loadComments();
+            this.withLoading('comments', () => this.loadComments());
         },
 
         closeComments() {
@@ -1287,7 +1293,7 @@ function halley() {
             this.llmPending = false;
             this.stopLlmPolling();
             this.showM2 = true;
-            this.loadDetailExtras(item.property.id);
+            this.withLoading('detail', () => this.loadDetailExtras(item.property.id));
         },
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
@@ -1427,7 +1433,7 @@ function halley() {
             this.photoImages = [];
             this.error = null;
             this.showPhotoModal = true;
-            await this.loadPhotoImages();
+            await this.withLoading('photos', () => this.loadPhotoImages());
         },
 
         closePhotoModal() {
@@ -1901,7 +1907,7 @@ function halley() {
             this.loanResult = null;
             this.error = null;
             this.showLoanModal = true;
-            this.runLoanEstimate();
+            this.withLoading('loan', () => this.runLoanEstimate());
         },
 
         /**
@@ -2585,13 +2591,31 @@ function halley() {
         },
 
         async openScoreModal(item) {
+            // 먼저 열고 나중에 채운다 (설계 I115). 응답을 기다렸다 열면 그동안
+            // 화면에 아무 일도 일어나지 않아 눌린 건지 알 수 없다 — PostgreSQL 쪽이
+            // 느릴 때 특히 그렇다. 목록에 실린 값으로 즉시 그리고, 새 값이 오면 갈아 끼운다
+            this.applyScoreForm(item);
+            this.error = null;
+            this.showScoreModal = true;
+
             // 목록에 실린 값이 아니라 지금 값을 읽는다 (설계 I112). 보정·AI가 배경에서
             // 채우고 있어 목록을 받아 둔 시점과 지금이 다를 수 있다
-            const fresh = await this.request(`/api/properties/${item.property.id}`)
-                .catch(() => ({ ok: false }));
-            this.scoreProperty = fresh.ok && fresh.body ? fresh.body : item;
+            const fresh = await this.withLoading('score',
+                () => this.request(`/api/properties/${item.property.id}`).catch(() => ({ ok: false })));
+            // 기다리는 사이에 닫았거나 다른 매물로 옮겨 갔으면 덮어쓰지 않는다
+            if (!this.showScoreModal || this.scoreProperty?.property?.id !== item.property.id) {
+                return;
+            }
+            if (fresh.ok && fresh.body) {
+                this.applyScoreForm(fresh.body);
+            }
+        },
+
+        /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */
+        applyScoreForm(scored) {
+            this.scoreProperty = scored;
             const form = {};
-            (this.scoreProperty.scores || []).forEach(s => {
+            (scored.scores || []).forEach(s => {
                 // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
                 // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
                 // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
@@ -2609,8 +2633,6 @@ function halley() {
             // 연 시점의 값을 그대로 남겨 둔다. 저장할 때 이것과 달라진 항목만 보낸다
             // (설계 I111) — 안 그러면 추정값으로 채워진 칸이 전부 수동 채점이 된다
             this._scoreFormAtOpen = { ...form };
-            this.error = null;
-            this.showScoreModal = true;
         },
 
         /**
@@ -3000,6 +3022,32 @@ function halley() {
          *
          * <p>DOM 값도 함께 바꾼다. 모델만 고치면 화면에는 걸러지기 전 글자가 잠깐 남는다.
          */
+        /**
+         * 모달이 데이터를 받아 오는 동안 진행 막대를 띄운다 (설계 I115).
+         *
+         * <p>바로 켜지 않고 <b>{@code SHOW_DELAY_MS} 뒤에</b> 켭니다. 빠른 응답에도 켜면
+         * 막대가 번쩍였다 사라져 오히려 어수선합니다 — 기다릴 만할 때만 보여 줍니다.
+         *
+         * <p>{@code finally}에서 반드시 끕니다. 호출이 실패해도 막대가 남으면
+         * 화면이 영영 도는 것처럼 보입니다.
+         */
+        async withLoading(key, fn) {
+            clearTimeout(this._loadingTimers[key]);
+            this._loadingTimers[key] = setTimeout(() => {
+                this._loading[key] = true;
+            }, SHOW_LOADING_AFTER_MS);
+            try {
+                return await fn();
+            } finally {
+                clearTimeout(this._loadingTimers[key]);
+                this._loading[key] = false;
+            }
+        },
+
+        isLoading(key) {
+            return this._loading[key] === true;
+        },
+
         numericInput(e) {
             const cleaned = String(e.target.value).replace(/[^0-9]/g, '');
             e.target.value = cleaned;
