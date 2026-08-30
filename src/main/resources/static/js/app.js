@@ -176,6 +176,9 @@ function halley() {
         showScoreModal: false,
         scoreProperty: null,
         scoreForm: {},
+        // 연 시점의 채점 값. 저장할 때 달라진 항목만 가려내는 데 쓴다 (설계 I111).
+        // Alpine은 선언된 것만 프록시에 올린다 — 여기 없으면 읽는 순간 던진다
+        _scoreFormAtOpen: {},
         weights: [],
         settings: [],
         settingsForm: {},
@@ -374,6 +377,7 @@ function halley() {
 
         closeUsers() {
             this.showUsers = false;
+            this.users = [];
             this.error = null;
         },
 
@@ -385,14 +389,17 @@ function halley() {
         },
 
 
-        openAddUser() {
+        async openAddUser() {
             this.editingUserId = null;
             this.userForm = emptyUserForm();
             this.error = null;
             this.showUserForm = true;
+            // 열 때마다 다시 읽는다 (설계 I112). 세션 확인 때 한 번 읽은 게 전부였는데,
+            // 초기 설정이 남아 있으면 그 호출을 건너뛰어 목록이 영영 비어 있었다
+            await this.loadGroups();
         },
 
-        openEditUser(u) {
+        async openEditUser(u) {
             this.editingUserId = u.id;
             this.userForm = {
                 loginId: u.loginId,
@@ -410,6 +417,7 @@ function halley() {
             };
             this.error = null;
             this.showUserForm = true;
+            await this.loadGroups();
         },
 
         closeUserForm() {
@@ -1403,6 +1411,11 @@ function halley() {
             this.detailItem = null;
             this.detailAgents = [];
             this.detailRef = null;
+            // 남겨 두면 다음에 연 매물의 자리에 이전 매물 값이 잠깐 비친다 (설계 I112)
+            this.detailLlm = null;
+            this.detailLandUse = [];
+            this.llmPending = false;
+            this.stopLlmPolling();
         },
 
         async openPhotoModal(item) {
@@ -2543,10 +2556,14 @@ function halley() {
             });
         },
 
-        openScoreModal(item) {
-            this.scoreProperty = item;
+        async openScoreModal(item) {
+            // 목록에 실린 값이 아니라 지금 값을 읽는다 (설계 I112). 보정·AI가 배경에서
+            // 채우고 있어 목록을 받아 둔 시점과 지금이 다를 수 있다
+            const fresh = await this.request(`/api/properties/${item.property.id}`)
+                .catch(() => ({ ok: false }));
+            this.scoreProperty = fresh.ok && fresh.body ? fresh.body : item;
             const form = {};
-            (item.scores || []).forEach(s => {
+            (this.scoreProperty.scores || []).forEach(s => {
                 // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
                 // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
                 // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
@@ -2561,26 +2578,56 @@ function halley() {
                 }
             });
             this.scoreForm = form;
+            // 연 시점의 값을 그대로 남겨 둔다. 저장할 때 이것과 달라진 항목만 보낸다
+            // (설계 I111) — 안 그러면 추정값으로 채워진 칸이 전부 수동 채점이 된다
+            this._scoreFormAtOpen = { ...form };
             this.error = null;
             this.showScoreModal = true;
+        },
+
+        /**
+         * 이미 자동으로 채점된 AUTO 항목인지 (설계 I111).
+         *
+         * HYBRID(교육여건·녹색환경)는 사람이 고치라고 만든 것이라 잠그지 않는다.
+         * AUTO라도 산출에 실패해 값이 없으면 사람이 채울 수 있어야 한다.
+         */
+        scoreLocked(s) {
+            return s.scoringType === 'AUTO' && s.autoScore != null;
         },
 
         closeScoreModal() {
             this.showScoreModal = false;
             this.scoreProperty = null;
             this.scoreForm = {};
+            this._scoreFormAtOpen = {};
             this.error = null;
         },
 
         async saveScore() {
             this.loading = true;
             this.error = null;
+            // 내가 실제로 고친 항목만 보낸다 (설계 I111). 전부 보내면 추정값으로
+            // 채워 둔 칸까지 저장돼 자동 채점이 통째로 수동으로 굳고 산출 근거가 사라진다
+            const before = this._scoreFormAtOpen || {};
+            const locked = new Set((this.scoreProperty?.scores || [])
+                .filter(s => this.scoreLocked(s)).map(s => s.code));
             const scores = {};
             for (const code in this.scoreForm) {
+                if (locked.has(code)) {
+                    continue;
+                }
+                if (String(this.scoreForm[code] ?? '') === String(before[code] ?? '')) {
+                    continue;
+                }
                 const value = toNum(this.scoreForm[code]);
                 if (value != null) {
                     scores[code] = value;
                 }
+            }
+            if (Object.keys(scores).length === 0) {
+                this.loading = false;
+                this.showScoreModal = false;
+                return;
             }
             try {
                 const { ok, body } = await this.request(
@@ -2595,7 +2642,7 @@ function halley() {
                     const fresh = (this.properties || []).find(
                         r => r.property.id === this.scoreProperty.property.id);
                     if (fresh) {
-                        this.openScoreModal(fresh);
+                        await this.openScoreModal(fresh);
                     } else {
                         this.showScoreModal = false;
                     }

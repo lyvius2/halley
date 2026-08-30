@@ -30,6 +30,7 @@ import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.Criterion;
 import banghak.home.halley.domain.scoring.CriterionWeight;
 import banghak.home.halley.domain.scoring.PropertyScore;
+import banghak.home.halley.domain.scoring.ScoringType;
 import banghak.home.halley.domain.scoring.ScoreSource;
 import banghak.home.halley.domain.scoring.UserCriterionScore;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -191,19 +192,57 @@ public class ScoringService {
         return rescore(property);
     }
 
+    /**
+     * 사람이 매긴 점수를 저장한다.
+     *
+     * <p><b>이미 자동 채점된 AUTO 항목은 덮어쓰지 않습니다</b> (설계 I111). 화면이 칸을
+     * 추정값으로 채워 두기 때문에(I76), 쾌적함 하나만 고치고 저장해도 <b>모든 항목이
+     * 그대로 되돌아옵니다.</b> 그것을 전부 저장하면 자동 채점이 통째로 수동으로 굳고
+     * 산출 근거(`explanation`)도 사라집니다.
+     *
+     * <p>화면에서도 그 칸들을 잠그지만, 규칙은 <b>여기</b>가 지킵니다 — 낡은 화면이나
+     * 다른 경로로 들어와도 자동 채점이 뭉개지면 안 됩니다.
+     */
     @Transactional
     public ScoredPropertyResponse saveManualScores(Long propertyId, Map<String, BigDecimal> scores) {
         propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
         if (scores != null) {
+            final Map<String, ScoringType> types = criterionRepository.findAll().stream()
+                    .collect(java.util.stream.Collectors.toMap(Criterion::code, Criterion::scoringType));
+            final Map<String, PropertyScore> current = propertyScoreRepository.findByPropertyId(propertyId)
+                    .stream()
+                    .collect(java.util.stream.Collectors.toMap(
+                            PropertyScore::criterionCode, s -> s, (a, b) -> a));
             for (final Map.Entry<String, BigDecimal> entry : scores.entrySet()) {
                 if (entry.getValue() == null) {
+                    continue;
+                }
+                if (isAutoScored(entry.getKey(), types, current)) {
+                    log.info("Ignoring manual score for an already auto-scored criterion. "
+                            + "propertyId={}, code={}", propertyId, entry.getKey());
                     continue;
                 }
                 applyManualScore(propertyId, entry.getKey(), entry.getValue());
             }
         }
         return rescore(propertyId);
+    }
+
+    /**
+     * 자동으로 이미 값이 나온 AUTO 항목인지.
+     *
+     * <p>HYBRID(교육여건·녹색환경)는 사람이 고치라고 만든 것이라 잠그지 않습니다.
+     * AUTO라도 <b>산출에 실패해 값이 없으면</b> 사람이 채울 수 있어야 합니다 — 그렇지 않으면
+     * 조회 한 번 실패한 항목이 영영 빈칸으로 남습니다.
+     */
+    private boolean isAutoScored(String code, Map<String, ScoringType> types,
+                                 Map<String, PropertyScore> current) {
+        if (types.get(code) != ScoringType.AUTO) {
+            return false;
+        }
+        final PropertyScore score = current.get(code);
+        return score != null && score.autoScore() != null;
     }
 
     private void applyManualScore(Long propertyId, String code, BigDecimal value) {

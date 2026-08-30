@@ -957,6 +957,13 @@ tr.dragging { opacity: .5; background: var(--line2); }
     color: var(--lava);
     line-height: 1.6;
 }
+/* 이미 자동 채점된 항목은 입력 칸 대신 이 문구가 뜬다 (설계 I111) */
+.score-item-locked {
+    font-size: 11px;
+    color: var(--ink3);
+    align-self: center;
+    white-space: nowrap;
+}
 /* 자동 점수의 산출 근거 (설계 I50) */
 .score-item-why {
     grid-column: 1 / -1;

@@ -1582,13 +1582,16 @@
                         <span class="gauge-value" x-text="fmtScore(s.effectiveScore)"></span>
                     </div>
 
-                    <div class="score-item-input">
+                    <!-- 이미 자동 채점된 AUTO 항목은 잠근다 (설계 I111). 열어 두면
+                         추정값으로 채워진 칸이 그대로 저장돼 자동 채점이 수동으로 굳는다 -->
+                    <div class="score-item-input" x-show="!scoreLocked(s)">
                         <input type="number" x-model="scoreForm[s.code]"
                                :min="s.code === 'COMFORT' ? 1 : 0"
                                :max="s.code === 'COMFORT' ? 5 : 100"
                                :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
                                :aria-label="s.name + ' 점수 입력'">
                     </div>
+                    <p class="score-item-locked" x-show="scoreLocked(s)">자동으로 채점된 항목입니다.</p>
 
                     <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
                     <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>

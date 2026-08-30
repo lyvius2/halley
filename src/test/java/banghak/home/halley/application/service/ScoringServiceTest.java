@@ -145,10 +145,33 @@ class ScoringServiceTest {
     }
 
     @Test
-    @DisplayName("수동 점수는 자동 점수를 덮어쓴다")
-    void manualScoreOverridesAuto() {
-        // given
-        final PropertyResponse created = propertyService.create(request("수동 매물", DealType.SALE, 400_000_000L));
+    @DisplayName("이미 자동 채점된 AUTO 항목은 수동으로 덮어쓰지 않는다 (설계 I111)")
+    void keepsAutoScoreOfAlreadyScoredCriterion() {
+        // given — 한 번 채점해 건물 연식에 자동 점수가 들어간 상태
+        final PropertyResponse created = propertyService.create(request("자동 매물", DealType.SALE, 400_000_000L));
+        scoringService.getScored(created.id());
+        final CriterionScoreView before = scoreOf(created.id(), "AGE");
+        assertThat(before.autoScore()).isNotNull();
+
+        // when — 화면이 추정값으로 채워 둔 칸을 그대로 되돌려 보낸다
+        final ScoredPropertyResponse result = scoringService.saveManualScores(
+                created.id(), Map.of("AGE", new BigDecimal("80")));
+
+        // then — 무시한다. 받아들이면 자동 채점이 수동으로 굳고 산출 근거도 사라진다
+        final CriterionScoreView age = result.scores().stream()
+                .filter(s -> s.code().equals("AGE")).findFirst().orElseThrow();
+        assertThat(age.manualScore()).isNull();
+        assertThat(age.scoreSource()).isEqualTo("AUTO");
+        assertThat(age.effectiveScore()).isEqualByComparingTo(before.autoScore());
+    }
+
+    @Test
+    @DisplayName("자동 산출에 실패한 AUTO 항목은 사람이 채울 수 있다 — 아니면 영영 빈칸이다 (설계 I111)")
+    void allowsManualScoreWhenAutoScoreMissing() {
+        // given — 채점은 돌았지만 가격은 현금 예산이 없어 미산출로 떨어진 상태
+        final PropertyResponse created = propertyService.create(request("미산출 매물", DealType.SALE, 400_000_000L));
+        scoringService.getScored(created.id());
+        assertThat(scoreOf(created.id(), "PRICE").autoScore()).isNull();
 
         // when
         final ScoredPropertyResponse result = scoringService.saveManualScores(
@@ -158,12 +181,32 @@ class ScoringServiceTest {
         final CriterionScoreView price = result.scores().stream()
                 .filter(s -> s.code().equals("PRICE")).findFirst().orElseThrow();
         assertThat(price.manualScore()).isEqualByComparingTo("80");
-        assertThat(price.effectiveScore()).isEqualByComparingTo("80");
         assertThat(price.scoreSource()).isEqualTo("MANUAL");
-        assertThat(propertyScoreRepository.findByPropertyId(created.id()))
-                .filteredOn(s -> s.criterionCode().equals("PRICE"))
-                .singleElement()
-                .satisfies(s -> assertThat(s.manualScore()).isEqualByComparingTo("80"));
+    }
+
+    @Test
+    @DisplayName("쾌적함을 저장해도 다른 항목의 자동 채점과 산출 근거는 그대로다 (설계 I111)")
+    void savingComfortLeavesOtherCriteriaUntouched() {
+        // given
+        final PropertyResponse created = propertyService.create(request("쾌적함 매물", DealType.SALE, 400_000_000L));
+        scoringService.getScored(created.id());
+        final CriterionScoreView ageBefore = scoreOf(created.id(), "AGE");
+        assertThat(ageBefore.explanation()).isNotNull();
+
+        // when — 실제로 사람이 고친 것은 쾌적함 하나뿐이다
+        scoringService.saveManualScores(created.id(), Map.of("COMFORT", new BigDecimal("4")));
+
+        // then — 이게 무너져서 채점 전체가 수동으로 바뀌고 근거가 사라졌었다
+        final CriterionScoreView ageAfter = scoreOf(created.id(), "AGE");
+        assertThat(ageAfter.scoreSource()).isEqualTo("AUTO");
+        assertThat(ageAfter.manualScore()).isNull();
+        assertThat(ageAfter.explanation()).isEqualTo(ageBefore.explanation());
+        assertThat(scoreOf(created.id(), "COMFORT").effectiveScore()).isNotNull();
+    }
+
+    private CriterionScoreView scoreOf(Long propertyId, String code) {
+        return scoringService.getScored(propertyId).scores().stream()
+                .filter(s -> code.equals(s.code())).findFirst().orElseThrow();
     }
 
     @Test
