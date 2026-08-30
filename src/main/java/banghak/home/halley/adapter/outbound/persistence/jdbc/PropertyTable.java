@@ -63,6 +63,14 @@ public final class PropertyTable {
     public static final Field<String> RAW_PASTE_TEXT = field(name(T, "raw_paste_text"), String.class);
     public static final Field<String> PARSER_VERSION = field(name(T, "parser_version"), String.class);
     public static final Field<JSON> PARSE_CONFIDENCE = field(name(T, "parse_confidence"), JSON.class);
+    /**
+     * 읽을 때는 타입을 못 박지 않는다 (설계 I117).
+     * <p>같은 컬럼이 live(PostgreSQL)에서는 {@code jsonb}, local(H2)에서는 {@code json}이라
+     * 드라이버가 돌려주는 객체가 다르다. {@code Field<JSON>}으로 읽으면 live에서
+     * {@code JSONB cannot be cast to JSON}으로 터진다 — 로컬에서는 절대 재현되지 않는다.
+     * 쓰기는 위 필드를 그대로 쓴다.
+     */
+    public static final Field<Object> PARSE_CONFIDENCE_RAW = field(name(T, "parse_confidence"), Object.class);
     public static final Field<Boolean> IS_DRAFT = field(name(T, "is_draft"), Boolean.class);
     public static final Field<String> LISTING_STATUS = field(name(T, "listing_status"), String.class);
     public static final Field<Boolean> ACTIVE = field(name(T, "active"), Boolean.class);

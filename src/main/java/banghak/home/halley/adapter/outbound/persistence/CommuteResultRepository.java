@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.FETCHED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.PATH_SUMMARY;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.PATH_SUMMARY_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.PROPERTY_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.TABLE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.CommuteResultTable.TOTAL_MINUTES;
@@ -88,7 +89,7 @@ public class CommuteResultRepository {
                 r.get(TOTAL_MINUTES),
                 r.get(TRANSFER_COUNT),
                 r.get(WALK_MINUTES),
-                toJsonNode(r.get(PATH_SUMMARY), objectMapper),
+                toJsonNode(r.get(PATH_SUMMARY_RAW), objectMapper),
                 toInstant(r.get(FETCHED_AT))
         );
     }

@@ -59,6 +59,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PNU;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSER_VERSION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSE_CONFIDENCE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSE_CONFIDENCE_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_DEPOSIT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PROPERTY_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.RAW_PASTE_TEXT;
@@ -342,7 +343,7 @@ public class PropertyRepository {
                 r.get(NAVER_ARTICLE_NO),
                 r.get(RAW_PASTE_TEXT),
                 r.get(PARSER_VERSION),
-                toJsonNode(r.get(PARSE_CONFIDENCE), objectMapper),
+                toJsonNode(r.get(PARSE_CONFIDENCE_RAW), objectMapper),
                 Boolean.TRUE.equals(r.get(IS_DRAFT)),
                 toEnum(ListingStatus.class, r.get(LISTING_STATUS)),
                 Boolean.TRUE.equals(r.get(ACTIVE)),

@@ -1622,10 +1622,22 @@
                     </div>
                     <p class="score-item-locked" x-show="scoreLocked(s)">자동으로 채점된 항목입니다.</p>
 
-                    <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
+                    <p class="score-item-reason" x-show="s.fallbackReason">
+                        <span x-text="s.fallbackReason"></span>
+                        <!-- 미산출은 대개 그때 조회가 실패한 것이다. 다시 눌러 볼 수 있게 한다 (설계 I119).
+                             이미 점수가 있으면 버튼은 안 보인다 -->
+                        <button class="btn btn-xs" type="button"
+                                x-show="s.effectiveScore == null"
+                                :disabled="isLoading('recompute')"
+                                @click="recomputeScores()">재산출</button>
+                    </p>
                     <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
-                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.effectiveScore == null">
+                    <!-- 남이 매겼는지가 아니라 '내가' 매겼는지로 가른다 (설계 I118) -->
+                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.myScore == null">
                         방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
+                    </p>
+                    <p class="score-item-mine" x-show="s.code === 'COMFORT' && s.myScore != null">
+                        내가 매긴 점수 <b x-text="s.myScore + '점'"></b>
                     </p>
                     <!-- 총점에는 사용자들의 평균이 들어간다. 내 점수만 보이면 왜 그 총점인지 알 수 없다 -->
                     <p class="score-item-others" x-show="s.othersAverage != null">
@@ -1813,6 +1825,10 @@
                             한도 산정은 <b x-text="(loanResult.dsrRate * 100).toFixed(2) + '%'"></b>
                             (스트레스 DSR · <span x-text="loanResult.rateTypeLabel"></span>)
                         </small>
+                        <!-- 스트레스 금리도 어디서 왔는지 밝힌다 (설계 I116).
+                             한도를 좁히는 숫자라 출처가 없으면 검증할 수 없다 -->
+                        <small class="loan-rate-source" x-show="loanResult.stressRateSource"
+                               x-text="loanResult.stressRateSource"></small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>

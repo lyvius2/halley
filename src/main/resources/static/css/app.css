@@ -964,6 +964,13 @@ tr.dragging { opacity: .5; background: var(--line2); }
     align-self: center;
     white-space: nowrap;
 }
+/* 내가 매긴 쾌적함 점수 — 그룹 평균과 구분해서 보여 준다 (설계 I118) */
+.score-item-mine {
+    grid-column: 1 / -1;
+    font-size: 11px;
+    color: var(--ocean);
+}
+.score-item-mine b { font-weight: 600; }
 /* 자동 점수의 산출 근거 (설계 I50) */
 .score-item-why {
     grid-column: 1 / -1;

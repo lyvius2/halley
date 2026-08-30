@@ -385,7 +385,8 @@ public class ScoringService {
                     s.fallbackReason(),
                     s.explanation(),
                     othersAverage(property.id(), s.criterionCode()),
-                    othersCount(property.id(), s.criterionCode())));
+                    othersCount(property.id(), s.criterionCode()),
+                    myScore(property.id(), s.criterionCode())));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
@@ -411,7 +412,8 @@ public class ScoringService {
                         c.fallbackReason(),
                         c.explanation(),
                         othersAverage(property.id(), c.code()),
-                        othersCount(property.id(), c.code())))
+                        othersCount(property.id(), c.code()),
+                        myScore(property.id(), c.code())))
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
@@ -439,6 +441,26 @@ public class ScoringService {
     private Integer othersCount(Long propertyId, String code) {
         final int count = othersScores(propertyId, code).size();
         return count == 0 ? null : count;
+    }
+
+    /**
+     * 내가 매긴 점수 (설계 I118).
+     *
+     * <p>`COMFORT`는 사람마다 따로 매기는데 응답에는 <b>그룹 평균</b>만 실려 있었습니다.
+     * 그래서 남이 매기면 화면이 그 값을 보여 주고, 나는 <b>내가 이미 매긴 줄</b> 알았습니다.
+     * 내 값과 그룹 값은 다른 것이므로 따로 실어 보냅니다.
+     */
+    private Integer myScore(Long propertyId, String code) {
+        if (!COMFORT_CODE.equals(code)) {
+            return null;
+        }
+        final Long me = currentUserId();
+        if (me == null) {
+            return null;
+        }
+        return userCriterionScoreRepository.findById(propertyId, me, code)
+                .map(UserCriterionScore::score)
+                .orElse(null);
     }
 
     private List<Integer> othersScores(Long propertyId, String code) {

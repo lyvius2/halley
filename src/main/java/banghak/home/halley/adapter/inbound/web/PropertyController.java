@@ -280,6 +280,18 @@ public class PropertyController {
         return scoringService.rescore(id);
     }
 
+    /**
+     * 미산출 항목을 다시 계산한다 (설계 I119).
+     *
+     * <p>미산출은 대개 <b>그때 외부 조회가 실패한 것</b>입니다 — 실패는 저장하지 않으므로
+     * 다시 채점하면 다시 시도합니다. 사용자가 직장 좌표를 넣은 뒤 매물을 다시 등록할 필요가
+     * 없도록 화면에서 직접 부를 수 있게 둡니다.
+     */
+    @PostMapping("/{id}/scores/recompute")
+    public ScoredPropertyResponse recomputeScores(@PathVariable Long id) {
+        return scoringService.rescore(id);
+    }
+
     @PutMapping("/{id}/scores")
     public ScoredPropertyResponse updateScores(@PathVariable Long id, @RequestBody UpdateScoresRequest request) {
         return scoringService.saveManualScores(id, request.scores());

@@ -60,6 +60,11 @@ public record LoanEstimateResponse(
          * 못 받았을 때 `기본 금리 4% 적용 중`. 어디서 온 숫자인지 안 보이면 검증할 수 없다
          */
         String rateSource,
+        /**
+         * 스트레스 금리가 어디서 왔는지 (설계 I116). 한국은행 통계로 산출했으면 그 근거,
+         * 사람이 넣은 값이면 null. <b>한도를 좁히는 숫자라 출처가 보여야 검증됩니다.</b>
+         */
+        String stressRateSource,
 
         // ── 매매(주담대) 전용 ─────────────────────
         Long ltvLimit,
@@ -96,13 +101,14 @@ public record LoanEstimateResponse(
                                                 RegulationZone zone, HouseOwnership ownership,
                                                 BigDecimal ltvRate, String ltvReason,
                                                 String zoneWarning, String rateSource,
-                                                String rateTypeLabel) {
+                                                String rateTypeLabel, String stressRateSource) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.MORTGAGE, "주택담보대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), false,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 askingPrice, annualIncome, cash, groupCash, existingLoan,
                 r.monthlyRate(), r.dsrMonthlyRate() * 12, rateTypeLabel, r.termMonths(), rateSource,
+                stressRateSource,
                 r.ltvLimit(), r.acquisitionTax(),
                 r.collateralValue(), r.collateralSource(), r.collateralSource().label(),
                 r.collateralSampleCount(), r.collateralReliable(),
@@ -113,13 +119,15 @@ public record LoanEstimateResponse(
 
     public static LoanEstimateResponse jeonse(Long propertyId, JeonseEstimateResult r,
                                               long deposit, long annualIncome, long cash,
-                                              long existingLoan, long groupCash, String rateSource) {
+                                              long existingLoan, long groupCash, String rateSource,
+                                              String stressRateSource) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.JEONSE, "전세자금대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), true,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 deposit, annualIncome, cash, groupCash, existingLoan,
                 r.monthlyRate(), null, null, r.termMonths(), rateSource,
+                stressRateSource,
                 null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null,
                 r.guaranteeLimit(), r.guaranteeRate(), r.guaranteeCap());

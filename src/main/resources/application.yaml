@@ -169,6 +169,23 @@ fss:
   base-url: https://finlife.fss.or.kr/finlifeapi
 
 # 회원가입 개방 여부 (설계 I95). false면 화면에서 숨기고 API도 막는다
+ecos:
+  # 한국은행 경제통계시스템 (설계 I116). 스트레스 DSR의 기준 금리를 여기서 만든다
+  base-url: https://ecos.bok.or.kr/api
+  api-key: ${ECOS_KEY:}
+  # 예금은행 대출금리(신규취급액 기준)
+  stat-code: ${ECOS_STAT_CODE:121Y006}
+  item-code:
+    # BECBLA03 = 가계대출. 규제식이 말하는 '가계대출 금리'가 이것이다.
+    # 주택담보대출만 보려면 BECBLA0302, 변동형만 보려면 BECBLA030202
+    household-loan: ${ECOS_HOUSEHOLD_ITEM:BECBLA03}
+
+loan:
+  stress-rate:
+    # clamp(과거 5년 최고 가계대출금리 − 현재, 하한, 상한). 고시가 바뀌면 여기만 고친다
+    floor: ${LOAN_STRESS_FLOOR:0.015}
+    cap: ${LOAN_STRESS_CAP:0.030}
+
 enrichment:
   # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).
   # 스레드가 아니라 그 끝에 붙은 외부 API를 지키려는 값이다 — 넘어선 작업은

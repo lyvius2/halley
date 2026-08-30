@@ -2611,6 +2611,27 @@ function halley() {
             }
         },
 
+        /**
+         * 미산출 항목을 다시 계산한다 (설계 I119).
+         *
+         * 미산출은 대개 그때 외부 조회가 실패한 것이고, 실패는 저장하지 않으므로
+         * 다시 채점하면 다시 시도한다. 직장 좌표를 넣은 뒤 여기서 바로 되살릴 수 있다.
+         */
+        async recomputeScores() {
+            const id = this.scoreProperty?.property?.id;
+            if (!id) {
+                return;
+            }
+            const { ok, body } = await this.withLoading('recompute',
+                () => this.request(`/api/properties/${id}/scores/recompute`, { method: 'POST' }));
+            if (ok && body) {
+                this.applyScoreForm(body);
+                await this.loadProperties();
+            } else {
+                this.error = '재산출에 실패했습니다';
+            }
+        },
+
         /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */
         applyScoreForm(scored) {
             this.scoreProperty = scored;
@@ -2619,12 +2640,13 @@ function halley() {
                 // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
                 // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
                 // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
-                if (s.manualScore != null) {
+                if (s.code === 'COMFORT') {
+                    // 쾌적함은 사람마다 따로 매긴다 (설계 I118). 그룹 평균이 아니라
+                    // 내가 매긴 값을 채운다 — 남이 매긴 값을 채우면 내가 매긴 줄 안다.
+                    // 1~5 척도라 100점 만점 추정값을 넣어서도 안 된다
+                    form[s.code] = s.myScore != null ? String(s.myScore) : '';
+                } else if (s.manualScore != null) {
                     form[s.code] = String(s.manualScore);
-                } else if (s.code === 'COMFORT') {
-                    // 쾌적함은 1~5 척도라 100점 만점 추정값을 넣으면 안 된다.
-                    // 애초에 사람만 매기는 항목이므로 비워 둔다
-                    form[s.code] = '';
                 } else {
                     form[s.code] = s.effectiveScore != null ? String(s.effectiveScore) : '';
                 }
