@@ -74,6 +74,24 @@ public class ReferenceTransactionService {
 
     public ReferenceCardResponse getReferences(Long propertyId, String legalDongCode, String dealMonth) {
         final Property property = propertyAccessGuard.require(propertyId);
+        return collect(property, legalDongCode, dealMonth);
+    }
+
+    /**
+     * 등록 직후 배경 보정이 부른다 (설계 I106).
+     *
+     * <p><b>격리 길목을 타지 않습니다.</b> 배경 스레드에는 로그인 사용자가 없어
+     * 길목이 전부 막습니다 — 그래서 실거래가가 등록 시 한 번도 채워지지 않았습니다.
+     * 이미 인가된 매물 번호로 도는 것이라 다시 확인할 대상이 아닙니다.
+     */
+    public void prefetch(Long propertyId) {
+        propertyRepository.findById(propertyId)
+                .ifPresent(property -> collect(property, null, null));
+    }
+
+    private ReferenceCardResponse collect(Property property, String legalDongCode,
+                                          String dealMonth) {
+        final Long propertyId = property.id();
 
         final List<ReferenceTransaction> cached = referenceTransactionRepository.findByPropertyId(propertyId);
         if (!cached.isEmpty()) {

@@ -165,7 +165,7 @@ class PropertyEnrichmentServiceTest {
         service.enrich(1L);
 
         // then
-        verify(referenceTransactionService).getReferences(1L, null, null);
+        verify(referenceTransactionService).prefetch(1L);
     }
 
     private void givenProperty(Property property) {

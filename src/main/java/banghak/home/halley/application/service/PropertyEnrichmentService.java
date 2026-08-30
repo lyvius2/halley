@@ -74,17 +74,51 @@ public class PropertyEnrichmentService {
             return;
         }
         final Property property = found.get();
-        Property enriched = fillSchool(property);
-        enriched = fillOfficialPrice(enriched);
+        // 단계마다 걸린 시간을 남긴다 (설계 I106). 보정은 외부 API 60여 번을 줄지어 부르는데,
+        // 끝날 때 한 줄만 남기면 "AI 추천도가 안 나온다"가 실패인지 느린 것인지 알 수 없다
+        log.info("Enrichment started. propertyId={}", propertyId);
+        final long startedAt = System.currentTimeMillis();
+
+        final Property withSchool = step(propertyId, "school", () -> fillSchool(property));
+        final Property base = withSchool == null ? property : withSchool;
+        final Property priced = step(propertyId, "official-price", () -> fillOfficialPrice(base));
+        final Property enriched = priced == null ? base : priced;
         if (enriched != property) {
             propertyRepository.update(enriched);
         }
-        fetchReferenceTrades(propertyId);
-        fetchLandUse(propertyId);
+        step(propertyId, "reference-trades", () -> fetchReferenceTrades(propertyId));
+        step(propertyId, "land-use", () -> fetchLandUse(propertyId));
         // 자동 채점 항목이 다 채워졌으므로 여기서 한 번 채점한다 (설계 I84).
         // AI 추천도는 아직 없다 — 그건 응답이 왔을 때 따로 트리거된다
-        rescore(propertyId);
-        fetchLlmRecommendation(propertyId);
+        step(propertyId, "score", () -> rescore(propertyId));
+        step(propertyId, "llm", () -> fetchLlmRecommendation(propertyId));
+
+        log.info("Enrichment finished. propertyId={}, elapsedMs={}",
+                propertyId, System.currentTimeMillis() - startedAt);
+    }
+
+    private void step(Long propertyId, String name, Runnable body) {
+        step(propertyId, name, () -> {
+            body.run();
+            return null;
+        });
+    }
+
+    /**
+     * 한 단계를 재고 로그를 남긴다. 단계가 터져도 <b>다음 단계는 돌아야 한다</b> —
+     * 실거래가 조회가 막혔을 때 AI 추천도까지 통째로 날아간 적이 있다.
+     */
+    private <T> T step(Long propertyId, String name, java.util.function.Supplier<T> body) {
+        final long from = System.currentTimeMillis();
+        try {
+            return body.get();
+        } catch (RuntimeException e) {
+            log.warn("Enrichment step failed. propertyId={}, step={}, cause={}", propertyId, name, e.toString());
+            return null;
+        } finally {
+            log.info("Enrichment step done. propertyId={}, step={}, elapsedMs={}",
+                    propertyId, name, System.currentTimeMillis() - from);
+        }
     }
 
     /**
@@ -246,7 +280,7 @@ public class PropertyEnrichmentService {
     /** 국토교통부 실거래가를 미리 받아 둔다 — 상세 모달이 버튼 없이 바로 보여줄 수 있어야 한다. */
     private void fetchReferenceTrades(Long propertyId) {
         try {
-            referenceTransactionService.getReferences(propertyId, null, null);
+            referenceTransactionService.prefetch(propertyId);
         } catch (RuntimeException e) {
             log.warn("Reference trade prefetch failed. propertyId={}, cause={}", propertyId, e.getMessage());
         }
