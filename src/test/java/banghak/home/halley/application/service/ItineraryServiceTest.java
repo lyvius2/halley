@@ -21,6 +21,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
@@ -63,6 +64,13 @@ class ItineraryServiceTest {
 
     @Autowired
     private StubConfig stubConfig;
+
+    /**
+     * 이 테스트는 이동시간 캐시만 본다. 비동기 보정이 끝나며 다시 채점하면
+     * 통근 조회가 딸려 가 호출 횟수가 어긋난다 — 보정 자체는 다른 테스트가 본다.
+     */
+    @MockitoBean
+    private PropertyEnrichmentService propertyEnrichmentService;
 
     @Autowired
     private ItineraryService itineraryService;

@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.CriterionScoreView;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoreVersionResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.CriterionRepository;
@@ -39,7 +40,9 @@ import banghak.home.halley.domain.scoring.engine.ScoringEngine;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import banghak.home.halley.application.event.PropertyInsightChanged;
+import banghak.home.halley.application.port.out.cache.ScoringLock;
 import org.springframework.context.ApplicationEventPublisher;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,10 +59,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class ScoringService {
 
     private static final String COMFORT_CODE = "COMFORT";
+    private static final String LLM_CODE = "LLM_RECOMMENDATION";
+    /** 채점 한 번은 보통 수백 ms다. 이만큼 기다려도 안 풀리면 잠금이 죽은 것으로 본다. */
+    private static final java.time.Duration LOCK_WAIT = java.time.Duration.ofSeconds(5);
+    private static final java.time.Duration LOCK_POLL = java.time.Duration.ofMillis(50);
 
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
@@ -75,10 +83,12 @@ public class ScoringService {
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final ScoringLock scoringLock;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
 
     public ScoringService(ApplicationEventPublisher eventPublisher,
+                          ScoringLock scoringLock,
                           PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
@@ -95,6 +105,7 @@ public class ScoringService {
                           ScoringEngine scoringEngine,
                           List<CriterionScorer> scorers) {
         this.eventPublisher = eventPublisher;
+        this.scoringLock = scoringLock;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
@@ -188,33 +199,97 @@ public class ScoringService {
     }
 
     private ScoredPropertyResponse ensureScored(Property property, Map<String, BigDecimal> weights) {
-        if (propertyScoreRepository.findByPropertyId(property.id()).isEmpty()) {
+        final List<PropertyScore> persisted = propertyScoreRepository.findByPropertyId(property.id());
+        if (persisted.isEmpty() || isStale(property, persisted)) {
             return rescore(property);
         }
         return buildFromPersisted(property, weights);
     }
 
+    /**
+     * 저장된 채점이 지금 가진 입력보다 낡았는지 (설계 I84).
+     *
+     * <p>`property_score`는 계산 결과를 담아 두는 곳인데 <b>입력이 비동기로 채워집니다.</b>
+     * 등록 직후 한 번 채점될 때는 AI 추천도가 아직 없고, 보정이 그 값을 채운 뒤 다시 채점하지
+     * 않으면 비어 있던 결과가 그대로 남습니다 — 상세 모달은 AI 추천을 보여 주는데 채점 모달에는
+     * 없는 상태가 됩니다. 두 화면이 다른 곳을 읽기 때문입니다.
+     *
+     * <p>보정 흐름은 고쳤지만(`PropertyEnrichmentService`), <b>그 전에 등록된 매물</b>은 이미
+     * 낡은 채로 저장돼 있습니다. 여기서 알아채고 스스로 고칩니다 — 사용자가 매물을 다시
+     * 수정해야 낫는다면 고친 게 아닙니다.
+     */
+    private boolean isStale(Property property, List<PropertyScore> persisted) {
+        final boolean scoreMissing = persisted.stream()
+                .filter(s -> LLM_CODE.equals(s.criterionCode()))
+                .allMatch(s -> s.effectiveScore() == null);
+        return scoreMissing && llmRecommendationRepository.findByPropertyId(property.id()).isPresent();
+    }
+
+    /**
+     * 한 매물의 채점을 다시 계산한다. <b>이미 채점 중이면 하지 않습니다</b> (설계 I84).
+     *
+     * <p>보정 완료·AI 응답 도착·수기 저장이 각각 채점을 부르는데 앞의 둘은 비동기라 겹칠 수
+     * 있습니다. 겹치면 같은 매물의 `property_score`를 동시에 쓰고, 계산 도중의 절반짜리 상태를
+     * 서로 덮어씁니다.
+     *
+     * <p><b>건너뛰지 않고 기다립니다.</b> 사용자가 방금 저장한 점수를 반영하러 온 호출일 수 있어,
+     * 남이 돌고 있다고 저장된 값을 돌려주면 <b>방금 매긴 점수가 화면에 안 보입니다.</b>
+     *
+     * <p>기다려도 안 풀리면 <b>그냥 진행합니다.</b> 채점 결과는 항목마다 upsert 하므로 겹쳐도
+     * 마지막 값이 남을 뿐이고, 잠금 때문에 채점이 통째로 빠지는 편이 더 나쁩니다.
+     */
     private ScoredPropertyResponse rescore(Property property) {
+        final boolean locked = acquire(property.id());
+        try {
+            return doRescore(property);
+        } finally {
+            if (locked) {
+                scoringLock.unlock(property.id());
+            }
+        }
+    }
+
+    private boolean acquire(Long propertyId) {
+        final long deadline = System.currentTimeMillis() + LOCK_WAIT.toMillis();
+        while (System.currentTimeMillis() < deadline) {
+            if (scoringLock.tryLock(propertyId)) {
+                return true;
+            }
+            try {
+                Thread.sleep(LOCK_POLL.toMillis());
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        log.warn("Scoring lock not acquired in time - proceeding anyway. propertyId={}", propertyId);
+        return false;
+    }
+
+    private ScoredPropertyResponse doRescore(Property property) {
         final ScoringContext ctx = buildContext(property);
         final Map<String, BigDecimal> manualScores = loadManualScores(property.id());
         final Map<String, BigDecimal> weights = loadWeights();
         final PropertyScoringResult result = scoringEngine.score(
                 property, ctx, orderedScorers(), weights, manualScores);
 
-        propertyScoreRepository.deleteByPropertyId(property.id());
-        for (final CriterionScoreResult criterion : result.criteria()) {
-            propertyScoreRepository.save(new PropertyScore(
-                    null,
-                    property.id(),
-                    criterion.code(),
-                    criterion.autoScore(),
-                    criterion.manualScore(),
-                    criterion.effectiveScore(),
-                    sourceOf(criterion),
-                    criterion.fallbackReason(),
-                    criterion.explanation(),
-                    Instant.now()));
-        }
+        // 항목마다 upsert 한다. 등록 시점 채점과 비동기 보정의 재채점이 겹칠 수 있어
+        // 지우고 다시 넣으면 유니크 제약에 걸린다 (설계 I84)
+        propertyScoreRepository.replaceAll(property.id(), result.criteria().stream()
+                .map(criterion -> new PropertyScore(
+                        null,
+                        property.id(),
+                        criterion.code(),
+                        criterion.autoScore(),
+                        criterion.manualScore(),
+                        criterion.effectiveScore(),
+                        sourceOf(criterion),
+                        criterion.fallbackReason(),
+                        criterion.explanation(),
+                        Instant.now()))
+                .toList());
+        // 화면이 바뀐 것을 알아채는 유일한 신호다 (설계 I85)
+        editVersionStore.bump(scoreVersionKey(property.id()));
         return toResponse(property, result, weights);
     }
 
@@ -250,7 +325,8 @@ public class ScoringService {
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
-                editVersionStore.current(versionKey(property.id()))), total, views);
+                editVersionStore.current(versionKey(property.id()))), total, views,
+                editVersionStore.current(scoreVersionKey(property.id())));
     }
 
     private ScoredPropertyResponse toResponse(Property property, PropertyScoringResult result,
@@ -272,7 +348,8 @@ public class ScoringService {
                         othersCount(property.id(), c.code())))
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
-                editVersionStore.current(versionKey(property.id()))), result.totalScore(), views);
+                editVersionStore.current(versionKey(property.id()))), result.totalScore(), views,
+                editVersionStore.current(scoreVersionKey(property.id())));
     }
 
 
@@ -308,6 +385,23 @@ public class ScoringService {
                 .filter(s -> me == null || !me.equals(s.userId()))
                 .map(UserCriterionScore::score)
                 .toList();
+    }
+
+
+    /**
+     * 아직 채점하지 않은 매물의 응답 (설계 I84).
+     *
+     * <p>등록 직후에는 채점하지 않습니다. 그 시점에는 공시가격·초등학교·POI·AI가 하나도 없어
+     * <b>거의 모든 항목이 미산출</b>로 나오는데, 곧 보정이 끝나며 덮어씁니다. 의미 없는 계산을
+     * 요청 스레드에서 하고, 비동기 보정과 시간이 겹쳐 잠금까지 다투게 됩니다.
+     */
+    public ScoredPropertyResponse notYetScored(Long propertyId) {
+        final Property property = propertyRepository.findById(propertyId)
+                .orElseThrow(NotFoundListingsException::new);
+        return new ScoredPropertyResponse(
+                PropertyResponse.from(property, nicknameOf(property.createdBy()),
+                        editVersionStore.current(versionKey(property.id()))),
+                null, List.of(), editVersionStore.current(scoreVersionKey(property.id())));
     }
 
     /** 매물 카드의 등록자 표시용 닉네임 (설계 I53). */
@@ -429,6 +523,26 @@ public class ScoringService {
 
     private String versionKey(Long id) {
         return "property:" + id;
+    }
+
+    /**
+     * 채점 결과의 판 번호 (설계 I85).
+     *
+     * <p>편집 버전(`property:`)과 <b>키를 나눕니다.</b> 매물 정보를 고치지 않아도 채점은
+     * 바뀝니다 — 보정이 끝나거나 AI 응답이 오면 바뀝니다. 한 키에 섞으면 화면이 "무엇이
+     * 바뀌었는지" 구분하지 못합니다.
+     */
+    private String scoreVersionKey(Long id) {
+        return "score:" + id;
+    }
+
+    /**
+     * 매물별 채점 판 번호. 화면이 <b>목록 전체를 받지 않고</b> 바뀐 것만 알아내려고 씁니다.
+     */
+    public List<ScoreVersionResponse> scoreVersions() {
+        return propertyRepository.findAllIds().stream()
+                .map(id -> new ScoreVersionResponse(id, editVersionStore.current(scoreVersionKey(id))))
+                .toList();
     }
 
     private Long currentUserId() {

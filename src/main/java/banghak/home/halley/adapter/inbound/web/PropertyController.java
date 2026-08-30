@@ -19,6 +19,7 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoreVersionResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
@@ -240,7 +241,9 @@ public class PropertyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
-        return scoringService.rescore(created.id());
+        // 여기서 채점하지 않는다 (설계 I84). 지금은 공시가격·초등학교·POI·AI가 하나도 없어
+        // 거의 모든 항목이 미산출로 나오고, 곧 비동기 보정이 끝나며 덮어쓴다
+        return scoringService.notYetScored(created.id());
     }
 
     @PutMapping("/{id}")
@@ -248,6 +251,18 @@ public class PropertyController {
                                          @RequestHeader(value = "X-Edit-Version", required = false) Long editVersion) {
         final PropertyResponse updated = propertyService.update(id, request, editVersion);
         return scoringService.rescore(id);
+    }
+
+    /**
+     * 채점 판 번호 목록 (설계 I85).
+     *
+     * <p>채점은 <b>사용자가 보고 있는 동안 뒤에서 바뀝니다</b> — 보정이 끝나고, AI 응답이 옵니다.
+     * 화면이 그걸 알아채려고 목록을 통째로 다시 받으면 무겁습니다. 이 번호만 확인하고
+     * 달라진 게 있을 때만 목록을 받습니다.
+     */
+    @GetMapping("/score-versions")
+    public List<ScoreVersionResponse> scoreVersions() {
+        return scoringService.scoreVersions();
     }
 
     /**

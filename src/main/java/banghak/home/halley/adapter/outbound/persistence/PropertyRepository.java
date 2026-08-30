@@ -211,6 +211,11 @@ public class PropertyRepository {
                 .map(this::map);
     }
 
+    /** 채점 버전 확인용 — 전체 레코드를 읽지 않는다 (설계 I85). */
+    public List<Long> findAllIds() {
+        return dsl.select(ID).from(TABLE).orderBy(ID.asc()).fetch(ID);
+    }
+
     public List<Property> findAll() {
         return dsl.selectFrom(TABLE)
                 .fetch()

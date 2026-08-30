@@ -76,6 +76,7 @@ public class LlmRecommendationService {
     private final PoiDataService poiDataService;
     private final UserCriterionScoreRepository userCriterionScoreRepository;
     private final PropertyCommentRepository commentRepository;
+    private final ScoringService scoringService;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
 
@@ -87,6 +88,7 @@ public class LlmRecommendationService {
                                     PoiDataService poiDataService,
                                     UserCriterionScoreRepository userCriterionScoreRepository,
                                     PropertyCommentRepository commentRepository,
+                                    ScoringService scoringService,
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
@@ -97,6 +99,7 @@ public class LlmRecommendationService {
         this.poiDataService = poiDataService;
         this.userCriterionScoreRepository = userCriterionScoreRepository;
         this.commentRepository = commentRepository;
+        this.scoringService = scoringService;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
     }
@@ -244,6 +247,7 @@ public class LlmRecommendationService {
             completed = true;
             log.info("LLM recommendation stored. propertyId={}, score={}, model={}, workplaces={}",
                     propertyId, saved.score(), saved.model(), workplaces);
+            rescore(propertyId);
             return Optional.of(saved);
         } finally {
             // 실패·예외로 빠져나갔으면 RUNNING이 남지 않게 지운다
@@ -390,6 +394,29 @@ public class LlmRecommendationService {
             new NearbyCategory("GREEN", "공원·녹지", 2));
 
     private record NearbyCategory(String code, String label, int limit) {
+    }
+
+
+    /**
+     * AI 추천도가 <b>새로 생겼을 때만</b> 다시 채점한다 (설계 I84).
+     *
+     * <p>채점 결과는 `property_score`에 저장해 두는데 AI 추천도는 <b>비동기로 나중에</b>
+     * 채워집니다. 등록 직후 채점될 때는 아직 없으므로, 다시 채점하지 않으면 비어 있던 그때의
+     * 결과가 그대로 남습니다 — <b>상세 모달에는 AI 추천이 보이는데 채점 모달에는 없는</b>
+     * 상태가 됩니다. 두 화면이 다른 곳을 읽기 때문입니다.
+     *
+     * <p>여기에 두는 이유는 <b>값이 실제로 저장된 자리</b>이기 때문입니다. 보정이 끝나는
+     * 지점에 두면 AI 결과가 안 바뀌었을 때도 매번 다시 채점해 POI·통근 조회까지 딸려 갑니다.
+     * 입력이 그대로면 프롬프트 해시가 같아 여기까지 오지 않습니다(I59).
+     */
+    private void rescore(Long propertyId) {
+        try {
+            scoringService.rescore(propertyId);
+        } catch (RuntimeException e) {
+            // 채점이 실패해도 방금 받은 추천 자체는 살아 있어야 한다
+            log.warn("Rescore after LLM recommendation failed. propertyId={}, cause={}",
+                    propertyId, e.toString());
+        }
     }
 
     /** 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 해시가 달라진다. */

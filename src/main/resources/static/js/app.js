@@ -43,6 +43,11 @@ function emptyUserForm() {
 const COMPARE_MIN_PROPERTIES = 4;
 
 /** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
+/**
+ * 채점 판 번호를 확인하는 주기 (설계 I85).
+ * 보정과 AI 응답은 수 초~수십 초가 걸린다. 이보다 촘촘히 물어도 답이 달라지지 않는다.
+ */
+const SCORE_WATCH_MS = 3000;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
 
@@ -64,6 +69,7 @@ function halley() {
         mobileTab: 'map',
         dealTypeFilter: 'ALL',
         properties: [],
+        scoreWatchTimer: null,
         visibleProperties: [],
         showSoldOut: false,
         users: [],
@@ -238,6 +244,8 @@ function halley() {
                 if (!setupPending) {
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
+                    // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
+                    this.startScoreWatch();
                 }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
@@ -1422,6 +1430,58 @@ function halley() {
                 this.properties = body || [];
                 this.applySoldOutFilter();
                 this.renderMap();
+            }
+        },
+
+        /**
+         * 뒤에서 채점이 끝나면 화면을 맞춘다 (설계 I85).
+         *
+         * 채점은 사용자가 보고 있는 동안 두 번 더 바뀐다 — 보정이 끝날 때, AI 응답이 올 때.
+         * 목록을 통째로 다시 받아 비교하면 무거우니 판 번호만 확인하고 달라졌을 때만 받는다.
+         *
+         * 탭이 가려져 있으면 쉬었다가, 돌아올 때 한 번 맞춘다. 안 보이는 화면을 위해
+         * 계속 물어볼 이유가 없다.
+         */
+        startScoreWatch() {
+            if (this.scoreWatchTimer) {
+                return;
+            }
+            this.scoreWatchTimer = setInterval(() => this.checkScoreVersions(), SCORE_WATCH_MS);
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                    this.checkScoreVersions();
+                }
+            });
+        },
+
+        async checkScoreVersions() {
+            if (document.hidden || !this.session.authenticated || this.properties.length === 0) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/properties/score-versions');
+            if (!ok || !body) {
+                return;
+            }
+            const latest = new Map(body.map(v => [v.propertyId, v.scoreVersion]));
+            const changed = this.properties.some(
+                r => latest.has(r.property.id) && latest.get(r.property.id) !== r.scoreVersion);
+            // 매물이 늘거나 줄어도 목록을 다시 받아야 한다
+            if (changed || latest.size !== this.properties.length) {
+                await this.loadProperties();
+                if (this.detailItem) {
+                    this.syncDetailItem();
+                }
+            }
+        },
+
+        /** 상세 모달이 열려 있으면 그 안의 점수도 함께 갱신한다 — 목록만 바뀌면 어긋난다. */
+        syncDetailItem() {
+            const fresh = this.properties.find(r => r.property.id === this.detailItem.property.id);
+            if (fresh) {
+                this.detailItem = fresh;
+                if (this.showScoreModal && this.scoreProperty) {
+                    this.scoreProperty = fresh;
+                }
             }
         },
 

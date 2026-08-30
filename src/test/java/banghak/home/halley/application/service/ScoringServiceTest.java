@@ -4,7 +4,9 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.CriterionScoreView;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoreVersionResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
+import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
@@ -21,8 +23,11 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.context.ActiveProfiles;
 
+import banghak.home.halley.domain.llm.LlmRecommendation;
+import java.time.Instant;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +70,14 @@ class ScoringServiceTest {
         }
     }
 
+    /**
+     * 이 테스트는 채점만 본다. 비동기 보정이 같은 매물에 트랜잭션을 잡으면
+     * `property_score`에서 락이 겹쳐 엉뚱한 실패가 난다 — 보정 자체는
+     * `PropertyEnrichmentServiceTest`가 본다.
+     */
+    @MockitoBean
+    private PropertyEnrichmentService propertyEnrichmentService;
+
     @Autowired
     private ScoringService scoringService;
 
@@ -76,6 +89,9 @@ class ScoringServiceTest {
 
     @Autowired
     private PropertyScoreRepository propertyScoreRepository;
+
+    @Autowired
+    private LlmRecommendationRepository llmRecommendationRepository;
 
     @Test
     @DisplayName("매매 목록은 총점 내림차순으로 정렬되고 전세와 분리된다")
@@ -123,6 +139,66 @@ class ScoringServiceTest {
                 .filteredOn(s -> s.criterionCode().equals("PRICE"))
                 .singleElement()
                 .satisfies(s -> assertThat(s.manualScore()).isEqualByComparingTo("80"));
+    }
+
+    @Test
+    @DisplayName("AI 추천이 나중에 저장되면 채점이 스스로 다시 계산된다 — 두 화면이 어긋나면 안 된다")
+    void healsStaleScoreWhenRecommendationArrivesLater() {
+        // given — 등록 시점에 채점된다. 그때는 AI 추천도가 아직 없다
+        final PropertyResponse created = propertyService.create(
+                request("나중에 AI 붙는 매물", DealType.SALE, 400_000_000L));
+        scoringService.rescore(created.id());
+        assertThat(llmScoreOf(created.id())).isNull();
+
+        // when — 보정이 뒤늦게 AI 추천을 저장한다 (비동기라 채점보다 늦게 끝난다)
+        llmRecommendationRepository.upsert(new LlmRecommendation(
+                null, created.id(), new BigDecimal("77.00"), "채광이 좋습니다",
+                "test-model", "hash", 1, Instant.now()));
+
+        // then — 다시 채점하라고 시키지 않아도 조회할 때 스스로 맞춘다.
+        // 상세 모달은 llm_recommendation을, 채점 모달은 property_score를 읽으므로
+        // 여기가 낡으면 같은 매물의 AI 점수가 화면마다 달라진다
+        assertThat(llmScoreOf(created.id())).isEqualByComparingTo("77.00");
+    }
+
+    private BigDecimal llmScoreOf(Long propertyId) {
+        return scoringService.getScored(propertyId).scores().stream()
+                .filter(s -> "LLM_RECOMMENDATION".equals(s.code()))
+                .findFirst().orElseThrow()
+                .effectiveScore();
+    }
+
+    @Test
+    @DisplayName("채점이 바뀌면 판 번호가 오른다 — 화면이 뒤에서 바뀐 것을 알아채는 유일한 신호")
+    void scoreVersionAdvancesOnRescore() {
+        // given
+        final PropertyResponse created = propertyService.create(
+                request("판번호 매물", DealType.SALE, 400_000_000L));
+        final long before = scoringService.getScored(created.id()).scoreVersion();
+
+        // when — 사용자가 점수를 수기로 바꾼다
+        scoringService.saveManualScores(created.id(), Map.of("PRICE", new BigDecimal("80")));
+
+        // then
+        assertThat(scoringService.getScored(created.id()).scoreVersion()).isGreaterThan(before);
+    }
+
+    @Test
+    @DisplayName("판 번호 목록은 매물마다 한 줄씩 준다 — 목록 전체를 받지 않으려고 있는 것")
+    void listsScoreVersionsPerProperty() {
+        // given
+        final PropertyResponse a = propertyService.create(request("버전A", DealType.SALE, 300_000_000L));
+        final PropertyResponse b = propertyService.create(request("버전B", DealType.SALE, 500_000_000L));
+        scoringService.rescore(a.id());
+
+        // when
+        final List<ScoreVersionResponse> versions = scoringService.scoreVersions();
+
+        // then
+        assertThat(versions).extracting(ScoreVersionResponse::propertyId).contains(a.id(), b.id());
+        assertThat(versions).filteredOn(v -> v.propertyId().equals(a.id()))
+                .singleElement()
+                .satisfies(v -> assertThat(v.scoreVersion()).isPositive());
     }
 
     @Test

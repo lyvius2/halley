@@ -159,7 +159,7 @@ class LlmRecommendationServiceTest {
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, false);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -463,11 +463,12 @@ class LlmRecommendationServiceTest {
     private final UserCriterionScoreRepository userCriterionScoreRepository =
             mock(UserCriterionScoreRepository.class);
     private final PropertyCommentRepository commentRepository = mock(PropertyCommentRepository.class);
+    private final ScoringService scoringService = mock(ScoringService.class);
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, true);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {

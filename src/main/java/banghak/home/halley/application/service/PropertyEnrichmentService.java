@@ -45,6 +45,7 @@ public class PropertyEnrichmentService {
     private final ReferenceTransactionService referenceTransactionService;
     private final LlmRecommendationService llmRecommendationService;
     private final LandUseService landUseService;
+    private final ScoringService scoringService;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
@@ -52,7 +53,8 @@ public class PropertyEnrichmentService {
                                      GeoService geoService,
                                      ReferenceTransactionService referenceTransactionService,
                                      LlmRecommendationService llmRecommendationService,
-                                     LandUseService landUseService) {
+                                     LandUseService landUseService,
+                                     ScoringService scoringService) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
@@ -60,6 +62,7 @@ public class PropertyEnrichmentService {
         this.referenceTransactionService = referenceTransactionService;
         this.llmRecommendationService = llmRecommendationService;
         this.landUseService = landUseService;
+        this.scoringService = scoringService;
     }
 
     /**
@@ -78,7 +81,31 @@ public class PropertyEnrichmentService {
         }
         fetchReferenceTrades(propertyId);
         fetchLandUse(propertyId);
+        // 자동 채점 항목이 다 채워졌으므로 여기서 한 번 채점한다 (설계 I84).
+        // AI 추천도는 아직 없다 — 그건 응답이 왔을 때 따로 트리거된다
+        rescore(propertyId);
         fetchLlmRecommendation(propertyId);
+    }
+
+    /**
+     * 자동 채점 항목이 채워진 뒤 다시 채점한다 (설계 I84).
+     *
+     * <p>등록 직후에도 한 번 채점되지만 그때는 공시가격·배정 초등학교·토지이용계획이 아직
+     * 없습니다. 보정이 그 값들을 채우고도 다시 채점하지 않으면 `property_score`에 <b>비어 있던
+     * 그때의 결과가 그대로 남습니다.</b>
+     *
+     * <p>AI 추천도는 여기서 기다리지 않습니다 — 수십 초가 걸리고, 그 값이 저장될 때
+     * {@code LlmRecommendationService}가 다시 채점합니다. 그래야 <b>AI를 기다리는 동안에도
+     * 나머지 항목의 점수는 화면에 보입니다.</b>
+     */
+    private void rescore(Long propertyId) {
+        try {
+            scoringService.rescore(propertyId);
+        } catch (RuntimeException e) {
+            // 채점이 실패해도 보정으로 채운 값 자체는 살아 있어야 한다
+            log.warn("Rescore after enrichment failed. propertyId={}, cause={}",
+                    propertyId, e.toString());
+        }
     }
 
     /** 붙여넣기 원문에 배정 초등학교가 없으면 카카오로 가장 가까운 초등학교를 찾아 채운다 (설계 I53). */

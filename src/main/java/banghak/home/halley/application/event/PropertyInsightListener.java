@@ -1,7 +1,6 @@
 package banghak.home.halley.application.event;
 
 import banghak.home.halley.application.service.LlmRecommendationService;
-import banghak.home.halley.application.service.ScoringService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -21,12 +20,9 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class PropertyInsightListener {
 
     private final LlmRecommendationService llmRecommendationService;
-    private final ScoringService scoringService;
 
-    public PropertyInsightListener(LlmRecommendationService llmRecommendationService,
-                                   ScoringService scoringService) {
+    public PropertyInsightListener(LlmRecommendationService llmRecommendationService) {
         this.llmRecommendationService = llmRecommendationService;
-        this.scoringService = scoringService;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
@@ -35,9 +31,9 @@ public class PropertyInsightListener {
             try {
                 log.info("Re-asking LLM after insight change. propertyId={}, reason={}",
                         event.propertyId(), event.reason());
-                // 입력이 그대로면 프롬프트 해시가 같아 다시 부르지 않는다 (설계 I59)
-                llmRecommendationService.ensureRecommendation(event.propertyId())
-                        .ifPresent(r -> scoringService.rescore(event.propertyId()));
+                // 입력이 그대로면 프롬프트 해시가 같아 다시 부르지 않는다 (설계 I59).
+                // 새 추천이 저장되면 그쪽에서 재채점까지 한다 (설계 I84)
+                llmRecommendationService.ensureRecommendation(event.propertyId());
             } catch (RuntimeException e) {
                 // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
                 log.error("Failed to re-ask LLM after insight change. propertyId={}, reason={}, cause={}",
