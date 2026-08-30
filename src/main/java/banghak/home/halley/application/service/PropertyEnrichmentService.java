@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.application.port.out.external.HousingPricePort;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.property.OfficialPrice;
@@ -46,6 +47,7 @@ public class PropertyEnrichmentService {
     private final LlmRecommendationService llmRecommendationService;
     private final LandUseService landUseService;
     private final ScoringService scoringService;
+    private final VirtualThreadGate gate;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
@@ -54,7 +56,8 @@ public class PropertyEnrichmentService {
                                      ReferenceTransactionService referenceTransactionService,
                                      LlmRecommendationService llmRecommendationService,
                                      LandUseService landUseService,
-                                     ScoringService scoringService) {
+                                     ScoringService scoringService,
+                                     VirtualThreadGate gate) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
@@ -63,6 +66,7 @@ public class PropertyEnrichmentService {
         this.llmRecommendationService = llmRecommendationService;
         this.landUseService = landUseService;
         this.scoringService = scoringService;
+        this.gate = gate;
     }
 
     /**
@@ -74,34 +78,66 @@ public class PropertyEnrichmentService {
             return;
         }
         final Property property = found.get();
-        // 단계마다 걸린 시간을 남긴다 (설계 I106). 보정은 외부 API 60여 번을 줄지어 부르는데,
+        // 단계마다 걸린 시간을 남긴다 (설계 I106). 보정은 외부 API를 수십 번 부르는데,
         // 끝날 때 한 줄만 남기면 "AI 추천도가 안 나온다"가 실패인지 느린 것인지 알 수 없다
         log.info("Enrichment started. propertyId={}", propertyId);
         final long startedAt = System.currentTimeMillis();
+        // AI 추천도 진행 표시를 지금 켠다 (설계 I109). 실제 호출은 사슬의 맨 끝이라
+        // 그때 켜면 그전에 상세를 연 사람은 진행 표시도 폴링도 못 받는다
+        llmRecommendationService.markPending(propertyId);
 
-        final Property withSchool = step(propertyId, "school", () -> fillSchool(property));
-        final Property base = withSchool == null ? property : withSchool;
-        final Property priced = step(propertyId, "official-price", () -> fillOfficialPrice(base));
-        final Property enriched = priced == null ? base : priced;
-        if (enriched != property) {
+        // 넷은 서로의 결과를 쓰지 않으므로 한꺼번에 돈다 (설계 I108).
+        // 토지이용계획은 PNU가 필요하지만 없으면 스스로 주소로 지오코딩하므로
+        // 공시가격이 PNU를 채워 주기를 기다릴 필요가 없다
+        final List<Property> filled = gate.runAll(List.of(
+                () -> step(propertyId, "school", () -> fillSchool(property)),
+                () -> step(propertyId, "official-price", () -> fillOfficialPrice(property)),
+                () -> step(propertyId, "reference-trades", () -> {
+                    fetchReferenceTrades(propertyId);
+                    return null;
+                }),
+                () -> step(propertyId, "land-use", () -> {
+                    fetchLandUse(propertyId);
+                    return null;
+                })));
+
+        // 둘이 건드리는 칸이 겹치지 않아 합칠 수 있다 — 학교 쪽은 학교 칸만,
+        // 공시가격 쪽은 PNU·공시가격 칸만 바꾼다. 한 번만 저장한다:
+        // 각자 저장하면 뒤엣것이 앞엣것을 통째로 덮어쓴다
+        final Property school = filled.get(0) == null ? property : filled.get(0);
+        final Property priced = filled.get(1) == null ? property : filled.get(1);
+        final Property enriched = copy(property,
+                school.schoolName(), school.schoolWalkMinutes(), school.schoolSource(),
+                priced.pnu(), priced.officialPrice(), priced.officialPriceYear());
+        if (changed(property, enriched)) {
             propertyRepository.update(enriched);
         }
-        step(propertyId, "reference-trades", () -> fetchReferenceTrades(propertyId));
-        step(propertyId, "land-use", () -> fetchLandUse(propertyId));
-        // 자동 채점 항목이 다 채워졌으므로 여기서 한 번 채점한다 (설계 I84).
-        // AI 추천도는 아직 없다 — 그건 응답이 왔을 때 따로 트리거된다
-        step(propertyId, "score", () -> rescore(propertyId));
-        step(propertyId, "llm", () -> fetchLlmRecommendation(propertyId));
 
+        // 여기부터는 순서가 있다. 자동 채점 항목이 다 채워진 뒤라야 점수가 맞고(설계 I84),
+        // 채점이 끝난 뒤라야 AI 프롬프트에 그 값들이 실린다
+        step(propertyId, "score", () -> {
+            rescore(propertyId);
+            return null;
+        });
+        step(propertyId, "llm", () -> {
+            fetchLlmRecommendation(propertyId);
+            return null;
+        });
+
+        // 끝났는데도 결과가 없으면(키 미설정·호출 실패) 진행 표시를 끈다
+        llmRecommendationService.clearPendingIfUnresolved(propertyId);
         log.info("Enrichment finished. propertyId={}, elapsedMs={}",
                 propertyId, System.currentTimeMillis() - startedAt);
     }
 
-    private void step(Long propertyId, String name, Runnable body) {
-        step(propertyId, name, () -> {
-            body.run();
-            return null;
-        });
+    /** 바뀐 게 없으면 저장하지 않는다. 보정이 아무것도 못 채운 경우가 흔하다. */
+    private boolean changed(Property before, Property after) {
+        return !java.util.Objects.equals(before.schoolName(), after.schoolName())
+                || !java.util.Objects.equals(before.schoolWalkMinutes(), after.schoolWalkMinutes())
+                || !java.util.Objects.equals(before.schoolSource(), after.schoolSource())
+                || !java.util.Objects.equals(before.pnu(), after.pnu())
+                || !java.util.Objects.equals(before.officialPrice(), after.officialPrice())
+                || !java.util.Objects.equals(before.officialPriceYear(), after.officialPriceYear());
     }
 
     /**

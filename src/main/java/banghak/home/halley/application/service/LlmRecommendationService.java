@@ -207,6 +207,25 @@ public class LlmRecommendationService {
      * 필요하면 LLM을 불러 추천도를 갱신한다. 입력이 그대로면 저장된 값을 그대로 쓴다.
      * 실패해도 예외를 던지지 않는다 — 나머지 채점은 그대로 나와야 한다.
      */
+    /**
+     * 보정이 시작될 때 미리 켠다 (설계 I109).
+     *
+     * <p>AI 추천도는 보정 사슬의 <b>맨 끝</b>이라, 실제 호출 전까지 수십 초가 흐릅니다.
+     * 그동안 진행 표시가 꺼져 있으면 화면은 "아직 산출되지 않았습니다"를 띄우고
+     * <b>폴링도 시작하지 않습니다</b> — 뒤늦게 결과가 나와도 모달을 다시 열기 전엔 안 보입니다.
+     * 그래서 표시를 <b>호출 시점이 아니라 보정 시작 시점</b>에 켭니다.
+     */
+    public void markPending(Long propertyId) {
+        jobCache.markRunning(jobKey(propertyId));
+    }
+
+    /** 보정이 끝났는데도 결과가 없으면 표시를 끈다. 켜 둔 채 두면 화면이 영영 돈다. */
+    public void clearPendingIfUnresolved(Long propertyId) {
+        if (recommendationRepository.findByPropertyId(propertyId).isEmpty()) {
+            jobCache.clear(jobKey(propertyId));
+        }
+    }
+
     public Optional<LlmRecommendation> ensureRecommendation(Long propertyId) {
         if (!enabled || !llmPort.isEnabled()) {
             log.debug("Skipping LLM recommendation - provider not enabled. provider={}", llmPort.provider());

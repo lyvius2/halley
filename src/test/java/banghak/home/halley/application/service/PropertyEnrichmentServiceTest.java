@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.application.port.out.external.HousingPricePort;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.geo.PoiResult;
 import banghak.home.halley.domain.property.DealType;
@@ -44,9 +45,13 @@ class PropertyEnrichmentServiceTest {
     private final LandUseService landUseService = mock(LandUseService.class);
     private final ScoringService scoringService = mock(ScoringService.class);
 
+    /** 실물과 같은 게이트를 쓴다 — 병렬 실행 자체가 검증 대상이다 (설계 I108). */
+    private final VirtualThreadGate gate = new VirtualThreadGate(400);
+
     private final PropertyEnrichmentService service = new PropertyEnrichmentService(
             propertyRepository, kakaoLocalPort, housingPricePort, geoService,
-            referenceTransactionService, llmRecommendationService, landUseService, scoringService);
+            referenceTransactionService, llmRecommendationService, landUseService, scoringService,
+            gate);
 
     @Test
     @DisplayName("초등학교가 비어 있으면 카카오 최근접 초등학교로 채우고 출처를 KAKAO로 남긴다")
@@ -153,6 +158,41 @@ class PropertyEnrichmentServiceTest {
         // then
         verify(housingPricePort, never()).fetchApartmentPrices(anyString());
         verify(propertyRepository, never()).update(any(Property.class));
+    }
+
+    @Test
+    @DisplayName("동시에 돈 초등학교와 공시가격 결과를 한 번의 저장으로 합친다 (설계 I108)")
+    void mergesParallelResultsIntoOneUpdate() {
+        // given — 학교도 비어 있고 공시가격도 비어 있어 둘 다 채워진다
+        givenProperty(property(null, new BigDecimal("84.43"), "102동"));
+        givenPnu("1168010600103160000");
+        when(kakaoLocalPort.searchCategory(anyString(), anyDouble(), anyDouble(), anyInt()))
+                .thenReturn(List.of(PoiResult.of("서울대곡초등학교", "SC4", 402, "127.0", "37.5")));
+        when(housingPricePort.fetchApartmentPrices(anyString())).thenReturn(List.of(
+                price(700_000_000L, "102", new BigDecimal("84.43"))));
+
+        // when
+        service.enrich(1L);
+
+        // then — 각자 저장하면 뒤엣것이 앞엣것을 덮어쓴다. 한 번에 둘 다 실려야 한다
+        final Property saved = captureSaved();
+        assertThat(saved.schoolName()).isEqualTo("서울대곡초등학교");
+        assertThat(saved.schoolSource()).isEqualTo(SchoolSource.KAKAO);
+        assertThat(saved.officialPrice()).isEqualTo(700_000_000L);
+        assertThat(saved.pnu()).isEqualTo("1168010600103160000");
+    }
+
+    @Test
+    @DisplayName("보정이 시작될 때 AI 진행 표시를 켠다 — 실제 호출은 사슬의 맨 끝이다 (설계 I109)")
+    void marksLlmPendingWhenEnrichmentStarts() {
+        // given
+        givenProperty(property("서울혜화초등학교", new BigDecimal("84.9"), "102동"));
+
+        // when
+        service.enrich(1L);
+
+        // then
+        verify(llmRecommendationService).markPending(1L);
     }
 
     @Test

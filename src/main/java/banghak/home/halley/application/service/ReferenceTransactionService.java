@@ -62,7 +62,7 @@ public class ReferenceTransactionService {
                                        ReferenceTransactionRepository referenceTransactionRepository,
                                        MinistryReferencePort ministryReferencePort,
                                        LegalDongCodeService legalDongCodeService,
-                                       @Value("${ministry.reference.lookback-months:24}")
+                                       @Value("${ministry.reference.lookback-months:12}")
                                        int lookbackMonths) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
