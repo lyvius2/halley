@@ -787,7 +787,7 @@
                 </label>
                 <!-- x-if 템플릿은 자식이 여럿이면 첫 번째만 렌더링한다 (설계 I100).
                      그래서 비밀번호·역할이 화면에서 사라져 있었다. 각 칸에 x-show를 건다 -->
-                <label x-show="userForm.role !== 'ADMIN'">소속 그룹
+                <label>소속 그룹
                     <select x-model="userForm.groupId">
                         <option value="" x-text="editingUserId ? '그대로 두기' : '새 그룹 자동 생성'"></option>
                         <template x-for="g in groups" :key="g.id">
@@ -808,12 +808,7 @@
                            :required="!editingUserId" autocomplete="new-password"
                            placeholder="8자 이상 · 첫 로그인 때 본인이 바꿉니다">
                 </label>
-                <label x-show="!editingUserId">역할
-                    <select x-model="userForm.role">
-                        <option value="MEMBER">회원</option>
-                        <option value="ADMIN">관리자</option>
-                    </select>
-                </label>
+
                 <label class="span2">직장 주소
                     <div class="workplace-search">
                         <input type="text" x-model="userForm.workplaceName"

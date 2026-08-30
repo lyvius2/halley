@@ -206,6 +206,8 @@ function halley() {
         myGroup: null,
         groups: [],
         newGroupName: '',
+        /** 가중치 드래그 중인 항목 (설계 I105). 선언하지 않으면 템플릿이 읽을 때 터진다 */
+        _dragIndex: null,
         groupForm: { name: '', slackWebhookUrl: '' },
         joinForm: { code: '' },
         inviteCode: null,
@@ -278,6 +280,13 @@ function halley() {
             }
             if (res.status === 403 && body && body.code === 'MUST_CHANGE_PASSWORD') {
                 this.showPassword = true;
+            }
+            // 세션이 끊기면 모든 호출이 조용히 실패한다 — 사용자에게는 '아무 반응이 없는' 상태다
+            if (res.status === 401) {
+                this.session = { authenticated: false, userId: null, nickname: null,
+                    role: null, mustChangePassword: false };
+                this.showLogin = true;
+                this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
             }
             return { ok: res.ok, status: res.status, body };
         },
@@ -422,7 +431,8 @@ function halley() {
             };
             if (!editing) {
                 body.password = this.userForm.password;
-                body.role = this.userForm.role;
+                // 관리자 계정은 화면에서 만들지 않는다 (설계 I105)
+                body.role = 'MEMBER';
             }
             try {
                 const { ok, body: resBody } = await this.request(

@@ -19,6 +19,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
@@ -51,6 +52,15 @@ class ParsePreviewApiIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
                 .andExpect(status().isNoContent());
+
+        // 프로필을 확인해야 나머지 API가 열린다 (설계 I100 · I105)
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
 
         final String body = """
                 {"text":"매매\\n단지명\\n독립문삼호\\n매매가\\n15억\\n전용면적\\n84.98㎡\\n매물번호\\nA1"}
