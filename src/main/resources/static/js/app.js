@@ -281,12 +281,17 @@ function halley() {
             if (res.status === 403 && body && body.code === 'MUST_CHANGE_PASSWORD') {
                 this.showPassword = true;
             }
-            // 세션이 끊기면 모든 호출이 조용히 실패한다 — 사용자에게는 '아무 반응이 없는' 상태다
+            // 세션이 끊기면 모든 호출이 조용히 실패한다 — 사용자에게는 '아무 반응이 없는' 상태다.
+            // 다만 <b>로그인 전에는 401이 정상</b>이다. 첫 접속의 세션 확인도 401로 온다 —
+            // 그때까지 '풀렸다'고 하면 아무 일도 없었는데 경고부터 보게 된다
             if (res.status === 401) {
+                const hadSession = this.session.authenticated;
                 this.session = { authenticated: false, userId: null, nickname: null,
                     role: null, mustChangePassword: false };
                 this.showLogin = true;
-                this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
+                if (hadSession) {
+                    this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
+                }
             }
             return { ok: res.ok, status: res.status, body };
         },
