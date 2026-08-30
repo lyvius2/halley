@@ -20,11 +20,18 @@ import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.domain.group.GroupNameGenerator;
 import banghak.home.halley.domain.group.UserGroup;
 import banghak.home.halley.config.exception.GroupNotFoundException;
+import banghak.home.halley.adapter.inbound.web.dto.NicknameCheckResponse;
+import banghak.home.halley.adapter.inbound.web.dto.SignUpRequest;
+import banghak.home.halley.adapter.inbound.web.dto.WithdrawRequest;
+import banghak.home.halley.config.exception.AdminCannotWithdrawException;
+import banghak.home.halley.config.exception.InvalidPasswordException;
+import org.springframework.transaction.annotation.Transactional;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -33,6 +40,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 
+@Slf4j
 @Service
 public class UserService {
 
@@ -41,16 +49,21 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final UserGroupRepository userGroupRepository;
+    private final GroupService groupService;
+    private final NicknameSnapshotWriter nicknameSnapshotWriter;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
     private final ApplicationEventPublisher eventPublisher;
 
     public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
+                       GroupService groupService, NicknameSnapshotWriter nicknameSnapshotWriter,
                        PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
         this.userGroupRepository = userGroupRepository;
+        this.groupService = groupService;
+        this.nicknameSnapshotWriter = nicknameSnapshotWriter;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
         this.eventPublisher = eventPublisher;
@@ -135,6 +148,61 @@ public class UserService {
         }
         return userGroupRepository.save(
                 new UserGroup(null, GroupNameGenerator.generate(), null, Instant.now())).id();
+    }
+
+
+    /**
+     * 스스로 하는 회원가입 (설계 I89 · 규칙 13·14).
+     *
+     * <p><b>새 그룹이 함께 만들어집니다.</b> 그룹 없는 회원은 매물을 등록할 수도 볼 수도 없어
+     * 아무것도 못 하는 상태가 됩니다. 이름은 무작위 한국어이고 나중에 누구나 바꿉니다.
+     *
+     * <p>가입은 <b>회원(MEMBER)만</b> 됩니다 — 관리자를 스스로 만들 수 있으면 안 됩니다.
+     */
+    @Transactional
+    public UserResponse signUp(SignUpRequest request) {
+        return create(new CreateUserRequest(
+                request.loginId(), request.nickname(), null, request.password(),
+                UserRole.MEMBER, null, null, null, 0L, 0L, 0L));
+    }
+
+    /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다. */
+    public NicknameCheckResponse checkNickname(String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            return new NicknameCheckResponse(nickname, false);
+        }
+        final String trimmed = nickname.trim();
+        final Long myId = currentUserId();
+        final boolean taken = userRepository.findByNickname(trimmed)
+                .filter(u -> myId == null || !u.id().equals(myId))
+                .isPresent();
+        return new NicknameCheckResponse(trimmed, !taken);
+    }
+
+    /**
+     * 회원 탈퇴 (규칙 15·16).
+     *
+     * <p><b>닉네임을 빼고 모두 지웁니다.</b> 다만 이 회원이 남긴 매물·코멘트·쾌적함 점수는
+     * 그룹이 살아 있는 한 그대로 둡니다 — 함께 보던 사람에게는 여전히 필요한 자료입니다.
+     * 화면에 이름이 남아야 하므로 <b>닉네임은 매물·코멘트에 값으로 복사해</b> 둡니다(I88).
+     *
+     * <p>마지막 한 사람이 나가면 그룹과 매물이 함께 사라집니다(규칙 4).
+     */
+    @Transactional
+    public void withdraw(WithdrawRequest request) {
+        final User me = get(currentUserId());
+        if (request == null || request.password() == null
+                || !passwordEncoder.matches(request.password(), me.passwordHash())) {
+            throw new InvalidPasswordException();
+        }
+        if (me.role() == UserRole.ADMIN) {
+            throw new AdminCannotWithdrawException();
+        }
+        nicknameSnapshotWriter.snapshot(me.id(), me.nickname());
+        final Long groupId = me.groupId();
+        userRepository.delete(me.id());
+        groupService.deleteIfEmpty(groupId);
+        log.info("User withdrew. userId={}, groupId={}", me.id(), groupId);
     }
 
     public UserResponse create(CreateUserRequest request) {

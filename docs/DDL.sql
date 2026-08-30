@@ -644,3 +644,15 @@ ALTER TABLE property_opinion DROP CONSTRAINT IF EXISTS property_opinion_user_id_
 
 -- 기존 자료 편입: 이게 없으면 기동 즉시 아무도 자기 매물을 못 본다.
 -- 애플리케이션이 GroupMigrationBootstrap으로 자동 수행하므로 수동 실행은 불필요하다.
+
+-- ===== 16. 그룹 초대 코드 (설계 I89) =====
+-- 코드가 기본키라 살아 있는 코드끼리 중복이 불가능하다(규칙 8).
+-- 만료된 코드는 배치가 지우므로 같은 문자열이 나중에 다시 쓰일 수 있다.
+
+CREATE TABLE IF NOT EXISTS group_invite (
+    code       VARCHAR(8) PRIMARY KEY,
+    group_id   BIGINT NOT NULL,
+    created_by BIGINT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL
+);

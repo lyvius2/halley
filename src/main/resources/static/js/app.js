@@ -187,6 +187,15 @@ function halley() {
         roadviewState: 'loading',
         roadview: null,
         loginForm: { loginId: '', password: '' },
+        showSignUp: false,
+        signUpForm: { loginId: '', nickname: '', password: '' },
+        signUpNickname: null,
+        profileNickname: null,
+        myGroup: null,
+        groupForm: { name: '' },
+        joinForm: { code: '' },
+        inviteCode: null,
+        withdrawForm: { password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
@@ -242,6 +251,7 @@ function halley() {
                     await this.loadUsers();
                 }
                 if (!setupPending) {
+                    await this.loadMyGroup();
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
@@ -392,6 +402,146 @@ function halley() {
                     this.tempPassword = body.temporaryPassword;
                 }
                 await this.loadUsers();
+            });
+        },
+
+
+        // ── 그룹 (설계 I89) ──────────────────────────────
+
+        openSignUp() {
+            this.showLogin = false;
+            this.showSignUp = true;
+            this.error = null;
+            this.signUpNickname = null;
+        },
+
+        openLogin() {
+            this.showSignUp = false;
+            this.showLogin = true;
+            this.error = null;
+        },
+
+        /** 가입하면 새 그룹이 함께 만들어진다 (규칙 14). 바로 로그인까지 이어 준다. */
+        async signUp() {
+            if (this.signUpNickname === false) {
+                this.error = '다른 닉네임을 골라주세요';
+                return;
+            }
+            this.loading = true;
+            this.error = null;
+            try {
+                const { ok, body } = await this.request('/api/users/sign-up', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(this.signUpForm)
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '가입에 실패했습니다';
+                    return;
+                }
+                this.loginForm = { loginId: this.signUpForm.loginId, password: this.signUpForm.password };
+                this.showSignUp = false;
+                this.signUpForm = { loginId: '', nickname: '', password: '' };
+                await this.login();
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        /** @param target 'signUp' 또는 'profile' — 어느 칸의 닉네임을 확인하는지 */
+        async checkNickname(target) {
+            const nickname = target === 'signUp' ? this.signUpForm.nickname : this.profileForm.nickname;
+            if (!nickname) {
+                return;
+            }
+            const { ok, body } = await this.request(
+                '/api/users/nickname-check?nickname=' + encodeURIComponent(nickname));
+            const available = ok && body ? body.available : false;
+            if (target === 'signUp') {
+                this.signUpNickname = available;
+            } else {
+                this.profileNickname = available;
+            }
+        },
+
+        async loadMyGroup() {
+            // admin은 어느 그룹에도 속하지 않으므로 그룹 정보가 없다 (규칙 5)
+            const { ok, body } = await this.request('/api/groups/me');
+            this.myGroup = ok ? body : null;
+            this.groupForm.name = this.myGroup ? this.myGroup.name : '';
+        },
+
+        async renameGroup() {
+            const { ok, body } = await this.request('/api/groups/me', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: this.groupForm.name })
+            });
+            if (ok) {
+                this.myGroup = body;
+            } else {
+                this.error = (body && body.message) || '그룹 이름을 바꾸지 못했습니다';
+            }
+        },
+
+        async createInvite() {
+            const { ok, body } = await this.request('/api/groups/me/invites', { method: 'POST' });
+            if (ok) {
+                this.inviteCode = body;
+            } else {
+                this.error = (body && body.message) || '초대 코드를 만들지 못했습니다';
+            }
+        },
+
+        /**
+         * 그룹을 옮기기 전에 경고한다 (규칙 11).
+         *
+         * 지금 그룹에 나만 남아 있으면 <b>그 그룹의 매물이 전부 사라집니다</b>(규칙 4).
+         * 되돌릴 수 없으므로 그 경우를 따로 알린다.
+         */
+        confirmJoinGroup() {
+            const alone = this.myGroup && this.myGroup.memberCount <= 1;
+            const message = alone
+                ? `지금 그룹('${this.myGroup.name}')에는 회원님만 있습니다.\n`
+                    + '옮기면 이 그룹과 여기 등록된 매물이 모두 삭제되며 되돌릴 수 없습니다.\n\n계속할까요?'
+                : `지금 그룹('${this.myGroup ? this.myGroup.name : ''}')에서 나가 초대받은 그룹으로 옮깁니다.\n`
+                    + '옮기면 지금 그룹의 매물은 더 이상 보이지 않습니다.\n\n계속할까요?';
+            this.askConfirm('그룹 변경', message, async () => {
+                const { ok, body } = await this.request('/api/groups/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: this.joinForm.code.trim() })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '그룹 가입에 실패했습니다';
+                    return;
+                }
+                this.joinForm.code = '';
+                this.inviteCode = null;
+                await this.loadMyGroup();
+                await this.loadProperties();
+            });
+        },
+
+        confirmWithdraw() {
+            const alone = this.myGroup && this.myGroup.memberCount <= 1;
+            const message = (alone
+                ? `그룹('${this.myGroup.name}')에 회원님만 있습니다. 탈퇴하면 그룹과 매물이 모두 삭제됩니다.\n`
+                : '올리신 매물과 코멘트는 그룹에 남습니다.\n')
+                + '닉네임을 제외한 모든 정보가 삭제되며 되돌릴 수 없습니다.\n\n정말 탈퇴할까요?';
+            this.askConfirm('회원 탈퇴', message, async () => {
+                const { ok, body } = await this.request('/api/users/me/withdraw', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: this.withdrawForm.password })
+                });
+                if (!ok) {
+                    this.error = (body && body.message) || '탈퇴에 실패했습니다';
+                    return;
+                }
+                window.location.reload();
             });
         },
 

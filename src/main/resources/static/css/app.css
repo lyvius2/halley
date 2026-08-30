@@ -1566,3 +1566,45 @@ tr.dragging { opacity: .5; background: var(--line2); }
     color: var(--ocean);
     font-weight: 500;
 }
+
+/* ── 그룹 · 회원가입 (설계 I89) ───────────────────── */
+
+/* 로그인 ↔ 가입 전환 링크. 어두운 카드 위라 본문색을 따로 준다 */
+.login-alt { margin-top: 10px; font-size: 12px; text-align: center; color: rgba(244, 241, 234, .7); }
+.login-alt a { color: #e2c58d; text-decoration: none; font-weight: 500; }
+.login-alt a:hover { text-decoration: underline; }
+
+.nickname-row { display: flex; gap: 6px; align-items: center; }
+.nickname-row input { flex: 1; min-width: 0; }
+.nickname-hint { display: block; margin-top: 4px; font-size: 11px; }
+.nickname-hint.is-ok { color: var(--ocean); }
+.nickname-hint.is-bad { color: #c0563a; }
+
+.group-members { color: var(--ink3); font-weight: 400; font-size: 11.5px; }
+.group-name-row { display: flex; gap: 6px; align-items: center; }
+.group-name-row input { flex: 1; min-width: 0; }
+
+/* 초대 코드는 사람이 옮겨 적는 값이라 크고 고정폭으로 (설계 I89) */
+.invite-box {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 6px 0 2px;
+    padding: 8px 12px;
+    border: 1px dashed var(--ocean);
+    border-radius: 8px;
+    background: var(--paper2, #fbfaf7);
+}
+.invite-code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 20px;
+    letter-spacing: .12em;
+    color: var(--ink);
+}
+.invite-expiry { font-size: 10.5px; color: var(--ink3); }
+
+/* 되돌릴 수 없는 자리는 눈에 띄어야 한다 */
+.profile-danger { border-color: #e8bfb2; }
+.profile-danger .profile-title { color: #c0563a; }
+.btn-danger { background: #c0563a; border-color: #c0563a; color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #a8492f; }

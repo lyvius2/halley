@@ -235,6 +235,14 @@
                                 <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
                                 <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
                                 <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
+                                <!-- admin은 어느 그룹에도 속하지 않는다 (설계 I87 · 규칙 5) -->
+                                <div class="profile-row" x-show="myGroup">
+                                    <span>그룹</span>
+                                    <b>
+                                        <span x-text="myGroup?.name"></span>
+                                        <span class="group-members" x-text="'· ' + myGroup?.memberCount + '명'"></span>
+                                    </b>
+                                </div>
                                 <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
                                 <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
                                 <div class="profile-row"><span>기존 대출액</span><b x-text="fmtWon(profile.existingLoan)"></b></div>
@@ -243,6 +251,63 @@
                             </div>
                         </template>
                         <template x-if="profile">
+                        <!-- D3-2 그룹 (설계 I89) -->
+                        <template x-if="myGroup">
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">그룹</h4>
+                            <div class="form-grid">
+                                <label class="span2">그룹 이름
+                                    <div class="group-name-row">
+                                        <input type="text" x-model="groupForm.name" placeholder="그룹 이름">
+                                        <button class="btn btn-sm" type="button" @click="renameGroup()"
+                                                :disabled="loading || !groupForm.name">이름 변경</button>
+                                    </div>
+                                    <span class="settings-note">그룹의 누구나 바꿀 수 있습니다.</span>
+                                </label>
+
+                                <label class="span2">초대 코드 만들기
+                                    <button class="btn btn-sm" type="button" @click="createInvite()"
+                                            :disabled="loading">코드 생성</button>
+                                    <template x-if="inviteCode">
+                                        <span class="invite-box">
+                                            <b class="invite-code" x-text="inviteCode.code"></b>
+                                            <span class="invite-expiry"
+                                                  x-text="'24시간 뒤 만료 · ' + fmtTime(inviteCode.expiresAt)"></span>
+                                        </span>
+                                    </template>
+                                    <span class="settings-note">이 코드를 받은 사람이 우리 그룹으로 들어옵니다.
+                                        전달은 직접 해주세요.</span>
+                                </label>
+
+                                <label class="span2">다른 그룹으로 이동
+                                    <div class="group-name-row">
+                                        <input type="text" x-model="joinForm.code" maxlength="8"
+                                               placeholder="받은 초대 코드 8자리">
+                                        <button class="btn btn-sm" type="button" @click="confirmJoinGroup()"
+                                                :disabled="loading || !joinForm.code">그룹 가입</button>
+                                    </div>
+                                    <span class="settings-note">지금 그룹에서 나가게 됩니다.</span>
+                                </label>
+                            </div>
+                        </div>
+                        </template>
+
+                        <!-- D3-3 회원 탈퇴 (설계 I89 · 규칙 15·16) -->
+                        <div class="card profile-panel profile-danger" style="margin-top:14px;"
+                             x-show="profile && profile.role !== 'ADMIN'">
+                            <h4 class="profile-title">회원 탈퇴</h4>
+                            <p class="settings-note">
+                                닉네임을 제외한 모든 정보가 삭제됩니다.
+                                올리신 매물과 코멘트는 그룹에 남습니다.
+                            </p>
+                            <div class="group-name-row" style="margin-top:8px;">
+                                <input type="password" x-model="withdrawForm.password"
+                                       autocomplete="current-password" placeholder="비밀번호 확인">
+                                <button class="btn btn-sm btn-danger" type="button" @click="confirmWithdraw()"
+                                        :disabled="loading || !withdrawForm.password">탈퇴</button>
+                            </div>
+                        </div>
+
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">프로필 수정</h4>
                             <div class="form-grid">
@@ -323,6 +388,51 @@
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '로그인 중…' : '로그인'"></span>
             </button>
+            <p class="login-alt">
+                처음이신가요?
+                <a href="#" @click.prevent="openSignUp()">회원 가입</a>
+            </p>
+        </form>
+    </div>
+</div>
+
+<!-- D1-2 회원 가입 모달 (설계 I89 · 규칙 13·14) -->
+<div class="modal" x-show="showSignUp" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card modal-login">
+        <div class="modal-head">
+            <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
+            <h3>회원 가입</h3>
+            <p>가입하면 나만의 그룹이 만들어집니다.</p>
+        </div>
+        <form class="form" @submit.prevent="signUp()">
+            <label>ID
+                <input type="text" x-model="signUpForm.loginId" autocomplete="username" required
+                       x-ref="signUpId" x-effect="if (showSignUp) $nextTick(() => $refs.signUpId.focus())">
+            </label>
+            <label>닉네임
+                <span class="nickname-row">
+                    <input type="text" x-model="signUpForm.nickname"
+                           @input="signUpNickname = null" placeholder="리스트·코멘트에 표시됩니다" required>
+                    <button class="btn btn-xs" type="button" @click="checkNickname('signUp')"
+                            :disabled="!signUpForm.nickname">중복 확인</button>
+                </span>
+                <span class="nickname-hint" :class="signUpNickname === true ? 'is-ok' : 'is-bad'"
+                      x-show="signUpNickname !== null"
+                      x-text="signUpNickname ? '사용할 수 있는 닉네임입니다' : '이미 쓰이는 닉네임입니다'"></span>
+            </label>
+            <label>Password
+                <input type="password" x-model="signUpForm.password" autocomplete="new-password"
+                       minlength="8" placeholder="8자 이상" required>
+            </label>
+            <p class="form-error" x-show="error" x-text="error"></p>
+            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
+                <span x-text="loading ? '가입 중…' : '가입하고 시작하기'"></span>
+            </button>
+            <p class="login-alt">
+                이미 계정이 있으신가요?
+                <a href="#" @click.prevent="openLogin()">로그인</a>
+            </p>
         </form>
     </div>
 </div>

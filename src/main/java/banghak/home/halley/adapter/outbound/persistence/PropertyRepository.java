@@ -241,6 +241,14 @@ public class PropertyRepository {
     }
 
     /** 그룹이 사라질 때 그 그룹의 매물도 함께 지운다 (설계 I87 · 규칙 4). */
+    /** 탈퇴 직전 등록자 이름을 값으로 굳힌다 (설계 I88). */
+    public int snapshotCreatorNickname(Long userId, String nickname) {
+        return dsl.update(TABLE)
+                .set(CREATED_BY_NICKNAME, nickname)
+                .where(CREATED_BY.eq(userId))
+                .execute();
+    }
+
     public void deleteByGroupId(Long groupId) {
         dsl.deleteFrom(TABLE).where(GROUP_ID.eq(groupId)).execute();
     }

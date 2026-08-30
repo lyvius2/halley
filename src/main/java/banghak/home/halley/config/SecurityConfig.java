@@ -34,6 +34,10 @@ public class SecurityConfig {
                 .securityContext(securityContext -> securityContext.requireExplicitSave(false))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
+                        // 회원가입은 로그인 전에 부른다 (설계 I89 · 규칙 13).
+                        // 닉네임 확인도 가입 화면에서 쓰므로 함께 연다
+                        .requestMatchers(HttpMethod.POST, "/api/users/sign-up").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/users/nickname-check").permitAll()
                         .requestMatchers("/api/users/me/**").authenticated()
                         .requestMatchers("/api/users/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")

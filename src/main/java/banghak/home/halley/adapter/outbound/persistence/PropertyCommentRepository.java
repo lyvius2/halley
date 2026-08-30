@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyCommentTable.AUTHOR_NICKNAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyCommentTable.CONTENT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyCommentTable.CREATED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyCommentTable.ID;
@@ -66,6 +67,14 @@ public class PropertyCommentRepository {
                 .where(PROPERTY_ID.eq(propertyId).and(USER_ID.eq(userId)))
                 .fetchOptional()
                 .map(this::map);
+    }
+
+    /** 탈퇴 직전 작성자 이름을 값으로 굳힌다 (설계 I88). */
+    public int snapshotAuthorNickname(Long userId, String nickname) {
+        return dsl.update(TABLE)
+                .set(AUTHOR_NICKNAME, nickname)
+                .where(USER_ID.eq(userId))
+                .execute();
     }
 
     public void delete(Long id) {
