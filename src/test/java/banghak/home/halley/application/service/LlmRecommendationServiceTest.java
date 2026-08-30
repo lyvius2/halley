@@ -337,7 +337,7 @@ class LlmRecommendationServiceTest {
     void countsOnlyUsersWithCoordinates() {
         // given — 2명 중 1명만 좌표가 있다
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
-        when(userRepository.findAll()).thenReturn(List.of(
+        when(userRepository.findByGroupId(7L)).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
                 new User(2L, "login2", "밥",null, "hash", UserRole.MEMBER,
                         "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
@@ -497,7 +497,7 @@ class LlmRecommendationServiceTest {
 
     private void givenPropertyAndUsers() {
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
-        when(userRepository.findAll()).thenReturn(List.of(
+        when(userRepository.findByGroupId(7L)).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
                 user(2L, "밥", "판교역")));
     }
@@ -517,6 +517,6 @@ class LlmRecommendationServiceTest {
                 null, null, null, null, null,
                 "서울혜화초등학교", 6, null, null, null, null,
                 SourceType.PASTE, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null,null,null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null, 7L, "테스터", 1L, Instant.now());
     }
 }

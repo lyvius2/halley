@@ -55,6 +55,9 @@ class GroupIsolationTest {
     @Autowired
     private ScoringService scoringService;
 
+    @Autowired
+    private ComparativeAnalysisService comparativeAnalysisService;
+
     @AfterEach
     void clearAuth() {
         GroupTestSupport.logout();
@@ -148,6 +151,50 @@ class GroupIsolationTest {
                 "badge-admin-" + tag, "관리자-" + tag, null, "password1!", UserRole.ADMIN,
                 null, null, null, 0L, 0L, 0L)).id());
         assertThat(scoringService.getScored(propertyId).property().groupName()).isNotBlank();
+    }
+
+    @Test
+    @DisplayName("가격 점수는 우리 그룹의 현금만 센다 — 남의 그룹 현금이 섞이면 안 된다")
+    void cashBudgetCountsOnlyOwnGroup() {
+        // given — 다른 그룹에 현금이 아주 많은 사람이 있다
+        final String tag = "cash" + SEQ.incrementAndGet();
+        userService.create(new CreateUserRequest(
+                "rich-" + tag, "부자-" + tag, null, "password1!", UserRole.MEMBER,
+                null, null, null, 90_000_000_000L, 60_000_000L, 0L));
+
+        // 우리 그룹에는 현금이 없다
+        final Long groupId = userGroupRepository.save(
+                new UserGroup(null, "빈털터리" + tag, null, Instant.now())).id();
+        login(userService.create(new CreateUserRequest(
+                "poor-" + tag, "빈손-" + tag, groupId, "password1!", UserRole.MEMBER,
+                null, null, null, 0L, 60_000_000L, 0L)).id());
+        final Long propertyId = propertyService.create(request("비싼 집 " + tag)).id();
+
+        // when
+        final var price = scoringService.getScored(propertyId).scores().stream()
+                .filter(s -> "PRICE".equals(s.code())).findFirst().orElseThrow();
+
+        // then — 900억이 섞였다면 만점이 나온다
+        assertThat(price.effectiveScore()).isNotEqualTo(new java.math.BigDecimal("100.00"));
+    }
+
+    @Test
+    @DisplayName("비교 우위 분석은 우리 그룹 매물만 견준다")
+    void comparativeAnalysisStaysInGroup() {
+        // given — 다른 그룹에 매물 넷
+        final String tag = "cmp" + SEQ.incrementAndGet();
+        loginAsNewMember(tag + "-other");
+        for (int i = 0; i < 4; i++) {
+            propertyService.create(request("남의 매물 " + tag + i));
+        }
+
+        // 우리 그룹에는 하나뿐이다
+        loginAsNewMember(tag + "-mine");
+        propertyService.create(request("내 매물 " + tag));
+
+        // when · then — 남의 넷이 세어졌다면 실행 가능으로 나온다
+        assertThat(comparativeAnalysisService.status().propertyCount()).isEqualTo(1);
+        assertThat(comparativeAnalysisService.status().analysable()).isFalse();
     }
 
     private void loginAsNewMember(String tag) {

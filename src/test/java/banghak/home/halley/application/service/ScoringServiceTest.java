@@ -90,9 +90,12 @@ class ScoringServiceTest {
     private UserRepository groupTestUserRepository;
 
     /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    /** 로그인한 회원의 그룹. 채점 입력(현금 합계·통근)이 이 그룹으로 좁혀진다 (설계 I91). */
+    private Long myGroupId;
+
     @BeforeEach
     void loginAsGroupMember() {
-        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+        myGroupId = GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
     }
 
     @AfterEach
@@ -120,7 +123,7 @@ class ScoringServiceTest {
     void listSortedAndSeparatedByDealType() {
         // given
         userService.create(new CreateUserRequest(
-                "budget", "예산보유자", null, "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L, 60_000_000L, 0L));
+                "budget", "예산보유자", myGroupId, "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L, 60_000_000L, 0L));
         final PropertyResponse cheap = propertyService.create(request("싼 매물", DealType.SALE, 300_000_000L));
         final PropertyResponse expensive = propertyService.create(request("비싼 매물", DealType.SALE, 800_000_000L));
         final PropertyResponse jeonse = propertyService.create(request("전세 매물", DealType.JEONSE, 400_000_000L));

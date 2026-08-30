@@ -174,7 +174,9 @@ public class LlmRecommendationService {
         }
         int refreshed = 0;
         int skipped = 0;
-        for (final Property property : propertyRepository.findAll()) {
+        // 직장이 바뀐 사람이 속한 그룹의 매물만 다시 묻는다 (설계 I91).
+        // 전 매물을 돌면 남의 그룹까지 LLM을 부르는데, 그쪽 판단은 달라지지 않는다
+        for (final Property property : propertiesToRefresh()) {
             final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(property.id());
             if (cached.isPresent() && workplaceCountOf(cached.get()) >= ENOUGH_WORKPLACES) {
                 skipped++;
@@ -189,6 +191,12 @@ public class LlmRecommendationService {
         log.info("Refreshed LLM recommendations after workplace change. refreshed={}, skipped={} (>= {} workplaces)",
                 refreshed, skipped, ENOUGH_WORKPLACES);
         return refreshed;
+    }
+
+    private List<Property> propertiesToRefresh() {
+        return propertyRepository.findAll().stream()
+                .filter(p -> p.groupId() != null)
+                .toList();
     }
 
     private int workplaceCountOf(LlmRecommendation recommendation) {
@@ -209,7 +217,7 @@ public class LlmRecommendationService {
             return Optional.empty();
         }
         final Property property = found.get();
-        final List<User> buyers = activeBuyers();
+        final List<User> buyers = activeBuyers(property);
         final String prompt = buildPrompt(property, buyers, poiDataService.ensureNearby(property),
                 comfortScoresOf(propertyId), commentRepository.findByPropertyId(propertyId));
         final String hash = sha256(prompt);
@@ -419,9 +427,19 @@ public class LlmRecommendationService {
         }
     }
 
-    /** 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 해시가 달라진다. */
-    private List<User> activeBuyers() {
-        return userRepository.findAll().stream()
+    /**
+     * 이 매물을 함께 보는 사람들 (설계 I91).
+     *
+     * <p><b>같은 그룹의 구성원만</b> 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
+     * <b>직장 주소가 프롬프트로 나가고</b>, 그 사람 기준의 통근까지 판단에 섞입니다.
+     *
+     * <p>세션이 아니라 매물의 그룹으로 좁힙니다 — 배경 보정에서도 도는데 그때는 로그인
+     * 사용자가 없습니다.
+     *
+     * <p>활성 사용자만, 아이디 순으로 — 순서가 흔들리면 프롬프트 해시가 달라집니다.
+     */
+    private List<User> activeBuyers(Property property) {
+        return userRepository.findByGroupId(property.groupId()).stream()
                 .filter(User::enabled)
                 .sorted(java.util.Comparator.comparing(User::id))
                 .toList();

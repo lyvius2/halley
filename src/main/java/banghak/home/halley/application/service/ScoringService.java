@@ -465,7 +465,9 @@ public class ScoringService {
     }
 
     private ScoringContext buildContext(Property property) {
-        final List<User> allUsers = userRepository.findAll();
+        // 그룹 구성원만 본다 (설계 I91). 세션이 아니라 <b>매물의 그룹</b>으로 좁힌다 —
+        // 배경 보정에서도 도는데 그때는 로그인 사용자가 없다
+        final List<User> allUsers = userRepository.findByGroupId(property.groupId());
         final List<User> activeUsers = allUsers.stream().filter(User::enabled).toList();
         final long cashBudget = activeUsers.stream().mapToLong(User::availableBudget).sum();
         final List<Integer> comfortScores = userCriterionScoreRepository.findByPropertyId(property.id()).stream()

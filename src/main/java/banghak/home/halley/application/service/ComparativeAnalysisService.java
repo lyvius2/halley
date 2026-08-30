@@ -78,6 +78,7 @@ public class ComparativeAnalysisService {
     private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
+    private final PropertyAccessGuard accessGuard;
     private final ScoringService scoringService;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
@@ -87,6 +88,7 @@ public class ComparativeAnalysisService {
                                       LlmJobCache jobCache,
                                       PropertyRepository propertyRepository,
                                       UserRepository userRepository,
+                                      PropertyAccessGuard accessGuard,
                                       ScoringService scoringService,
                                       ObjectMapper objectMapper,
                                       @Value("${llm.enabled:true}") boolean enabled) {
@@ -95,6 +97,7 @@ public class ComparativeAnalysisService {
         this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
+        this.accessGuard = accessGuard;
         this.scoringService = scoringService;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
@@ -200,9 +203,21 @@ public class ComparativeAnalysisService {
                 .toList();
     }
 
-    /** 판매완료·초안은 비교 대상이 아니다 — 살 수 없는 집과 견주면 순위가 왜곡된다. */
+    /**
+     * 비교 대상 매물 (설계 I91).
+     *
+     * <p><b>내 그룹 매물만 견줍니다.</b> 전 매물을 한 줄로 세우면 남의 그룹 매물이 순위에
+     * 섞이고, 무엇보다 그 매물 정보가 <b>LLM 프롬프트로 나갑니다.</b>
+     *
+     * <p>판매완료·초안은 제외합니다 — 살 수 없는 집과 견주면 순위가 왜곡됩니다.
+     */
     private List<Property> targets() {
-        return propertyRepository.findAll().stream()
+        final Long groupId = accessGuard.currentGroupId().orElse(null);
+        if (groupId == null) {
+            // admin은 그룹이 없다. 어느 그룹의 순위를 매길지 정해지지 않으므로 대상이 없다
+            return List.of();
+        }
+        return propertyRepository.findByGroupId(groupId).stream()
                 .filter(Property::active)
                 .filter(p -> !p.isDraft())
                 .sorted(Comparator.comparing(Property::id))
@@ -275,8 +290,16 @@ public class ComparativeAnalysisService {
         return sb.toString();
     }
 
+    /**
+     * 이 매물들을 함께 보는 사람들 (설계 I91).
+     *
+     * <p><b>같은 그룹의 구성원만</b> 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
+     * 직장 주소가 프롬프트로 나갑니다.
+     */
     private List<User> activeBuyers() {
-        return userRepository.findAll().stream()
+        return accessGuard.currentGroupId()
+                .map(userRepository::findByGroupId)
+                .orElseGet(List::of).stream()
                 .filter(User::enabled)
                 .sorted(Comparator.comparing(User::id))
                 .toList();

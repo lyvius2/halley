@@ -46,6 +46,7 @@ class ComparativeAnalysisServiceTest {
     private final PropertyRepository propertyRepository = mock(PropertyRepository.class);
     private final UserRepository userRepository = mock(UserRepository.class);
     private final ScoringService scoringService = mock(ScoringService.class);
+    private final PropertyAccessGuard accessGuard = mock(PropertyAccessGuard.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
@@ -150,7 +151,8 @@ class ComparativeAnalysisServiceTest {
         final List<Property> all = new ArrayList<>(properties(4));
         all.add(property(5L, "판매완료", false, false));
         all.add(property(6L, "작성 중", true, true));
-        when(propertyRepository.findAll()).thenReturn(all);
+        when(accessGuard.currentGroupId()).thenReturn(java.util.Optional.of(GROUP_ID));
+        when(propertyRepository.findByGroupId(GROUP_ID)).thenReturn(all);
         givenUsers();
         when(analysisRepository.findAll()).thenReturn(List.of());
         when(analysisRepository.upsert(any())).thenAnswer(inv -> inv.getArgument(0));
@@ -196,7 +198,7 @@ class ComparativeAnalysisServiceTest {
         givenProperties(4);
         final ComparativeAnalysisService service = new ComparativeAnalysisService(
                 stub(LlmResult.of("{}", "m")), analysisRepository, jobCache, propertyRepository,
-                userRepository, scoringService, objectMapper, false);
+                userRepository, accessGuard, scoringService, objectMapper, false);
 
         // when · then
         assertThatThrownBy(service::analyse).isInstanceOf(LlmUnavailableException.class);
@@ -228,7 +230,7 @@ class ComparativeAnalysisServiceTest {
 
     private ComparativeAnalysisService service(LlmPort port) {
         return new ComparativeAnalysisService(port, analysisRepository, jobCache, propertyRepository,
-                userRepository, scoringService, objectMapper, true);
+                userRepository, accessGuard, scoringService, objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {
@@ -275,14 +277,18 @@ class ComparativeAnalysisServiceTest {
         };
     }
 
+    /** 비교 대상은 내 그룹 매물만이다 (설계 I91). 로그인한 그룹을 정해 둔다. */
+    private static final Long GROUP_ID = 7L;
+
     private void givenProperties(int count) {
-        when(propertyRepository.findAll()).thenReturn(properties(count));
+        when(accessGuard.currentGroupId()).thenReturn(java.util.Optional.of(GROUP_ID));
+        when(propertyRepository.findByGroupId(GROUP_ID)).thenReturn(properties(count));
         givenUsers();
     }
 
     private void givenUsers() {
-        when(userRepository.findAll()).thenReturn(List.of(
-                new User(1L, "login1", "앨리스",null, "hash", UserRole.MEMBER,
+        when(userRepository.findByGroupId(GROUP_ID)).thenReturn(List.of(
+                new User(1L, "login1", "앨리스", GROUP_ID, "hash", UserRole.MEMBER,
                         "강남역", new BigDecimal("37.49"), new BigDecimal("127.02"),
                         false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now())));
     }
@@ -303,6 +309,6 @@ class ComparativeAnalysisServiceTest {
                 null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 draft, active ? ListingStatus.ACTIVE : ListingStatus.SOLD_OUT, active,
-                null, 0, null,null,null, 1L, Instant.now());
+                null, 0, null, GROUP_ID, "테스터", 1L, Instant.now());
     }
 }

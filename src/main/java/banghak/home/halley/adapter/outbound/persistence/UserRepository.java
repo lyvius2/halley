@@ -133,6 +133,19 @@ public class UserRepository {
                 .map(this::map);
     }
 
+    /**
+     * 한 그룹의 구성원 (설계 I91).
+     *
+     * <p>채점 입력(보유 현금 합계·통근)과 LLM 프롬프트(직장 위치)가 <b>이 목록으로 좁혀져야</b>
+     * 합니다. 전 사용자를 훑으면 남의 그룹 사람의 현금이 우리 가격 점수에 섞이고,
+     * 남의 직장 주소가 프롬프트로 나갑니다.
+     */
+    public List<User> findByGroupId(Long groupId) {
+        return groupId == null ? List.of()
+                : dsl.selectFrom(TABLE).where(GROUP_ID.eq(groupId))
+                        .orderBy(ID.asc()).fetch().map(this::map);
+    }
+
     public void delete(Long id) {
         dsl.deleteFrom(TABLE)
                 .where(ID.eq(id))
