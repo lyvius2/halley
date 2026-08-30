@@ -1527,6 +1527,14 @@
                 </label>
             </div>
             <p class="form-error" x-show="error" x-text="error"></p>
+            <!-- 등록은 초등학교·토지이용계획·채점이 끝나야 응답이 온다 (설계 I110).
+                 몇 초 걸리므로 무엇을 기다리는지 말해 준다 -->
+            <div class="ai-progress" x-show="loading">
+                <span class="ai-progress-label"
+                      x-text="propertyForm.id ? '저장 중입니다…'
+                              : '저장 중입니다… 학교·규제·점수를 확인하고 있습니다'"></span>
+                <div class="ai-progress-bar"><i></i></div>
+            </div>
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '저장 중…' : (propertyForm.id ? '저장' : '등록')"></span>
             </button>

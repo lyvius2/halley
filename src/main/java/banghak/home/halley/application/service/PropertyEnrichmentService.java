@@ -70,64 +70,110 @@ public class PropertyEnrichmentService {
     }
 
     /**
-     * 보정은 한 번의 조회 · 한 번의 저장으로 끝낸다. 항목마다 update를 날리면 뒤 항목이 앞 항목을 덮어쓴다.
+     * 등록 요청이 <b>기다리는</b> 앞 단계 (설계 I110).
+     *
+     * <p>초등학교 · 토지이용계획 · 채점 — 셋은 서로의 결과를 쓰지 않으므로 가상 스레드로
+     * 한꺼번에 돕니다. 채점은 초등학교 칸도 공시가격도 읽지 않고 POI와 가격·대출만 보므로
+     * 학교 조회를 기다릴 필요가 없습니다.
+     *
+     * <p>여기까지 끝나야 응답을 돌려줍니다 — 화면은 그동안 진행 표시를 띄웁니다.
+     *
+     * <p><b>등록 트랜잭션 안에서 돌지 않습니다.</b> 외부 API를 부르는 동안 DB 커넥션을
+     * 붙잡고 있으면 동시 등록 몇 건에 풀이 마르고, 카카오가 죽었다고 매물 등록 자체가
+     * 되돌아갑니다 — 외부 연동 실패가 본 기능을 막지 않는다는 원칙(12.2)에 어긋납니다.
+     * 등록은 이미 커밋된 뒤이고, 여기서 실패해도 값이 비는 것 외에 부작용이 없습니다.
      */
-    public void enrich(Long propertyId) {
+    public void enrichCore(Long propertyId) {
         final Optional<Property> found = propertyRepository.findById(propertyId);
         if (found.isEmpty()) {
             return;
         }
         final Property property = found.get();
-        // 단계마다 걸린 시간을 남긴다 (설계 I106). 보정은 외부 API를 수십 번 부르는데,
-        // 끝날 때 한 줄만 남기면 "AI 추천도가 안 나온다"가 실패인지 느린 것인지 알 수 없다
-        log.info("Enrichment started. propertyId={}", propertyId);
+        log.info("Enrichment(core) started. propertyId={}", propertyId);
         final long startedAt = System.currentTimeMillis();
-        // AI 추천도 진행 표시를 지금 켠다 (설계 I109). 실제 호출은 사슬의 맨 끝이라
+        // AI 추천도 진행 표시를 지금 켠다 (설계 I109). 실제 호출은 뒤 단계라
         // 그때 켜면 그전에 상세를 연 사람은 진행 표시도 폴링도 못 받는다
         llmRecommendationService.markPending(propertyId);
 
-        // 넷은 서로의 결과를 쓰지 않으므로 한꺼번에 돈다 (설계 I108).
-        // 토지이용계획은 PNU가 필요하지만 없으면 스스로 주소로 지오코딩하므로
-        // 공시가격이 PNU를 채워 주기를 기다릴 필요가 없다
         final List<Property> filled = gate.runAll(List.of(
                 () -> step(propertyId, "school", () -> fillSchool(property)),
-                () -> step(propertyId, "official-price", () -> fillOfficialPrice(property)),
+                () -> step(propertyId, "land-use", () -> {
+                    fetchLandUse(propertyId);
+                    return null;
+                }),
+                () -> step(propertyId, "score", () -> {
+                    rescore(propertyId);
+                    return null;
+                })));
+
+        final Property school = filled.get(0) == null ? property : filled.get(0);
+        if (changed(property, school)) {
+            propertyRepository.update(school);
+            // 학교가 채워지기 전 점수로 저장됐을 수 있다. 값이 실제로 바뀐 때만 다시 센다
+            step(propertyId, "score-after-school", () -> {
+                rescore(propertyId);
+                return null;
+            });
+        }
+        log.info("Enrichment(core) finished. propertyId={}, elapsedMs={}",
+                propertyId, System.currentTimeMillis() - startedAt);
+    }
+
+    /**
+     * 응답을 돌려준 <b>뒤</b> 배경에서 도는 단계 (설계 I110).
+     *
+     * <p>실거래가와 공시가격은 서로 무관해 동시에 돕니다. <b>AI 추천도는 공시가격 뒤에</b>
+     * 옵니다 — 프롬프트에 `공시가격(원)` 줄이 들어가기 때문입니다. 셋을 나란히 돌리면
+     * 첫 판단이 공시가격을 '정보 없음'으로 본 채 나오고, 그 뒤로 다시 물을 계기가 없습니다.
+     */
+    public void enrichRest(Long propertyId) {
+        log.info("Enrichment(rest) started. propertyId={}", propertyId);
+        final long startedAt = System.currentTimeMillis();
+        gate.runAll(List.of(
                 () -> step(propertyId, "reference-trades", () -> {
                     fetchReferenceTrades(propertyId);
                     return null;
                 }),
-                () -> step(propertyId, "land-use", () -> {
-                    fetchLandUse(propertyId);
+                () -> step(propertyId, "official-price-then-llm", () -> {
+                    fillOfficialPriceAndSave(propertyId);
+                    fetchLlmRecommendation(propertyId);
                     return null;
                 })));
-
-        // 둘이 건드리는 칸이 겹치지 않아 합칠 수 있다 — 학교 쪽은 학교 칸만,
-        // 공시가격 쪽은 PNU·공시가격 칸만 바꾼다. 한 번만 저장한다:
-        // 각자 저장하면 뒤엣것이 앞엣것을 통째로 덮어쓴다
-        final Property school = filled.get(0) == null ? property : filled.get(0);
-        final Property priced = filled.get(1) == null ? property : filled.get(1);
-        final Property enriched = copy(property,
-                school.schoolName(), school.schoolWalkMinutes(), school.schoolSource(),
-                priced.pnu(), priced.officialPrice(), priced.officialPriceYear());
-        if (changed(property, enriched)) {
-            propertyRepository.update(enriched);
-        }
-
-        // 여기부터는 순서가 있다. 자동 채점 항목이 다 채워진 뒤라야 점수가 맞고(설계 I84),
-        // 채점이 끝난 뒤라야 AI 프롬프트에 그 값들이 실린다
-        step(propertyId, "score", () -> {
-            rescore(propertyId);
-            return null;
-        });
-        step(propertyId, "llm", () -> {
-            fetchLlmRecommendation(propertyId);
-            return null;
-        });
-
         // 끝났는데도 결과가 없으면(키 미설정·호출 실패) 진행 표시를 끈다
         llmRecommendationService.clearPendingIfUnresolved(propertyId);
-        log.info("Enrichment finished. propertyId={}, elapsedMs={}",
+        log.info("Enrichment(rest) finished. propertyId={}, elapsedMs={}",
                 propertyId, System.currentTimeMillis() - startedAt);
+    }
+
+    /**
+     * 앞 단계를 기다렸다가 나머지를 배경으로 넘긴다.
+     *
+     * <p>뒤 단계를 이벤트로 띄우지 않는 이유: 커밋 직후에 띄우면 앞 단계와 <b>겹쳐 돌 수</b>
+     * 있고, 그러면 AI가 채점 전 상태를 보게 됩니다.
+     */
+    public void enrich(Long propertyId) {
+        enrichCore(propertyId);
+        Thread.ofVirtual().name("enrich-rest-" + propertyId).start(() -> {
+            try {
+                enrichRest(propertyId);
+            } catch (RuntimeException e) {
+                // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
+                log.error("Enrichment(rest) failed. propertyId={}, cause={}", propertyId, e.toString(), e);
+            }
+        });
+    }
+
+    /** 공시가격만 따로 저장한다 — 앞 단계에서 이미 학교를 저장했으므로 다시 읽어 덮어쓰기를 피한다. */
+    private void fillOfficialPriceAndSave(Long propertyId) {
+        final Optional<Property> found = propertyRepository.findById(propertyId);
+        if (found.isEmpty()) {
+            return;
+        }
+        final Property property = found.get();
+        final Property priced = fillOfficialPrice(property);
+        if (changed(property, priced)) {
+            propertyRepository.update(priced);
+        }
     }
 
     /** 바뀐 게 없으면 저장하지 않는다. 보정이 아무것도 못 채운 경우가 흔하다. */

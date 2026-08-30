@@ -26,6 +26,7 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
 import banghak.home.halley.application.service.ComparativeAnalysisService;
 import banghak.home.halley.application.service.LandUseService;
+import banghak.home.halley.application.service.PropertyEnrichmentService;
 import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
@@ -70,6 +71,7 @@ public class PropertyController {
     private final LlmRecommendationService llmRecommendationService;
     private final ComparativeAnalysisService comparativeAnalysisService;
     private final LandUseService landUseService;
+    private final PropertyEnrichmentService propertyEnrichmentService;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -81,7 +83,8 @@ public class PropertyController {
                               PropertyCommentService propertyCommentService,
                               LlmRecommendationService llmRecommendationService,
                               ComparativeAnalysisService comparativeAnalysisService,
-                              LandUseService landUseService) {
+                              LandUseService landUseService,
+                              PropertyEnrichmentService propertyEnrichmentService) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -93,6 +96,7 @@ public class PropertyController {
         this.llmRecommendationService = llmRecommendationService;
         this.comparativeAnalysisService = comparativeAnalysisService;
         this.landUseService = landUseService;
+        this.propertyEnrichmentService = propertyEnrichmentService;
     }
 
     /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
@@ -241,9 +245,10 @@ public class PropertyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
-        // 여기서 채점하지 않는다 (설계 I84). 지금은 공시가격·초등학교·POI·AI가 하나도 없어
-        // 거의 모든 항목이 미산출로 나오고, 곧 비동기 보정이 끝나며 덮어쓴다
-        return scoringService.notYetScored(created.id());
+        // 초등학교·토지이용계획·채점까지 기다렸다가 돌려준다 (설계 I110). 화면은 그동안
+        // 진행 표시를 띄운다. 공시가격·실거래가·AI 추천도는 배경으로 넘어간다
+        propertyEnrichmentService.enrich(created.id());
+        return scoringService.getScored(created.id());
     }
 
     @PutMapping("/{id}")

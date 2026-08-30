@@ -15,6 +15,7 @@ import banghak.home.halley.domain.property.SourceType;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,9 +25,12 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -65,7 +69,7 @@ class PropertyEnrichmentServiceTest {
                         PoiResult.of("서울대현초등학교", "SC4", 900, "127.0", "37.5")));
 
         // when
-        service.enrich(1L);
+        service.enrichCore(1L);
 
         // then — 중학교는 거르고 더 가까운 초등학교를 고른다. 402m / 67m = 6분
         final Property saved = captureSaved();
@@ -81,7 +85,7 @@ class PropertyEnrichmentServiceTest {
         givenProperty(property("서울혜화초등학교", new BigDecimal("84.9"), "102동"));
 
         // when
-        service.enrich(1L);
+        service.enrichCore(1L);
 
         // then
         verify(kakaoLocalPort, never()).searchCategory(anyString(), anyDouble(), anyDouble(), anyInt());
@@ -100,7 +104,7 @@ class PropertyEnrichmentServiceTest {
                 price(980_000_000L, "27", new BigDecimal("115.50"))));
 
         // when
-        service.enrich(1L);
+        service.enrichRest(1L);
 
         // then — 84.43㎡ 두 건의 중앙값. 59.9·115.5는 다른 타입이라 후보에서 빠진다
         final Property saved = captureSaved();
@@ -120,7 +124,7 @@ class PropertyEnrichmentServiceTest {
                 price(700_000_000L, "102", new BigDecimal("84.43"))));
 
         // when
-        service.enrich(1L);
+        service.enrichRest(1L);
 
         // then
         assertThat(captureSaved().officialPrice()).isEqualTo(700_000_000L);
@@ -137,7 +141,7 @@ class PropertyEnrichmentServiceTest {
                 .thenReturn(List.of(price(268_000_000L, null, new BigDecimal("147.8"))));
 
         // when
-        service.enrich(1L);
+        service.enrichRest(1L);
 
         // then
         assertThat(captureSaved().officialPrice()).isEqualTo(268_000_000L);
@@ -153,7 +157,7 @@ class PropertyEnrichmentServiceTest {
                 "1111014000", null)));
 
         // when
-        service.enrich(1L);
+        service.enrichRest(1L);
 
         // then
         verify(housingPricePort, never()).fetchApartmentPrices(anyString());
@@ -161,25 +165,41 @@ class PropertyEnrichmentServiceTest {
     }
 
     @Test
-    @DisplayName("동시에 돈 초등학교와 공시가격 결과를 한 번의 저장으로 합친다 (설계 I108)")
-    void mergesParallelResultsIntoOneUpdate() {
-        // given — 학교도 비어 있고 공시가격도 비어 있어 둘 다 채워진다
+    @DisplayName("앞 단계는 초등학교·토지이용계획·채점만 한다 — 공시가격·실거래가는 뒤로 미룬다 (설계 I110)")
+    void coreSkipsOfficialPriceAndTrades() {
+        // given
         givenProperty(property(null, new BigDecimal("84.43"), "102동"));
         givenPnu("1168010600103160000");
         when(kakaoLocalPort.searchCategory(anyString(), anyDouble(), anyDouble(), anyInt()))
                 .thenReturn(List.of(PoiResult.of("서울대곡초등학교", "SC4", 402, "127.0", "37.5")));
-        when(housingPricePort.fetchApartmentPrices(anyString())).thenReturn(List.of(
-                price(700_000_000L, "102", new BigDecimal("84.43"))));
 
         // when
-        service.enrich(1L);
+        service.enrichCore(1L);
 
-        // then — 각자 저장하면 뒤엣것이 앞엣것을 덮어쓴다. 한 번에 둘 다 실려야 한다
-        final Property saved = captureSaved();
-        assertThat(saved.schoolName()).isEqualTo("서울대곡초등학교");
-        assertThat(saved.schoolSource()).isEqualTo(SchoolSource.KAKAO);
-        assertThat(saved.officialPrice()).isEqualTo(700_000_000L);
-        assertThat(saved.pnu()).isEqualTo("1168010600103160000");
+        // then — 등록 요청이 기다리는 단계라 느린 둘은 여기 없어야 한다
+        verify(housingPricePort, never()).fetchApartmentPrices(anyString());
+        verify(referenceTransactionService, never()).prefetch(anyLong());
+        verify(landUseService).ensureLandUse(1L);
+        verify(scoringService, atLeastOnce()).rescore(1L);
+        assertThat(captureSaved().schoolName()).isEqualTo("서울대곡초등학교");
+    }
+
+    @Test
+    @DisplayName("뒤 단계는 공시가격을 저장한 뒤에 AI를 부른다 — 공시가격이 프롬프트에 들어간다 (설계 I110)")
+    void restAsksLlmAfterOfficialPrice() {
+        // given
+        givenProperty(property("서울혜화초등학교", new BigDecimal("84.43"), "27동"));
+        givenPnu("1168010600103160000");
+        when(housingPricePort.fetchApartmentPrices(anyString())).thenReturn(List.of(
+                price(656_000_000L, "27", new BigDecimal("84.43"))));
+
+        // when
+        service.enrichRest(1L);
+
+        // then — 순서가 뒤집히면 AI가 공시가격을 '정보 없음'으로 본 채 판단한다
+        final InOrder order = inOrder(propertyRepository, llmRecommendationService);
+        order.verify(propertyRepository).update(any(Property.class));
+        order.verify(llmRecommendationService).ensureRecommendation(1L);
     }
 
     @Test
@@ -189,7 +209,7 @@ class PropertyEnrichmentServiceTest {
         givenProperty(property("서울혜화초등학교", new BigDecimal("84.9"), "102동"));
 
         // when
-        service.enrich(1L);
+        service.enrichCore(1L);
 
         // then
         verify(llmRecommendationService).markPending(1L);
@@ -202,7 +222,7 @@ class PropertyEnrichmentServiceTest {
         givenProperty(property("서울혜화초등학교", new BigDecimal("84.9"), "102동"));
 
         // when
-        service.enrich(1L);
+        service.enrichRest(1L);
 
         // then
         verify(referenceTransactionService).prefetch(1L);
