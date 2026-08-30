@@ -45,9 +45,9 @@ public final class LoanCalculator {
         final double annuityFactor = annuityFactor(monthlyRate, months);
 
         final long dsrCapacity = (long) (input.annualIncome() * params.dsrRatio().doubleValue());
-        final long existingLoanAnnual = Math.max(0L, input.existingLoan()) == 0L
-                ? 0L
-                : (long) (monthlyPaymentOf(Math.max(0L, input.existingLoan()), monthlyRate, months) * 12);
+        // 부채 종류마다 DSR 산정만기가 다르다 (설계 I92). 전부 30년 주담대로 보면
+        // 신용대출·마이너스통장의 부담이 실제보다 훨씬 작게 잡혀 한도가 부풀려진다
+        final long existingLoanAnnual = input.existingDebtAnnualPayment(monthlyRate * 12.0);
         final long available = Math.max(0L, dsrCapacity - existingLoanAnnual);
         final long dsrLimit = (long) (available / 12.0 * annuityFactor);
 

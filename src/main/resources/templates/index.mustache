@@ -255,6 +255,47 @@
                             </div>
                         </template>
                         <template x-if="profile">
+                        <!-- D3-1b 기존 부채 (설계 I92) -->
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">기존 부채</h4>
+                            <p class="settings-note">
+                                종류마다 DSR 산정만기가 달라 같은 금액이라도 부담이 다릅니다.
+                                마이너스통장은 쓴 금액이 아니라 <b>한도</b>를 넣어 주세요.
+                            </p>
+                            <template x-for="(d, i) in debtForm" :key="i">
+                                <div class="debt-row">
+                                    <select x-model="d.type">
+                                        <template x-for="o in debtTypes" :key="o.code">
+                                            <option :value="o.code" x-text="o.label"></option>
+                                        </template>
+                                    </select>
+                                    <span class="debt-amount">
+                                        <span class="money-hint" x-show="moneyHint(d.amount)"
+                                              x-text="moneyHint(d.amount)"></span>
+                                        <input type="number" min="0" x-model="d.amount" placeholder="0">
+                                    </span>
+                                    <button class="btn btn-xs" type="button" @click="removeDebt(i)">삭제</button>
+                                </div>
+                            </template>
+                            <div class="debt-actions">
+                                <button class="btn btn-xs" type="button" @click="addDebt()">항목 추가</button>
+                                <button class="btn btn-sm btn-primary" type="button" @click="saveDebts()"
+                                        :disabled="loading">저장</button>
+                            </div>
+                            <template x-if="debts.length > 0">
+                                <div class="debt-summary">
+                                    <template x-for="d in debts" :key="d.type">
+                                        <div class="debt-summary-row">
+                                            <span x-text="d.typeLabel"></span>
+                                            <span class="debt-term"
+                                                  x-text="d.interestOnly ? '이자만' : ('DSR ' + d.dsrYears + '년')"></span>
+                                            <b x-text="'연 ' + fmtWon(d.annualPayment)"></b>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+
                         <!-- D3-2 그룹 (설계 I89) -->
                         <template x-if="myGroup">
                         <div class="card profile-panel" style="margin-top:14px;">

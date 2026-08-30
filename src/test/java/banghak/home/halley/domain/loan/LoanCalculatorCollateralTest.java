@@ -1,6 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 import org.junit.jupiter.api.DisplayName;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -18,7 +19,7 @@ class LoanCalculatorCollateralTest {
         final LoanEstimateResult result = calculator.estimate(new LoanEstimateInput(
                 1_500_000_000L,
                 CollateralValuation.of(1_350_000_000L, CollateralSource.KB_PRICE),
-                200_000_000L, 500_000_000L, 0L, false, true), params);
+                200_000_000L, 500_000_000L, 0L, List.of(), false, true), params);
 
         // then — 13.5억 × 40% = 5.4억. 호가로 계산했다면 6억이 나왔을 것이다
         assertThat(result.ltvLimit()).isEqualTo(540_000_000L);
@@ -35,7 +36,7 @@ class LoanCalculatorCollateralTest {
         final LoanEstimateInput input = new LoanEstimateInput(
                 1_000_000_000L,
                 CollateralValuation.of(1_000_000_000L, CollateralSource.KB_PRICE),
-                200_000_000L, 500_000_000L, 0L, false, false);
+                200_000_000L, 500_000_000L, 0L, List.of(), false, false);
 
         // when
         final LoanEstimateResult result = calculator.estimate(input, params);
@@ -52,9 +53,9 @@ class LoanCalculatorCollateralTest {
         final CollateralValuation collateral =
                 CollateralValuation.of(1_000_000_000L, CollateralSource.KB_PRICE);
         final LoanEstimateResult without = calculator.estimate(new LoanEstimateInput(
-                1_000_000_000L, collateral, 200_000_000L, 500_000_000L, 0L, false, false), params);
+                1_000_000_000L, collateral, 200_000_000L, 500_000_000L, 0L, List.of(), false, false), params);
         final LoanEstimateResult with = calculator.estimate(new LoanEstimateInput(
-                1_000_000_000L, collateral, 200_000_000L, 500_000_000L, 0L, false, true), params);
+                1_000_000_000L, collateral, 200_000_000L, 500_000_000L, 0L, List.of(), false, true), params);
 
         // then
         assertThat(with.leaseDeduction()).isZero();
@@ -68,7 +69,7 @@ class LoanCalculatorCollateralTest {
         final LoanEstimateResult result = calculator.estimate(new LoanEstimateInput(
                 100_000_000L,
                 CollateralValuation.of(100_000_000L, CollateralSource.KB_PRICE),
-                200_000_000L, 500_000_000L, 0L, false, false), params);
+                200_000_000L, 500_000_000L, 0L, List.of(), false, false), params);
 
         // then
         assertThat(result.ltvLimit()).isZero();
@@ -83,7 +84,7 @@ class LoanCalculatorCollateralTest {
         final LoanEstimateResult result = calculator.estimate(new LoanEstimateInput(
                 1_000_000_000L,
                 new CollateralValuation(950_000_000L, CollateralSource.RECENT_TRADE, 2),
-                200_000_000L, 500_000_000L, 0L, false, true), params);
+                200_000_000L, 500_000_000L, 0L, List.of(), false, true), params);
 
         // then — 표본이 3건 미만이라 신뢰할 만하지 않다고 표시된다
         assertThat(result.collateralSource()).isEqualTo(CollateralSource.RECENT_TRADE);

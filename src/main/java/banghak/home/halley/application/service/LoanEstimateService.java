@@ -40,6 +40,8 @@ import banghak.home.halley.domain.loan.ProductType;
 import banghak.home.halley.domain.loan.RegulationParam;
 import banghak.home.halley.domain.finance.LoanProductType;
 import banghak.home.halley.domain.finance.MarketRate;
+import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
+import banghak.home.halley.domain.loan.ExistingDebt;
 import banghak.home.halley.domain.loan.RegulationParams;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -69,6 +71,7 @@ public class LoanEstimateService {
     private final LoanEstimateRepository loanEstimateRepository;
     private final RegulationNoticeService regulationNoticeService;
     private final MarketRateService marketRateService;
+    private final UserDebtRepository userDebtRepository;
     private final ObjectMapper objectMapper;
 
     public LoanEstimateService(PropertyAccessGuard propertyAccessGuard,
@@ -81,6 +84,7 @@ public class LoanEstimateService {
                                LoanEstimateRepository loanEstimateRepository,
                                RegulationNoticeService regulationNoticeService,
                                MarketRateService marketRateService,
+                               UserDebtRepository userDebtRepository,
                                ObjectMapper objectMapper) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
@@ -92,6 +96,7 @@ public class LoanEstimateService {
         this.loanEstimateRepository = loanEstimateRepository;
         this.regulationNoticeService = regulationNoticeService;
         this.marketRateService = marketRateService;
+        this.userDebtRepository = userDebtRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -102,6 +107,16 @@ public class LoanEstimateService {
      * 잡힙니다. 실제가 투기과열지구(0.4)라면 <b>한도가 배 가까이 부풀려집니다.</b> 값이 틀린 것보다
      * 틀렸는지 모르는 것이 위험하므로 결과에 붙여 보냅니다.
      */
+    /**
+     * 로그인 사용자의 종류별 기존 부채 (설계 I92).
+     *
+     * <p>비어 있으면 프로필의 단일 금액(`existingLoan`)이 주담대로 쓰입니다 —
+     * 아직 종류를 입력하지 않은 사용자의 부채가 사라지면 한도가 부풀려집니다.
+     */
+    private List<ExistingDebt> myDebts() {
+        return currentUser().map(u -> userDebtRepository.findByUserId(u.id())).orElseGet(List::of);
+    }
+
     private String zoneWarning() {
         if (regulationNoticeService.isTrustworthy()) {
             return null;
@@ -189,7 +204,7 @@ public class LoanEstimateService {
 
         final LoanEstimateResult result = new LoanCalculator(ltv.rate(), ltv.cap())
                 .estimate(new LoanEstimateInput(askingPrice, collateral, annualIncome, cash,
-                        existingLoan, firstHome, insured), withLtv(params, ltv));
+                        existingLoan, myDebts(), firstHome, insured), withLtv(params, ltv));
 
         loanEstimateRepository.save(new LoanEstimate(
                 null, propertyId, ProductType.MORTGAGE, ltv.rate(),

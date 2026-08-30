@@ -192,6 +192,16 @@ function halley() {
         signUpForm: { loginId: '', nickname: '', password: '' },
         signUpNickname: null,
         profileNickname: null,
+        debts: [],
+        debtForm: [],
+        debtTypes: [
+            { code: 'MORTGAGE', label: '주택담보대출' },
+            { code: 'CREDIT', label: '신용대출' },
+            { code: 'NEGATIVE_ACCOUNT', label: '마이너스통장 (한도)' },
+            { code: 'JEONSE', label: '전세자금대출' },
+            { code: 'OTHER_SECURED', label: '기타담보대출' },
+            { code: 'INSTALLMENT', label: '할부·리스' }
+        ],
         myGroup: null,
         groups: [],
         groupForm: { name: '' },
@@ -255,6 +265,7 @@ function halley() {
                 }
                 if (!setupPending) {
                     await this.loadMyGroup();
+                    await this.loadDebts();
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
@@ -487,6 +498,38 @@ function halley() {
             } else {
                 this.error = (body && body.message) || '그룹을 만들지 못했습니다';
             }
+        },
+
+        /** 종류별 기존 부채 (설계 I92). 연간 부담을 함께 보여 준다. */
+        async loadDebts() {
+            const { ok, body } = await this.request('/api/users/me/debts');
+            this.debts = ok && body ? body : [];
+            this.debtForm = this.debts.map(d => ({ type: d.type, amount: String(d.amount) }));
+        },
+
+        addDebt() {
+            this.debtForm.push({ type: 'CREDIT', amount: '' });
+        },
+
+        removeDebt(index) {
+            this.debtForm.splice(index, 1);
+        },
+
+        async saveDebts() {
+            const payload = this.debtForm
+                .filter(d => d.type && toNum(d.amount) > 0)
+                .map(d => ({ type: d.type, amount: toNum(d.amount) }));
+            const { ok, body } = await this.request('/api/users/me/debts', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!ok) {
+                this.error = (body && body.message) || '부채를 저장하지 못했습니다';
+                return;
+            }
+            this.debts = body || [];
+            this.debtForm = this.debts.map(d => ({ type: d.type, amount: String(d.amount) }));
         },
 
         async loadMyGroup() {

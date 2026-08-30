@@ -1,6 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 import org.junit.jupiter.api.DisplayName;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -54,7 +55,7 @@ class JeonseLoanCalculatorTest {
         final LoanEstimateResult asMortgage = new LoanCalculator(params.ltvRate(), params.totalCap())
                 .estimate(new LoanEstimateInput(1_000_000_000L,
                         CollateralValuation.of(1_000_000_000L, CollateralSource.ASKING_PRICE),
-                        50_000_000L, 0L, 0L, false, true), params);
+                        50_000_000L, 0L, 0L, List.of(), false, true), params);
         assertThat(result.dsrLimit()).isGreaterThan(asMortgage.dsrLimit());
     }
 

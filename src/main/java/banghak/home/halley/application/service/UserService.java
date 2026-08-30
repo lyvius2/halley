@@ -26,6 +26,11 @@ import banghak.home.halley.adapter.inbound.web.dto.WithdrawRequest;
 import banghak.home.halley.config.exception.AdminCannotWithdrawException;
 import banghak.home.halley.config.exception.InvalidPasswordException;
 import org.springframework.transaction.annotation.Transactional;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtRequest;
+import banghak.home.halley.adapter.inbound.web.dto.UserDebtResponse;
+import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
+import banghak.home.halley.domain.loan.ExistingDebt;
+import banghak.home.halley.domain.loan.RegulationParams;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
@@ -51,12 +56,14 @@ public class UserService {
     private final UserGroupRepository userGroupRepository;
     private final GroupService groupService;
     private final NicknameSnapshotWriter nicknameSnapshotWriter;
+    private final UserDebtRepository userDebtRepository;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
     private final ApplicationEventPublisher eventPublisher;
 
     public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
                        GroupService groupService, NicknameSnapshotWriter nicknameSnapshotWriter,
+                       UserDebtRepository userDebtRepository,
                        PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
@@ -64,6 +71,7 @@ public class UserService {
         this.userGroupRepository = userGroupRepository;
         this.groupService = groupService;
         this.nicknameSnapshotWriter = nicknameSnapshotWriter;
+        this.userDebtRepository = userDebtRepository;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
         this.eventPublisher = eventPublisher;
@@ -200,9 +208,41 @@ public class UserService {
         }
         nicknameSnapshotWriter.snapshot(me.id(), me.nickname());
         final Long groupId = me.groupId();
+        // 부채는 회원 정보다. 매물·코멘트와 달리 남길 이유가 없다 (규칙 16)
+        userDebtRepository.deleteByUserId(me.id());
         userRepository.delete(me.id());
         groupService.deleteIfEmpty(groupId);
         log.info("User withdrew. userId={}, groupId={}", me.id(), groupId);
+    }
+
+
+    /**
+     * 종류별 기존 부채 (설계 I92 · 로드맵 5단계).
+     *
+     * <p>연간 상환액을 함께 돌려줍니다 — 같은 1억이라도 신용대출이면 주담대의 서너 배로
+     * 잡히는데, 숫자만 보면 그 이유를 알 수 없습니다.
+     */
+    public List<UserDebtResponse> myDebts() {
+        final double rate = defaultAnnualRate();
+        return userDebtRepository.findByUserId(currentUserId()).stream()
+                .map(debt -> UserDebtResponse.from(debt, rate))
+                .toList();
+    }
+
+    @Transactional
+    public List<UserDebtResponse> replaceMyDebts(List<UserDebtRequest> requests) {
+        final Long me = currentUserId();
+        userDebtRepository.replaceAll(me, requests == null ? List.of() : requests.stream()
+                .filter(r -> r.type() != null && r.amount() != null)
+                .map(r -> new ExistingDebt(r.type(), r.amount()))
+                .toList());
+        return myDebts();
+    }
+
+    /** 부담을 보여 주기 위한 기준 금리. 실제 계산은 대출 산정이 시장 금리로 다시 한다(I81). */
+    private double defaultAnnualRate() {
+        return RegulationParams.defaults().interestRate().doubleValue()
+                + RegulationParams.defaults().stressRate().doubleValue();
     }
 
     public UserResponse create(CreateUserRequest request) {

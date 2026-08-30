@@ -1,6 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 import org.junit.jupiter.api.DisplayName;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +76,6 @@ class LoanCalculatorExistingLoanTest {
     private LoanEstimateInput input(long asking, long income, long cash, long existingLoan, boolean firstHome) {
         return new LoanEstimateInput(asking,
                 CollateralValuation.of(asking, CollateralSource.ASKING_PRICE),
-                income, cash, existingLoan, firstHome, true);
+                income, cash, existingLoan, List.of(), firstHome, true);
     }
 }
