@@ -17,6 +17,7 @@ import java.util.List;
  *                      한 덩어리로 보면 한도가 실제보다 크게 나온다
  * @param firstHome     생애최초 여부 — 취득세 감면에 쓴다
  * @param mortgageInsured MCI/MCG 가입 여부. 가입하면 방공제를 차감하지 않는다
+ * @param rateType      금리유형 (설계 I97). 스트레스 가산폭을 가른다 — 고정금리는 붙지 않는다
  */
 public record LoanEstimateInput(
         long askingPrice,
@@ -26,11 +27,13 @@ public record LoanEstimateInput(
         long existingLoan,
         List<ExistingDebt> existingDebts,
         boolean firstHome,
-        boolean mortgageInsured
+        boolean mortgageInsured,
+        RateType rateType
 ) {
 
     public LoanEstimateInput {
         existingDebts = existingDebts == null ? List.of() : List.copyOf(existingDebts);
+        rateType = rateType == null ? RateType.VARIABLE : rateType;
     }
 
     /**

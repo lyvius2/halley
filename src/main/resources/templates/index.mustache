@@ -1694,6 +1694,11 @@
                         <!-- 어디서 온 금리인지 안 보이면 사용자는 검증할 수 없다 (설계 I81) -->
                         <small class="loan-rate-source" x-show="loanResult.rateSource"
                                x-text="fmtRate(loanResult.monthlyRate) + ' · ' + loanResult.rateSource"></small>
+                        <!-- 한도는 스트레스 금리로 역산한다. 실제로 내는 돈과 다르다 (설계 I97) -->
+                        <small class="loan-rate-source" x-show="loanResult.dsrRate">
+                            한도 산정은 <b x-text="(loanResult.dsrRate * 100).toFixed(2) + '%'"></b>
+                            (스트레스 DSR · <span x-text="loanResult.rateTypeLabel"></span>)
+                        </small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>
@@ -1725,6 +1730,16 @@
                         <button class="help-dot" type="button"
                                 @click.prevent.stop="showMciHelp = !showMciHelp"
                                 :aria-expanded="showMciHelp" aria-label="MCI/MCG 설명">?</button>
+                    </label>
+                    <label class="loan-select" x-show="loanResult.productType === 'MORTGAGE'"
+                           title="만기까지 고정이면 금리가 오를 위험이 없어 스트레스가 붙지 않습니다">
+                        <span>금리유형</span>
+                        <select x-model="loanForm.rateType" @change="runLoanEstimate()">
+                            <option value="VARIABLE">변동금리</option>
+                            <option value="MIXED">혼합형(고정 후 변동)</option>
+                            <option value="PERIODIC">주기형</option>
+                            <option value="FIXED">고정금리</option>
+                        </select>
                     </label>
                     <label class="loan-select" x-show="loanResult.productType === 'MORTGAGE'"
                            title="규제지역과 함께 LTV 비율을 가릅니다">

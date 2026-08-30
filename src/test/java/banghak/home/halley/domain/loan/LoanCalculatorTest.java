@@ -70,6 +70,6 @@ class LoanCalculatorTest {
     private LoanEstimateInput input(long asking, long income, long cash, long existingLoan, boolean firstHome) {
         return new LoanEstimateInput(asking,
                 CollateralValuation.of(asking, CollateralSource.ASKING_PRICE),
-                income, cash, existingLoan, List.of(), firstHome, true);
+                income, cash, existingLoan, List.of(), firstHome, true, RateType.VARIABLE);
     }
 }

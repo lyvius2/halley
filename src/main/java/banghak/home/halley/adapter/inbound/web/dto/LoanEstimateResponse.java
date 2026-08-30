@@ -43,6 +43,9 @@ public record LoanEstimateResponse(
         Long usedCash,
         Long usedExistingLoan,
         Double monthlyRate,
+        /** DSR 한도를 역산할 때 쓴 연이율 (설계 I97). 실금리보다 높다 */
+        Double dsrRate,
+        String rateTypeLabel,
         Integer termMonths,
         /**
          * 금리 출처 한 줄 (설계 I81). `은행 12개 상품 변동금리 중앙값 (2026년 1월 공시)` 또는
@@ -84,13 +87,14 @@ public record LoanEstimateResponse(
                                                 long existingLoan, boolean insured,
                                                 RegulationZone zone, HouseOwnership ownership,
                                                 BigDecimal ltvRate, String ltvReason,
-                                                String zoneWarning, String rateSource) {
+                                                String zoneWarning, String rateSource,
+                                                String rateTypeLabel) {
         return new LoanEstimateResponse(
                 propertyId, ProductType.MORTGAGE, "주택담보대출",
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), false,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 askingPrice, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(), rateSource,
+                r.monthlyRate(), r.dsrMonthlyRate() * 12, rateTypeLabel, r.termMonths(), rateSource,
                 r.ltvLimit(), r.acquisitionTax(),
                 r.collateralValue(), r.collateralSource(), r.collateralSource().label(),
                 r.collateralSampleCount(), r.collateralReliable(),
@@ -107,7 +111,7 @@ public record LoanEstimateResponse(
                 r.finalLimit(), r.requiredCash(), r.monthlyPayment(), true,
                 r.dsrLimit(), r.dsrCapacity(), r.existingLoanAnnual(),
                 deposit, annualIncome, cash, existingLoan,
-                r.monthlyRate(), r.termMonths(), rateSource,
+                r.monthlyRate(), null, null, r.termMonths(), rateSource,
                 null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null,
                 r.guaranteeLimit(), r.guaranteeRate(), r.guaranteeCap());

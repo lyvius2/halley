@@ -51,9 +51,11 @@ class LoanCalculatorExistingLoanTest {
         final LoanEstimateResult result =
                 calculator.estimate(input(800_000_000L, 60_000_000L, 0L, 0L, false), params);
 
-        // then — 기본 프로파일: (4% + 1% 스트레스) / 12, 30년
+        // then — 슬라이더는 <b>실제로 내는 돈</b>을 다시 계산한다. 스트레스는 한도 역산에만
+        // 쓰이므로 여기 실리는 이율은 실금리(4%)다 (설계 I97)
         assertThat(result.termMonths()).isEqualTo(360);
-        assertThat(result.monthlyRate()).isEqualTo(0.05 / 12.0);
+        assertThat(result.monthlyRate()).isEqualTo(0.04 / 12.0);
+        assertThat(result.dsrMonthlyRate()).isGreaterThan(result.monthlyRate());
         // 최종 한도를 그 이율·기간으로 돌리면 응답의 월 상환액과 맞는다
         final double expected = result.finalLimit() * result.monthlyRate()
                 / (1 - Math.pow(1 + result.monthlyRate(), -result.termMonths()));
@@ -76,6 +78,6 @@ class LoanCalculatorExistingLoanTest {
     private LoanEstimateInput input(long asking, long income, long cash, long existingLoan, boolean firstHome) {
         return new LoanEstimateInput(asking,
                 CollateralValuation.of(asking, CollateralSource.ASKING_PRICE),
-                income, cash, existingLoan, List.of(), firstHome, true);
+                income, cash, existingLoan, List.of(), firstHome, true, RateType.VARIABLE);
     }
 }

@@ -42,6 +42,7 @@ import banghak.home.halley.domain.finance.LoanProductType;
 import banghak.home.halley.domain.finance.MarketRate;
 import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
 import banghak.home.halley.domain.loan.ExistingDebt;
+import banghak.home.halley.domain.loan.RateType;
 import banghak.home.halley.domain.loan.RegulationParams;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -168,7 +169,7 @@ public class LoanEstimateService {
                         params.ltvRate(), params.totalCap(), params.dsrRatio(),
                         rate.rate(), params.stressRate(), params.termYears(),
                         params.acquisitionTaxRate(), params.firstHomeDiscount(),
-                        params.leaseDeduction(), params.officialPriceRatio()))
+                        params.leaseDeduction(), params.officialPriceRatio(), params.stressApplyRatio()))
                 .orElse(params);
     }
 
@@ -190,6 +191,8 @@ public class LoanEstimateService {
                                                   Map<String, String> rawParams, RegulationParams params,
                                                   Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
+        // 금리유형이 스트레스 가산폭을 가른다 (설계 I97). 비우면 변동으로 본다
+        final RateType rateType = request.rateType() == null ? RateType.VARIABLE : request.rateType();
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
         // LTV는 호가가 아니라 담보가치에 매긴다 (설계 I64-1)
@@ -204,7 +207,7 @@ public class LoanEstimateService {
 
         final LoanEstimateResult result = new LoanCalculator(ltv.rate(), ltv.cap())
                 .estimate(new LoanEstimateInput(askingPrice, collateral, annualIncome, cash,
-                        existingLoan, myDebts(), firstHome, insured), withLtv(params, ltv));
+                        existingLoan, myDebts(), firstHome, insured, rateType), withLtv(params, ltv));
 
         loanEstimateRepository.save(new LoanEstimate(
                 null, propertyId, ProductType.MORTGAGE, ltv.rate(),
@@ -216,7 +219,7 @@ public class LoanEstimateService {
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
                 existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning(),
-                rateSource(marketRate, params));
+                rateSource(marketRate, params), rateType.label());
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
@@ -253,7 +256,7 @@ public class LoanEstimateService {
         return new RegulationParams(
                 ltv.rate(), ltv.cap(), params.dsrRatio(), params.interestRate(), params.stressRate(),
                 params.termYears(), params.acquisitionTaxRate(), params.firstHomeDiscount(),
-                params.leaseDeduction(), params.officialPriceRatio());
+                params.leaseDeduction(), params.officialPriceRatio(), params.stressApplyRatio());
     }
 
     /** 활성 프로파일의 원본 키·값. LTV 매트릭스처럼 레코드에 담기 어려운 값은 여기서 직접 읽는다. */
@@ -278,7 +281,8 @@ public class LoanEstimateService {
                 decimal(values, "tax.acquisitionRate", defaults.acquisitionTaxRate()),
                 decimal(values, "tax.firstHomeDiscount", defaults.firstHomeDiscount()),
                 longValue(values, "ltv.leaseDeduction", defaults.leaseDeduction()),
-                decimal(values, "valuation.officialPriceRatio", defaults.officialPriceRatio()));
+                decimal(values, "valuation.officialPriceRatio", defaults.officialPriceRatio()),
+                decimal(values, "loan.stressApplyRatio", defaults.stressApplyRatio()));
     }
 
     /**

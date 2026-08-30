@@ -42,7 +42,7 @@ class ExistingDebtTest {
         // given — 종류를 아직 입력하지 않은 사용자
         final LoanEstimateInput input = new LoanEstimateInput(
                 1_000_000_000L, null, 60_000_000L, 100_000_000L,
-                100_000_000L, List.of(), false, false);
+                100_000_000L, List.of(), false, false, RateType.VARIABLE);
 
         // when
         final long annual = input.existingDebtAnnualPayment(RATE);
@@ -61,7 +61,7 @@ class ExistingDebtTest {
                 1_000_000_000L, null, 60_000_000L, 100_000_000L,
                 999_000_000_000L,
                 List.of(new ExistingDebt(DebtType.CREDIT, 50_000_000L)),
-                false, false);
+                false, false, RateType.VARIABLE);
 
         // when
         final long annual = input.existingDebtAnnualPayment(RATE);
@@ -79,7 +79,7 @@ class ExistingDebtTest {
                 1_000_000_000L, null, 60_000_000L, 100_000_000L, 0L,
                 List.of(new ExistingDebt(DebtType.CREDIT, 30_000_000L),
                         new ExistingDebt(DebtType.INSTALLMENT, 12_000_000L)),
-                false, false);
+                false, false, RateType.VARIABLE);
 
         // when · then
         assertThat(input.existingDebtAnnualPayment(RATE)).isEqualTo(

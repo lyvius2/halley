@@ -65,7 +65,7 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, true, true, 0));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, true, true, 0, null));
 
         // then — 생애최초는 우대 LTV 80%가 붙지만 총액 상한 6억에 걸린다 (설계 I66)
         // 8억 × 80% = 6.4억 → 상한 6억. MCI 가입이라 방공제는 없다
@@ -91,7 +91,7 @@ class LoanEstimateServiceTest {
 
         // when — 생애최초 아님, 무주택
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 0));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 0, null));
 
         // then — 규제지역 등록이 없으면 비규제로 본다. 8억 × 70% = 5.6억
         assertThat(result.zone()).isEqualTo(RegulationZone.NORMAL);
@@ -108,11 +108,11 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse none = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 0));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 0, null));
         final LoanEstimateResponse one = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 1));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 1, null));
         final LoanEstimateResponse multi = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 3));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, 3, null));
 
         // then — 비규제 기준 무주택 70% / 1주택·다주택 60%
         assertThat(none.ltvLimit()).isGreaterThan(one.ltvLimit());
@@ -128,7 +128,7 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, null));
+                new LoanEstimateRequest(50_000_000L, 300_000_000L, null, false, true, null, null));
 
         // then
         assertThat(result.ownership()).isEqualTo(HouseOwnership.NONE);
@@ -143,7 +143,7 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(80_000_000L, 100_000_000L, null, false, false, 0));
+                new LoanEstimateRequest(80_000_000L, 100_000_000L, null, false, false, 0, null));
 
         // then — 전세는 소유권이 넘어오지 않아 취득세가 없고, 담보가 보증이라 방공제·LTV가 없다
         assertThat(result.productType()).isEqualTo(ProductType.JEONSE);
@@ -167,7 +167,7 @@ class LoanEstimateServiceTest {
 
         // when
         final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(80_000_000L, 300_000_000L, null, false, true, 0));
+                new LoanEstimateRequest(80_000_000L, 300_000_000L, null, false, true, 0, null));
 
         // then
         assertThat(result.productType()).isEqualTo(ProductType.MORTGAGE);
@@ -186,7 +186,7 @@ class LoanEstimateServiceTest {
 
         // when
         loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(80_000_000L, 100_000_000L, null, false, false, 0));
+                new LoanEstimateRequest(80_000_000L, 100_000_000L, null, false, false, 0, null));
 
         // then
         assertThat(loanEstimateRepository.findByPropertyId(property.id()))
