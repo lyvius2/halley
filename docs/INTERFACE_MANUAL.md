@@ -616,7 +616,7 @@ Content-Type: application/json
 **① 목록 — 현행 고시의 일련번호를 얻는다**
 
 ```
-GET http://www.law.go.kr/DRF/lawSearch.do
+GET https://www.law.go.kr/DRF/lawSearch.do
     ?OC={oc}&target=admrul&type=JSON&query=투기과열지구
 ```
 ```json
@@ -629,7 +629,7 @@ GET http://www.law.go.kr/DRF/lawSearch.do
 **② 본문 — 발령일자·공고번호와 첨부 링크**
 
 ```
-GET http://www.law.go.kr/DRF/lawService.do
+GET https://www.law.go.kr/DRF/lawService.do
     ?OC={oc}&target=admrul&type=JSON&ID=2100000281590
 ```
 ```json
@@ -637,13 +637,17 @@ GET http://www.law.go.kr/DRF/lawService.do
   "행정규칙기본정보": {"발령번호": "2026-883", "발령일자": "20260701",
                       "제개정구분명": "일부개정"},
   "첨부파일": {"첨부파일명": "국토교통부공고제2026-883호(투기과열지구 지정).pdf",
-              "첨부파일링크": "http://law.go.kr/flDownload.do?flSeq=166503271"}}}
+              "첨부파일링크": "https://www.law.go.kr/flDownload.do?flSeq=166503271"}}}
 ```
 
 **③ 첨부 PDF — 지정 현황표가 여기 있다**
 
+> ⚠️ **https로 부른다.** 응답의 `첨부파일링크`는 `http://law.go.kr/...`로 오는데 그대로 쓰면
+> 301에서 멈춘다. Feign은 프로토콜이 바뀌는 리다이렉트를 따라가지 않는다 — 실측에서
+> 이것 때문에 규제지역이 통째로 비었다. `flSeq`만 뽑아 https 베이스로 다시 만든다.
+
 ```
-GET http://law.go.kr/flDownload.do?flSeq=166503271
+GET https://www.law.go.kr/flDownload.do?flSeq=166503271
 ```
 
 ### 5.9.4 왜 PDF까지 받아야 하는가
@@ -724,7 +728,7 @@ GET http://law.go.kr/flDownload.do?flSeq=166503271
 |---|---|
 | 설정 키 | `fss.api-key` (`FSS_API_KEY`) |
 | 발급 | https://finlife.fss.or.kr → 오픈API → 인증키 신청 |
-| 기본 URL | `http://finlife.fss.or.kr/finlifeapi/{서비스명}.json` |
+| 기본 URL | `https://finlife.fss.or.kr/finlifeapi/{서비스명}.json` |
 
 ### 5.8.3 쓰는 API 세 가지
 
@@ -746,9 +750,12 @@ GET http://law.go.kr/flDownload.do?flSeq=166503271
 | `companySearch` | 금융회사 (홈페이지·콜센터·영업지역) |
 
 ```
-GET http://finlife.fss.or.kr/finlifeapi/mortgageLoanProductsSearch.json
+GET https://finlife.fss.or.kr/finlifeapi/mortgageLoanProductsSearch.json
     ?auth={key}&topFinGrpNo=020000&pageNo=1
 ```
+
+> ⚠️ **반드시 https로 부른다.** http는 307로 https에 넘기는데 Feign이 쓰는
+> `HttpURLConnection`은 **프로토콜이 바뀌는 리다이렉트를 따라가지 않는다.**
 
 ### 5.8.4 응답이 두 배열로 나뉜다
 

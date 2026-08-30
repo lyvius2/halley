@@ -85,7 +85,7 @@ public class RegulationNoticeService {
             final RegulationNoticeState state = noticeRepository.find(zone);
             final Optional<RegulationNotice> notice = lawNoticePort.fetchLatest(zone);
             if (notice.isEmpty()) {
-                fail(zone, state, "고시를 조회하지 못했습니다");
+                fail(zone, state, "고시 또는 첨부 지정현황을 읽지 못했습니다 (로그의 LawNoticeAdapter 참조)");
                 continue;
             }
             if (!state.isOutdatedBy(notice.get()) && state.seedStatus().isTrustworthy()) {
@@ -104,7 +104,7 @@ public class RegulationNoticeService {
         noticeRepository.save(running(state));
         final Optional<RegulationNotice> notice = lawNoticePort.fetchLatest(zone);
         if (notice.isEmpty()) {
-            fail(zone, state, "고시를 조회하지 못했습니다");
+            fail(zone, state, "고시 또는 첨부 지정현황을 읽지 못했습니다 (로그의 LawNoticeAdapter 참조)");
             return;
         }
         apply(zone, notice.get());

@@ -2412,6 +2412,35 @@ data.go.kr의 `국토교통부_토지이용규제정보서비스`(15058410)도 *
 | GET | `/api/properties/{id}/land-use` | 저장된 토지이용계획 |
 | POST | `/api/properties/{id}/land-use` | 다시 조회 |
 
+### I80. 외부 API는 https로 부른다 · **[확정 — 실측으로 드러난 버그]**
+
+기동 로그에서 규제지역 적재가 통째로 실패했습니다.
+
+```
+Law notice attachment download failed. flSeq=166503271,
+  cause=FeignException: [301 Moved Permanently] to [http://www.law.go.kr/flDownload.do]
+Regulated area seeding failed - loan limits may be overestimated.
+```
+
+**Feign이 쓰는 `HttpURLConnection`은 프로토콜이 바뀌는 리다이렉트를 따라가지 않습니다.**
+`http://` → `https://`는 자바가 보안상 자동으로 따라가지 않는 대표적인 경우입니다.
+제가 검증할 때 쓴 `curl -L`은 따라갔기 때문에 <b>실측에서도 드러나지 않았습니다.</b>
+
+같은 문제가 금감원에도 있었습니다 — `http://finlife.fss.or.kr`은 307로 넘깁니다.
+아직 서비스에 연결하지 않아 겉으로 드러나지 않았을 뿐, 붙이는 순간 첫 호출부터 실패했을
+것입니다.
+
+| | 증상 |
+|---|---|
+| 법제처 `flDownload.do` | 301 → 첨부 PDF 0바이트 → 규제지역 전멸 |
+| 금감원 `finlifeapi` | 307 → 상품 0건 |
+
+> **응답에 담겨 오는 링크를 그대로 쓰지 않습니다.** 법제처 `첨부파일링크`는 `http://`로
+> 오는데, `flSeq`만 뽑아 **https 베이스로 다시 만듭니다.** 외부가 주는 주소는 언제든
+> 프로토콜·호스트가 바뀔 수 있습니다.
+
+기동 로그 덕에 잡혔습니다 — 실패를 조용히 넘기지 않고 ERROR로 남긴 것(I73)이 값을 했습니다.
+
 ### I78. 축약 지역명은 정규화로 맞춘다 · **[확정 — LLM 설계 철회]**
 
 I73에서 `화성동탄` → 법정동코드 변환을 LLM에 맡기려 했습니다. **철회합니다.**

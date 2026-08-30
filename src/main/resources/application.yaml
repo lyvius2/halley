@@ -154,11 +154,12 @@ slack:
     sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
 
 # 법제처 국가법령정보 — 규제지역 고시 조회 (설계 I73). OC는 키가 아니라 이메일 ID다
+# base-url은 https여야 한다 — http는 301로 넘기는데 Feign이 프로토콜 전환을 안 따라간다
 law:
   oc: ${LAW_OC:}
-  base-url: http://www.law.go.kr
+  base-url: https://www.law.go.kr
 
 # 금융감독원 금융상품통합비교공시 — 주담대·전세 공시 금리 (설계 I77)
 fss:
   api-key: ${FSS_API_KEY:}
-  base-url: http://finlife.fss.or.kr/finlifeapi
+  base-url: https://finlife.fss.or.kr/finlifeapi
