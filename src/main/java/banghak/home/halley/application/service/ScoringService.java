@@ -84,11 +84,13 @@ public class ScoringService {
     private final SystemConfigRepository systemConfigRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ScoringLock scoringLock;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
 
     public ScoringService(ApplicationEventPublisher eventPublisher,
                           ScoringLock scoringLock,
+                          PropertyAccessGuard propertyAccessGuard,
                           PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
@@ -106,6 +108,7 @@ public class ScoringService {
                           List<CriterionScorer> scorers) {
         this.eventPublisher = eventPublisher;
         this.scoringLock = scoringLock;
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
@@ -124,9 +127,8 @@ public class ScoringService {
     }
 
     public List<ScoredPropertyResponse> list(DealType dealType) {
-        final List<Property> properties = dealType == null
-                ? propertyRepository.findAll()
-                : propertyRepository.findByDealType(dealType);
+        // admin은 전부, 회원은 자기 그룹만 (설계 I87)
+        final List<Property> properties = visibleProperties(dealType);
         final Map<String, BigDecimal> weights = loadWeights();
         final Collator korean = Collator.getInstance(Locale.KOREAN);
         return properties.stream()
@@ -153,9 +155,28 @@ public class ScoringService {
     }
 
     public ScoredPropertyResponse getScored(Long propertyId) {
-        final Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
-        return ensureScored(property, loadWeights());
+        return ensureScored(propertyAccessGuard.require(propertyId), loadWeights());
+    }
+
+    /**
+     * 화면에 보일 매물 (설계 I87).
+     *
+     * <p>admin은 모든 그룹을 봅니다. 회원은 자기 그룹만 보며, <b>그룹이 없으면 아무것도
+     * 보지 않습니다</b> — 그룹 없는 회원은 정상 상태가 아니므로 빈 목록이 맞습니다.
+     */
+    private List<Property> visibleProperties(DealType dealType) {
+        if (propertyAccessGuard.isAdmin()) {
+            return dealType == null
+                    ? propertyRepository.findAll()
+                    : propertyRepository.findByDealType(dealType);
+        }
+        final Long groupId = propertyAccessGuard.currentGroupId().orElse(null);
+        if (groupId == null) {
+            return List.of();
+        }
+        return dealType == null
+                ? propertyRepository.findByGroupId(groupId)
+                : propertyRepository.findByGroupIdAndDealType(groupId, dealType);
     }
 
     @Transactional

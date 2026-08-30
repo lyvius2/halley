@@ -37,7 +37,7 @@ class AdminSettingsApiIntegrationTest {
     void adminSettingsFlow() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings", "settings-admin", "password1!", UserRole.ADMIN,
+                "settings", "settings-admin", null, "password1!", UserRole.ADMIN,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)
@@ -70,7 +70,7 @@ class AdminSettingsApiIntegrationTest {
     void memberForbidden() throws Exception {
         // given
         userService.create(new CreateUserRequest(
-                "settings-m", "settings-member", "password1!", UserRole.MEMBER,
+                "settings-m", "settings-member", null, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
         final MockHttpSession session = new MockHttpSession();
         mockMvc.perform(post("/api/auth/login").session(session)

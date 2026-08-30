@@ -22,6 +22,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.LO
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ENABLED;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.MUST_CHANGE_PASSWORD;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.GROUP_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.NICKNAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.PASSWORD_HASH;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.UserTable.ROLE;
@@ -44,6 +45,7 @@ public class UserRepository {
         Long id = dsl.insertInto(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
+                .set(GROUP_ID, user.groupId())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
@@ -64,7 +66,7 @@ public class UserRepository {
         return new User(
                 id,
                 user.loginId(),
-                user.nickname(),
+                user.nickname(), user.groupId(),
                 user.passwordHash(),
                 user.role(),
                 user.workplaceName(),
@@ -85,6 +87,7 @@ public class UserRepository {
         dsl.update(TABLE)
                 .set(LOGIN_ID, user.loginId())
                 .set(NICKNAME, user.nickname())
+                .set(GROUP_ID, user.groupId())
                 .set(PASSWORD_HASH, user.passwordHash())
                 .set(ROLE, user.role().name())
                 .set(WORKPLACE_NAME, user.workplaceName())
@@ -141,6 +144,7 @@ public class UserRepository {
                 r.get(ID),
                 r.get(LOGIN_ID),
                 r.get(NICKNAME),
+                r.get(GROUP_ID),
                 r.get(PASSWORD_HASH),
                 r.get(ROLE) == null ? null : UserRole.valueOf(r.get(ROLE)),
                 r.get(WORKPLACE_NAME),

@@ -63,6 +63,7 @@ class PropertyRepositoryTest {
                 saved.rawPasteText(), saved.parserVersion(), saved.parseConfidence(),
                 saved.isDraft(), saved.listingStatus(), saved.active(),
                 saved.lastCheckedAt(), saved.checkFailStreak(), saved.soldDetectedAt(),
+                saved.groupId(), saved.createdByNickname(),
                 saved.createdBy(), saved.createdAt()));
 
         // then
@@ -109,6 +110,6 @@ class PropertyRepositoryTest {
                 null, null, null, 3, null, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
-                null, 0, null, null, null);
+                null, 0, null, 1L, "테스터", null, null);
     }
 }

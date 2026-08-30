@@ -38,15 +38,18 @@ public class PropertyCommentService {
     private static final int MAX_LENGTH = 2000;
 
     private final PropertyCommentRepository commentRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
 
     private final ApplicationEventPublisher eventPublisher;
 
-    public PropertyCommentService(PropertyCommentRepository commentRepository,
+    public PropertyCommentService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyCommentRepository commentRepository,
                                   ApplicationEventPublisher eventPublisher,
                                   PropertyRepository propertyRepository,
                                   UserRepository userRepository) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.commentRepository = commentRepository;
         this.eventPublisher = eventPublisher;
         this.propertyRepository = propertyRepository;
@@ -118,7 +121,7 @@ public class PropertyCommentService {
     }
 
     private void requireProperty(Long propertyId) {
-        propertyRepository.findById(propertyId).orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
     }
 
     private Map<Long, String> nicknames() {

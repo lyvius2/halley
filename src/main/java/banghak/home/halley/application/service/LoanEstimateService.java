@@ -60,6 +60,7 @@ public class LoanEstimateService {
     private static final String DEFAULT_PROFILE = "2025-10-15";
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
@@ -70,7 +71,8 @@ public class LoanEstimateService {
     private final MarketRateService marketRateService;
     private final ObjectMapper objectMapper;
 
-    public LoanEstimateService(PropertyRepository propertyRepository,
+    public LoanEstimateService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                                ReferenceTransactionRepository referenceTransactionRepository,
                                RegulatedAreaService regulatedAreaService,
                                UserRepository userRepository,
@@ -80,6 +82,7 @@ public class LoanEstimateService {
                                RegulationNoticeService regulationNoticeService,
                                MarketRateService marketRateService,
                                ObjectMapper objectMapper) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.regulatedAreaService = regulatedAreaService;
@@ -113,8 +116,7 @@ public class LoanEstimateService {
      * <b>전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.</b>
      */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {
-        final Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property property = propertyAccessGuard.require(propertyId);
         final long price = property.priceDeposit() == null ? 0L : property.priceDeposit();
         final Map<String, String> rawParams = loadRawParams();
         final boolean jeonse = property.dealType() != DealType.SALE;
@@ -223,8 +225,7 @@ public class LoanEstimateService {
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         return loanEstimateRepository.findByPropertyId(propertyId).stream()
                 .map(e -> new LoanEstimateHistoryResponse(
                         e.propertyId(), e.ltvLimit(), e.dsrLimit(), e.finalLimit(),

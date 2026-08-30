@@ -16,6 +16,10 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.event.WorkplacesChangedEvent;
 import banghak.home.halley.config.HalleyUserDetails;
 import org.springframework.context.ApplicationEventPublisher;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.domain.group.GroupNameGenerator;
+import banghak.home.halley.domain.group.UserGroup;
+import banghak.home.halley.config.exception.GroupNotFoundException;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
@@ -36,14 +40,17 @@ public class UserService {
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%";
 
     private final UserRepository userRepository;
+    private final UserGroupRepository userGroupRepository;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
     private final ApplicationEventPublisher eventPublisher;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+    public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
+                       PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
         this.userRepository = userRepository;
+        this.userGroupRepository = userGroupRepository;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
         this.eventPublisher = eventPublisher;
@@ -68,7 +75,7 @@ public class UserService {
                 ? request.availableBudget() : user.availableBudget();
 
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), nickname, user.passwordHash(), user.role(),
+                user.id(), user.loginId(), nickname,null, user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
                 user.mustChangePassword(), newBudget,
                 request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
@@ -107,6 +114,29 @@ public class UserService {
         return id;
     }
 
+
+    /**
+     * 회원이 속할 그룹을 정한다 (설계 I87).
+     *
+     * <p><b>회원은 반드시 어느 그룹엔가 속합니다.</b> 그룹 없는 회원은 매물을 등록할 수도,
+     * 볼 수도 없어 아무것도 못 하는 상태가 됩니다. admin이 지정하지 않았으면 새 그룹을
+     * 만들어 넣습니다 — 이름은 무작위 한국어이고 나중에 그룹의 누구나 바꿉니다(규칙 14).
+     *
+     * <p>admin은 어느 그룹에도 속하지 않습니다(규칙 5).
+     */
+    private Long resolveGroupId(UserRole role, Long requested) {
+        if (role == UserRole.ADMIN) {
+            return null;
+        }
+        if (requested != null) {
+            return userGroupRepository.findById(requested)
+                    .map(UserGroup::id)
+                    .orElseThrow(GroupNotFoundException::new);
+        }
+        return userGroupRepository.save(
+                new UserGroup(null, GroupNameGenerator.generate(), null, Instant.now())).id();
+    }
+
     public UserResponse create(CreateUserRequest request) {
         if (userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
@@ -118,6 +148,8 @@ public class UserService {
                 null,
                 request.loginId(),
                 request.nickname(),
+                resolveGroupId(request.role() == null ? UserRole.MEMBER : request.role(),
+                        request.groupId()),
                 passwordEncoder.encode(request.password()),
                 request.role() == null ? UserRole.MEMBER : request.role(),
                 request.workplaceName(),
@@ -146,7 +178,7 @@ public class UserService {
         final User updated = userRepository.update(new User(
                 user.id(),
                 request.loginId(),
-                request.nickname(),
+                request.nickname(), user.groupId(),
                 user.passwordHash(),
                 user.role(),
                 request.workplaceName(),
@@ -191,7 +223,7 @@ public class UserService {
         }
         final Instant now = Instant.now();
         final User updated = userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(), user.passwordHash(), user.role(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(), user.passwordHash(), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 user.mustChangePassword(), user.availableBudget(),
                 user.annualIncomeOrZero(), user.existingLoanOrZero(), enabled,
@@ -209,7 +241,7 @@ public class UserService {
         final User user = get(id);
         final String temporaryPassword = randomPassword();
         userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(),
                 passwordEncoder.encode(temporaryPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 true, user.availableBudget(),

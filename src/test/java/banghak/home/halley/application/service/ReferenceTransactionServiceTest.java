@@ -8,6 +8,11 @@ import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +44,23 @@ class ReferenceTransactionServiceTest {
                     // 면적은 같지만 단지가 다르다 — 예전 규칙은 이걸 받아들여 값을 왜곡했다 (설계 I71)
                     new ReferenceTrade("옆단지자이", 1_800_000_000L, new BigDecimal("84.90"), 9, LocalDate.of(2026, 7, 20)));
         }
+    }
+
+    @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
     }
 
     @Autowired

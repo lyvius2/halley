@@ -282,7 +282,7 @@ class ComparativeAnalysisServiceTest {
 
     private void givenUsers() {
         when(userRepository.findAll()).thenReturn(List.of(
-                new User(1L, "login1", "앨리스", "hash", UserRole.MEMBER,
+                new User(1L, "login1", "앨리스",null, "hash", UserRole.MEMBER,
                         "강남역", new BigDecimal("37.49"), new BigDecimal("127.02"),
                         false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now())));
     }
@@ -303,6 +303,6 @@ class ComparativeAnalysisServiceTest {
                 null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 draft, active ? ListingStatus.ACTIVE : ListingStatus.SOLD_OUT, active,
-                null, 0, null, 1L, Instant.now());
+                null, 0, null,null,null, 1L, Instant.now());
     }
 }

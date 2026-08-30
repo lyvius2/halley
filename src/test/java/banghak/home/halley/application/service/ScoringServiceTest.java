@@ -17,6 +17,11 @@ import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.scoring.TransitResult;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -79,6 +84,23 @@ class ScoringServiceTest {
     private PropertyEnrichmentService propertyEnrichmentService;
 
     @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
+    }
+
+    @Autowired
     private ScoringService scoringService;
 
     @Autowired
@@ -98,7 +120,7 @@ class ScoringServiceTest {
     void listSortedAndSeparatedByDealType() {
         // given
         userService.create(new CreateUserRequest(
-                "budget", "예산보유자", "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L, 60_000_000L, 0L));
+                "budget", "예산보유자", null, "pw12345!", UserRole.MEMBER, null, null, null, 500_000_000L, 60_000_000L, 0L));
         final PropertyResponse cheap = propertyService.create(request("싼 매물", DealType.SALE, 300_000_000L));
         final PropertyResponse expensive = propertyService.create(request("비싼 매물", DealType.SALE, 800_000_000L));
         final PropertyResponse jeonse = propertyService.create(request("전세 매물", DealType.JEONSE, 400_000_000L));

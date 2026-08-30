@@ -38,7 +38,7 @@ class UserServiceTest {
     void createAndList() {
         // given
         final CreateUserRequest request = new CreateUserRequest(
-                "member1", "member1", "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L, null, null);
+                "member1", "member1", null, "pw12345!", UserRole.MEMBER, "회사", null, null, 500_000_000L, null, null);
 
         // when
         final UserResponse created = userService.create(request);
@@ -54,12 +54,12 @@ class UserServiceTest {
     @DisplayName("중복 아이디로 생성하면 DuplicateLoginIdException이 발생한다")
     void createDuplicateLoginIdFails() {
         // given
-        userService.create(new CreateUserRequest("same-id", "id-user1", "pw12345!", null, null, null, null, null, null, null));
+        userService.create(new CreateUserRequest("same-id", "id-user1", null, "pw12345!", null, null, null, null, null, null, null));
 
         // when
         final DuplicateLoginIdException ex = assertThrows(
                 DuplicateLoginIdException.class,
-                () -> userService.create(new CreateUserRequest("same-id", "id-user2", "pw12345!", null, null, null, null, null, null, null)));
+                () -> userService.create(new CreateUserRequest("same-id", "id-user2", null, "pw12345!", null, null, null, null, null, null, null)));
 
         // then
         assertThat(ex.getCode()).isEqualTo("LOGIN_ID_DUPLICATED");
@@ -70,7 +70,7 @@ class UserServiceTest {
     void update() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "update", "update-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "update", "update-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final UserResponse updated = userService.update(created.id(), new UpdateUserRequest(
@@ -87,7 +87,7 @@ class UserServiceTest {
     void resetPassword() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "reset", "reset-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "reset", "reset-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         final ResetPasswordResponse reset = userService.resetPassword(created.id());
@@ -102,7 +102,7 @@ class UserServiceTest {
     void meAndWorkplace() {
         // given
         userService.create(new CreateUserRequest(
-                "me", "프로필", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "me", "프로필", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final User user = userRepository.findByLoginId("me").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);
         SecurityContextHolder.getContext().setAuthentication(
@@ -128,7 +128,7 @@ class UserServiceTest {
     void delete() {
         // given
         final UserResponse created = userService.create(new CreateUserRequest(
-                "delete", "delete-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "delete", "delete-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
         userService.delete(created.id());

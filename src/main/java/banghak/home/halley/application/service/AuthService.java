@@ -65,7 +65,7 @@ public class AuthService {
                 .orElseThrow(NotFoundUserException::new);
 
         userRepository.update(new User(
-                user.id(), user.loginId(), user.nickname(),
+                user.id(), user.loginId(), user.nickname(), user.groupId(),
                 passwordEncoder.encode(newPassword), user.role(),
                 user.workplaceName(), user.workplaceLat(), user.workplaceLng(),
                 false, user.availableBudget(),

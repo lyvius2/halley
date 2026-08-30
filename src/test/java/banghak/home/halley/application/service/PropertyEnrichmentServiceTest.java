@@ -198,6 +198,6 @@ class PropertyEnrichmentServiceTest {
                 schoolName, schoolName == null ? null : 6, schoolName == null ? null : SchoolSource.PASTE,
                 null, null, null,
                 SourceType.PASTE, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null,null,null, 1L, Instant.now());
     }
 }

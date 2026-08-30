@@ -47,6 +47,7 @@ public class ItineraryService {
     private static final int UNREACHABLE_MINUTES = 999;
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyVisitPlanRepository propertyVisitPlanRepository;
     private final VisitPlanStopRepository visitPlanStopRepository;
     private final KakaoDirectionsPort kakaoDirectionsPort;
@@ -56,7 +57,8 @@ public class ItineraryService {
 
     private final StartLocationCache startLocationCache;
 
-    public ItineraryService(PropertyRepository propertyRepository,
+    public ItineraryService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                             PropertyVisitPlanRepository propertyVisitPlanRepository,
                             VisitPlanStopRepository visitPlanStopRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
@@ -64,6 +66,7 @@ public class ItineraryService {
                             TravelTimeCache travelTimeCache,
                             ItineraryOptimizer optimizer,
                             StartLocationCache startLocationCache) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyVisitPlanRepository = propertyVisitPlanRepository;
         this.visitPlanStopRepository = visitPlanStopRepository;
@@ -155,7 +158,7 @@ public class ItineraryService {
 
     private List<Property> loadWithCoords(List<Long> propertyIds) {
         return propertyIds.stream()
-                .map(id -> propertyRepository.findById(id).orElseThrow(NotFoundListingsException::new))
+                .map(id -> propertyAccessGuard.require(id))
                 .filter(p -> p.lat() != null && p.lng() != null)
                 .toList();
     }

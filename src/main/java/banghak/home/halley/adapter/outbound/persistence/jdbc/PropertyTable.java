@@ -70,6 +70,9 @@ public final class PropertyTable {
     public static final Field<OffsetDateTime> LAST_CHECKED_AT = field(name(T, "last_checked_at"), OffsetDateTime.class);
     public static final Field<Integer> CHECK_FAIL_STREAK = field(name(T, "check_fail_streak"), Integer.class);
     public static final Field<OffsetDateTime> SOLD_DETECTED_AT = field(name(T, "sold_detected_at"), OffsetDateTime.class);
+    public static final Field<Long> GROUP_ID = field(name(T, "group_id"), Long.class);
+    public static final Field<String> CREATED_BY_NICKNAME =
+            field(name(T, "created_by_nickname"), String.class);
     public static final Field<Long> CREATED_BY = field(name(T, "created_by"), Long.class);
     public static final Field<OffsetDateTime> CREATED_AT = field(name(T, "created_at"), OffsetDateTime.class);
 

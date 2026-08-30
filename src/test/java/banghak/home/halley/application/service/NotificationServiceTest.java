@@ -12,6 +12,10 @@ import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.support.GroupTestSupport;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +43,23 @@ class NotificationServiceTest {
         SlackPort slackPort() {
             return text -> !fail.get();
         }
+    }
+
+    @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
     }
 
     @Autowired
@@ -75,7 +96,7 @@ class NotificationServiceTest {
     void sendPropertyCreatedRecordsSent() {
         // given
         userService.create(new CreateUserRequest(
-                "notify", "notify-user", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                "notify", "notify-user", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         final var property = propertyService.create(request("알림 테스트"));
 
         // when

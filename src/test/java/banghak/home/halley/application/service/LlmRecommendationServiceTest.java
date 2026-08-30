@@ -339,7 +339,7 @@ class LlmRecommendationServiceTest {
         when(propertyRepository.findById(1L)).thenReturn(Optional.of(property()));
         when(userRepository.findAll()).thenReturn(List.of(
                 user(1L, "앨리스", "강남역"),
-                new User(2L, "login2", "밥", "hash", UserRole.MEMBER,
+                new User(2L, "login2", "밥",null, "hash", UserRole.MEMBER,
                         "판교역", null, null, false, 300_000_000L, 60_000_000L, 0L,
                         true, null, null, Instant.now())));
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
@@ -503,7 +503,7 @@ class LlmRecommendationServiceTest {
     }
 
     private User user(Long id, String nickname, String workplace) {
-        return new User(id, "login" + id, nickname, "hash", UserRole.MEMBER,
+        return new User(id, "login" + id, nickname,null, "hash", UserRole.MEMBER,
                 workplace, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 false, 300_000_000L, 60_000_000L, 0L, true, null, null, Instant.now());
     }
@@ -517,6 +517,6 @@ class LlmRecommendationServiceTest {
                 null, null, null, null, null,
                 "서울혜화초등학교", 6, null, null, null, null,
                 SourceType.PASTE, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null,null,null, 1L, Instant.now());
     }
 }

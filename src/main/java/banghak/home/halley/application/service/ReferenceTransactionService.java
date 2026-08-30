@@ -33,14 +33,17 @@ public class ReferenceTransactionService {
     private static final int MIN_NAME_LENGTH = 2;
 
     private final PropertyRepository propertyRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final MinistryReferencePort ministryReferencePort;
     private final LegalDongCodeService legalDongCodeService;
 
-    public ReferenceTransactionService(PropertyRepository propertyRepository,
+    public ReferenceTransactionService(PropertyAccessGuard propertyAccessGuard,
+                                  PropertyRepository propertyRepository,
                                        ReferenceTransactionRepository referenceTransactionRepository,
                                        MinistryReferencePort ministryReferencePort,
                                        LegalDongCodeService legalDongCodeService) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.ministryReferencePort = ministryReferencePort;
@@ -48,8 +51,7 @@ public class ReferenceTransactionService {
     }
 
     public ReferenceCardResponse getReferences(Long propertyId, String legalDongCode, String dealMonth) {
-        final Property property = propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+        final Property property = propertyAccessGuard.require(propertyId);
 
         final List<ReferenceTransaction> cached = referenceTransactionRepository.findByPropertyId(propertyId);
         if (!cached.isEmpty()) {

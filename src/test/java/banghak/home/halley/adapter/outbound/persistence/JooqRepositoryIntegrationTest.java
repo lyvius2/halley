@@ -108,7 +108,7 @@ class JooqRepositoryIntegrationTest {
                 new BigDecimal("1.0"), 300, "중앙난방", 5, 1_350_000_000L, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.PASTE, "https://example.com", "12345", "raw", "v1",
                 objectMapper.createObjectNode().put("price", "EXACT"),
-                false, ListingStatus.ACTIVE, true, null, 0, null, null, null));
+                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, "테스터", null, null));
 
         Property found = propertyRepository.findById(saved.id()).orElseThrow();
         assertThat(found.name()).isEqualTo("독립문삼호");

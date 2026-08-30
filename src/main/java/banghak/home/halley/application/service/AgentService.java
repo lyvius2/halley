@@ -20,12 +20,15 @@ import java.util.List;
 public class AgentService {
 
     private final AgentRepository agentRepository;
+    private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyAgentRepository propertyAgentRepository;
     private final PropertyRepository propertyRepository;
 
-    public AgentService(AgentRepository agentRepository,
+    public AgentService(PropertyAccessGuard propertyAccessGuard,
+                                  AgentRepository agentRepository,
                         PropertyAgentRepository propertyAgentRepository,
                         PropertyRepository propertyRepository) {
+        this.propertyAccessGuard = propertyAccessGuard;
         this.agentRepository = agentRepository;
         this.propertyAgentRepository = propertyAgentRepository;
         this.propertyRepository = propertyRepository;
@@ -61,7 +64,7 @@ public class AgentService {
 
     @Transactional
     public List<PropertyAgentResponse> linkAgents(Long propertyId, List<PropertyAgentLink> links) {
-        propertyRepository.findById(propertyId).orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         propertyAgentRepository.deleteByPropertyId(propertyId);
         if (links != null) {
             for (final PropertyAgentLink link : links) {
@@ -106,7 +109,7 @@ public class AgentService {
     }
 
     public List<PropertyAgentResponse> propertyAgents(Long propertyId) {
-        propertyRepository.findById(propertyId).orElseThrow(NotFoundListingsException::new);
+        propertyAccessGuard.require(propertyId);
         return propertyAgentRepository.findByPropertyId(propertyId).stream()
                 .sorted(Comparator.comparing(PropertyAgent::isPrimary).reversed()
                         .thenComparing(PropertyAgent::agentId))

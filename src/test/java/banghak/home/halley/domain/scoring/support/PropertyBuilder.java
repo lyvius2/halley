@@ -79,6 +79,6 @@ public final class PropertyBuilder {
                 parkingPerHousehold, null, null, buildingCount, null, null, null, null, null, null, null, null, null, null, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true,
-                null, 0, null, null, null);
+                null, 0, null, 1L, "테스터", null, null);
     }
 }

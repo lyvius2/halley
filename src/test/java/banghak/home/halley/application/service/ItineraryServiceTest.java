@@ -19,6 +19,8 @@ import banghak.home.halley.domain.user.UserRole;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.support.GroupTestSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -63,6 +65,23 @@ class ItineraryServiceTest {
     }
 
     @Autowired
+    private UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private UserRepository groupTestUserRepository;
+
+    /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    @BeforeEach
+    void loginAsGroupMember() {
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+    }
+
+    @AfterEach
+    void clearLogin() {
+        GroupTestSupport.logout();
+    }
+
+    @Autowired
     private StubConfig stubConfig;
 
     /**
@@ -89,7 +108,7 @@ class ItineraryServiceTest {
         stubConfig.transitCalls.set(0);
         if (userRepository.findByLoginId("itinerary").isEmpty()) {
             userService.create(new CreateUserRequest(
-                    "itinerary", "임장자", "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
+                    "itinerary", "임장자", null, "pw12345!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
         }
         final User user = userRepository.findByLoginId("itinerary").orElseThrow();
         final HalleyUserDetails details = new HalleyUserDetails(user);

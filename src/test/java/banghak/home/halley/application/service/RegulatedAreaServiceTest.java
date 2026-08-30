@@ -144,6 +144,6 @@ class RegulatedAreaServiceTest {
                 null, null, null, null, null,
                 null, null, null, pnu, null, null,
                 SourceType.MANUAL, null, null, null, null, null,
-                false, ListingStatus.ACTIVE, true, null, 0, null, 1L, Instant.now());
+                false, ListingStatus.ACTIVE, true, null, 0, null,null,null, 1L, Instant.now());
     }
 }

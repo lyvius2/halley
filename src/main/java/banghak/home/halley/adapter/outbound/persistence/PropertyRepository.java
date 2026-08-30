@@ -30,6 +30,8 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CHECK_FAIL_STREAK;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.COMPREHENSIVE_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CREATED_AT;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.GROUP_ID;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CREATED_BY_NICKNAME;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.CREATED_BY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DEAL_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DIRECTION;
@@ -140,6 +142,8 @@ public class PropertyRepository {
                         .set(LAST_CHECKED_AT, toOffset(property.lastCheckedAt()))
                         .set(CHECK_FAIL_STREAK, property.checkFailStreak())
                         .set(SOLD_DETECTED_AT, toOffset(property.soldDetectedAt()))
+                        .set(GROUP_ID, property.groupId())
+                        .set(CREATED_BY_NICKNAME, property.createdByNickname())
                         .set(CREATED_BY, property.createdBy())
                         .returningResult(ID)
                         .fetchOne())
@@ -198,7 +202,9 @@ public class PropertyRepository {
                 .set(LAST_CHECKED_AT, toOffset(property.lastCheckedAt()))
                 .set(CHECK_FAIL_STREAK, property.checkFailStreak())
                 .set(SOLD_DETECTED_AT, toOffset(property.soldDetectedAt()))
-                .set(CREATED_BY, property.createdBy())
+                .set(GROUP_ID, property.groupId())
+                        .set(CREATED_BY_NICKNAME, property.createdByNickname())
+                        .set(CREATED_BY, property.createdBy())
                 .where(ID.eq(property.id()))
                 .execute();
         return findById(property.id()).orElseThrow();
@@ -214,6 +220,29 @@ public class PropertyRepository {
     /** 채점 버전 확인용 — 전체 레코드를 읽지 않는다 (설계 I85). */
     public List<Long> findAllIds() {
         return dsl.select(ID).from(TABLE).orderBy(ID.asc()).fetch(ID);
+    }
+
+    /** 한 그룹의 매물만 (설계 I87). 회원은 자기 그룹 밖을 볼 수 없다. */
+    public List<Property> findByGroupId(Long groupId) {
+        return dsl.selectFrom(TABLE)
+                .where(GROUP_ID.eq(groupId))
+                .orderBy(ID.desc())
+                .fetch()
+                .map(this::map);
+    }
+
+    public List<Property> findByGroupIdAndDealType(Long groupId, DealType dealType) {
+        return dsl.selectFrom(TABLE)
+                .where(GROUP_ID.eq(groupId))
+                .and(DEAL_TYPE.eq(dealType.name()))
+                .orderBy(ID.desc())
+                .fetch()
+                .map(this::map);
+    }
+
+    /** 그룹이 사라질 때 그 그룹의 매물도 함께 지운다 (설계 I87 · 규칙 4). */
+    public void deleteByGroupId(Long groupId) {
+        dsl.deleteFrom(TABLE).where(GROUP_ID.eq(groupId)).execute();
     }
 
     public List<Property> findAll() {
@@ -316,6 +345,8 @@ public class PropertyRepository {
                 toInstant(r.get(LAST_CHECKED_AT)),
                 r.get(CHECK_FAIL_STREAK),
                 toInstant(r.get(SOLD_DETECTED_AT)),
+                r.get(GROUP_ID),
+                r.get(CREATED_BY_NICKNAME),
                 r.get(CREATED_BY),
                 toInstant(r.get(CREATED_AT))
         );
