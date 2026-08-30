@@ -235,7 +235,18 @@ public class LlmRecommendationService {
         jobCache.markRunning(key);
         boolean completed = false;
         try {
+            // 요청을 보낸 사실 자체를 남긴다 (설계 I107). 응답이 수십 초 걸려서,
+            // 이 줄이 없으면 "안 나온다"가 호출 전인지 응답 대기인지 구분할 수 없다
+            log.info("Asking LLM for recommendation. propertyId={}, provider={}, buyers={}, "
+                            + "workplaces={}, promptChars={}",
+                    propertyId, llmPort.provider(), buyers.size(), workplaces, prompt.length());
+            // 프롬프트 전문은 debug로. '지하철역 정보가 없다'는 식의 엉뚱한 답이 나왔을 때
+            // 실제로 무엇을 보냈는지 봐야 원인을 가릴 수 있다
+            log.debug("LLM prompt. propertyId={}\n{}", propertyId, prompt);
+            final long askedAt = System.currentTimeMillis();
             final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            log.info("LLM responded. propertyId={}, present={}, elapsedMs={}",
+                    propertyId, result.isPresent(), System.currentTimeMillis() - askedAt);
             if (!result.isPresent()) {
                 log.warn("LLM recommendation unavailable. propertyId={}, cause={}",
                         propertyId, result.failureCause());
