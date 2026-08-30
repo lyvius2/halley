@@ -1,0 +1,176 @@
+# 캐시 검토 — PostgreSQL이 느린 이유와 Redis로 옮길 것들
+
+> **검토만 한 문서입니다. 소스는 고치지 않았습니다.**
+> 대상: `feature/2026.08.31_koreaBank` 기준 `ScoringService` · `PropertyController` 조회 경로.
+
+---
+
+## 요약 — 먼저 알아야 할 것
+
+**가장 큰 원인은 캐시 부족이 아니라 N+1입니다.** 매물 목록 한 번에 쿼리가 수백 번 나갑니다.
+캐시를 얹으면 증상은 가려지지만, 캐시가 비는 순간(배포 직후·TTL 만료·Redis 장애) 그대로 돌아옵니다.
+
+**순서를 이렇게 제안합니다.**
+
+| 순위 | 할 일 | 성격 | 기대 효과 |
+|---|---|---|---|
+| 1 | 목록 경로의 N+1 제거 | 구조 수정 | 쿼리 **수백 → 한 자리** |
+| 2 | 기준 정보(항목·가중치·규제 파라미터) 캐시 | 캐시 | 요청마다 나가던 고정 조회 제거 |
+| 3 | Hikari 풀·Redis 연결 정상화 | 설정 | 대기 시간 제거 |
+| 4 | 채점 결과 캐시 | 캐시 | 남은 조회를 마저 줄임 |
+
+---
+
+## 1. 지금 무슨 일이 벌어지는가
+
+`GET /api/properties` → `ScoringService.list()` → 매물마다 `ensureScored()` → `buildFromPersisted()`.
+
+**매물 한 건을 그리는 데 나가는 쿼리** (항목 14개 기준):
+
+| 호출 | 횟수 | 비고 |
+|---|---|---|
+| `propertyScoreRepository.findByPropertyId` | 1 | |
+| `criterionRepository.findAll()` | 1 | **매물마다 14행을 다시 읽는다** |
+| `othersAverage` → `userCriterionScoreRepository.findByPropertyId` | 14 | 항목마다 한 번 |
+| `othersCount` → 같은 조회 | 14 | **바로 위와 같은 쿼리** |
+| `myScore` → `findById` | 14 | 항목마다 한 번 |
+| `nicknameOf` · `groupNameFor` | 0~2 | admin이면 그룹 조회 추가 |
+| `editVersionStore.current` | 2 | Redis (지금은 실패 → 폴백) |
+
+**매물 1건당 약 46회.** 매물 10건이면 **460회**가 한 요청에 나갑니다.
+무료 클라우드 PostgreSQL의 왕복 지연을 20ms로만 잡아도 **9초**입니다.
+
+> `othersAverage`와 `othersCount`는 <b>완전히 같은 쿼리를 두 번</b> 던집니다.
+> `othersScores()`를 한 번 부르고 평균과 개수를 같이 구하면 그 자리에서 절반이 사라집니다.
+
+### 고칠 지점 (캐시 없이)
+
+- `criterionRepository.findAll()` · `loadWeights()` → **목록 전체에서 한 번만** 읽어 넘긴다
+- `userCriterionScoreRepository.findByPropertyId(id)` → 매물마다 1번만 읽고 **항목별로 나눠 쓴다**
+- 더 나아가 목록 전체의 `user_criterion_score`를 **`propertyId IN (…)`로 한 번에** 읽는다
+- `myScore`도 같은 결과에서 뽑는다 — 별도 조회가 필요 없다
+
+이것만으로 매물 1건당 46회가 **1~2회**로 떨어집니다. 캐시보다 이쪽이 먼저입니다.
+
+---
+
+## 2. 캐시로 옮길 만한 것
+
+이미 `CachePort` 계열이 7개 있고 Redis 구현도 모두 있습니다(`RedisPoiCache` 등).
+**같은 방식으로** 더할 것들을 성격별로 나눕니다.
+
+### 2.1 강하게 권함 — 거의 안 바뀌는 기준 정보
+
+| 대상 | 지금 | TTL | 무효화 |
+|---|---|---|---|
+| 채점 항목 `criterion` (14행) | 매물마다 재조회 | 1시간 | 관리자 수정 시 삭제 |
+| 항목 가중치 `criterion_weight` | 요청마다 | 1시간 | 가중치 저장 시 삭제 |
+| 규제 파라미터 `regulation_param` | 대출 계산마다 | 1시간 | 파라미터 수정·프로파일 전환 시 |
+| 시스템 설정 `system_config` | 여러 곳에서 | 10분 | 설정 저장 시 |
+| 법정동 코드 `legal_dong_code` | 실거래 조회마다 | 24시간 | 사전 재적재 시 |
+
+**이유**: 사람이 손대야만 바뀌고, 바뀌는 지점이 <b>명확해서 무효화가 쉽습니다.</b>
+읽기는 매우 잦고 쓰기는 거의 없습니다 — 캐시가 가장 잘 듣는 모양입니다.
+
+> 규제 파라미터는 **틀리면 대출 한도가 틀립니다.** TTL만 믿지 말고 저장 시 반드시 지우십시오.
+
+### 2.2 권함 — 계산이 비싼 결과
+
+| 대상 | TTL | 무효화 | 주의 |
+|---|---|---|---|
+| 채점 결과 `ScoredPropertyResponse` (매물별) | 10분 | 채점 판 번호(I85)가 오를 때 | **사용자마다 다릅니다** |
+| 그룹 요약(인원·현금 합계) | 5분 | 프로필 저장·그룹 이동 시 | |
+| 실거래 조회 결과 | 6시간 | 없음 (국토부는 월 단위) | 이미 DB에 저장 중 |
+
+> **채점 결과 캐시는 키에 사용자를 넣어야 합니다.** `myScore`(I118)가 사람마다 다르고,
+> `groupNameFor`는 admin에게만 값이 있습니다. 매물 번호만으로 키를 잡으면
+> <b>남의 화면이 내게 보입니다.</b> 이 프로젝트에서 가장 조심할 자리입니다.
+
+### 2.3 조건부 — 이미 DB에 있는 것
+
+`llm_recommendation` · `commute_result` · `poi` · `reference_transaction`은 이미 DB에 저장돼 있어
+"캐시"가 아니라 **조회 횟수 문제**입니다. 목록에서 N+1로 읽고 있다면 캐시보다 **배치 조회**가 맞습니다.
+
+### 2.4 캐시하면 안 되는 것
+
+| 대상 | 이유 |
+|---|---|
+| 사용자 인증·권한 | 그룹 이동·비활성화가 즉시 반영돼야 합니다 |
+| `PropertyAccessGuard`의 판정 | 격리는 <b>매번</b> 확인해야 합니다. 캐시된 허용은 사고입니다 |
+| 대출 한도 계산 결과 | 프로필·규제·금리 어느 하나만 바뀌어도 달라집니다. 입력이 많아 무효화가 불안정합니다 |
+| 편집 판 번호 | 이미 `EditVersionStore`가 캐시입니다 |
+
+---
+
+## 3. Redis가 지금 죽어 있습니다
+
+```
+RedisEditVersionStore : Redis edit-version read failed. cause=Unable to connect to Redis
+```
+
+**캐시를 더 얹기 전에 이것부터 살려야 합니다.** 지금 상태로 캐시를 늘리면
+매 요청이 <b>Redis 연결 실패를 기다렸다가</b> DB로 폴백합니다 — 더 느려집니다.
+
+폴백 자체는 설계대로입니다(2.1.1). 다만 **연결 실패가 반복될 때 잠시 시도를 멈추는**
+차단기(circuit breaker)가 없으면, 죽은 Redis가 오히려 지연을 만듭니다.
+
+---
+
+## 4. 캐시가 아닌 것들 — 같이 봐야 합니다
+
+### 4.1 커넥션 풀
+
+`application-live.yaml`에 Hikari 설정이 **없습니다** → 기본값 10.
+`remaining connection slots are reserved for SUPERUSER` 오류가 났던 것을 보면
+DB 쪽 여유가 빠듯합니다. 풀이 마르면 쿼리가 빠르든 말든 <b>대기</b>합니다.
+
+```yaml
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 5      # DB max_connections 에 맞춰 낮춘다
+      minimum-idle: 1
+      connection-timeout: 3000  # 오래 매달리지 말고 빨리 실패
+```
+
+> 무료 등급은 `max_connections`가 20~30인 경우가 많습니다. 앱 인스턴스 수 × 풀 크기가
+> 그 안에 들어와야 합니다. **늘리는 게 아니라 줄이는 방향**입니다.
+
+### 4.2 인덱스
+
+`DDL.sql`에 목록 경로용 인덱스가 있는지 확인이 필요합니다. 특히:
+
+- `property_score (property_id)` — 매물마다 조회
+- `user_criterion_score (property_id)` — 위와 같음
+- `property (group_id)` — 그룹 격리가 매 조회에 붙음
+
+**추측으로 인덱스를 더하지는 마십시오.** `EXPLAIN ANALYZE`로 느린 쿼리를 먼저 특정해야 합니다.
+
+---
+
+## 5. 제안 순서
+
+1. **`othersAverage`/`othersCount` 중복 쿼리 제거** — 한 줄 수준, 즉시 절반
+2. **목록 경로 N+1 제거** — 기준 정보 1회 조회 + 사용자 점수 배치 조회
+3. **Hikari 풀 설정** — DB 한도에 맞춰 낮추고 타임아웃 짧게
+4. **Redis 연결 복구** + 실패 시 차단기
+5. **2.1의 기준 정보 캐시** — 무효화가 쉬운 것부터
+6. **`EXPLAIN ANALYZE`로 남은 느린 쿼리 확인** 후 인덱스
+
+1~2번만 해도 체감이 크게 달라질 것으로 봅니다. 캐시는 그다음입니다.
+
+---
+
+## 6. 측정이 먼저입니다
+
+위 숫자는 **코드를 읽어 센 것이고, 실제로 재보지 않았습니다.**
+손대기 전에 실측을 권합니다.
+
+```yaml
+logging:
+  level:
+    org.jooq.tools.LoggerListener: DEBUG   # 나가는 쿼리를 전부 남긴다
+```
+
+목록을 한 번 부르고 쿼리 수를 세면 위 추정이 맞는지 바로 알 수 있습니다.
+아니라면 이 문서의 우선순위도 다시 잡아야 합니다.

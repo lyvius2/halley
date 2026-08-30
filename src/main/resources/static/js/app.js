@@ -1779,7 +1779,8 @@ function halley() {
         async loadProperties() {
             const url = '/api/properties'
                 + (this.dealTypeFilter !== 'ALL' ? '?dealType=' + this.dealTypeFilter : '');
-            const { ok, body } = await this.request(url);
+            // 목록이 오기 전에는 '등록된 매물이 없습니다'가 떠서 정말 없는 줄 알았다 (설계 I122)
+            const { ok, body } = await this.withLoading('properties', () => this.request(url));
             if (ok) {
                 this.properties = body || [];
                 this.applySoldOutFilter();
@@ -2615,6 +2616,53 @@ function halley() {
             }
             if (fresh.ok && fresh.body) {
                 this.applyScoreForm(fresh.body);
+            }
+        },
+
+        /**
+         * Esc로 맨 위 모달을 닫는다 (설계 I122).
+         *
+         * <p>배경을 클릭해도 닫히던 것을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러
+         * <b>입력이 통째로 사라지는</b> 일이 있었습니다. 대신 Esc를 남겨 빠른 탈출은
+         * 그대로 둡니다.
+         *
+         * <p><b>순서가 중요합니다.</b> 겹쳐 뜬 모달은 위에 있는 것부터 닫아야 합니다 —
+         * 아래 것을 먼저 닫으면 위에 뜬 모달만 남아 배경 없이 떠 있게 됩니다.
+         *
+         * <p>초기 설정(비밀번호·프로필)은 닫지 않습니다. 끝내야 넘어갈 수 있는 화면이라
+         * Esc로 빠져나가면 아무것도 못 하는 상태가 됩니다.
+         */
+        closeTopModal() {
+            const stack = [
+                ['photoViewerIndex', () => this.closePhotoViewer()],
+                ['showUserForm', () => this.closeUserForm()],
+                ['showAddMenu', () => this.closeAddMenu()],
+                ['confirmState', () => this.confirmNo()],
+                ['showScoreModal', () => this.closeScoreModal()],
+                ['showLoanModal', () => this.closeLoanModal()],
+                ['showRefModal', () => this.closeRefModal()],
+                ['showComments', () => this.closeComments()],
+                ['showAgentModal', () => this.closeAgentModal()],
+                ['showPhotoModal', () => this.closePhotoModal()],
+                ['showRoadview', () => this.closeRoadview()],
+                ['showPasteModal', () => this.closePasteModal()],
+                ['showDraftModal', () => this.closeDraftModal()],
+                ['showPropertyForm', () => this.closePropertyForm()],
+                ['showM2', () => this.closeDetail()],
+                ['showCompare', () => this.closeCompare()],
+                ['showCheckLogs', () => this.closeCheckLogs()],
+                ['showSoldOutAlert', () => this.closeSoldOutAlert()],
+                ['showUsers', () => this.closeUsers()],
+                ['showSettings', () => this.closeSettings()],
+                ['showChangePw', () => this.closeChangePw()],
+            ];
+            for (const [flag, close] of stack) {
+                // photoViewerIndex 는 안 열렸을 때 -1 이다. 0도 '열림'이므로 >= 0 으로 본다
+                const open = flag === 'photoViewerIndex' ? this[flag] >= 0 : !!this[flag];
+                if (open) {
+                    close();
+                    return;
+                }
             }
         },
 

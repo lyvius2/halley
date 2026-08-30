@@ -16,7 +16,7 @@
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<body x-data="halley()" x-init="init()">
+<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()">
 
 <div class="shell">
     <div class="topbar">
@@ -71,7 +71,12 @@
                             <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
                         </div>
                         <div class="property-list">
-                            <template x-if="visibleProperties.length === 0">
+                            <!-- 목록이 오기 전에는 '없습니다'가 아니라 기다리는 중임을 말한다 (설계 I122) -->
+                            <div class="progress-strip" x-show="isLoading('properties')" x-cloak>
+                                <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+                                <div class="progress-strip-bar"><i></i></div>
+                            </div>
+                            <template x-if="visibleProperties.length === 0 && !isLoading('properties')">
                                 <div class="empty">
                                     <div class="empty-ic">◌</div>
                                     <h4>아직 등록된 매물이 없습니다</h4>
@@ -631,7 +636,7 @@
 
 <!-- DRAFT 빠른 저장 모달 -->
 <div class="modal" x-show="showDraftModal" x-cloak>
-    <div class="modal-backdrop" @click="closeDraftModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">빠른 저장</span>
@@ -653,7 +658,7 @@
 
 <!-- D9 붙여넣기 등록 모달 -->
 <div class="modal" x-show="showPasteModal" x-cloak>
-    <div class="modal-backdrop" @click="closePasteModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide modal-tall">
         <div class="modal-head">
             <span class="modal-kicker">붙여넣기 등록</span>
@@ -730,7 +735,7 @@
 
 <!-- 비밀번호 변경 (자발) 모달 -->
 <div class="modal" x-show="showChangePw" x-cloak>
-    <div class="modal-backdrop" @click="closeChangePw()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
@@ -751,7 +756,7 @@
 
 <!-- D4/D5 사용자 생성·수정 모달 -->
 <div class="modal modal-stacked" x-show="showUserForm" x-cloak>
-    <div class="modal-backdrop" @click="closeUserForm()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">사용자 관리</span>
@@ -871,7 +876,7 @@
 
 <!-- D11 중개인 관리 모달 -->
 <div class="modal" x-show="showAgentModal" x-cloak>
-    <div class="modal-backdrop" @click="closeAgentModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">중개인</span>
@@ -929,7 +934,7 @@
 
 <!-- D12 사진 업로드 모달 -->
 <div class="modal" x-show="showPhotoModal" x-cloak>
-    <div class="modal-backdrop" @click="closePhotoModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
@@ -1001,7 +1006,7 @@
 
 <!-- D17 확인 모달 -->
 <div class="modal modal-top" x-show="confirmState" x-cloak>
-    <div class="modal-backdrop" @click="confirmNo()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">확인</span>
@@ -1017,7 +1022,7 @@
 
 <!-- M3 사용자 관리 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showUsers" x-cloak>
-    <div class="modal-backdrop" @click="closeUsers()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeUsers()">×</button>
         <div class="modal-head">
@@ -1066,7 +1071,7 @@
 
 <!-- M6 시스템 설정 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showSettings" x-cloak>
-    <div class="modal-backdrop" @click="closeSettings()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeSettings()">×</button>
         <div class="modal-head">
@@ -1238,7 +1243,7 @@
 
 <!-- M2 매물 상세 모달 -->
 <div class="modal modal-detail" x-show="showM2" x-cloak>
-    <div class="modal-backdrop" @click="closeDetail()"></div>
+    <div class="modal-backdrop"></div>
     <template x-if="detailItem">
         <div class="modal-card modal-xwide">
             <button class="modal-close" @click="closeDetail()">×</button>
@@ -1452,7 +1457,7 @@
 
 <!-- D10 매물 수기 등록/수정 모달 -->
 <div class="modal" x-show="showPropertyForm" x-cloak>
-    <div class="modal-backdrop" @click="closePropertyForm()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">매물 등록</span>
@@ -1572,7 +1577,7 @@
 
 <!-- D14 평가 채점 모달 -->
 <div class="modal" x-show="showScoreModal" x-cloak>
-    <div class="modal-backdrop" @click="closeScoreModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
@@ -1665,7 +1670,7 @@
 
 <!-- D16-2 국토부 실거래가 참고 카드 모달 -->
 <div class="modal" x-show="showRefModal" x-cloak>
-    <div class="modal-backdrop" @click="closeRefModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">최근 실거래</span>
@@ -1706,7 +1711,7 @@
 
 <!-- D16 대출 한도 시뮬레이션 모달 -->
 <div class="modal" x-show="showLoanModal" x-cloak>
-    <div class="modal-backdrop" @click="closeLoanModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide loan-modal">
         <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
@@ -1971,7 +1976,7 @@
 
 <!-- D25 매물 코멘트 모달 (설계 I56) -->
 <div class="modal" x-show="showComments" x-cloak>
-    <div class="modal-backdrop" @click="closeComments()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closeComments()">×</button>
         <div class="modal-head">
@@ -2030,7 +2035,7 @@
 
 <!-- D26 비교 우위 분석 모달 (설계 I61) -->
 <div class="modal" x-show="showCompare" x-cloak>
-    <div class="modal-backdrop" @click="closeCompare()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeCompare()">×</button>
         <div class="modal-head">
@@ -2091,7 +2096,7 @@
 
 <!-- D20 매물 점검 이력 모달 -->
 <div class="modal" x-show="showCheckLogs" x-cloak>
-    <div class="modal-backdrop" @click="closeCheckLogs()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">점검 이력</span>
@@ -2126,7 +2131,7 @@
 
 <!-- D21 판매완료 알림 확인 모달 -->
 <div class="modal" x-show="showSoldOutAlert" x-cloak>
-    <div class="modal-backdrop" @click="closeSoldOutAlert()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">알림</span>
