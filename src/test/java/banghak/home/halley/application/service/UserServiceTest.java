@@ -128,6 +128,26 @@ class UserServiceTest {
         assertThat(userRepository.findById(id).orElseThrow().profileConfirmed()).isTrue();
     }
 
+    @Test
+    @DisplayName("프로필을 저장하면 세션에도 반영된다 — 안 그러면 확인 화면이 다시 뜬다")
+    void savingProfileRefreshesSession() {
+        // given
+        final Long id = userService.create(new CreateUserRequest(
+                "session-refresh", "세션갱신", null, "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"),
+                300_000_000L, 60_000_000L, 0L)).id();
+        loginAs(id);
+
+        // when
+        userService.updateProfile(new ProfileRequest("세션갱신", "회사",
+                new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+
+        // then — 세션 응답은 DB가 아니라 로그인할 때 담아 둔 principal에서 읽는다
+        final var principal = (HalleyUserDetails) SecurityContextHolder.getContext()
+                .getAuthentication().getPrincipal();
+        assertThat(principal.isProfileConfirmed()).isTrue();
+    }
+
     private void loginAs(Long userId) {
         final HalleyUserDetails details =
                 new HalleyUserDetails(userRepository.findById(userId).orElseThrow());

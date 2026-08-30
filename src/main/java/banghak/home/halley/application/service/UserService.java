@@ -123,10 +123,17 @@ public class UserService {
     }
 
     /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다. */
+    /**
+     * 세션에 든 값을 갱신한다 (설계 I100).
+     *
+     * <p>세션 응답은 DB가 아니라 <b>로그인할 때 담아 둔 principal</b>에서 읽습니다. 저장만
+     * 하고 여기를 안 고치면 방금 확인한 프로필인데도 확인 화면이 다시 뜹니다.
+     */
     private void refreshProfileFlag(User updated) {
         final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
             principal.setProfileComplete(updated.profileComplete());
+            principal.setProfileConfirmed(updated.profileConfirmed());
         }
     }
 
