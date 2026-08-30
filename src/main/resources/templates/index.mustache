@@ -238,12 +238,24 @@
                                 <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
                                 <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
                                 <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
-                                <!-- admin은 어느 그룹에도 속하지 않는다 (설계 I87 · 규칙 5) -->
-                                <div class="profile-row" x-show="myGroup">
+                                <!-- 행을 늘 보여 준다 (설계 I102). 숨기면 admin이라 없는 것인지
+                                     조회가 실패한 것인지 화면에서 구분되지 않는다 -->
+                                <div class="profile-row">
                                     <span>그룹</span>
                                     <b>
-                                        <span x-text="myGroup?.name"></span>
-                                        <span class="group-members" x-text="'· ' + myGroup?.memberCount + '명'"></span>
+                                        <template x-if="myGroup">
+                                            <span>
+                                                <span x-text="myGroup.name"></span>
+                                                <span class="group-members"
+                                                      x-text="'· ' + myGroup.memberCount + '명'"></span>
+                                            </span>
+                                        </template>
+                                        <template x-if="!myGroup">
+                                            <span class="group-members"
+                                                  x-text="profile.role === 'ADMIN'
+                                                      ? '없음 (관리자는 그룹에 속하지 않습니다)'
+                                                      : '불러오지 못했습니다'"></span>
+                                        </template>
                                     </b>
                                 </div>
                                 <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>

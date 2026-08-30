@@ -724,6 +724,9 @@ function halley() {
                     existingLoan: body.existingLoan ?? ''
                 };
             }
+            // 프로필 화면을 열 때 그룹도 함께 받는다 (설계 I102).
+            // 로그인 때 한 번만 받으면, 그 사이 그룹을 옮겼을 때 옛 이름이 남는다
+            await this.loadMyGroup();
         },
 
         /**
