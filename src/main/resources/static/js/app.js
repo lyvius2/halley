@@ -28,6 +28,7 @@ function emptyUserForm() {
     return {
         loginId: '',
         nickname: '',
+        groupId: '',
         password: '',
         role: 'MEMBER',
         workplaceName: '',
@@ -192,6 +193,7 @@ function halley() {
         signUpNickname: null,
         profileNickname: null,
         myGroup: null,
+        groups: [],
         groupForm: { name: '' },
         joinForm: { code: '' },
         inviteCode: null,
@@ -249,6 +251,7 @@ function halley() {
                 const setupPending = this.showPassword || this.showProfileSetup;
                 if (this.session.role === 'ADMIN' && !setupPending) {
                     await this.loadUsers();
+                    await this.loadGroups();
                 }
                 if (!setupPending) {
                     await this.loadMyGroup();
@@ -357,6 +360,7 @@ function halley() {
             const body = {
                 loginId: this.userForm.loginId,
                 nickname: this.userForm.nickname,
+                groupId: this.userForm.groupId ? Number(this.userForm.groupId) : null,
                 workplaceName: this.userForm.workplaceName || null,
                 workplaceLat: toNum(this.userForm.workplaceLat),
                 workplaceLng: toNum(this.userForm.workplaceLng),
@@ -463,6 +467,25 @@ function halley() {
                 this.signUpNickname = available;
             } else {
                 this.profileNickname = available;
+            }
+        },
+
+        /** admin 전용 그룹 목록 (규칙 7·12). 회원은 이 API를 부를 수 없다. */
+        async loadGroups() {
+            const { ok, body } = await this.request('/api/admin/groups');
+            this.groups = ok && body ? body : [];
+        },
+
+        async createGroupAsAdmin() {
+            const { ok, body } = await this.request('/api/admin/groups', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: null })
+            });
+            if (ok) {
+                await this.loadGroups();
+            } else {
+                this.error = (body && body.message) || '그룹을 만들지 못했습니다';
             }
         },
 

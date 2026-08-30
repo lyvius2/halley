@@ -1608,3 +1608,21 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .profile-danger .profile-title { color: #c0563a; }
 .btn-danger { background: #c0563a; border-color: #c0563a; color: #fff; }
 .btn-danger:hover:not(:disabled) { background: #a8492f; }
+
+/* 매물이 어느 그룹 것인지 — admin에게만 보인다 (설계 I87 · 규칙 5).
+   등록자 badge와 나란히 서므로 톤을 달리해 둘을 구분한다 */
+.group-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 7px;
+    border: 1px solid var(--line2);
+    border-radius: 10px;
+    background: var(--paper2, #fbfaf7);
+    font-size: 10.5px;
+    color: var(--ink3);
+    white-space: nowrap;
+}
+
+/* admin의 그룹 목록 — 회원 만들 때 어디에 넣을지 고르기 전에 뭐가 있는지 보여 준다 */
+.group-admin-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.group-admin-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }

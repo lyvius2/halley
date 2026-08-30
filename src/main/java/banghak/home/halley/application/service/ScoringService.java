@@ -24,6 +24,8 @@ import banghak.home.halley.domain.loan.LoanCalculator;
 import banghak.home.halley.domain.loan.RegulationParam;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.NearbyFacility;
+import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
+import banghak.home.halley.domain.group.UserGroup;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.Criterion;
 import banghak.home.halley.domain.scoring.CriterionWeight;
@@ -85,12 +87,14 @@ public class ScoringService {
     private final ApplicationEventPublisher eventPublisher;
     private final ScoringLock scoringLock;
     private final PropertyAccessGuard propertyAccessGuard;
+    private final UserGroupRepository userGroupRepository;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
 
     public ScoringService(ApplicationEventPublisher eventPublisher,
                           ScoringLock scoringLock,
                           PropertyAccessGuard propertyAccessGuard,
+                          UserGroupRepository userGroupRepository,
                           PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
@@ -109,6 +113,7 @@ public class ScoringService {
         this.eventPublisher = eventPublisher;
         this.scoringLock = scoringLock;
         this.propertyAccessGuard = propertyAccessGuard;
+        this.userGroupRepository = userGroupRepository;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
@@ -345,8 +350,8 @@ public class ScoringService {
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
-        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
-                editVersionStore.current(versionKey(property.id()))), total, views,
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
+                editVersionStore.current(versionKey(property.id())), groupNameFor(property)), total, views,
                 editVersionStore.current(scoreVersionKey(property.id())));
     }
 
@@ -368,8 +373,8 @@ public class ScoringService {
                         othersAverage(property.id(), c.code()),
                         othersCount(property.id(), c.code())))
                 .toList();
-        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property.createdBy()),
-                editVersionStore.current(versionKey(property.id()))), result.totalScore(), views,
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
+                editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
                 editVersionStore.current(scoreVersionKey(property.id())));
     }
 
@@ -420,12 +425,38 @@ public class ScoringService {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
         return new ScoredPropertyResponse(
-                PropertyResponse.from(property, nicknameOf(property.createdBy()),
-                        editVersionStore.current(versionKey(property.id()))),
+                PropertyResponse.from(property, nicknameOf(property),
+                        editVersionStore.current(versionKey(property.id())), groupNameFor(property)),
                 null, List.of(), editVersionStore.current(scoreVersionKey(property.id())));
     }
 
-    /** 매물 카드의 등록자 표시용 닉네임 (설계 I53). */
+
+    /**
+     * admin에게만 보이는 그룹 이름 (설계 I87 · 규칙 5).
+     *
+     * <p>회원에게는 <b>null입니다.</b> 자기 그룹 매물만 보므로 이름을 붙여도 전부 같은 값이고,
+     * 무엇보다 다른 그룹이 있다는 사실 자체를 알려서는 안 됩니다(규칙 7).
+     */
+    private String groupNameFor(Property property) {
+        if (!propertyAccessGuard.isAdmin() || property.groupId() == null) {
+            return null;
+        }
+        return userGroupRepository.findById(property.groupId()).map(UserGroup::name).orElse(null);
+    }
+
+    /**
+     * 매물 카드의 등록자 표시 이름 (설계 I53 · I88).
+     *
+     * <p><b>스냅샷을 먼저 봅니다.</b> 탈퇴하면 users 행이 사라져 조회로는 이름을 알 수 없고,
+     * 그때 카드에서 등록자가 통째로 비어 버립니다.
+     */
+    private String nicknameOf(Property property) {
+        if (property.createdByNickname() != null && !property.createdByNickname().isBlank()) {
+            return property.createdByNickname();
+        }
+        return nicknameOf(property.createdBy());
+    }
+
     private String nicknameOf(Long userId) {
         if (userId == null) {
             return null;

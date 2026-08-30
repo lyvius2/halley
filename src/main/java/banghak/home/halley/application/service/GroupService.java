@@ -163,6 +163,15 @@ public class GroupService {
                 new UserGroup(null, GroupNameGenerator.generate(), null, Instant.now()));
     }
 
+    /** admin이 그룹을 미리 만든다 (규칙 12). 이름을 비우면 무작위 한국어로 짓는다. */
+    @Transactional
+    public GroupResponse createByAdmin(String name) {
+        final String resolved = name == null || name.isBlank()
+                ? GroupNameGenerator.generate() : name.trim();
+        return toResponse(userGroupRepository.save(
+                new UserGroup(null, resolved, null, Instant.now())));
+    }
+
     /** admin 전용 — 회원은 다른 그룹이 있는지도 알 수 없다 (규칙 7). */
     public List<GroupResponse> listAll() {
         return userGroupRepository.findAll().stream().map(this::toResponse).toList();

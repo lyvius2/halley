@@ -90,6 +90,10 @@
                                             <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
                                             <span x-text="r.property.createdByNickname"></span>
                                         </span>
+                                        <!-- 그룹 badge는 admin에게만 온다 (설계 I87 · 규칙 5) -->
+                                        <span class="group-badge" x-show="r.property.groupName"
+                                              :title="'그룹: ' + r.property.groupName"
+                                              x-text="r.property.groupName"></span>
                                         <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
@@ -670,6 +674,19 @@
         </div>
         <form class="form" @submit.prevent="saveUser()">
             <div class="form-grid">
+                <label class="span2">
+                    <span class="group-admin-head">
+                        <b>그룹</b>
+                        <button class="btn btn-xs" type="button" @click="createGroupAsAdmin()"
+                                :disabled="loading">그룹 만들기</button>
+                    </span>
+                    <span class="group-admin-list">
+                        <template x-for="g in groups" :key="g.id">
+                            <span class="group-badge" x-text="g.name + ' · ' + g.memberCount + '명'"></span>
+                        </template>
+                        <span class="settings-note" x-show="groups.length === 0">그룹이 없습니다.</span>
+                    </span>
+                </label>
                 <label>아이디
                     <input type="text" x-model="userForm.loginId" placeholder="로그인에 쓰는 아이디" required>
                 </label>
@@ -677,6 +694,17 @@
                     <input type="text" x-model="userForm.nickname" required>
                 </label>
                 <template x-if="!editingUserId">
+                    <label>그룹
+                        <select x-model="userForm.groupId">
+                            <option value="">새 그룹 자동 생성</option>
+                            <template x-for="g in groups" :key="g.id">
+                                <option :value="g.id"
+                                        x-text="g.name + ' (' + g.memberCount + '명)'"></option>
+                            </template>
+                        </select>
+                        <span class="settings-note">비워 두면 이 회원만의 새 그룹이 만들어집니다.
+                            관리자는 그룹에 속하지 않습니다.</span>
+                    </label>
                     <label>비밀번호
                         <input type="password" x-model="userForm.password" minlength="8" required>
                     </label>
@@ -1103,6 +1131,8 @@
                     <i class="owner-initial" x-text="ownerInitial(detailItem.property.createdByNickname)"></i>
                     <span x-text="detailItem.property.createdByNickname"></span>
                 </span>
+                <span class="group-badge" x-show="detailItem.property.groupName"
+                      x-text="detailItem.property.groupName"></span>
             </div>
 
             <div class="m2-grid">

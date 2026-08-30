@@ -132,6 +132,24 @@ class GroupIsolationTest {
                 .isInstanceOf(AdminCannotOwnPropertyException.class);
     }
 
+    @Test
+    @DisplayName("그룹 badge는 admin에게만 실려 온다 — 회원은 다른 그룹이 있는지도 몰라야 한다")
+    void groupBadgeOnlyForAdmin() {
+        // given
+        final String tag = "badge" + SEQ.incrementAndGet();
+        loginAsNewMember(tag + "-member");
+        final Long propertyId = propertyService.create(request("badge 매물 " + tag)).id();
+
+        // when · then — 회원에게는 그룹 이름이 오지 않는다
+        assertThat(scoringService.getScored(propertyId).property().groupName()).isNull();
+
+        // admin에게는 온다
+        login(userService.create(new CreateUserRequest(
+                "badge-admin-" + tag, "관리자-" + tag, null, "password1!", UserRole.ADMIN,
+                null, null, null, 0L, 0L, 0L)).id());
+        assertThat(scoringService.getScored(propertyId).property().groupName()).isNotBlank();
+    }
+
     private void loginAsNewMember(String tag) {
         login(createMember(tag, null));
     }
