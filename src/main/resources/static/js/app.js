@@ -1066,30 +1066,6 @@ function halley() {
             }
         },
 
-        /** AI에게 다시 물어본다. 입력이 그대로면 서버가 재호출하지 않고 저장값을 돌려준다. */
-        async refreshLlm() {
-            const id = this.detailItem.property.id;
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request(
-                    `/api/properties/${id}/llm-recommendation`, { method: 'POST' });
-                if (ok && body && body.score != null) {
-                    this.detailLlm = body;
-                    this.llmPending = false;
-                    await this.loadProperties();
-                } else if (ok) {
-                    this.error = 'AI 추천도를 산출하지 못했습니다. LLM 연동 설정을 확인해 주세요';
-                } else {
-                    this.error = (body && body.message) || 'AI 추천도 산출에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
         closeDetail() {
             this.showM2 = false;
             this.detailItem = null;

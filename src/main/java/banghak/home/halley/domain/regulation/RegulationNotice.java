@@ -13,7 +13,7 @@ import java.util.List;
  * 해제된 지역이 남습니다.
  *
  * <p>이름은 고시가 쓰는 축약형 그대로입니다 — {@code 화성동탄}(화성시 동탄구), {@code 성남분당}.
- * 법정동코드로 바꾸는 일은 {@code RegulationAreaCodeResolver}가 맡습니다.
+ * 법정동코드로 바꾸는 일은 {@code SigunguNameMatcher}가 맡습니다.
  *
  * @param noticeNo    공고번호 (예: `2026-883`) — 왜 이 값이 들어왔는지 남기는 근거
  * @param announcedOn 발령일자. 이 값이 바뀌면 고시가 갱신된 것이다

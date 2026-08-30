@@ -48,29 +48,25 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
     private final VworldHousingPriceFeignClient client;
     private final ObjectMapper objectMapper;
     private final String apiKey;
-    /** 키 발급 시 등록한 URL. 비어 있으면 쿼리에서 뺀다. */
-    private final String domain;
 
     public VworldHousingPriceAdapter(VworldHousingPriceFeignClient client,
                                      ObjectMapper objectMapper,
-                                     @Value("${vworld.api-key:}") String apiKey,
-                                     @Value("${vworld.domain:}") String domain) {
+                                     @Value("${vworld.api-key:}") String apiKey) {
         this.client = client;
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
-        this.domain = domain == null || domain.isBlank() ? null : domain;
     }
 
     @Override
     public List<OfficialPrice> fetchApartmentPrices(String pnu) {
         return fetch(pnu, "apartment", (year, rows, page) ->
-                client.fetchApartmentPrice(apiKey, pnu, year, "json", rows, page, domain));
+                client.fetchApartmentPrice(apiKey, pnu, year, "json", rows, page));
     }
 
     @Override
     public List<OfficialPrice> fetchDetachedHousePrices(String pnu) {
         return fetch(pnu, "detached-house", (year, rows, page) ->
-                client.fetchDetachedHousePrice(apiKey, pnu, year, "json", rows, page, domain));
+                client.fetchDetachedHousePrice(apiKey, pnu, year, "json", rows, page));
     }
 
     /** 연도 하나를 정한 뒤 그 해 자료만 모은다. */

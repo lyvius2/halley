@@ -12,7 +12,7 @@ public class VworldLandUseFallbackFactory implements FallbackFactory<VworldLandU
 
     @Override
     public VworldLandUseFeignClient create(Throwable cause) {
-        return (key, pnu, format, numOfRows, pageNo, domain) -> {
+        return (key, pnu, format, numOfRows, pageNo) -> {
             log.warn("VWorld land use lookup failed - returning fallback (no land use). pnu={}, cause={}",
                     pnu, describe(cause));
             return null;

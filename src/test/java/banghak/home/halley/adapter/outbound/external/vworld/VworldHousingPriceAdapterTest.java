@@ -30,7 +30,7 @@ class VworldHousingPriceAdapterTest {
             """;
 
     private final VworldHousingPriceAdapter adapter = new VworldHousingPriceAdapter(
-            mock(VworldHousingPriceFeignClient.class), new ObjectMapper(), "dummy-key", null);
+            mock(VworldHousingPriceFeignClient.class), new ObjectMapper(), "dummy-key");
 
     @Test
     @DisplayName("실측 응답에서 공시가격·기준연도·동호·전용면적을 읽는다")
@@ -121,7 +121,7 @@ class VworldHousingPriceAdapterTest {
         // given
         final RecordingClient client = new RecordingClient(EUNMA_PAGE);
         final VworldHousingPriceAdapter withStub = new VworldHousingPriceAdapter(
-                client, new ObjectMapper(), "dummy-key", null);
+                client, new ObjectMapper(), "dummy-key");
 
         // when
         withStub.fetchApartmentPrices("1168010600103160000");
@@ -145,13 +145,13 @@ class VworldHousingPriceAdapterTest {
 
             @Override
             public String fetchApartmentPrice(String key, String pnu, String stdrYear, String format,
-                                              int numOfRows, int pageNo, String domain) {
+                                              int numOfRows, int pageNo) {
                 years.add(stdrYear);
                 return thisYear.equals(stdrYear) ? EMPTY : EUNMA_PAGE;
             }
         };
         final VworldHousingPriceAdapter withStub = new VworldHousingPriceAdapter(
-                client, new ObjectMapper(), "dummy-key", null);
+                client, new ObjectMapper(), "dummy-key");
 
         // when
         final List<OfficialPrice> prices = withStub.fetchApartmentPrices("1168010600103160000");
@@ -167,7 +167,7 @@ class VworldHousingPriceAdapterTest {
         // given
         final RecordingClient client = new RecordingClient(EUNMA_PAGE);
         final VworldHousingPriceAdapter withStub = new VworldHousingPriceAdapter(
-                client, new ObjectMapper(), "dummy-key", null);
+                client, new ObjectMapper(), "dummy-key");
 
         // when
         final List<OfficialPrice> prices = withStub.fetchApartmentPrices("11680106001");
@@ -189,14 +189,14 @@ class VworldHousingPriceAdapterTest {
 
         @Override
         public String fetchApartmentPrice(String key, String pnu, String stdrYear, String format,
-                                          int numOfRows, int pageNo, String domain) {
+                                          int numOfRows, int pageNo) {
             years.add(stdrYear);
             return body;
         }
 
         @Override
         public String fetchDetachedHousePrice(String key, String pnu, String stdrYear, String format,
-                                              int numOfRows, int pageNo, String domain) {
+                                              int numOfRows, int pageNo) {
             years.add(stdrYear);
             return body;
         }

@@ -1,7 +1,9 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyCommentRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.adapter.outbound.cache.InMemoryLlmJobCache;
 import banghak.home.halley.application.port.out.cache.LlmJobCache;
@@ -157,7 +159,7 @@ class LlmRecommendationServiceTest {
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, objectMapper, false);
+                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -458,11 +460,14 @@ class LlmRecommendationServiceTest {
     /** 진행 표시 캐시는 로컬 인메모리 구현을 그대로 쓴다 — 실제 동작을 흉내 낼 필요가 없다. */
     private final LlmJobCache jobCache = new InMemoryLlmJobCache();
     private final PoiDataService poiDataService = mock(PoiDataService.class);
+    private final UserCriterionScoreRepository userCriterionScoreRepository =
+            mock(UserCriterionScoreRepository.class);
+    private final PropertyCommentRepository commentRepository = mock(PropertyCommentRepository.class);
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
                 port, recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, objectMapper, true);
+                poiDataService, userCriterionScoreRepository, commentRepository, objectMapper, true);
     }
 
     private LlmPort stub(LlmResult result) {

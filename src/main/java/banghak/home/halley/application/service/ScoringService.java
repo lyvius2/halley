@@ -38,6 +38,8 @@ import banghak.home.halley.domain.scoring.engine.PropertyScoringResult;
 import banghak.home.halley.domain.scoring.engine.ScoringEngine;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import banghak.home.halley.application.event.PropertyInsightChanged;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -72,10 +74,12 @@ public class ScoringService {
     private final EditVersionStore editVersionStore;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
+    private final ApplicationEventPublisher eventPublisher;
     private final ScoringEngine scoringEngine;
     private final List<CriterionScorer> scorers;
 
-    public ScoringService(PropertyRepository propertyRepository,
+    public ScoringService(ApplicationEventPublisher eventPublisher,
+                          PropertyRepository propertyRepository,
                           UserRepository userRepository,
                           LlmRecommendationRepository llmRecommendationRepository,
                           ComparativeAnalysisRepository comparativeAnalysisRepository,
@@ -90,6 +94,7 @@ public class ScoringService {
                           SystemConfigRepository systemConfigRepository,
                           ScoringEngine scoringEngine,
                           List<CriterionScorer> scorers) {
+        this.eventPublisher = eventPublisher;
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.llmRecommendationRepository = llmRecommendationRepository;
@@ -172,6 +177,8 @@ public class ScoringService {
             }
             userCriterionScoreRepository.upsert(new UserCriterionScore(
                     propertyId, currentUserId(), COMFORT_CODE, v));
+            // 쾌적함은 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
+            eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(propertyId));
         } else {
             if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0) {
                 throw new InvalidScoreException("채점 점수는 0~100 사이여야 합니다");

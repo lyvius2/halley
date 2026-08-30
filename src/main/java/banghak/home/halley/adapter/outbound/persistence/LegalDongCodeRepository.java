@@ -5,6 +5,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LegalDongCodeTable.CODE;
@@ -50,6 +51,11 @@ public class LegalDongCodeRepository {
                 .where(SIGUNGU.eq(sigungu).and(DONG_NAME.eq(dongName)).and(IS_ACTIVE.eq(true)))
                 .fetchOptional()
                 .map(this::map);
+    }
+
+    /** 규제지역 매칭에 쓰는 시군구 사전 (설계 I78). */
+    public List<LegalDongCode> findAll() {
+        return dsl.selectFrom(TABLE).fetch().map(this::map);
     }
 
     public void delete(String code) {

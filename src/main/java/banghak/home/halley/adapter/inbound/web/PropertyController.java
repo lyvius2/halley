@@ -129,16 +129,6 @@ public class PropertyController {
                 .orElseGet(() -> LlmRecommendationResponse.empty(id, llmRecommendationService.isRunning(id)));
     }
 
-    /** 매물 정보나 직장 위치가 바뀐 뒤 다시 물어보고 싶을 때. 입력이 그대로면 재호출하지 않는다. */
-    @PostMapping("/{id}/llm-recommendation")
-    public LlmRecommendationResponse refreshLlmRecommendation(@PathVariable Long id) {
-        final var refreshed = llmRecommendationService.ensureRecommendation(id);
-        refreshed.ifPresent(r -> scoringService.rescore(id));
-        return refreshed
-                .map(LlmRecommendationResponse::from)
-                .orElseGet(() -> LlmRecommendationResponse.empty(id, llmRecommendationService.isRunning(id)));
-    }
-
     @GetMapping("/{id}/comments")
     public List<CommentResponse> comments(@PathVariable Long id) {
         return propertyCommentService.list(id);

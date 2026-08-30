@@ -1,5 +1,6 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.outbound.persistence.LegalDongCodeRepository;
 import banghak.home.halley.adapter.outbound.persistence.RegulatedAreaRepository;
 import banghak.home.halley.adapter.outbound.persistence.RegulationNoticeRepository;
 import banghak.home.halley.application.port.out.external.LawNoticePort;
@@ -32,16 +33,19 @@ import java.util.Optional;
 public class RegulationNoticeService {
 
     private final LawNoticePort lawNoticePort;
-    private final RegulationAreaCodeResolver codeResolver;
+    private final SigunguNameMatcher nameMatcher;
+    private final LegalDongCodeRepository legalDongCodeRepository;
     private final RegulatedAreaRepository regulatedAreaRepository;
     private final RegulationNoticeRepository noticeRepository;
 
     public RegulationNoticeService(LawNoticePort lawNoticePort,
-                                   RegulationAreaCodeResolver codeResolver,
+                                   SigunguNameMatcher nameMatcher,
+                                   LegalDongCodeRepository legalDongCodeRepository,
                                    RegulatedAreaRepository regulatedAreaRepository,
                                    RegulationNoticeRepository noticeRepository) {
         this.lawNoticePort = lawNoticePort;
-        this.codeResolver = codeResolver;
+        this.nameMatcher = nameMatcher;
+        this.legalDongCodeRepository = legalDongCodeRepository;
         this.regulatedAreaRepository = regulatedAreaRepository;
         this.noticeRepository = noticeRepository;
     }
@@ -108,8 +112,8 @@ public class RegulationNoticeService {
 
     private void apply(RegulationZone zone, RegulationNotice notice) {
         final RegulationNoticeState state = noticeRepository.find(zone);
-        final Map<String, RegulationAreaCodeResolver.ResolvedArea> codes =
-                codeResolver.resolve(notice.areaNames());
+        final Map<String, SigunguNameMatcher.Matched> codes =
+                nameMatcher.match(notice.areaNames(), legalDongCodeRepository.findAll());
         if (codes.isEmpty()) {
             // 부분 적재를 허용하면 빠진 지역이 비규제로 잡혀 한도가 과대평가된다
             fail(zone, state, "지역명을 법정동코드로 바꾸지 못했습니다 (" + notice.areaNames().size() + "건)");

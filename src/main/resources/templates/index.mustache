@@ -1085,10 +1085,9 @@
                             <div class="ai-progress-bar"><i></i></div>
                         </div>
                     </template>
+                    <!-- 재질의는 쾌적함·코멘트가 바뀔 때 백엔드에서 트리거된다 (설계 I78) -->
                     <template x-if="!detailLlm && !llmPending">
-                        <p class="m2-empty">아직 산출되지 않았습니다.
-                            <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">지금 물어보기</button>
-                        </p>
+                        <p class="m2-empty">아직 산출되지 않았습니다.</p>
                     </template>
                     <template x-if="detailLlm">
                         <div class="llm-box">
@@ -1100,7 +1099,6 @@
                                 <div class="llm-meta">
                                     <span x-text="detailLlm.model"></span>
                                     <span x-text="fmtTime(detailLlm.computedAt)"></span>
-                                    <button class="btn btn-xs" @click="refreshLlm()" :disabled="loading">다시 물어보기</button>
                                 </div>
                             </div>
                         </div>

@@ -4,6 +4,7 @@ import banghak.home.halley.application.service.RegulationNoticeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
@@ -15,6 +16,8 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+// 시군구 사전(SigunguCodeBootstrap, @Order(10))이 채워진 뒤에 돈다
+@Order(20)
 public class RegulatedAreaBootstrap implements ApplicationRunner {
 
     private final RegulationNoticeService regulationNoticeService;

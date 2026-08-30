@@ -2,6 +2,8 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyCommentRepository;
+import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
@@ -10,7 +12,9 @@ import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.property.NearbyFacility;
+import banghak.home.halley.domain.property.PropertyComment;
 import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.scoring.UserCriterionScore;
 import banghak.home.halley.domain.user.User;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -46,6 +50,8 @@ public class LlmRecommendationService {
     private static final int MAX_TOKENS = 1024;
     private static final int MAX_REASON_LENGTH = 2000;
 
+    private static final String COMFORT_CODE = "COMFORT";
+
     private static final String SYSTEM_PROMPT = """
             당신은 한국 부동산 매물을 평가하는 조력자입니다.
             주어진 매물 정보, 주변 시설, 구매자들의 직장 위치를 근거로
@@ -58,6 +64,7 @@ public class LlmRecommendationService {
             - score는 이 구매자들에게 이 매물이 얼마나 좋은 선택인지를 0~100으로 나타냅니다.
             - reason에는 점수의 근거를 구체적으로 적으세요. 어떤 정보가 없어서 판단이 제한됐다면 그것도 밝히세요.
             - [주변 시설]의 지하철역과 도보시간은 통근 판단의 핵심 근거입니다. 있으면 반드시 반영하세요.
+            - [코멘트]와 [쾌적함]은 구매자들이 실제로 보고 남긴 것입니다. 제원보다 무겁게 다루세요.
             - 주어지지 않은 정보를 지어내지 마세요.
             """;
 
@@ -67,6 +74,8 @@ public class LlmRecommendationService {
     private final PropertyRepository propertyRepository;
     private final UserRepository userRepository;
     private final PoiDataService poiDataService;
+    private final UserCriterionScoreRepository userCriterionScoreRepository;
+    private final PropertyCommentRepository commentRepository;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
 
@@ -76,6 +85,8 @@ public class LlmRecommendationService {
                                     PropertyRepository propertyRepository,
                                     UserRepository userRepository,
                                     PoiDataService poiDataService,
+                                    UserCriterionScoreRepository userCriterionScoreRepository,
+                                    PropertyCommentRepository commentRepository,
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
@@ -84,6 +95,8 @@ public class LlmRecommendationService {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.poiDataService = poiDataService;
+        this.userCriterionScoreRepository = userCriterionScoreRepository;
+        this.commentRepository = commentRepository;
         this.objectMapper = objectMapper;
         this.enabled = enabled;
     }
@@ -194,7 +207,8 @@ public class LlmRecommendationService {
         }
         final Property property = found.get();
         final List<User> buyers = activeBuyers();
-        final String prompt = buildPrompt(property, buyers, poiDataService.ensureNearby(property));
+        final String prompt = buildPrompt(property, buyers, poiDataService.ensureNearby(property),
+                comfortScoresOf(propertyId), commentRepository.findByPropertyId(propertyId));
         final String hash = sha256(prompt);
         final int workplaces = (int) buyers.stream()
                 .filter(u -> u.workplaceLat() != null && u.workplaceLng() != null)
@@ -243,7 +257,8 @@ public class LlmRecommendationService {
      * 프롬프트는 <b>줄 단위로 안정적</b>이어야 한다. 순서가 흔들리면 해시가 달라져 같은 입력에도
      * 다시 호출된다. 그래서 필드를 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
      */
-    String buildPrompt(Property property, List<User> buyers, List<NearbyFacility> nearby) {
+    String buildPrompt(Property property, List<User> buyers, List<NearbyFacility> nearby,
+                       List<Integer> comfortScores, List<PropertyComment> comments) {
         final StringJoiner sb = new StringJoiner("\n");
         sb.add("[매물 정보]");
         sb.add("단지명: " + text(property.name()));
@@ -289,7 +304,45 @@ public class LlmRecommendationService {
                         : " (" + buyer.workplaceLat() + ", " + buyer.workplaceLng() + ")"));
             }
         }
+
+        // 사람이 직접 남긴 판단 — 이게 바뀌면 추천도를 다시 묻는다 (설계 I78)
+        sb.add("");
+        sb.add("[구매자들이 직접 매긴 공간의 쾌적함] 1~5점");
+        if (comfortScores == null || comfortScores.isEmpty()) {
+            sb.add("아직 평가 없음");
+        } else {
+            sb.add(comfortScores.stream().map(String::valueOf)
+                    .collect(java.util.stream.Collectors.joining(", "))
+                    + " (평균 " + average(comfortScores) + ")");
+        }
+
+        sb.add("");
+        sb.add("[구매자들이 남긴 코멘트]");
+        if (comments == null || comments.isEmpty()) {
+            sb.add("없음");
+        } else {
+            for (final PropertyComment comment : comments) {
+                sb.add("- " + text(nicknameOf(comment.userId())) + ": " + text(comment.content()));
+            }
+        }
         return sb.toString();
+    }
+
+    /** 쾌적함은 사용자별로 저장되고 총점에는 평균이 들어간다 (설계 I76). */
+    private List<Integer> comfortScoresOf(Long propertyId) {
+        return userCriterionScoreRepository.findByPropertyId(propertyId).stream()
+                .filter(s -> COMFORT_CODE.equals(s.criterionCode()))
+                .map(UserCriterionScore::score)
+                .toList();
+    }
+
+    private String average(List<Integer> scores) {
+        return String.format("%.1f", scores.stream().mapToInt(Integer::intValue).average().orElse(0.0));
+    }
+
+    private String nicknameOf(Long userId) {
+        return userId == null ? null
+                : userRepository.findById(userId).map(User::nickname).orElse(null);
     }
 
 
