@@ -86,6 +86,7 @@ function halley() {
         loanResult: null,
         loanAmount: 0,
         loanShowInputs: false,
+        showMciHelp: false,
         loanOverride: { annualIncome: '', cash: '', existingLoan: '' },
         showRefModal: false,
         refProperty: null,
