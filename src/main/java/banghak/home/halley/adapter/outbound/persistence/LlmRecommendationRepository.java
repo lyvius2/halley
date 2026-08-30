@@ -57,6 +57,23 @@ public class LlmRecommendationRepository {
         return findByPropertyId(recommendation.propertyId()).orElseThrow();
     }
 
+    /**
+     * 매물 여러 건을 한 번에 (설계 I124).
+     *
+     * <p>목록 화면이 매물마다 따로 부르면 그 수만큼 왕복이 늘어납니다 — 느린 DB에서는
+     * 그것이 그대로 체감 지연이 됩니다. 비어 있으면 질의하지 않습니다:
+     * {@code IN ()} 는 dialect마다 다르게 굴어 굳이 시험할 이유가 없습니다.
+     */
+    public List<LlmRecommendation> findByPropertyIds(java.util.Collection<Long> propertyIds) {
+        if (propertyIds == null || propertyIds.isEmpty()) {
+            return List.of();
+        }
+        return dsl.selectFrom(TABLE)
+                .where(PROPERTY_ID.in(propertyIds))
+                .fetch()
+                .map(this::map);
+    }
+
     public Optional<LlmRecommendation> findByPropertyId(Long propertyId) {
         return dsl.selectFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId))

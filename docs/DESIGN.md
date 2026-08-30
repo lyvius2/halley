@@ -3350,6 +3350,45 @@ this.sessionExpiresAt = body.expiresInSeconds != null
 
 ---
 
+### I124. 목록의 N+1을 걷어낸다 · **[확정 — 실측]**
+
+매물 목록 한 번에 <b>매물마다</b> 채점·사용자 점수·AI 추천·항목·닉네임·그룹명을 따로 읽고
+있었습니다. 매물이 늘면 쿼리도 그만큼 늘어납니다.
+
+| | 매물 3건 | 매물 10건 |
+|---|---|---|
+| 전 | 28회 | 약 90회 |
+| **후** | **8회** | **8회** |
+
+#### 무엇이 중복이었나
+
+- `property_score` — `ensureScored`와 `buildFromPersisted`가 <b>각각</b> 읽었다
+- `user_criterion_score` — `othersAverage`와 `othersCount`가 <b>같은 쿼리를 두 번</b>
+- `criterion` `findAll()` — 매물마다 14행을 다시 읽었다
+- `llm_recommendation` — 낡음 판정 때문에 매물마다
+- `users` — 닉네임과 `isAdmin()` 판정 때문에 매물마다
+
+`ListBatch`로 <b>한 번에</b> 모아 넘깁니다. 단건 조회 경로는 그대로 두고
+(`batch == null`이면 예전처럼 그때 읽습니다) 목록만 배치를 씁니다.
+
+#### `isAdmin()`이 DB를 치고 있었다
+
+`PropertyAccessGuard.currentUser()`가 호출마다 `userRepository.findById`를 했습니다.
+역할은 <b>세션 principal에 이미 있습니다</b> — 실제 접근 통제(`/api/admin/**`)도 같은
+principal의 권한으로 걸리므로 여기만 DB를 봐야 할 이유가 없었습니다.
+
+#### 가상 스레드로 병렬 실행하지 않은 이유
+
+동시에 던져도 <b>왕복 횟수는 그대로인 채 커넥션만 더 씁니다.</b> 풀이 기본 10이고
+운영 DB는 이미 슬롯이 빠듯해(`remaining connection slots…`) 동시성을 올리면
+<b>대기가 늘어납니다.</b> 횟수를 줄이는 쪽이 언제나 낫습니다.
+
+> **처음에 "매물당 46개"라고 쓴 것은 틀렸습니다.** 코드를 읽고 센 값이었고,
+> `othersAverage`/`othersCount`가 항목 14개마다 도는 줄 알았지만 실제로는 `COMFORT`에서만
+> 쿼리를 던집니다. 실측값은 매물당 약 9개였습니다. <b>세는 것과 재는 것은 다릅니다.</b>
+
+---
+
 ### I100. 관리자 계정 생성과 첫 로그인 흐름 · **[확정]**
 
 #### x-if 템플릿이 첫 자식만 렌더링한다

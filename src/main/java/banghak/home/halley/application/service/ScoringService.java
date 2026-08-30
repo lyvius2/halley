@@ -59,6 +59,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -135,10 +136,12 @@ public class ScoringService {
     public List<ScoredPropertyResponse> list(DealType dealType) {
         // admin은 전부, 회원은 자기 그룹만 (설계 I87)
         final List<Property> properties = visibleProperties(dealType);
-        final Map<String, BigDecimal> weights = loadWeights();
+        // 목록에 필요한 것을 한 번에 모은다 (설계 I124). 매물마다 따로 부르면
+        // 그 수만큼 왕복이 늘어난다 — 느린 DB에서는 그게 그대로 체감 지연이다
+        final ListBatch batch = loadBatch(properties);
         final Collator korean = Collator.getInstance(Locale.KOREAN);
         return properties.stream()
-                .map(p -> ensureScored(p, weights))
+                .map(p -> ensureScored(p, batch))
                 .sorted((a, b) -> {
                     final int byScore = compareTotals(b.totalScore(), a.totalScore());
                     if (byScore != 0) {
@@ -269,7 +272,66 @@ public class ScoringService {
         if (persisted.isEmpty() || isStale(property, persisted)) {
             return rescore(property);
         }
-        return buildFromPersisted(property, weights);
+        return buildFromPersisted(property, persisted, criteriaByCode(), weights, null);
+    }
+
+    /**
+     * 목록 한 번에 필요한 것을 미리 모아 둔다 (설계 I124).
+     *
+     * <p>예전에는 매물마다 채점·사용자 점수·AI 추천·항목·닉네임을 따로 읽어
+     * <b>매물 3건에 28번</b>이 나갔습니다. 여기서 <b>여섯 번</b>으로 끝냅니다.
+     *
+     * <p>가상 스레드로 나눠 던지는 방법도 있지만 그쪽은 쓰지 않습니다 — 커넥션 풀이
+     * 기본 10이고 운영 DB는 이미 슬롯이 빠듯합니다. <b>동시에 던지면 왕복 횟수는 그대로인 채
+     * 커넥션만 더 씁니다.</b> 횟수를 줄이는 편이 언제나 낫습니다.
+     */
+    private ListBatch loadBatch(List<Property> properties) {
+        final List<Long> ids = properties.stream().map(Property::id).toList();
+        final Map<Long, List<PropertyScore>> scores = propertyScoreRepository.findByPropertyIds(ids).stream()
+                .collect(Collectors.groupingBy(PropertyScore::propertyId));
+        final Map<Long, List<UserCriterionScore>> userScores =
+                userCriterionScoreRepository.findByPropertyIds(ids).stream()
+                        .collect(Collectors.groupingBy(UserCriterionScore::propertyId));
+        final Set<Long> hasLlm = llmRecommendationRepository.findByPropertyIds(ids).stream()
+                .map(LlmRecommendation::propertyId)
+                .collect(Collectors.toSet());
+        // 닉네임은 매물에 이미 박혀 있는 경우가 많지만, 없는 것 때문에 매물마다 조회가 나갔다
+        final Map<Long, String> nicknames = userRepository.findAll().stream()
+                .collect(Collectors.toMap(User::id, User::nickname, (a, b) -> a));
+        // 그룹명은 admin에게만 나간다 (규칙 5)
+        final boolean admin = propertyAccessGuard.isAdmin();
+        final Map<Long, String> groupNames = admin
+                ? userGroupRepository.findAll().stream()
+                        .collect(Collectors.toMap(UserGroup::id, UserGroup::name, (a, b) -> a))
+                : Map.of();
+        return new ListBatch(criteriaByCode(), loadWeights(), scores, userScores,
+                hasLlm, nicknames, groupNames, admin);
+    }
+
+    private ScoredPropertyResponse ensureScored(Property property, ListBatch batch) {
+        final List<PropertyScore> persisted = batch.scores().getOrDefault(property.id(), List.of());
+        if (persisted.isEmpty() || isStale(persisted, batch.hasLlm().contains(property.id()))) {
+            // 낡았으면 그 매물만 다시 계산한다. 흔한 길이 아니다
+            return rescore(property);
+        }
+        return buildFromPersisted(property, persisted, batch.criteria(), batch.weights(), batch);
+    }
+
+    private Map<String, Criterion> criteriaByCode() {
+        return criterionRepository.findAll().stream()
+                .collect(Collectors.toMap(Criterion::code, c -> c));
+    }
+
+    /** 목록 한 번에 쓰는 묶음 (설계 I124). */
+    private record ListBatch(
+            Map<String, Criterion> criteria,
+            Map<String, BigDecimal> weights,
+            Map<Long, List<PropertyScore>> scores,
+            Map<Long, List<UserCriterionScore>> userScores,
+            Set<Long> hasLlm,
+            Map<Long, String> nicknames,
+            Map<Long, String> groupNames,
+            boolean admin) {
     }
 
     /**
@@ -284,6 +346,14 @@ public class ScoringService {
      * 낡은 채로 저장돼 있습니다. 여기서 알아채고 스스로 고칩니다 — 사용자가 매물을 다시
      * 수정해야 낫는다면 고친 게 아닙니다.
      */
+    /** 배치용 — AI 추천 존재 여부를 이미 알고 있을 때 (설계 I124). */
+    private boolean isStale(List<PropertyScore> persisted, boolean hasLlm) {
+        final boolean scoreMissing = persisted.stream()
+                .filter(s -> LLM_CODE.equals(s.criterionCode()))
+                .allMatch(s -> s.effectiveScore() == null);
+        return scoreMissing && hasLlm;
+    }
+
     private boolean isStale(Property property, List<PropertyScore> persisted) {
         final boolean scoreMissing = persisted.stream()
                 .filter(s -> LLM_CODE.equals(s.criterionCode()))
@@ -359,11 +429,16 @@ public class ScoringService {
         return toResponse(property, result, weights);
     }
 
-    private ScoredPropertyResponse buildFromPersisted(Property property, Map<String, BigDecimal> weights) {
-        final List<PropertyScore> persisted = propertyScoreRepository.findByPropertyId(property.id());
-        final Map<String, Criterion> criteria = criterionRepository.findAll().stream()
-                .collect(Collectors.toMap(Criterion::code, c -> c));
-
+    /**
+     * 저장된 채점으로 응답을 만든다.
+     *
+     * @param batch 목록에서 부를 때는 미리 모아 둔 묶음, 단건이면 {@code null} (설계 I124)
+     */
+    private ScoredPropertyResponse buildFromPersisted(Property property,
+                                                      List<PropertyScore> persisted,
+                                                      Map<String, Criterion> criteria,
+                                                      Map<String, BigDecimal> weights,
+                                                      ListBatch batch) {
         double weightedSum = 0.0;
         double totalWeight = 0.0;
         final List<CriterionScoreView> views = new ArrayList<>();
@@ -384,15 +459,15 @@ public class ScoringService {
                     s.scoreSource() == null ? null : s.scoreSource().name(),
                     s.fallbackReason(),
                     s.explanation(),
-                    othersAverage(property.id(), s.criterionCode()),
-                    othersCount(property.id(), s.criterionCode()),
-                    myScore(property.id(), s.criterionCode())));
+                    othersAverage(property.id(), s.criterionCode(), batch),
+                    othersCount(property.id(), s.criterionCode(), batch),
+                    myScore(property.id(), s.criterionCode(), batch)));
         }
         final BigDecimal total = totalWeight > 0.0
                 ? BigDecimal.valueOf(weightedSum / totalWeight).setScale(2, RoundingMode.HALF_UP)
                 : null;
-        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
-                editVersionStore.current(versionKey(property.id())), groupNameFor(property)), total, views,
+        return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property, batch),
+                editVersionStore.current(versionKey(property.id())), groupNameFor(property, batch)), total, views,
                 editVersionStore.current(scoreVersionKey(property.id())));
     }
 
@@ -411,9 +486,9 @@ public class ScoringService {
                         sourceOf(c).name(),
                         c.fallbackReason(),
                         c.explanation(),
-                        othersAverage(property.id(), c.code()),
-                        othersCount(property.id(), c.code()),
-                        myScore(property.id(), c.code())))
+                        othersAverage(property.id(), c.code(), null),
+                        othersCount(property.id(), c.code(), null),
+                        myScore(property.id(), c.code(), null)))
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
@@ -429,8 +504,8 @@ public class ScoringService {
      * 나를 빼는 이유는 "다른 사람은 어떻게 봤나"가 질문이기 때문이다 — 내 점수가 섞이면
      * 내가 매긴 값에 끌려간다.
      */
-    private BigDecimal othersAverage(Long propertyId, String code) {
-        final List<Integer> others = othersScores(propertyId, code);
+    private BigDecimal othersAverage(Long propertyId, String code, ListBatch batch) {
+        final List<Integer> others = othersScores(propertyId, code, batch);
         if (others.isEmpty()) {
             return null;
         }
@@ -438,8 +513,8 @@ public class ScoringService {
                 .setScale(1, RoundingMode.HALF_UP);
     }
 
-    private Integer othersCount(Long propertyId, String code) {
-        final int count = othersScores(propertyId, code).size();
+    private Integer othersCount(Long propertyId, String code, ListBatch batch) {
+        final int count = othersScores(propertyId, code, batch).size();
         return count == 0 ? null : count;
     }
 
@@ -450,7 +525,7 @@ public class ScoringService {
      * 그래서 남이 매기면 화면이 그 값을 보여 주고, 나는 <b>내가 이미 매긴 줄</b> 알았습니다.
      * 내 값과 그룹 값은 다른 것이므로 따로 실어 보냅니다.
      */
-    private Integer myScore(Long propertyId, String code) {
+    private Integer myScore(Long propertyId, String code, ListBatch batch) {
         if (!COMFORT_CODE.equals(code)) {
             return null;
         }
@@ -458,21 +533,30 @@ public class ScoringService {
         if (me == null) {
             return null;
         }
-        return userCriterionScoreRepository.findById(propertyId, me, code)
+        return userScoresOf(propertyId, batch).stream()
+                .filter(s -> code.equals(s.criterionCode()) && me.equals(s.userId()))
                 .map(UserCriterionScore::score)
+                .findFirst()
                 .orElse(null);
     }
 
-    private List<Integer> othersScores(Long propertyId, String code) {
+    private List<Integer> othersScores(Long propertyId, String code, ListBatch batch) {
         if (!COMFORT_CODE.equals(code)) {
             return List.of();
         }
         final Long me = currentUserId();
-        return userCriterionScoreRepository.findByPropertyId(propertyId).stream()
+        return userScoresOf(propertyId, batch).stream()
                 .filter(s -> code.equals(s.criterionCode()))
                 .filter(s -> me == null || !me.equals(s.userId()))
                 .map(UserCriterionScore::score)
                 .toList();
+    }
+
+    /** 배치가 있으면 거기서, 없으면(단건 조회) 그때 읽는다 (설계 I124). */
+    private List<UserCriterionScore> userScoresOf(Long propertyId, ListBatch batch) {
+        return batch == null
+                ? userCriterionScoreRepository.findByPropertyId(propertyId)
+                : batch.userScores().getOrDefault(propertyId, List.of());
     }
 
 
@@ -499,6 +583,26 @@ public class ScoringService {
      * <p>회원에게는 <b>null입니다.</b> 자기 그룹 매물만 보므로 이름을 붙여도 전부 같은 값이고,
      * 무엇보다 다른 그룹이 있다는 사실 자체를 알려서는 안 됩니다(규칙 7).
      */
+    private String groupNameFor(Property property, ListBatch batch) {
+        if (batch == null) {
+            return groupNameFor(property);
+        }
+        if (!batch.admin() || property.groupId() == null) {
+            return null;
+        }
+        return batch.groupNames().get(property.groupId());
+    }
+
+    private String nicknameOf(Property property, ListBatch batch) {
+        if (property.createdByNickname() != null && !property.createdByNickname().isBlank()) {
+            return property.createdByNickname();
+        }
+        if (batch == null) {
+            return nicknameOf(property.createdBy());
+        }
+        return property.createdBy() == null ? null : batch.nicknames().get(property.createdBy());
+    }
+
     private String groupNameFor(Property property) {
         if (!propertyAccessGuard.isAdmin() || property.groupId() == null) {
             return null;

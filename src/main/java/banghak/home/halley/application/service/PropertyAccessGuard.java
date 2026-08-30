@@ -55,9 +55,19 @@ public class PropertyAccessGuard {
         return myGroup != null && myGroup.equals(property.groupId());
     }
 
-    /** admin은 어느 그룹에도 속하지 않고 전부 본다 (설계 규칙 5). */
+    /**
+     * admin은 어느 그룹에도 속하지 않고 전부 본다 (설계 규칙 5).
+     *
+     * <p><b>세션의 principal에서 읽습니다</b> — DB를 치지 않습니다 (설계 I124).
+     * 목록에서 매물마다 불리는 자리라 한 번에 여러 번 왕복하고 있었습니다.
+     * 실제 접근 통제(`/api/admin/**`)도 같은 principal의 권한으로 걸리므로
+     * <b>여기만 DB를 봐야 할 이유가 없습니다.</b>
+     */
     public boolean isAdmin() {
-        return currentUser().map(u -> u.role() == UserRole.ADMIN).orElse(false);
+        final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        return auth != null
+                && auth.getPrincipal() instanceof HalleyUserDetails principal
+                && UserRole.ADMIN.name().equals(principal.getRole());
     }
 
     public Optional<Long> currentGroupId() {
