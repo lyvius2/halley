@@ -12,7 +12,6 @@ public record PropertyRequest(
         String dongHo,
         DealType dealType,
         Long priceDeposit,
-        Long priceMonthly,
         Integer maintenanceFee,
         String addressRoad,
         String addressJibun,

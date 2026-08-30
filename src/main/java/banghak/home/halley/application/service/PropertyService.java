@@ -112,7 +112,6 @@ public class PropertyService {
                 request.dongHo(),
                 request.dealType(),
                 request.priceDeposit(),
-                request.priceMonthly(),
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),
@@ -170,7 +169,7 @@ public class PropertyService {
         final String name = request.memo() == null || request.memo().isBlank()
                 ? "작성 중" : request.memo().trim();
         final Property saved = propertyRepository.save(new Property(
-                null, name, null, null, null, null, null,
+                null, name, null, null, null, null,
                 null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -194,7 +193,6 @@ public class PropertyService {
                 request.dongHo(),
                 request.dealType(),
                 request.priceDeposit(),
-                request.priceMonthly(),
                 request.maintenanceFee(),
                 request.addressRoad(),
                 request.addressJibun(),

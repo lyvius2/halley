@@ -154,7 +154,7 @@ class ReferenceTransactionServiceTest {
 
     private PropertyRequest request(String name, BigDecimal areaExclusiveM2, Long priceDeposit) {
         return new PropertyRequest(
-                name, null, DealType.SALE, priceDeposit, null, null,
+                name, null, DealType.SALE, priceDeposit, null,
                 "서울시", null, null, null,
                 null, areaExclusiveM2, null, 5, null, null,
                 null, null, 2020, null, null,

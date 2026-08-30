@@ -54,7 +54,7 @@ class PropertyRepositoryTest {
         // when
         final Property updated = propertyRepository.update(new Property(
                 saved.id(), "수정 후", "101동 1001호", DealType.JEONSE,
-                350_000_000L, null, 20,
+                350_000_000L, 20,
                 "서울시 도로명주소", "서울시 지번주소", new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, new BigDecimal("84.9"), "중층", 5, 12, null,
                 "3/2", "남향", 2020, null, null,
@@ -103,7 +103,7 @@ class PropertyRepositoryTest {
     private Property property(String name) {
         return new Property(
                 null, name, null, DealType.SALE,
-                550_000_000L, null, null,
+                550_000_000L, null,
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,

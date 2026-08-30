@@ -251,7 +251,6 @@ public class ComparativeAnalysisService {
             sb.add("동/호: " + text(p.dongHo()));
             sb.add("거래유형: " + (p.dealType() == null ? "정보 없음" : p.dealType().name()));
             sb.add("매매가/보증금(원): " + number(p.priceDeposit()));
-            sb.add("월세(원): " + number(p.priceMonthly()));
             sb.add("관리비(원/월): " + number(p.maintenanceFee()));
             // 도로명만 주면 모델이 동 이름을 잘못 추정한다 (설계 I71)
             sb.add("지번주소: " + text(p.addressJibun()));

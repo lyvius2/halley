@@ -100,7 +100,7 @@ class JooqRepositoryIntegrationTest {
     @Test
     void propertyRoundTrip() {
         Property saved = propertyRepository.save(new Property(
-                null, "독립문삼호", "101동", DealType.SALE, 1_350_000_000L, null, 300_000,
+                null, "독립문삼호", "101동", DealType.SALE, 1_350_000_000L, 300_000,
                 "서울 서대문구 통일로", "서울 서대문구 홍제동",
                 new BigDecimal("37.57"), new BigDecimal("126.96"),
                 new BigDecimal("84.93"), new BigDecimal("59.90"),

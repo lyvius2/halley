@@ -510,7 +510,7 @@ class LlmRecommendationServiceTest {
 
     private Property property() {
         return new Property(
-                1L, "테스트단지", "102동", DealType.SALE, 800_000_000L, null, 200_000,
+                1L, "테스트단지", "102동", DealType.SALE, 800_000_000L, 200_000,
                 null, "서울 강남구 대치동 316", new BigDecimal("37.5"), new BigDecimal("127.0"),
                 new BigDecimal("110.0"), new BigDecimal("84.9"), null, 14, 20, null, "3/2", "남향",
                 1995, null, null, new BigDecimal("1.2"), 436, "개별난방", null, null,

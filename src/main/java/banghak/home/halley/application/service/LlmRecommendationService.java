@@ -277,7 +277,6 @@ public class LlmRecommendationService {
         sb.add("동/호: " + text(property.dongHo()));
         sb.add("거래유형: " + (property.dealType() == null ? "정보 없음" : property.dealType().name()));
         sb.add("매매가/보증금(원): " + number(property.priceDeposit()));
-        sb.add("월세(원): " + number(property.priceMonthly()));
         sb.add("관리비(원/월): " + number(property.maintenanceFee()));
         // 도로명만 주면 모델이 동 이름을 잘못 추정한다 — 실측에서 '삼성로 212'를 보고
         // 대치동을 '삼성동'이라고 했다. 지번주소가 단지 식별에 더 정확하므로 둘 다 준다 (설계 I71)

@@ -60,7 +60,6 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSER_VERSION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PARSE_CONFIDENCE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_DEPOSIT;
-import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PRICE_MONTHLY;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.PROPERTY_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.RAW_PASTE_TEXT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ROOM_BATH;
@@ -97,7 +96,6 @@ public class PropertyRepository {
                         .set(DONG_HO, property.dongHo())
                         .set(DEAL_TYPE, property.dealType() == null ? null : property.dealType().name())
                         .set(PRICE_DEPOSIT, property.priceDeposit())
-                        .set(PRICE_MONTHLY, property.priceMonthly())
                         .set(MAINTENANCE_FEE, property.maintenanceFee())
                         .set(ADDRESS_ROAD, property.addressRoad())
                         .set(ADDRESS_JIBUN, property.addressJibun())
@@ -157,7 +155,6 @@ public class PropertyRepository {
                 .set(DONG_HO, property.dongHo())
                 .set(DEAL_TYPE, property.dealType() == null ? null : property.dealType().name())
                 .set(PRICE_DEPOSIT, property.priceDeposit())
-                .set(PRICE_MONTHLY, property.priceMonthly())
                 .set(MAINTENANCE_FEE, property.maintenanceFee())
                 .set(ADDRESS_ROAD, property.addressRoad())
                 .set(ADDRESS_JIBUN, property.addressJibun())
@@ -308,7 +305,6 @@ public class PropertyRepository {
                 r.get(DONG_HO),
                 toEnum(DealType.class, r.get(DEAL_TYPE)),
                 r.get(PRICE_DEPOSIT),
-                r.get(PRICE_MONTHLY),
                 r.get(MAINTENANCE_FEE),
                 r.get(ADDRESS_ROAD),
                 r.get(ADDRESS_JIBUN),

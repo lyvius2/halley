@@ -190,7 +190,7 @@ class PropertyEnrichmentServiceTest {
 
     private Property property(String schoolName, BigDecimal areaExclusiveM2, String dongHo) {
         return new Property(
-                1L, "테스트단지", dongHo, DealType.SALE, 1_120_000_000L, null, 234_762,
+                1L, "테스트단지", dongHo, DealType.SALE, 1_120_000_000L, 234_762,
                 null, "서울 강남구 대치동 316", new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, areaExclusiveM2, null, 14, 20, null, "3/2", "남향",
                 1995, null, null, null, 4424, null, null, null,

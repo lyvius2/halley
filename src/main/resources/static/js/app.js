@@ -4,7 +4,6 @@ function emptyPropertyForm() {
         name: '',
         dealType: 'SALE',
         priceDeposit: '',
-        priceMonthly: '',
         maintenanceFee: '',
         addressRoad: '',
         addressJibun: '',
@@ -189,6 +188,7 @@ function halley() {
         roadviewState: 'loading',
         roadview: null,
         loginForm: { loginId: '', password: '' },
+        signUpOpen: false,
         showSignUp: false,
         signUpForm: { loginId: '', nickname: '', password: '' },
         signUpNickname: null,
@@ -213,7 +213,19 @@ function halley() {
         error: null,
         loading: false,
 
+        /**
+         * 로그인 전에 알아야 하는 설정 (설계 I95).
+         *
+         * 세션 조회는 로그아웃 상태에서 401이라 거기 담을 수 없다.
+         * 못 받으면 <b>닫힌 것으로 본다</b> — 열어 두는 쪽으로 틀리면 안 된다.
+         */
+        async loadPublicConfig() {
+            const { ok, body } = await this.request('/api/auth/config');
+            this.signUpOpen = ok && body ? body.signUpOpen === true : false;
+        },
+
         async init() {
+            await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
                     this.map.relayout();
@@ -2210,7 +2222,7 @@ function halley() {
 
         buildPasteRequest() {
             const value = (k) => (this.pasteForm[k] != null ? String(this.pasteForm[k]).trim() : '');
-            const dealCode = { 매매: 'SALE', 전세: 'JEONSE', 월세: 'MONTHLY' }[value('dealType')] || null;
+            const dealCode = { 매매: 'SALE', 전세: 'JEONSE' }[value('dealType')] || null;
             const floor = value('floor').split('/');
             const moveIn = value('moveIn');
             let moveInType = null;
@@ -2231,7 +2243,6 @@ function halley() {
                 name: value('name'),
                 dealType: dealCode,
                 priceDeposit: toNum(value('priceDeposit')),
-                priceMonthly: toNum(value('priceMonthly')),
                 kbPrice: toNum(value('kbPrice')),
                 areaSupplyM2: toNum(value('areaSupplyM2')),
                 areaExclusiveM2: toNum(value('areaExclusiveM2')),
@@ -2284,8 +2295,7 @@ function halley() {
         fieldLabel(key) {
             return {
                 name: '단지명', naverArticleNo: '매물번호', dongHo: '동/호', dealType: '거래유형',
-                priceDeposit: '매매가/보증금', priceMonthly: '월세', kbPrice: 'KB시세',
-                maintenanceFee: '관리비',
+                priceDeposit: '매매가/보증금',                maintenanceFee: '관리비',
                 areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
                 roomBath: '방/욕실', direction: '향', heatingType: '난방',
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
@@ -2310,7 +2320,6 @@ function halley() {
                 name: p.name || '',
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
-                priceMonthly: p.priceMonthly ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
                 addressRoad: p.addressRoad || '',
                 sourceUrl: p.sourceUrl || '',
@@ -2386,7 +2395,6 @@ function halley() {
                 name: this.propertyForm.name,
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
-                priceMonthly: toNum(this.propertyForm.priceMonthly),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
@@ -2750,11 +2758,11 @@ function halley() {
         },
 
         dealLabel(type) {
-            return { SALE: '매매', JEONSE: '전세', MONTHLY: '월세' }[type] || type;
+            return { SALE: '매매', JEONSE: '전세' }[type] || type;
         },
 
         dealBadge(type) {
-            return { SALE: 'b-sale', JEONSE: 'b-jeonse', MONTHLY: 'b-monthly' }[type] || '';
+            return { SALE: 'b-sale', JEONSE: 'b-jeonse' }[type] || '';
         },
 
         scoreSourceLabel(source) {

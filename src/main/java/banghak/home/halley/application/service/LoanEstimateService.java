@@ -127,7 +127,7 @@ public class LoanEstimateService {
     /**
      * 매물의 거래유형에 맞는 대출을 산정한다 (설계 I67).
      *
-     * <p>매매는 주담대(LTV·DSR·취득세), 전세·월세는 전세자금대출(보증 한도·이자만 DSR)입니다.
+     * <p>매매는 주담대(LTV·DSR·취득세), 전세는 전세자금대출(보증 한도·이자만 DSR)입니다.
      * <b>전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.</b>
      */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {

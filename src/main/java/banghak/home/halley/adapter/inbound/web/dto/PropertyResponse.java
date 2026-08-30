@@ -18,7 +18,6 @@ public record PropertyResponse(
         String dongHo,
         DealType dealType,
         Long priceDeposit,
-        Long priceMonthly,
         Integer maintenanceFee,
         String addressRoad,
         String addressJibun,
@@ -75,7 +74,7 @@ public record PropertyResponse(
                                         String groupName) {
         return new PropertyResponse(
                 p.id(), p.name(), p.dongHo(), p.dealType(),
-                p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
+                p.priceDeposit(), p.maintenanceFee(),
                 p.addressRoad(), p.addressJibun(), p.lat(), p.lng(),
                 p.areaSupplyM2(), p.areaExclusiveM2(), p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(),
                 p.roomBath(), p.direction(), p.approvalYear(), p.moveInType(), p.moveInDate(),

@@ -160,23 +160,6 @@ class LoanEstimateServiceTest {
     }
 
     @Test
-    @DisplayName("월세 매물도 보증금 기준으로 전세자금대출로 계산한다")
-    void monthlyPropertyAlsoUsesJeonseLoan() {
-        // given — 보증금 1억 / 월세 80만원
-        final PropertyResponse property = propertyService.create(
-                monthlyRequest("월세 매물", 100_000_000L, 800_000L));
-
-        // when
-        final LoanEstimateResponse result = loanEstimateService.estimate(property.id(),
-                new LoanEstimateRequest(80_000_000L, 50_000_000L, null, false, false, 0));
-
-        // then — 보증금 1억 × 80% = 8천만
-        assertThat(result.productType()).isEqualTo(ProductType.JEONSE);
-        assertThat(result.guaranteeLimit()).isEqualTo(80_000_000L);
-        assertThat(result.askingPrice()).isEqualTo(100_000_000L);
-    }
-
-    @Test
     @DisplayName("매매 매물은 그대로 주담대로 계산한다")
     void salePropertyStillUsesMortgage() {
         // given
@@ -218,13 +201,9 @@ class LoanEstimateServiceTest {
         return dealRequest(name, DealType.JEONSE, deposit, null);
     }
 
-    private PropertyRequest monthlyRequest(String name, Long deposit, Long monthly) {
-        return dealRequest(name, DealType.MONTHLY, deposit, monthly);
-    }
-
     private PropertyRequest dealRequest(String name, DealType dealType, Long deposit, Long monthly) {
         return new PropertyRequest(
-                name, null, dealType, deposit, monthly, null,
+                name, null, dealType, deposit, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -235,7 +214,7 @@ class LoanEstimateServiceTest {
 
     private PropertyRequest request(String name, Long priceDeposit) {
         return new PropertyRequest(
-                name, null, DealType.SALE, priceDeposit, null, null,
+                name, null, DealType.SALE, priceDeposit, null,
                 "서울시", null, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,

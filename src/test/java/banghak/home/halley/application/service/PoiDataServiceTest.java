@@ -173,7 +173,7 @@ class PoiDataServiceTest {
 
     private PropertyRequest request(BigDecimal lat, BigDecimal lng) {
         return new PropertyRequest(
-                "POI 테스트", null, DealType.SALE, 500_000_000L, null, null,
+                "POI 테스트", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, lat, lng,
                 null, null, null, null, null, null,
                 null, null, null, null, null,

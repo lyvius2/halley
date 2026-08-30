@@ -68,7 +68,6 @@
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
                             <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
                             <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
-                            <button :class="{on: dealTypeFilter==='MONTHLY'}" @click="setDealTypeFilter('MONTHLY')">월세</button>
                             <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
                         </div>
                         <div class="property-list">
@@ -433,7 +432,8 @@
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '로그인 중…' : '로그인'"></span>
             </button>
-            <p class="login-alt">
+            <!-- 회원가입이 닫혀 있으면 링크 자체를 감춘다 (설계 I95). 서버도 막는다 -->
+            <p class="login-alt" x-show="signUpOpen">
                 처음이신가요?
                 <a href="#" @click.prevent="openSignUp()">회원 가입</a>
             </p>
@@ -1372,18 +1372,12 @@
                     <select x-model="propertyForm.dealType">
                         <option value="SALE">매매</option>
                         <option value="JEONSE">전세</option>
-                        <option value="MONTHLY">월세</option>
                     </select>
                 </label>
                 <label>보증금/매매가 (원)
                     <span class="money-hint" x-show="moneyHint(propertyForm.priceDeposit)"
                           x-text="moneyHint(propertyForm.priceDeposit)"></span>
                     <input type="number" min="0" x-model="propertyForm.priceDeposit" placeholder="550000000">
-                </label>
-                <label>월세 (원)
-                    <span class="money-hint" x-show="moneyHint(propertyForm.priceMonthly)"
-                          x-text="moneyHint(propertyForm.priceMonthly)"></span>
-                    <input type="number" min="0" x-model="propertyForm.priceMonthly" placeholder="0">
                 </label>
                 <label>관리비 (원/월)
                     <span class="money-hint" x-show="moneyHint(propertyForm.maintenanceFee)"

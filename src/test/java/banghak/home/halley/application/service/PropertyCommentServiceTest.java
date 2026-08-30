@@ -76,7 +76,7 @@ class PropertyCommentServiceTest {
 
         login(aliceId);
         propertyId = propertyService.create(new PropertyRequest(
-                "코멘트 대상", null, DealType.SALE, 500_000_000L, null, null,
+                "코멘트 대상", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null,

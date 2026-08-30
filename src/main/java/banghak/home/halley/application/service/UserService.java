@@ -31,6 +31,8 @@ import banghak.home.halley.adapter.inbound.web.dto.UserDebtResponse;
 import banghak.home.halley.adapter.outbound.persistence.UserDebtRepository;
 import banghak.home.halley.domain.loan.ExistingDebt;
 import banghak.home.halley.domain.loan.RegulationParams;
+import banghak.home.halley.config.exception.SignUpClosedException;
+import org.springframework.beans.factory.annotation.Value;
 import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import org.springframework.security.core.Authentication;
@@ -57,6 +59,8 @@ public class UserService {
     private final GroupService groupService;
     private final NicknameSnapshotWriter nicknameSnapshotWriter;
     private final UserDebtRepository userDebtRepository;
+    /** 회원가입 개방 여부 (설계 I95). */
+    private final boolean signUpOpen;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
     private final ApplicationEventPublisher eventPublisher;
@@ -64,6 +68,7 @@ public class UserService {
     public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
                        GroupService groupService, NicknameSnapshotWriter nicknameSnapshotWriter,
                        UserDebtRepository userDebtRepository,
+                       @Value("${membership.sign-up.open:true}") boolean signUpOpen,
                        PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
@@ -72,6 +77,7 @@ public class UserService {
         this.groupService = groupService;
         this.nicknameSnapshotWriter = nicknameSnapshotWriter;
         this.userDebtRepository = userDebtRepository;
+        this.signUpOpen = signUpOpen;
         this.passwordEncoder = passwordEncoder;
         this.scoringService = scoringService;
         this.eventPublisher = eventPublisher;
@@ -169,6 +175,10 @@ public class UserService {
      */
     @Transactional
     public UserResponse signUp(SignUpRequest request) {
+        // 화면에서 링크를 숨기는 것만으로는 부족하다 — 주소를 아는 사람은 그냥 부른다 (설계 I95)
+        if (!signUpOpen) {
+            throw new SignUpClosedException();
+        }
         return create(new CreateUserRequest(
                 request.loginId(), request.nickname(), null, request.password(),
                 UserRole.MEMBER, null, null, null, 0L, 0L, 0L));

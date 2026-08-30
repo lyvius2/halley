@@ -290,7 +290,7 @@ public class PropertyEnrichmentService {
     private Property copy(Property p, String schoolName, Integer schoolWalkMinutes, SchoolSource schoolSource,
                           String pnu, Long officialPrice, Integer officialPriceYear) {
         return new Property(
-                p.id(), p.name(), p.dongHo(), p.dealType(), p.priceDeposit(), p.priceMonthly(), p.maintenanceFee(),
+                p.id(), p.name(), p.dongHo(), p.dealType(), p.priceDeposit(), p.maintenanceFee(),
                 p.addressRoad(), p.addressJibun(), p.lat(), p.lng(), p.areaSupplyM2(), p.areaExclusiveM2(),
                 p.floorRaw(), p.floorNo(), p.floorTotal(), p.floorBand(), p.roomBath(), p.direction(),
                 p.approvalYear(), p.moveInType(), p.moveInDate(), p.parkingPerHousehold(), p.totalHouseholds(),

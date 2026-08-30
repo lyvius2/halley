@@ -243,7 +243,7 @@ class ScoringServiceTest {
 
     private PropertyRequest request(String name, DealType dealType, Long priceDeposit) {
         return new PropertyRequest(
-                name, null, dealType, priceDeposit, null, null,
+                name, null, dealType, priceDeposit, null,
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,

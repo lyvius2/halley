@@ -113,7 +113,7 @@ class PropertyServiceGeocodeTest {
 
     private static PropertyRequest requestWithCoords(String address) {
         return new PropertyRequest(
-                "한빛아파트", null, DealType.SALE, 550_000_000L, null, null,
+                "한빛아파트", null, DealType.SALE, 550_000_000L, null,
                 address, address, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
@@ -123,7 +123,7 @@ class PropertyServiceGeocodeTest {
 
     private static PropertyRequest requestWithoutCoords(String address) {
         return new PropertyRequest(
-                "한빛아파트", null, DealType.SALE, 550_000_000L, null, null,
+                "한빛아파트", null, DealType.SALE, 550_000_000L, null,
                 address, address, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,

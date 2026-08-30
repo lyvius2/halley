@@ -163,3 +163,8 @@ law:
 fss:
   api-key: ${FSS_API_KEY:}
   base-url: https://finlife.fss.or.kr/finlifeapi
+
+# 회원가입 개방 여부 (설계 I95). false면 화면에서 숨기고 API도 막는다
+membership:
+  sign-up:
+    open: ${MEMBERSHIP_SIGN_UP_OPEN:true}

@@ -130,7 +130,7 @@ class CommuteDataServiceTest {
 
     private Property propertyWithCoords() {
         return propertyRepository.findById(propertyService.create(new PropertyRequest(
-                "통근 매물", null, DealType.SALE, 500_000_000L, null, null,
+                "통근 매물", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,

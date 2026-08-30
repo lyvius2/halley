@@ -43,7 +43,6 @@ CREATE TABLE property (
     dong_ho               VARCHAR(100),                                  -- 동/호
     deal_type             VARCHAR(20),                                   -- SALE | JEONSE | MONTHLY
     price_deposit         BIGINT,                                        -- 매매가 or 보증금(원)
-    price_monthly         BIGINT,                                        -- 월세(원)
     maintenance_fee       INTEGER,
     address_road          VARCHAR(500),
     address_jibun         VARCHAR(500),
@@ -670,3 +669,14 @@ CREATE TABLE IF NOT EXISTS user_debt (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_user_debt UNIQUE (user_id, debt_type)
 );
+
+-- ===== 18. 월세 폐지 (설계 I94) =====
+-- 이 앱은 집을 '사는' 결정을 돕는다. 월세는 담보도 자산도 아니라
+-- LTV·DSR·취득세 계산이 통째로 의미가 없다.
+--
+-- ⚠️ 기존에 월세로 등록된 매물이 있으면 먼저 확인하고 지운다.
+--    DealType에서 MONTHLY가 사라져 그대로 두면 조회 시 매핑이 실패한다.
+-- SELECT id, name FROM property WHERE deal_type = 'MONTHLY';
+-- DELETE FROM property WHERE deal_type = 'MONTHLY';
+
+ALTER TABLE property DROP COLUMN IF EXISTS price_monthly;

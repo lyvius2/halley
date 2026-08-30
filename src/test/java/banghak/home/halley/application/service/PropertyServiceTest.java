@@ -80,7 +80,7 @@ class PropertyServiceTest {
     void createRequiresDealType() {
         // given
         final PropertyRequest request = new PropertyRequest(
-                "거래유형 없음", null, null, 100_000_000L, null, null,
+                "거래유형 없음", null, null, 100_000_000L, null,
                 null, null, null, null,
                 null, null, null, null, null, null,
                 null, null, null, null, null,
@@ -198,7 +198,7 @@ class PropertyServiceTest {
         // given
         final PropertyResponse created = propertyService.create(request("수정 전", DealType.SALE, 400_000_000L));
         final PropertyRequest updateRequest = new PropertyRequest(
-                "수정 후", "102동 501호", DealType.JEONSE, 300_000_000L, null, 15,
+                "수정 후", "102동 501호", DealType.JEONSE, 300_000_000L, 15,
                 "서울시 새주소", null, new BigDecimal("37.6"), new BigDecimal("127.1"),
                 new BigDecimal("84.9"), new BigDecimal("59.9"), "중층", 5, 20, null,
                 "2/1", "남향", 2021, null, null,
@@ -234,7 +234,7 @@ class PropertyServiceTest {
         // given
         final PropertyRequest base = request("한빛아파트", DealType.SALE, 500_000_000L);
         final PropertyRequest pasteRequest = new PropertyRequest(
-                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(), base.priceMonthly(),
+                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(),
                 base.maintenanceFee(), base.addressRoad(), base.addressJibun(), base.lat(), base.lng(),
                 base.areaSupplyM2(), base.areaExclusiveM2(), base.floorRaw(), base.floorNo(), base.floorTotal(),
                 base.floorBand(), base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
@@ -268,7 +268,7 @@ class PropertyServiceTest {
 
     private PropertyRequest request(String name, DealType dealType, Long priceDeposit) {
         return new PropertyRequest(
-                name, null, dealType, priceDeposit, null, null,
+                name, null, dealType, priceDeposit, null,
                 "서울시 도로명주소", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, 5, null, null,
                 null, null, 2018, null, null,
@@ -308,7 +308,7 @@ class PropertyServiceTest {
 
     private PropertyRequest requestWithSourceUrl(String sourceUrl) {
         return new PropertyRequest(
-                "참고URL테스트", null, DealType.SALE, 500_000_000L, null, null,
+                "참고URL테스트", null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 null, null, null, null, null, null,
                 null, null, null, null, null,

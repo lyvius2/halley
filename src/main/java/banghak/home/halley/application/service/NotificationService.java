@@ -215,7 +215,6 @@ public class NotificationService {
         return switch (type) {
             case SALE -> "매매";
             case JEONSE -> "전세";
-            case MONTHLY -> "월세";
         };
     }
 

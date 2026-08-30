@@ -301,7 +301,7 @@ class ComparativeAnalysisServiceTest {
 
     private Property property(Long id, String name, boolean active, boolean draft) {
         return new Property(
-                id, name, "10" + id + "동", DealType.SALE, 500_000_000L + id * 10_000_000L, null, 200_000,
+                id, name, "10" + id + "동", DealType.SALE, 500_000_000L + id * 10_000_000L, 200_000,
                 null, "서울시 어딘가 " + id, new BigDecimal("37.5"), new BigDecimal("127.0"),
                 new BigDecimal("110.0"), new BigDecimal("84.9"), null, 5, 20, null, "3/2", "남향",
                 2010, null, null, new BigDecimal("1.2"), 400, "개별난방", null, null,

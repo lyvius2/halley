@@ -36,7 +36,6 @@ CREATE TABLE IF NOT EXISTS property (
     dong_ho               VARCHAR(100),
     deal_type             VARCHAR(20),
     price_deposit         BIGINT,
-    price_monthly         BIGINT,
     maintenance_fee       INTEGER,
     address_road          VARCHAR(500),
     address_jibun         VARCHAR(500),

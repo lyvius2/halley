@@ -174,7 +174,7 @@ class NotificationServiceTest {
 
     private PropertyRequest request(String name) {
         return new PropertyRequest(
-                name, null, DealType.SALE, 500_000_000L, null, null,
+                name, null, DealType.SALE, 500_000_000L, null,
                 "서울시", null, null, null,
                 null, null, null, 5, null, null,
                 null, null, 2020, null, null,
