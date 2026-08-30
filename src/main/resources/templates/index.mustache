@@ -309,6 +309,19 @@
                                     <span class="settings-note">그룹의 누구나 바꿀 수 있습니다.</span>
                                 </label>
 
+                                <label class="span2">알림 받을 Slack 웹훅
+                                    <div class="group-name-row">
+                                        <input type="url" x-model="groupForm.slackWebhookUrl"
+                                               placeholder="https://hooks.slack.com/services/...">
+                                        <button class="btn btn-sm" type="button" @click="saveWebhook()"
+                                                :disabled="loading">저장</button>
+                                        <button class="btn btn-sm" type="button" @click="testWebhook()"
+                                                :disabled="loading || !groupForm.slackWebhookUrl">테스트</button>
+                                    </div>
+                                    <span class="settings-note">매물 등록·판매완료 알림이 이 채널로 갑니다.
+                                        비워 두면 알림이 나가지 않습니다.</span>
+                                </label>
+
                                 <label class="span2">초대 코드 만들기
                                     <button class="btn btn-sm" type="button" @click="createInvite()"
                                             :disabled="loading">코드 생성</button>
@@ -1112,12 +1125,6 @@
             <button class="btn btn-primary" @click="addRegArea()" :disabled="loading || !regAreaForm.codePrefix.trim()">
                 규제지역 추가
             </button>
-        </div>
-
-        <div class="settings-section">
-            <h4>Slack 알림</h4>
-            <p class="settings-note">Slack 연동은 서버 환경변수(SLACK_WEBHOOK_URL)로 관리됩니다. 설정 화면에서는 테스트 발송만 제공합니다.</p>
-            <button class="btn" @click="testSlack()" :disabled="loading">테스트 메시지 발송</button>
         </div>
 
         <div class="settings-section">

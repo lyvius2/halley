@@ -5,6 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
+import banghak.home.halley.application.event.PropertyDeletedEvent;
 import banghak.home.halley.config.exception.AdminCannotOwnPropertyException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NoGroupException;
@@ -248,8 +249,11 @@ public class PropertyService {
     }
 
     public void delete(Long id) {
-        propertyAccessGuard.require(id);
+        final Property existing = propertyAccessGuard.require(id);
         propertyRepository.delete(id);
+        // 지우고 나면 이름도 그룹도 알 수 없어 미리 담아 보낸다 (설계 I96)
+        eventPublisher.publishEvent(
+                new PropertyDeletedEvent(existing.groupId(), existing.name()));
     }
 
     public PropertyResponse updateStatus(Long id, ListingStatus listingStatus) {

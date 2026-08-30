@@ -57,7 +57,7 @@ public class GroupMigrationBootstrap implements ApplicationRunner {
             return;
         }
         final UserGroup group = userGroupRepository.save(
-                new UserGroup(null, DEFAULT_GROUP_NAME, null, Instant.now()));
+                new UserGroup(null, DEFAULT_GROUP_NAME, null, null, Instant.now()));
         orphans.forEach(u -> userRepository.update(u.withGroupId(group.id())));
         ungrouped.forEach(p -> propertyRepository.update(p.withGroupId(group.id())));
         log.info("Migrated pre-group data. groupId={}, users={}, properties={}",

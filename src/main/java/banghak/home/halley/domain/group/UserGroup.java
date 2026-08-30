@@ -15,6 +15,15 @@ public record UserGroup(
         Long id,
         String name,
         Long createdBy,
+        /**
+         * 이 그룹의 알림이 나가는 곳 (설계 I96). 비어 있으면 <b>보내지 않습니다</b> —
+         * 전역 웹훅으로 흘려보내면 우리 매물이 남의 채널에 뜹니다.
+         */
+        String slackWebhookUrl,
         Instant createdAt
 ) {
+
+    public boolean hasWebhook() {
+        return slackWebhookUrl != null && !slackWebhookUrl.isBlank();
+    }
 }

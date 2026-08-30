@@ -3,6 +3,7 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.adapter.inbound.web.dto.GroupInviteResponse;
 import banghak.home.halley.adapter.inbound.web.dto.GroupRenameRequest;
 import banghak.home.halley.adapter.inbound.web.dto.GroupResponse;
+import banghak.home.halley.adapter.inbound.web.dto.GroupWebhookRequest;
 import banghak.home.halley.adapter.inbound.web.dto.JoinGroupRequest;
 import banghak.home.halley.application.service.GroupService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -37,6 +38,18 @@ public class GroupController {
     @PutMapping("/me")
     public GroupResponse rename(@RequestBody GroupRenameRequest request) {
         return groupService.rename(request.name());
+    }
+
+    /** 알림이 나갈 Slack 웹훅. 그룹의 누구나 바꾼다 (설계 I96). */
+    @PutMapping("/me/webhook")
+    public GroupResponse updateWebhook(@RequestBody GroupWebhookRequest request) {
+        return groupService.updateWebhook(request.slackWebhookUrl());
+    }
+
+    /** 저장된 웹훅으로 테스트 메시지를 보낸다 (설계 I96). */
+    @PostMapping("/me/webhook/test")
+    public java.util.Map<String, Object> testWebhook() {
+        return java.util.Map.of("sent", groupService.testWebhook());
     }
 
     /** 내 그룹으로 부를 코드를 만든다. 전달은 앱이 하지 않는다 (규칙 10). */

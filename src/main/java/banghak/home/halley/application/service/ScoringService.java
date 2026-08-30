@@ -215,7 +215,8 @@ public class ScoringService {
             userCriterionScoreRepository.upsert(new UserCriterionScore(
                     propertyId, currentUserId(), COMFORT_CODE, v));
             // 쾌적함은 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
-            eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(propertyId));
+            eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(
+                    propertyId, nicknameOf(currentUserId())));
         } else {
             if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0) {
                 throw new InvalidScoreException("채점 점수는 0~100 사이여야 합니다");

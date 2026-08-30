@@ -66,7 +66,7 @@ class PropertyCommentServiceTest {
         final String tag = "c" + SEQ.incrementAndGet();
         // 둘은 같은 집을 함께 보는 사이다. 그룹이 다르면 서로의 매물이 보이지 않는다 (설계 I87)
         final Long groupId = userGroupRepository.save(
-                new UserGroup(null, "코멘트그룹" + tag, null, Instant.now())).id();
+                new UserGroup(null, "코멘트그룹" + tag, null, null, Instant.now())).id();
         aliceId = userService.create(new CreateUserRequest(
                 "alice-" + tag, "앨리스-" + tag, groupId, "password1!", UserRole.MEMBER,
                 "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L)).id();

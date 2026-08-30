@@ -105,7 +105,7 @@ class GroupIsolationTest {
         // given — 한 그룹에 두 회원
         final String tag = "iso" + SEQ.incrementAndGet();
         final Long groupId = userGroupRepository.save(
-                new UserGroup(null, "동거그룹" + tag, null, Instant.now())).id();
+                new UserGroup(null, "동거그룹" + tag, null, null, Instant.now())).id();
         login(createMember(tag + "-1", groupId));
         final Long shared = propertyService.create(request("함께 보는 매물")).id();
         login(createMember(tag + "-2", groupId));
@@ -164,7 +164,7 @@ class GroupIsolationTest {
 
         // 우리 그룹에는 현금이 없다
         final Long groupId = userGroupRepository.save(
-                new UserGroup(null, "빈털터리" + tag, null, Instant.now())).id();
+                new UserGroup(null, "빈털터리" + tag, null, null, Instant.now())).id();
         login(userService.create(new CreateUserRequest(
                 "poor-" + tag, "빈손-" + tag, groupId, "password1!", UserRole.MEMBER,
                 null, null, null, 0L, 60_000_000L, 0L)).id());

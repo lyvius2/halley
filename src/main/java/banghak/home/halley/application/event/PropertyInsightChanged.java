@@ -9,15 +9,19 @@ package banghak.home.halley.application.event;
  * <p>화면에서 '다시 물어보기' 버튼을 없앤 자리를 이 이벤트가 대신합니다. 사용자가 언제 눌러야
  * 하는지 알기 어려웠고, 누르지 않으면 옛 판단이 그대로 남았습니다.
  *
- * @param reason 무엇이 바뀌어 트리거됐는지 — 로그에서 원인을 되짚기 위한 것
+ * @param kind   무엇이 바뀌었는지. 재질의 트리거이자 <b>어떤 알림을 보낼지</b> 가르는 값이다
+ * @param reason 로그에서 원인을 되짚기 위한 문구
  */
-public record PropertyInsightChanged(Long propertyId, String reason) {
+public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNickname, String reason) {
 
-    public static PropertyInsightChanged comfortScore(Long propertyId) {
-        return new PropertyInsightChanged(propertyId, "쾌적함 점수 변경");
+    public enum Kind { COMFORT_SCORE, COMMENT }
+
+
+    public static PropertyInsightChanged comfortScore(Long propertyId, String actorNickname) {
+        return new PropertyInsightChanged(propertyId, Kind.COMFORT_SCORE, actorNickname, "쾌적함 점수 변경");
     }
 
-    public static PropertyInsightChanged comment(Long propertyId) {
-        return new PropertyInsightChanged(propertyId, "코멘트 변경");
+    public static PropertyInsightChanged comment(Long propertyId, String actorNickname) {
+        return new PropertyInsightChanged(propertyId, Kind.COMMENT, actorNickname, "코멘트 변경");
     }
 }

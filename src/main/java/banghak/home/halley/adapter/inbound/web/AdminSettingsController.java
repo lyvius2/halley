@@ -61,11 +61,6 @@ public class AdminSettingsController {
         return systemConfigService.update(requests);
     }
 
-    @PostMapping("/settings/slack/test")
-    public Map<String, Object> testSlack() {
-        return Map.of("sent", notificationService.testSend());
-    }
-
     // ── 규제 파라미터·규제지역 (설계 I68) ─────────
 
     @GetMapping("/regulations")

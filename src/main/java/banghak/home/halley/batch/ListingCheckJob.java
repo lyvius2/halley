@@ -80,14 +80,12 @@ public class ListingCheckJob {
 
         if (blocked) {
             log.warn("[listing-check] Bot-blocked (403/429) - aborting job.");
-            notificationService.sendBatchBlocked();
             return;
         }
 
         final int checked = alive.size() + gone.size() + errorCount;
         if (gone.size() >= 2 && gone.size() * 2 > checked) {
             log.warn("[listing-check] Majority GONE ({}/{}) - circuit opened, no status changes.", gone.size(), checked);
-            notificationService.sendBatchCircuitOpen();
             return;
         }
 
@@ -109,7 +107,6 @@ public class ListingCheckJob {
             log.info("[listing-check] Confirmed {} sold-out listings.", soldOut.size());
             notificationService.sendListingsSoldOut(soldOut);
         }
-        notificationService.sendBatchSummary(targets.size(), alive.size(), gone.size(), errorCount);
     }
 
     private void sleepRandom() {

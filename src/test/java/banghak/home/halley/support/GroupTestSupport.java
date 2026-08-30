@@ -25,7 +25,7 @@ public final class GroupTestSupport {
     /** @return 만들어진 그룹의 id */
     public static Long loginAsGroupMember(UserGroupRepository groups, UserRepository users) {
         final int n = SEQ.incrementAndGet();
-        final UserGroup group = groups.save(new UserGroup(null, "테스트그룹" + n, null, Instant.now()));
+        final UserGroup group = groups.save(new UserGroup(null, "테스트그룹" + n, null, null, Instant.now()));
         final User saved = users.save(new User(
                 null, "tester" + n, "테스터" + n, group.id(), "hash", UserRole.MEMBER,
                 null, null, null, false, 0L, 0L, 0L, true, null, null, Instant.now()));

@@ -680,3 +680,8 @@ CREATE TABLE IF NOT EXISTS user_debt (
 -- DELETE FROM property WHERE deal_type = 'MONTHLY';
 
 ALTER TABLE property DROP COLUMN IF EXISTS price_monthly;
+
+-- ===== 19. 그룹별 Slack 웹훅 (설계 I96) =====
+-- 알림도 그룹 경계를 지켜야 한다. 전역 웹훅 하나로 보내면 우리 매물이
+-- 남의 채널에 뜬다. 매물 알림은 그 매물의 그룹 웹훅으로만 나간다.
+ALTER TABLE user_group ADD COLUMN IF NOT EXISTS slack_webhook_url VARCHAR(500);

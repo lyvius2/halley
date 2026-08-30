@@ -205,7 +205,7 @@ function halley() {
         ],
         myGroup: null,
         groups: [],
-        groupForm: { name: '' },
+        groupForm: { name: '', slackWebhookUrl: '' },
         joinForm: { code: '' },
         inviteCode: null,
         withdrawForm: { password: '' },
@@ -550,6 +550,7 @@ function halley() {
             const { ok, body } = await this.request('/api/groups/me');
             this.myGroup = ok ? body : null;
             this.groupForm.name = this.myGroup ? this.myGroup.name : '';
+            this.groupForm.slackWebhookUrl = this.myGroup ? (this.myGroup.slackWebhookUrl || '') : '';
         },
 
         async renameGroup() {
@@ -563,6 +564,28 @@ function halley() {
             } else {
                 this.error = (body && body.message) || '그룹 이름을 바꾸지 못했습니다';
             }
+        },
+
+        /** 알림이 나갈 곳 (설계 I96). 비우면 알림이 나가지 않는다. */
+        async saveWebhook() {
+            const { ok, body } = await this.request('/api/groups/me/webhook', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ slackWebhookUrl: this.groupForm.slackWebhookUrl || null })
+            });
+            if (ok) {
+                this.myGroup = body;
+            } else {
+                this.error = (body && body.message) || '웹훅을 저장하지 못했습니다';
+            }
+        },
+
+        /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 주소를 잘못 넣어도 조용히 안 갈 뿐이다. */
+        async testWebhook() {
+            const { ok, body } = await this.request('/api/groups/me/webhook/test', { method: 'POST' });
+            this.error = (ok && body && body.sent)
+                ? null
+                : '테스트 메시지를 보내지 못했습니다. 웹훅 주소를 확인해 주세요';
         },
 
         async createInvite() {
@@ -2585,23 +2608,6 @@ function halley() {
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async testSlack() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/admin/settings/slack/test', { method: 'POST' });
-                if (ok && body && body.sent) {
-                    alert('Slack 테스트 메시지를 보냈습니다.');
-                } else {
-                    alert('Slack 전송에 실패했습니다. 환경변수(SLACK_WEBHOOK_URL)를 확인하세요.');
-                }
-            } catch (e) {
-                alert('네트워크 오류가 발생했습니다');
             } finally {
                 this.loading = false;
             }

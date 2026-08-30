@@ -161,7 +161,7 @@ public class UserService {
                     .orElseThrow(GroupNotFoundException::new);
         }
         return userGroupRepository.save(
-                new UserGroup(null, GroupNameGenerator.generate(), null, Instant.now())).id();
+                new UserGroup(null, GroupNameGenerator.generate(), null, null, Instant.now())).id();
     }
 
 

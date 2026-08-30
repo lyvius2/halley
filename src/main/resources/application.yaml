@@ -146,9 +146,9 @@ llm:
     base-url: https://api.anthropic.com
     model: ${LLM_CLAUDE_MODEL:claude-opus-5}
 
+# 알림은 그룹마다 자기 웹훅으로 나간다 (설계 I96). 전역 주소는 없다
 slack:
   enabled: ${SLACK_ENABLED:false}
-  webhook-url: ${SLACK_WEBHOOK_URL:}
   notify:
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
     sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}

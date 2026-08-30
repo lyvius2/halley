@@ -58,7 +58,7 @@ class FallbackFactoryLoggingTest {
         assertThat(new MinistryReferenceFallbackFactory().create(cause)
                 .fetchTrade("key", "11110", "202607")).isNull();
         assertThat(new SlackWebhookFallbackFactory().create(cause)
-                .post("{}", "application/json")).isNull();
+                .post(java.net.URI.create("https://hooks.slack.com/x"), "{}", "application/json")).isNull();
     }
 
     private ListAppender<ILoggingEvent> attachAppender(Class<?> type) {

@@ -44,17 +44,20 @@ public class GroupService {
     private final UserRepository userRepository;
     private final PropertyRepository propertyRepository;
     private final PropertyAccessGuard accessGuard;
+    private final NotificationService notificationService;
 
     public GroupService(UserGroupRepository userGroupRepository,
                         GroupInviteRepository inviteRepository,
                         UserRepository userRepository,
                         PropertyRepository propertyRepository,
-                        PropertyAccessGuard accessGuard) {
+                        PropertyAccessGuard accessGuard,
+                        NotificationService notificationService) {
         this.userGroupRepository = userGroupRepository;
         this.inviteRepository = inviteRepository;
         this.userRepository = userRepository;
         this.propertyRepository = propertyRepository;
         this.accessGuard = accessGuard;
+        this.notificationService = notificationService;
     }
 
     /** 내 그룹. admin은 속한 그룹이 없다. */
@@ -72,6 +75,33 @@ public class GroupService {
         final Long groupId = accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
         userGroupRepository.rename(groupId, name.trim());
         return myGroup();
+    }
+
+    /**
+     * 알림이 나갈 Slack 웹훅을 정한다 (설계 I96).
+     *
+     * <p>그룹의 누구나 바꿉니다 — 이름 변경과 같은 기준입니다. 비우면 <b>알림이 나가지
+     * 않습니다.</b> 전역 주소로 흘려보내면 우리 매물이 남의 채널에 뜹니다.
+     */
+    @Transactional
+    public GroupResponse updateWebhook(String webhookUrl) {
+        final Long groupId = accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+        final String trimmed = webhookUrl == null || webhookUrl.isBlank() ? null : webhookUrl.trim();
+        userGroupRepository.updateWebhook(groupId, trimmed);
+        return myGroup();
+    }
+
+    /**
+     * 저장된 웹훅으로 테스트 메시지를 보낸다 (설계 I96).
+     *
+     * <p>주소를 잘못 넣어도 알림이 조용히 안 갈 뿐이라, <b>넣고 바로 확인할 수 있어야</b> 합니다.
+     */
+    public boolean testWebhook() {
+        final Long groupId = accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+        return userGroupRepository.findById(groupId)
+                .filter(UserGroup::hasWebhook)
+                .map(g -> notificationService.testSend(g.slackWebhookUrl()))
+                .orElse(false);
     }
 
     /**
@@ -160,7 +190,7 @@ public class GroupService {
     @Transactional
     public UserGroup createForNewMember() {
         return userGroupRepository.save(
-                new UserGroup(null, GroupNameGenerator.generate(), null, Instant.now()));
+                new UserGroup(null, GroupNameGenerator.generate(), null, null, Instant.now()));
     }
 
     /** admin이 그룹을 미리 만든다 (규칙 12). 이름을 비우면 무작위 한국어로 짓는다. */
@@ -169,7 +199,7 @@ public class GroupService {
         final String resolved = name == null || name.isBlank()
                 ? GroupNameGenerator.generate() : name.trim();
         return toResponse(userGroupRepository.save(
-                new UserGroup(null, resolved, null, Instant.now())));
+                new UserGroup(null, resolved, null, null, Instant.now())));
     }
 
     /** admin 전용 — 회원은 다른 그룹이 있는지도 알 수 없다 (규칙 7). */
@@ -181,6 +211,7 @@ public class GroupService {
         final long members = userRepository.findAll().stream()
                 .filter(u -> group.id().equals(u.groupId()))
                 .count();
-        return new GroupResponse(group.id(), group.name(), (int) members, group.createdAt());
+        return new GroupResponse(group.id(), group.name(), (int) members,
+                group.slackWebhookUrl(), group.createdAt());
     }
 }
