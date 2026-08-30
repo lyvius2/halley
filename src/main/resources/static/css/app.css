@@ -1703,6 +1703,12 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .loan-help-warn { margin: 0; color: #a8492f; }
 .loan-help-warn b { color: #a8492f; }
 
+/* 라벨 길이가 달라도 입력칸 윗선은 맞아야 한다 (설계 I101).
+   '보유 현금 (총 자산에서 가용 가능한 금액 - 원)'처럼 두 줄이 되는 라벨이 있으면
+   옆 칸과 어긋나 보인다 — 라벨 영역을 늘려 칸을 아래로 밀어 맞춘다 */
+.form-grid label { justify-content: flex-start; }
+.form-grid label > .money-row { margin-top: auto; }
+
 /* 주소를 고르면 채워지는 좌표. 직접 넣는 값이 아니라 주소 바로 아래 붙인다 (설계 I100) */
 .coord-row { display: flex; gap: 8px; margin-top: 6px; }
 .coord-cell { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
