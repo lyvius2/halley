@@ -224,7 +224,28 @@ function halley() {
             this.signUpOpen = ok && body ? body.signUpOpen === true : false;
         },
 
+        /**
+         * 숫자 칸 위에서 휠을 굴려도 값이 바뀌지 않게 한다 (설계 I101).
+         *
+         * `type="number"`는 <b>포커스된 상태에서 휠에 반응</b>합니다. 페이지를 스크롤하다
+         * 커서가 그 칸 위에 있으면 값이 조용히 오르내립니다 — 실제로 보유 현금
+         * 550,000,000이 549,999,997로 바뀌어 저장됐습니다. 세 칸 내려간 것입니다.
+         *
+         * 금액·좌표를 다루는 앱이라 <b>한 자리가 틀리면 판단이 통째로 어긋납니다.</b>
+         * 값을 되돌리는 대신 포커스를 놓아 휠이 스크롤로만 동작하게 합니다.
+         */
+        guardNumberInputs() {
+            document.addEventListener('wheel', (event) => {
+                const el = event.target;
+                if (el instanceof HTMLInputElement && el.type === 'number'
+                        && document.activeElement === el) {
+                    el.blur();
+                }
+            }, { passive: true });
+        },
+
         async init() {
+            this.guardNumberInputs();
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
