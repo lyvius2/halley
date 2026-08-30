@@ -35,6 +35,8 @@ public class PropertyInsightListener {
             switch (event.kind()) {
                 case COMMENT -> notificationService.sendCommentCreated(event.propertyId(), event.actorNickname());
                 case COMFORT_SCORE -> notificationService.sendComfortScored(event.propertyId(), event.actorNickname());
+                // 수정은 알리지 않는다 (설계 I113). 재질의만 걸면 된다
+                case EDIT -> { }
             }
         } catch (RuntimeException e) {
             // 알림이 실패해도 재질의는 계속돼야 한다

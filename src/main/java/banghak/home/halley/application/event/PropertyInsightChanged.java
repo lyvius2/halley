@@ -14,7 +14,7 @@ package banghak.home.halley.application.event;
  */
 public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNickname, String reason) {
 
-    public enum Kind { COMFORT_SCORE, COMMENT }
+    public enum Kind { COMFORT_SCORE, COMMENT, EDIT }
 
 
     public static PropertyInsightChanged comfortScore(Long propertyId, String actorNickname) {
@@ -23,5 +23,18 @@ public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNic
 
     public static PropertyInsightChanged comment(Long propertyId, String actorNickname) {
         return new PropertyInsightChanged(propertyId, Kind.COMMENT, actorNickname, "코멘트 변경");
+    }
+
+    /**
+     * 매물 제원이 바뀌었다 (설계 I113).
+     *
+     * <p>사람의 판단이 아니라 <b>매물 자체</b>가 바뀐 경우입니다. 면적·층·가격·주차 같은
+     * 값이 프롬프트에 그대로 실리므로, 고쳤으면 다시 물어야 옛 판단이 남지 않습니다.
+     *
+     * <p>알림은 보내지 않습니다 — 등록·삭제와 달리 수정은 함께 보는 사람에게 알릴 일이
+     * 아니라고 봤습니다(I96에 수정 알림이 없는 것과 같은 이유).
+     */
+    public static PropertyInsightChanged edited(Long propertyId, String actorNickname) {
+        return new PropertyInsightChanged(propertyId, Kind.EDIT, actorNickname, "매물 정보 수정");
     }
 }

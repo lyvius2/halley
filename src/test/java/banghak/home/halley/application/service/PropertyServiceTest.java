@@ -18,19 +18,24 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.support.GroupTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import banghak.home.halley.application.event.PropertyInsightChanged;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.context.event.ApplicationEvents;
+import org.springframework.test.context.event.RecordApplicationEvents;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
+@RecordApplicationEvents
 @ActiveProfiles("local")
 @Transactional
 class PropertyServiceTest {
@@ -51,6 +56,9 @@ class PropertyServiceTest {
     void clearLogin() {
         GroupTestSupport.logout();
     }
+
+    @Autowired
+    private ApplicationEvents events;
 
     @Autowired
     private PropertyService propertyService;
@@ -264,6 +272,42 @@ class PropertyServiceTest {
 
         // then
         assertThat(propertyRepository.findById(created.id())).isEmpty();
+    }
+
+    @Test
+    @DisplayName("수정에서 바뀐 게 없으면 AI에게 다시 묻지 않는다 (설계 I113)")
+    void doesNotAskAgainWhenNothingChanged() {
+        // given
+        final PropertyResponse created = propertyService.create(request("그대로 매물", DealType.SALE, 550_000_000L));
+        events.clear();
+
+        // when — 같은 값을 그대로 저장한다
+        propertyService.update(created.id(), request("그대로 매물", DealType.SALE, 550_000_000L), null);
+
+        // then
+        assertThat(editEvents()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("수정에서 값이 바뀌면 AI에게 다시 묻는다 (설계 I113)")
+    void asksAgainWhenDataChanged() {
+        // given
+        final PropertyResponse created = propertyService.create(request("바뀌는 매물", DealType.SALE, 550_000_000L));
+        events.clear();
+
+        // when — 가격이 바뀌었다. 프롬프트에 실리는 값이다
+        propertyService.update(created.id(), request("바뀌는 매물", DealType.SALE, 600_000_000L), null);
+
+        // then
+        assertThat(editEvents())
+                .singleElement()
+                .satisfies(e -> assertThat(e.propertyId()).isEqualTo(created.id()));
+    }
+
+    private List<PropertyInsightChanged> editEvents() {
+        return events.stream(PropertyInsightChanged.class)
+                .filter(e -> e.kind() == PropertyInsightChanged.Kind.EDIT)
+                .toList();
     }
 
     private PropertyRequest request(String name, DealType dealType, Long priceDeposit) {

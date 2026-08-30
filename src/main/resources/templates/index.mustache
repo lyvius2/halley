@@ -397,7 +397,7 @@
                                 </label>
                                 <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                                     <span class="money-row">
-                                        <input type="number" min="1" x-model="profileForm.availableBudget" placeholder="300000000">
+                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000">
                                         <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
                                               x-text="moneyHint(profileForm.availableBudget)"></span>
                                     </span>
@@ -405,7 +405,7 @@
                                 </label>
                                 <label>연소득 (원)
                                     <span class="money-row">
-                                        <input type="number" min="1" x-model="profileForm.annualIncome" placeholder="50000000">
+                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000">
                                         <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
                                               x-text="moneyHint(profileForm.annualIncome)"></span>
                                     </span>
@@ -413,7 +413,7 @@
                                 </label>
                                 <label>기존 대출액 (원)
                                     <span class="money-row">
-                                        <input type="number" min="0" x-model="profileForm.existingLoan" placeholder="0">
+                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0">
                                         <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
                                               x-text="moneyHint(profileForm.existingLoan)"></span>
                                     </span>
@@ -569,7 +569,7 @@
             </label>
             <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                 <span class="money-row">
-                    <input type="number" min="1" x-model="setupForm.availableBudget" placeholder="300000000">
+                    <input type="text" inputmode="numeric" :value="setupForm.availableBudget" @input="setupForm.availableBudget = numericInput($event)" placeholder="300000000">
                     <span class="money-hint" x-show="moneyHint(setupForm.availableBudget)"
                           x-text="moneyHint(setupForm.availableBudget)"></span>
                 </span>
@@ -577,7 +577,7 @@
             </label>
             <label>연소득 (원)
                 <span class="money-row">
-                    <input type="number" min="1" x-model="setupForm.annualIncome" placeholder="50000000">
+                    <input type="text" inputmode="numeric" :value="setupForm.annualIncome" @input="setupForm.annualIncome = numericInput($event)" placeholder="50000000">
                     <span class="money-hint" x-show="moneyHint(setupForm.annualIncome)"
                           x-text="moneyHint(setupForm.annualIncome)"></span>
                 </span>
@@ -585,7 +585,7 @@
             </label>
             <label>기존 대출액 (원)
                 <span class="money-row">
-                    <input type="number" min="0" x-model="setupForm.existingLoan" placeholder="0">
+                    <input type="text" inputmode="numeric" :value="setupForm.existingLoan" @input="setupForm.existingLoan = numericInput($event)" placeholder="0">
                     <span class="money-hint" x-show="moneyHint(setupForm.existingLoan)"
                           x-text="moneyHint(setupForm.existingLoan)"></span>
                 </span>
@@ -832,21 +832,21 @@
                 </label>
                 <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
                     <span class="money-row">
-                        <input type="number" min="0" x-model="userForm.availableBudget">
+                        <input type="text" inputmode="numeric" :value="userForm.availableBudget" @input="userForm.availableBudget = numericInput($event)">
                         <span class="money-hint" x-show="moneyHint(userForm.availableBudget)"
                               x-text="moneyHint(userForm.availableBudget)"></span>
                     </span>
                 </label>
                 <label>연소득
                     <span class="money-row">
-                        <input type="number" min="0" x-model="userForm.annualIncome">
+                        <input type="text" inputmode="numeric" :value="userForm.annualIncome" @input="userForm.annualIncome = numericInput($event)">
                         <span class="money-hint" x-show="moneyHint(userForm.annualIncome)"
                               x-text="moneyHint(userForm.annualIncome)"></span>
                     </span>
                 </label>
                 <label>기존 대출액
                     <span class="money-row">
-                        <input type="number" min="0" x-model="userForm.existingLoan">
+                        <input type="text" inputmode="numeric" :value="userForm.existingLoan" @input="userForm.existingLoan = numericInput($event)">
                         <span class="money-hint" x-show="moneyHint(userForm.existingLoan)"
                               x-text="moneyHint(userForm.existingLoan)"></span>
                     </span>
@@ -1514,6 +1514,10 @@
                 <label>총세대수
                     <input type="number" min="1" x-model="propertyForm.totalHouseholds" placeholder="300">
                 </label>
+                <label>세대당 주차 (대)
+                    <input type="number" min="0" step="0.01" x-model="propertyForm.parkingPerHousehold"
+                           placeholder="1.2">
+                </label>
                 <label>입주가능
                     <select x-model="propertyForm.moveInType">
                         <option value="">선택 안 함</option>
@@ -1793,7 +1797,9 @@
                     <div class="loan-card" :class="loanCashGap() >= 0 ? 'loan-ok' : 'loan-short'">
                         <span x-text="loanCashGap() >= 0 ? '현금 여유' : '현금 부족'"></span>
                         <b x-text="fmtWon(Math.abs(loanCashGap()))"></b>
-                        <small x-text="'보유 현금 ' + fmtWon(loanResult.usedCash)"></small>
+                        <small x-text="'보유 현금 ' + fmtWon(loanResult.usedCash)
+                               + (loanResult.groupCash != null && loanResult.groupCash !== loanResult.usedCash
+                                  ? ' · 그룹 합산 ' + fmtWon(loanResult.groupCash) : '')"></small>
                     </div>
                 </div>
 
@@ -1831,7 +1837,11 @@
                         </select>
                     </label>
                     <span class="loan-assume-item">연소득 <b x-text="fmtWon(loanResult.usedAnnualIncome)"></b></span>
-                    <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b></span>
+                    <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b>
+                        <!-- 한도에는 내 현금만 들어간다. 그룹이 모을 수 있는 돈도 함께 본다 (설계 I114) -->
+                        <small x-show="loanResult.groupCash != null && loanResult.groupCash !== loanResult.usedCash"
+                               x-text="'(그룹 합산 ' + fmtWon(loanResult.groupCash) + ')'"></small>
+                    </span>
                     <span class="loan-assume-item" x-show="loanResult.usedExistingLoan > 0">
                         기존 대출 <b x-text="fmtWon(loanResult.usedExistingLoan)"></b>
                         <small x-text="'(연 ' + fmtWon(loanResult.existingLoanAnnual) + ' 상환)'"></small>
@@ -1867,20 +1877,17 @@
                     <div class="form-grid">
                         <label>연소득 (원)
                             <span class="money-row">
-                                <input type="number" min="0" x-model="loanOverride.annualIncome"
-                                   :placeholder="loanResult.usedAnnualIncome">
+                                <input type="text" inputmode="numeric" :value="loanOverride.annualIncome" @input="loanOverride.annualIncome = numericInput($event)" :placeholder="loanResult.usedAnnualIncome">
                                 <span class="money-hint" x-show="moneyHint(loanOverride.annualIncome)"
                                       x-text="moneyHint(loanOverride.annualIncome)"></span>
                             </span>
                         </label>
                         <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
-                            <input type="number" min="0" x-model="loanOverride.cash"
-                                   :placeholder="loanResult.usedCash">
+                            <input type="text" inputmode="numeric" :value="loanOverride.cash" @input="loanOverride.cash = numericInput($event)" :placeholder="loanResult.usedCash">
                         </label>
                         <label>기존 대출액 (원)
                             <span class="money-row">
-                                <input type="number" min="0" x-model="loanOverride.existingLoan"
-                                   :placeholder="loanResult.usedExistingLoan">
+                                <input type="text" inputmode="numeric" :value="loanOverride.existingLoan" @input="loanOverride.existingLoan = numericInput($event)" :placeholder="loanResult.usedExistingLoan">
                                 <span class="money-hint" x-show="moneyHint(loanOverride.existingLoan)"
                                       x-text="moneyHint(loanOverride.existingLoan)"></span>
                             </span>

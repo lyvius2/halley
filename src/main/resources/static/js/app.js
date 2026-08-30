@@ -17,9 +17,13 @@ function emptyPropertyForm() {
         approvalYear: '',
         buildingCount: '',
         totalHouseholds: '',
+        parkingPerHousehold: '',
         moveInType: '',
         moveInDate: '',
-        editVersion: null
+        editVersion: null,
+        // 이 폼이 보여 주지 않는 칸들 (설계 I113). 수정 요청은 매물 전체를 덮어쓰므로
+        // 안 보내면 지워진다 — 화면에 없는 값도 그대로 돌려보내야 한다
+        carry: {}
     };
 }
 
@@ -1887,7 +1891,10 @@ function halley() {
         // 프로필에 연소득·보유 현금이 있으므로 모달을 열면 바로 계산한다 (설계 I55)
         openLoanModal(item) {
             this.loanProperty = item;
-            this.loanForm = { firstHome: false, mortgageInsured: false, ownedHouseCount: 0,
+            // MCI/MCG는 기본으로 켠다 (설계 I114). 대부분 가입하고, 꺼져 있으면 방공제
+            // 5,500만원이 빠진 한도가 첫 화면에 뜬다 — 실제보다 낮게 보여 오해를 부른다.
+            // 열자마자 켠 상태로 계산하므로 호출은 한 번뿐이다
+            this.loanForm = { firstHome: false, mortgageInsured: true, ownedHouseCount: 0,
                 rateType: 'VARIABLE' };
             this.loanOverride = { annualIncome: '', cash: '', existingLoan: '' };
             this.loanShowInputs = false;
@@ -2444,9 +2451,26 @@ function halley() {
                 approvalYear: p.approvalYear ?? '',
                 buildingCount: p.buildingCount ?? '',
                 totalHouseholds: p.totalHouseholds ?? '',
+                parkingPerHousehold: p.parkingPerHousehold ?? '',
                 moveInType: p.moveInType || '',
                 moveInDate: p.moveInDate || '',
-                editVersion: p.editVersion ?? null
+                editVersion: p.editVersion ?? null,
+                // 폼에 칸이 없는 값들. 손대지 않고 그대로 돌려보낸다 (설계 I113)
+                carry: {
+                    dongHo: p.dongHo ?? null,
+                    floorRaw: p.floorRaw ?? null,
+                    floorBand: p.floorBand ?? null,
+                    roomBath: p.roomBath ?? null,
+                    heatingType: p.heatingType ?? null,
+                    kbPrice: p.kbPrice ?? null,
+                    brokerageFee: p.brokerageFee ?? null,
+                    brokerageRate: p.brokerageRate ?? null,
+                    acquisitionTax: p.acquisitionTax ?? null,
+                    propertyTax: p.propertyTax ?? null,
+                    comprehensiveTax: p.comprehensiveTax ?? null,
+                    schoolName: p.schoolName ?? null,
+                    schoolWalkMinutes: p.schoolWalkMinutes ?? null
+                }
             };
             this.propertyQuery = '';
             this.propertyAddrResults = [];
@@ -2502,6 +2526,9 @@ function halley() {
             this.loading = true;
             this.error = null;
             const body = {
+                // 폼에 칸이 없는 값을 먼저 깔고, 폼이 가진 값으로 덮는다 (설계 I113).
+                // 이게 없으면 수정할 때마다 주차·방/욕실·난방·중개보수가 조용히 지워졌다
+                ...(this.propertyForm.carry || {}),
                 name: this.propertyForm.name,
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
@@ -2519,6 +2546,7 @@ function halley() {
                 approvalYear: toNum(this.propertyForm.approvalYear),
                 buildingCount: toNum(this.propertyForm.buildingCount),
                 totalHouseholds: toNum(this.propertyForm.totalHouseholds),
+                parkingPerHousehold: toNum(this.propertyForm.parkingPerHousehold),
                 moveInType: this.propertyForm.moveInType || null,
                 moveInDate: this.propertyForm.moveInDate || null
             };
@@ -2963,6 +2991,21 @@ function halley() {
          * 비었거나 0이면 아무것도 띄우지 않는다. 아직 안 적은 칸에 `0원`이 떠 있으면
          * 이미 입력한 것처럼 보인다.
          */
+        /**
+         * 금액 칸은 `type="text"`다 (설계 I114).
+         *
+         * <p>`type="number"`는 휠에 반응해 값이 조용히 바뀐다 — 550000000을 넣었는데
+         * 549999997이 된 적이 있다(I101). 휠을 막아 뒀지만 근본은 타입이었다.
+         * 대신 숫자 말고는 아예 들어가지 않게 여기서 거른다.
+         *
+         * <p>DOM 값도 함께 바꾼다. 모델만 고치면 화면에는 걸러지기 전 글자가 잠깐 남는다.
+         */
+        numericInput(e) {
+            const cleaned = String(e.target.value).replace(/[^0-9]/g, '');
+            e.target.value = cleaned;
+            return cleaned;
+        },
+
         moneyHint(value) {
             const n = toNum(value);
             return n == null || n === 0 ? '' : this.fmtWon(n);

@@ -146,12 +146,15 @@ public class LoanEstimateService {
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
 
+        // 한도에는 안 들어가지만 화면에 병기한다 (설계 I114)
+        final long groupCash = groupCash(property.groupId());
+
         if (jeonse) {
-            return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan,
+            return estimateJeonse(propertyId, price, annualIncome, cash, existingLoan, groupCash,
                     rawParams, params, marketRate);
         }
         return estimateMortgage(propertyId, property, price, annualIncome, cash, existingLoan,
-                request, rawParams, params, marketRate);
+                groupCash, request, rawParams, params, marketRate);
     }
 
     /**
@@ -185,9 +188,25 @@ public class LoanEstimateService {
                                 .stripTrailingZeros().toPlainString()));
     }
 
+    /**
+     * 같은 그룹 사용자들의 보유 현금 합계 (설계 I114).
+     *
+     * <p>한도 산식에는 넣지 않습니다 — 대출은 개인 명의로 나오고, 남의 현금이 내 LTV·DSR을
+     * 늘려 주지 않습니다. 화면에 <b>병기만</b> 해서 그룹이 실제로 모을 수 있는 돈을 함께 봅니다.
+     */
+    private long groupCash(Long groupId) {
+        if (groupId == null) {
+            return 0L;
+        }
+        return userRepository.findByGroupId(groupId).stream()
+                .filter(User::enabled)
+                .mapToLong(User::cashOrZero)
+                .sum();
+    }
+
     private LoanEstimateResponse estimateMortgage(Long propertyId, Property property, long askingPrice,
                                                   long annualIncome, long cash, long existingLoan,
-                                                  LoanEstimateRequest request,
+                                                  long groupCash, LoanEstimateRequest request,
                                                   Map<String, String> rawParams, RegulationParams params,
                                                   Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
@@ -218,12 +237,13 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
-                existingLoan, insured, zone, ownership, ltv.rate(), ltv.reason(), zoneWarning(),
-                rateSource(marketRate, params), rateType.label());
+                existingLoan, groupCash, insured, zone, ownership, ltv.rate(), ltv.reason(),
+                zoneWarning(), rateSource(marketRate, params), rateType.label());
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
                                                 long annualIncome, long cash, long existingLoan,
+                                                long groupCash,
                                                 Map<String, String> rawParams, RegulationParams params,
                                                 Optional<MarketRate> marketRate) {
         final JeonseTerms terms = JeonsePolicy.resolve(rawParams, params);
@@ -239,7 +259,7 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan,
-                rateSource(marketRate, params));
+                groupCash, rateSource(marketRate, params));
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {

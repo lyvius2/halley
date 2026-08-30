@@ -5,6 +5,7 @@ import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
+import banghak.home.halley.application.event.PropertyInsightChanged;
 import banghak.home.halley.application.event.PropertyDeletedEvent;
 import banghak.home.halley.config.exception.AdminCannotOwnPropertyException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
@@ -245,6 +246,16 @@ public class PropertyService {
                 existing.createdAt()));
         agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
+        // 바뀐 게 있으면 AI에게 다시 묻는다 (설계 I113). 면적·층·가격·주차가 그대로
+        // 프롬프트에 실리므로, 고쳐 놓고 옛 판단을 그대로 두면 안 된다.
+        //
+        // 무엇이 바뀌었는지 항목을 손으로 나열하지 않는다 — 그 목록은 필드가 늘 때마다
+        // 조용히 낡는다. 레코드끼리 통째로 비교하면 새 필드도 저절로 걸린다.
+        // 실제로 다시 물을지는 프롬프트 해시가 가린다(I59) — 프롬프트에 안 실리는 칸만
+        // 바뀌었으면 해시가 같아 호출 없이 끝난다
+        if (!existing.equals(updated)) {
+            eventPublisher.publishEvent(PropertyInsightChanged.edited(id, currentNickname()));
+        }
         return toResponse(updated);
     }
 
