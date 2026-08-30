@@ -224,6 +224,8 @@ function halley() {
         groupForm: { name: '', slackWebhookUrl: '' },
         joinForm: { code: '' },
         inviteCode: null,
+        // 그룹 정보 화면이 쓰는 상세 (설계 I123)
+        groupDetail: null,
         withdrawForm: { password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
@@ -353,6 +355,9 @@ function halley() {
             }
             if (view === 'me') {
                 this.loadProfile();
+            }
+            if (view === 'group') {
+                this.loadGroupDetail();
             }
             if (view === 'itinerary') {
                 this.loadStartLocation();
@@ -627,6 +632,10 @@ function halley() {
             });
             if (ok) {
                 this.myGroup = body;
+                // 화면에 띄운 상세도 같이 맞춘다 — 안 그러면 위쪽 배지만 바뀐다
+                if (this.groupDetail) {
+                    this.groupDetail = { ...this.groupDetail, name: body.name };
+                }
             } else {
                 this.error = (body && body.message) || '그룹 이름을 바꾸지 못했습니다';
             }
@@ -641,6 +650,9 @@ function halley() {
             });
             if (ok) {
                 this.myGroup = body;
+                if (this.groupDetail) {
+                    this.groupDetail = { ...this.groupDetail, slackWebhookUrl: body.slackWebhookUrl };
+                }
             } else {
                 this.error = (body && body.message) || '웹훅을 저장하지 못했습니다';
             }
@@ -654,8 +666,20 @@ function halley() {
                 : '테스트 메시지를 보내지 못했습니다. 웹훅 주소를 확인해 주세요';
         },
 
+        /** 그룹 정보 화면 (설계 I123). 구성원·현금 합계·매물 수를 한 번에 받는다. */
+        async loadGroupDetail() {
+            const { ok, body } = await this.withLoading('groupDetail',
+                () => this.request('/api/groups/me/detail'));
+            this.groupDetail = ok ? body : null;
+            if (this.groupDetail) {
+                this.groupForm.name = this.groupDetail.name || '';
+                this.groupForm.slackWebhookUrl = this.groupDetail.slackWebhookUrl || '';
+            }
+        },
+
         async createInvite() {
-            const { ok, body } = await this.request('/api/groups/me/invites', { method: 'POST' });
+            const { ok, body } = await this.withLoading('invite',
+                () => this.request('/api/groups/me/invites', { method: 'POST' }));
             if (ok) {
                 this.inviteCode = body;
             } else {

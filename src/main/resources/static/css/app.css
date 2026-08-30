@@ -964,6 +964,47 @@ tr.dragging { opacity: .5; background: var(--line2); }
     align-self: center;
     white-space: nowrap;
 }
+/* 헤더의 그룹 배지 — 누르면 그룹 정보 화면으로 (설계 I123) */
+.group-chip {
+    border: 1px solid var(--line);
+    background: var(--paper);
+    color: var(--ink2);
+    border-radius: 999px;
+    padding: 3px 11px;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.group-chip:hover { border-color: var(--ocean); color: var(--ocean); }
+.group-chip.on { border-color: var(--ocean); color: var(--ocean); background: rgba(38, 92, 140, .08); }
+
+/* 그룹 합계 — 모아서 사는 앱이라 이 값이 먼저 보인다 */
+.group-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.group-stat {
+    flex: 1 1 200px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.group-stat > span { display: block; font-size: 11px; color: var(--ink3); }
+.group-stat > b { display: block; font-size: 22px; margin: 4px 0 2px; letter-spacing: -.02em; }
+.group-stat > small { font-size: 10.5px; color: var(--ink3); }
+
+.invite-box {
+    margin-top: 10px;
+    padding: 12px 14px;
+    border: 1px dashed var(--line);
+    border-radius: 8px;
+    background: var(--paper);
+}
+.invite-box b { font-size: 20px; letter-spacing: .18em; font-family: 'Noto Sans', monospace; }
+.invite-box small { display: block; margin-top: 4px; font-size: 10.5px; color: var(--ink3); }
+
 /* 임장 완료 — 쾌적함이 채점됐다는 뜻이다 (설계 I121) */
 .badge.b-visited {
     background: rgba(196, 149, 76, .14);

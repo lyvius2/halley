@@ -30,6 +30,12 @@
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
+                    <!-- 그룹명을 눌러 그룹 정보 화면으로 (설계 I123) -->
+                    <button class="group-chip" x-show="myGroup" :class="{on: view==='group'}"
+                            @click="setView('group')"
+                            :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
+                        <span x-text="myGroup ? myGroup.name : ''"></span>
+                    </button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -443,6 +449,102 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —
+                         구성원·초대 코드까지 함께 보는 자리라 좁은 상자에 넣지 않는다 -->
+                    <div x-show="view==='group'">
+                        <div class="sec-head"><span class="sec-num">07</span><h2>그룹 정보</h2></div>
+                        <div class="progress-strip" x-show="isLoading('groupDetail')" x-cloak>
+                            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+                            <div class="progress-strip-bar"><i></i></div>
+                        </div>
+                        <template x-if="!groupDetail && !isLoading('groupDetail')">
+                            <div class="empty">
+                                <div class="empty-ic">◌</div>
+                                <h4>속한 그룹이 없습니다</h4>
+                                <p>초대 코드로 그룹에 가입하거나 새 그룹을 만들어 주세요.</p>
+                            </div>
+                        </template>
+                        <template x-if="groupDetail">
+                            <div>
+                                <!-- 이 앱은 모아서 집을 사려고 만든 것이라 합계가 먼저 보인다 -->
+                                <div class="group-stats">
+                                    <div class="group-stat">
+                                        <span>그룹 보유 현금</span>
+                                        <b x-text="fmtWon(groupDetail.totalCash)"></b>
+                                        <small x-text="groupDetail.memberCount + '명 합산'"></small>
+                                    </div>
+                                    <div class="group-stat">
+                                        <span>관심 매물</span>
+                                        <b x-text="groupDetail.propertyCount + '건'"></b>
+                                        <small>그룹이 함께 보고 있는 매물</small>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="form-grid">
+                                        <label class="span2">그룹 이름
+                                            <div class="workplace-search">
+                                                <input type="text" x-model="groupForm.name" placeholder="그룹 이름">
+                                                <button class="btn" type="button" @click="renameGroup()"
+                                                        :disabled="loading || !groupForm.name">변경</button>
+                                            </div>
+                                            <span class="settings-note">그룹의 누구나 바꿀 수 있습니다.</span>
+                                        </label>
+                                        <label class="span2">Slack Webhook URL
+                                            <div class="workplace-search">
+                                                <input type="url" x-model="groupForm.slackWebhookUrl"
+                                                       placeholder="https://hooks.slack.com/services/...">
+                                                <button class="btn" type="button" @click="saveWebhook()"
+                                                        :disabled="loading">저장</button>
+                                                <button class="btn" type="button" @click="testWebhook()"
+                                                        :disabled="loading || !groupForm.slackWebhookUrl">테스트</button>
+                                            </div>
+                                            <span class="settings-note">비워 두면 알림을 보내지 않습니다.
+                                                매물 등록·삭제, 코멘트, 쾌적함 평가가 이 주소로 갑니다.</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <h4 class="card-title">구성원 <span x-text="groupDetail.memberCount + '명'"></span></h4>
+                                    <table class="tbl">
+                                        <thead>
+                                        <tr><th>닉네임</th><th>직장</th><th class="num">보유 현금</th><th>상태</th></tr>
+                                        </thead>
+                                        <tbody>
+                                        <template x-for="m in groupDetail.members" :key="m.id">
+                                            <tr>
+                                                <td x-text="m.nickname"></td>
+                                                <td x-text="m.workplaceName || '-'"></td>
+                                                <td class="num" x-text="fmtWon(m.availableBudget)"></td>
+                                                <td><span class="badge" :class="m.enabled ? 'b-on' : 'b-off'"
+                                                          x-text="m.enabled ? '활성' : '비활성'"></span></td>
+                                            </tr>
+                                        </template>
+                                        </tbody>
+                                    </table>
+                                    <p class="settings-note">열람만 가능합니다. 프로필 수정은 각자 합니다.</p>
+                                </div>
+
+                                <div class="card">
+                                    <h4 class="card-title">초대 코드</h4>
+                                    <p class="settings-note">코드는 <b>24시간</b> 동안만 쓸 수 있고, 새로 만들면 이전 코드는 사라집니다.</p>
+                                    <div class="workplace-search">
+                                        <button class="btn btn-primary" type="button"
+                                                @click="createInvite()" :disabled="isLoading('invite')">초대 코드 생성</button>
+                                    </div>
+                                    <template x-if="inviteCode">
+                                        <div class="invite-box">
+                                            <b x-text="inviteCode.code"></b>
+                                            <small x-text="'만료 ' + fmtTime(inviteCode.expiresAt)"></small>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
 
                 </div>
             </template>
