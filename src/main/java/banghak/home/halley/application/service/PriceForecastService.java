@@ -275,6 +275,11 @@ public class PriceForecastService {
                     input.property() == null ? null : input.property().id());
             return new ForecastVerdict(byCode, byCode, null, false);
         }
+        // 어느 지표가 값을 냈는지 남긴다 (설계 I150). 개수만 남기면 판단이 보류될 때
+        // 무엇이 없어서인지 알 수 없다 — 실거래 추세가 빠진 것인지, 전세가율이 빠진 것인지
+        log.info("Forecast indicators produced values. names=[{}]", byCode.factors().stream()
+                .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                .collect(java.util.stream.Collectors.joining(", ")));
         final ForecastPrompt prompt = ForecastPrompt.of(input.property(), byCode.factors(), horizon);
 
         if (!enabled || !llmPort.isEnabled()) {
@@ -297,7 +302,7 @@ public class PriceForecastService {
      * 해시가 같아 <b>영영 건너뛰었습니다.</b>
      */
     private Optional<PriceOutlook> ask(ForecastPrompt prompt, int horizon) {
-        log.info("Asking LLM for price forecast. factors={}, promptChars={}",
+        log.info("Asking LLM for price forecast. knownNumbers={}, promptChars={}",
                 prompt.allowedNumbers().size(), prompt.user().length());
         log.debug("Forecast prompt.\n{}", prompt.user());
 

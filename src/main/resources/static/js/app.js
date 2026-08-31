@@ -2705,8 +2705,13 @@ function halley() {
          * <p>화살표는 <b>오직 LLM 예측</b>만 나타낸다. 코드 예측과 갈려도 색을 흐리지 않는다 —
          * 목록은 여러 매물을 견주는 자리라 신호가 하나여야 읽힌다. 갈린 사실은 모달에서 말한다.
          *
-         * <p>UNCERTAIN 은 아무것도 안 띄운다. 회색 화살표를 두면 '약한 전망'으로 읽히는데
-         * 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다.
+         * <p>UNCERTAIN 에는 <b>화살표를 쓰지 않는다</b>. 회색 화살표를 두면 '약한 전망'으로
+         * 읽히는데 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다. 대신 📝 를 단다
+         * (설계 I150): 화살표가 아니라서 방향으로 오해되지 않고, <b>눌러 볼 것이 있다</b>는
+         * 표시가 된다. 여태는 아무것도 없어 왜 판단을 못 했는지 볼 길이 없었다.
+         *
+         * <p>아직 낸 적이 없는 경우(stored=false)에는 안 단다 — 그때 UNCERTAIN 은
+         * '결과 없음'의 자리표시일 뿐이다.
          */
         forecastArrow(scored) {
             const f = scored?.forecast;
@@ -2715,6 +2720,9 @@ function halley() {
             }
             if (f.running) {
                 return '◌';
+            }
+            if (f.direction === 'UNCERTAIN') {
+                return f.stored ? '📝' : '';
             }
             return this.arrowOf(f.direction);
         },
@@ -2742,6 +2750,10 @@ function halley() {
             const f = scored?.forecast;
             if (f?.running) {
                 return 'running';
+            }
+            // 📝 는 방향이 아니다 — 색을 주면 그것부터 방향으로 읽힌다 (설계 I150)
+            if (f?.direction === 'UNCERTAIN') {
+                return 'note';
             }
             return this.arrowClassOf(f?.direction);
         },
@@ -2853,6 +2865,9 @@ function halley() {
             }
             if (f.running) {
                 return '가격 전망을 분석 중입니다…';
+            }
+            if (f.direction === 'UNCERTAIN') {
+                return '판단을 보류했습니다 — 이유 보기';
             }
             return '가격 전망: ' + f.directionLabel
                 + (f.confidenceLabel ? ' (확신도 ' + f.confidenceLabel + ')' : '');
