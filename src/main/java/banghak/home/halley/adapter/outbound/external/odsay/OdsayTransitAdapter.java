@@ -3,12 +3,22 @@ package banghak.home.halley.adapter.outbound.external.odsay;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
 import banghak.home.halley.config.exception.TransitSearchFailedException;
 import banghak.home.halley.domain.scoring.TransitResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+/**
+ * ODsay 대중교통 경로.
+ *
+ * <p><b>거절 사유를 반드시 남깁니다</b> (설계 I141). ODsay는 실패해도 HTTP 200에
+ * {@code error} 객체를 실어 보내므로 <b>폴백이 뜨지 않습니다.</b> 예전에는 그것을 버리고
+ * '미산출'로만 돌려줘서, 화면에도 로그에도 <b>왜 안 나왔는지가 없었습니다</b> —
+ * 키가 막힌 것인지, 너무 가까운 것인지, 정말 경로가 없는 것인지 구분이 안 됐습니다.
+ */
+@Slf4j
 @Component
 public class OdsayTransitAdapter implements OdsayTransitPort {
 
@@ -36,9 +46,52 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
         }
         final String json = client.findTransit(apiKey, startX, startY, endX, endY);
         if (json == null) {
+            // 폴백이 이미 남겼다
             return TransitResult.missing();
         }
-        return TransitResult.mapResult(parse(json));
+        final JsonNode root = parse(json);
+        final JsonNode error = errorNode(root);
+        if (error != null) {
+            final String code = error.path("code").asString("?");
+            log.warn("ODsay rejected the request. code={}, msg={}, hint={}, start=({},{}), end=({},{})",
+                    code, error.path("msg").asString("?"), hintFor(code),
+                    startX, startY, endX, endY);
+            return TransitResult.missing();
+        }
+        final TransitResult result = TransitResult.mapResult(root);
+        if (!result.isComputed()) {
+            // 오류도 아닌데 경로가 없다 — 응답 모양이 바뀌었을 수 있다
+            log.warn("ODsay returned no usable path. start=({},{}), end=({},{}), pathCount={}",
+                    startX, startY, endX, endY, root.path("result").path("path").size());
+        }
+        return result;
+    }
+
+    /** ODsay는 {@code error}를 객체로도 배열로도 보냅니다 — 엔드포인트마다 다릅니다. */
+    private JsonNode errorNode(JsonNode root) {
+        final JsonNode error = root.path("error");
+        if (error.isArray() && !error.isEmpty()) {
+            return error.path(0);
+        }
+        return error.isObject() ? error : null;
+    }
+
+    /**
+     * 자주 보는 코드에 사람이 읽을 설명을 붙인다.
+     *
+     * <p>코드만 남기면 결국 문서를 다시 뒤지게 됩니다. <b>로그를 보는 순간 무엇을 해야 하는지</b>
+     * 알 수 있어야 합니다.
+     */
+    private String hintFor(String code) {
+        return switch (code) {
+            case "-8" -> "출발지와 도착지가 너무 가깝다 (도보권)";
+            case "500" -> "경로 없음 — 좌표가 서비스 지역 밖일 수 있다";
+            case "3" -> "일일 사용량 초과";
+            case "4" -> "서비스 권한 없음 — 키에 이 API가 열려 있는지 확인";
+            case "-9" -> "좌표 형식 오류 (X=경도, Y=위도 순서 확인)";
+            case "2" -> "인증키 오류 — 등록된 도메인·IP가 맞는지 확인";
+            default -> "ODsay 오류 코드표 확인 필요";
+        };
     }
 
     private JsonNode parse(String json) {
