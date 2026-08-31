@@ -13,8 +13,11 @@ package banghak.home.halley.domain.llm;
  *                  호출자가 고를 수 있어야 한다 (설계 I73)
  * @param temperature 답의 흔들림. <b>null이면 보내지 않고 공급자 기본값에 맡깁니다</b> —
  *                  기존 호출(AI 추천도·비교 우위)의 동작을 바꾸지 않으려는 것입니다.
- *                  <b>판단하는 작업은 0을 씁니다</b>: 가격 전망은 같은 지표에 같은 방향이
- *                  나와야 하는데, 기본값(1.0)은 그러기에 너무 흔들립니다 (설계 I127)
+ *                  <b>판단하는 작업은 0을 씁니다</b> (설계 I127).
+ *                  <p><b>다만 요즘 Claude 모델은 이 값을 받지 않습니다</b>(설계 I144) —
+ *                  어댑터가 기본으로 빼고 보냅니다. 뜻은 남겨 둡니다: 받는 모델이나
+ *                  다른 공급자로 내려갈 때 켜면 됩니다. <b>같은 지표에 같은 답</b>은
+ *                  이제 프롬프트 해시(I59)가 지킵니다 — 다시 묻지 않고 저장된 답을 씁니다.
  */
 public record LlmMessage(String system, String user, int maxTokens, String model, Double temperature) {
 

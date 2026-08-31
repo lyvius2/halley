@@ -17,7 +17,7 @@ class ClaudeLlmAdapterTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private ClaudeLlmAdapter adapter(ClaudeFeignClient client, String apiKey) {
-        return new ClaudeLlmAdapter(client, objectMapper, apiKey, "claude-sonnet-4-5-20250929");
+        return new ClaudeLlmAdapter(client, objectMapper, apiKey, "claude-sonnet-4-5-20250929", false);
     }
 
     @Test
@@ -91,21 +91,69 @@ class ClaudeLlmAdapterTest {
     }
 
     @Test
-    @DisplayName("판단 작업은 temperature 0으로 보낸다 (설계 I127)")
-    void sendsZeroTemperatureForDeterministicCalls() {
+    @DisplayName("판단 작업이어도 기본으로는 temperature를 안 보낸다 — 요즘 모델이 400을 준다 (설계 I144)")
+    void omitsTemperatureEvenForDeterministicCallsByDefault() {
         // given
         final AtomicReference<String> sent = new AtomicReference<>();
         final ClaudeFeignClient client = capture(sent);
 
-        // when
+        // when — 판단 작업이라 temperature 0을 실어 보내려 했다
         adapter(client, "sk-test").complete(
                 LlmMessage.deterministic("s", "u", 512, null));
 
-        // then
+        // then — 그래도 안 나간다. 나가면 아래 응답을 받는다
+        //   400 `temperature` is deprecated for this model.
         final var node = objectMapper.readTree(sent.get());
-        assertThat(node.path("temperature").asDouble()).isEqualTo(0.0);
+        assertThat(node.has("temperature")).isFalse();
         // 모델을 안 골랐으므로 기본 모델은 그대로다
         assertThat(node.path("model").asString()).isEqualTo("claude-sonnet-4-5-20250929");
+    }
+
+    @Test
+    @DisplayName("받는 모델로 내려가면 켤 수 있다 — 뜻은 남겨 뒀다 (설계 I144)")
+    void sendsTemperatureWhenEnabled() {
+        // given
+        final AtomicReference<String> sent = new AtomicReference<>();
+        final ClaudeLlmAdapter adapter = new ClaudeLlmAdapter(
+                capture(sent), objectMapper, "sk-test", "old-model", true);
+
+        // when
+        adapter.complete(LlmMessage.deterministic("s", "u", 512, null));
+
+        // then — 없는 노드도 asDouble() 은 0.0 을 준다. 있는지부터 본다
+        final var node = objectMapper.readTree(sent.get());
+        assertThat(node.has("temperature")).isTrue();
+        assertThat(node.path("temperature").asDouble()).isEqualTo(0.0);
+    }
+
+    @Test
+    @DisplayName("켜도 호출자가 안 정했으면 안 보낸다 — 기존 호출의 답이 달라지면 안 된다 (설계 I127)")
+    void enabledStillOmitsWhenCallerDidNotAsk() {
+        final AtomicReference<String> sent = new AtomicReference<>();
+        final ClaudeLlmAdapter adapter = new ClaudeLlmAdapter(
+                capture(sent), objectMapper, "sk-test", "old-model", true);
+
+        adapter.complete(new LlmMessage("s", "u", 512));
+
+        assertThat(objectMapper.readTree(sent.get()).has("temperature")).isFalse();
+    }
+
+    /**
+     * <p>타입 필터(`"text".equals(...)`) 자체는 이 테스트로 검증되지 않는다 — thinking 블록에는
+     * `text` 필드가 없어서 필터를 지워도 결과가 같다. <b>확인해 봤고, 그래서 그렇게 적어 둔다.</b>
+     * 여기서 보는 것은 <b>text 가 첫 블록이 아니어도 읽는가</b>이고, 그건 요즘 모델에서
+     * 실제로 일어나는 일이다.
+     */
+    @Test
+    @DisplayName("text가 첫 블록이 아니어도 읽는다 — 요즘 모델은 thinking을 먼저 보낸다 (설계 I144)")
+    void readsTextEvenWhenItIsNotTheFirstBlock() {
+        final var result = adapter((k, v, b) -> """
+                {"type":"message","model":"claude-opus-5","stop_reason":"end_turn","content":[
+                  {"type":"thinking","thinking":"속으로 따져 본다"},
+                  {"type":"text","text":"{\\"direction\\":\\"UP\\"}"}]}
+                """, "sk-test").complete(new LlmMessage("s", "u", 512));
+
+        assertThat(result.text()).isEqualTo("{\"direction\":\"UP\"}");
     }
 
     private ClaudeFeignClient capture(AtomicReference<String> sent) {
