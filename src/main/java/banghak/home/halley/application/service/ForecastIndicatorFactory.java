@@ -4,6 +4,8 @@ import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepositor
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.domain.forecast.RuleBasedForecaster;
 import banghak.home.halley.domain.forecast.indicator.JeonseRatioIndicator;
+import banghak.home.halley.domain.forecast.indicator.LongTermTrendIndicator;
+import banghak.home.halley.domain.forecast.indicator.PeakDistanceIndicator;
 import banghak.home.halley.domain.forecast.indicator.PriceIndicator;
 import banghak.home.halley.domain.forecast.indicator.RateCycleIndicator;
 import banghak.home.halley.domain.forecast.indicator.TradeTrendIndicator;
@@ -70,6 +72,10 @@ public class ForecastIndicatorFactory {
                 new JeonseRatioIndicator(
                         decimal(params, "forecast.jeonse.high", "0.70"),
                         decimal(params, "forecast.jeonse.low", "0.50")),
+                new LongTermTrendIndicator(decimal(params, "forecast.longterm.threshold", "0.02")),
+                new PeakDistanceIndicator(
+                        decimal(params, "forecast.peak.near", "0.95"),
+                        decimal(params, "forecast.peak.far", "0.80")),
                 new RateCycleIndicator(),
                 new ZoneCapacityIndicator(farLimits(params), redevelopmentAgeYears));
     }

@@ -57,6 +57,30 @@ public class TradeStatCalculator {
                 .toList());
     }
 
+    /**
+     * 창을 한 달씩 밀며 중앙값을 죽 뽑는다 (설계 I148).
+     *
+     * <p>전고점을 찾으려면 <b>한 달만 보면 안 됩니다.</b> 거래가 한두 건인 달은
+     * 중앙값이 튀어 <b>실제로는 없던 고점</b>이 만들어집니다. 3개월씩 겹쳐 훑습니다.
+     *
+     * @param spanMonths 얼마나 거슬러 볼지. 이 기간 안에서 창을 민다
+     * @return 표본이 {@code minSamples}에 못 미치는 창은 <b>빼고</b> 돌려준다
+     */
+    public List<TradeStat> rollingMedians(Property property, List<MonthlyTrades> monthly, YearMonth base,
+                                          int spanMonths, int windowMonths, int lagMonths, int minSamples) {
+        final List<TradeStat> stats = new ArrayList<>();
+        if (monthly == null || monthly.isEmpty() || base == null || windowMonths <= 0) {
+            return stats;
+        }
+        for (int offset = 0; offset + windowMonths <= spanMonths; offset++) {
+            final TradeStat stat = medianOf(property, monthly, base, offset, windowMonths, lagMonths);
+            if (stat.median() != null && stat.count() >= minSamples) {
+                stats.add(stat);
+            }
+        }
+        return stats;
+    }
+
     private TradeStat statOf(Property property, List<MonthlyTrades> window) {
         final List<Long> amounts = new ArrayList<>();
         for (final MonthlyTrades month : window) {

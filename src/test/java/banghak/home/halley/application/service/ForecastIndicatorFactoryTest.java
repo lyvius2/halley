@@ -31,11 +31,12 @@ class ForecastIndicatorFactoryTest {
     private RegulationParamRepository regulationParamRepository;
 
     @Test
-    @DisplayName("지표 넷을 무거운 것부터 조립한다")
-    void assemblesFourIndicatorsInOrder() {
+    @DisplayName("지표를 무거운 것부터 조립한다 — 순서가 곧 화면 순서다")
+    void assemblesIndicatorsInOrder() {
         assertThat(factory.indicators())
                 .extracting(PriceIndicator::code)
-                .containsExactly("TRADE_TREND", "JEONSE_RATIO", "RATE_CYCLE", "ZONE_CAPACITY");
+                .containsExactly("TRADE_TREND", "JEONSE_RATIO",
+                        "LONG_TERM_TREND", "PEAK_DISTANCE", "RATE_CYCLE", "ZONE_CAPACITY");
     }
 
     @Test
@@ -66,7 +67,7 @@ class ForecastIndicatorFactoryTest {
 
         try {
             // when — 조립이 터지지 않아야 한다
-            assertThat(factory.indicators()).hasSize(4);
+            assertThat(factory.indicators()).hasSize(6);
         } finally {
             regulationParamRepository.update(new RegulationParam(param.id(), param.profile(),
                     param.paramKey(), param.paramValue(), param.valueType(),
