@@ -368,3 +368,12 @@ CREATE TABLE IF NOT EXISTS user_debt (
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_user_debt UNIQUE (user_id, debt_type)
 );
+
+CREATE TABLE IF NOT EXISTS monthly_trade_cache (
+    lawd_cd     VARCHAR(5)  NOT NULL,
+    deal_ym     VARCHAR(6)  NOT NULL,
+    payload     JSON,
+    trade_count INT         NOT NULL DEFAULT 0,
+    fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (lawd_cd, deal_ym)
+);

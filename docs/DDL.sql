@@ -695,3 +695,19 @@ ALTER TABLE user_group ADD COLUMN IF NOT EXISTS slack_webhook_url VARCHAR(500);
 -- 관리자가 대신 넣은 정보를 본인이 한 번 확인해야 한다.
 -- 값이 채워져 있는 것과 본인이 맞다고 한 것은 다르다.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_confirmed BOOLEAN NOT NULL DEFAULT FALSE;
+
+-- ---------------------------------------------------------------------------
+-- 30. monthly_trade_cache — 법정동·월별 실거래 원본 캐시 (설계 I128)
+--     같은 법정동·같은 달은 매물이 달라도 국토부 응답이 같다. 가격 전망이 60개월을
+--     훑는데 매물마다 60번씩 부르면 등록이 몇 분씩 걸린다.
+--     거래는 JSON 배열 하나로 담는다 — 통째로 읽고 통째로 쓰는 용도라 쪼갤 이유가 없다.
+-- ---------------------------------------------------------------------------
+CREATE TABLE monthly_trade_cache (
+    lawd_cd     VARCHAR(5)  NOT NULL,                       -- 법정동코드 앞 5자리(시군구)
+    deal_ym     VARCHAR(6)  NOT NULL,                       -- yyyyMM
+    payload     JSONB,                                      -- 국토부 응답을 그대로
+    trade_count INT         NOT NULL DEFAULT 0,             -- 사람이 눈으로 볼 때 쓰는 값
+    fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,          -- 과거 달은 안 바뀌므로 최근만 재조회
+    PRIMARY KEY (lawd_cd, deal_ym)
+);
+CREATE INDEX ix_monthly_trade_cache_fetched ON monthly_trade_cache (fetched_at);

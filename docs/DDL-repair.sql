@@ -385,6 +385,15 @@ CREATE TABLE IF NOT EXISTS user_debt (
     CONSTRAINT uq_user_debt UNIQUE (user_id, debt_type)
 );
 
+CREATE TABLE IF NOT EXISTS monthly_trade_cache (
+    lawd_cd     VARCHAR(5)  NOT NULL,
+    deal_ym     VARCHAR(6)  NOT NULL,
+    payload     JSONB,
+    trade_count INT         NOT NULL DEFAULT 0,
+    fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (lawd_cd, deal_ym)
+);
+
 -- ---------------------------------------------------------------------------
 -- 2. 이미 있는 테이블에 빠진 컬럼을 더한다
 -- ---------------------------------------------------------------------------
@@ -687,6 +696,13 @@ ALTER TABLE user_debt ADD COLUMN IF NOT EXISTS debt_type VARCHAR(30);
 ALTER TABLE user_debt ADD COLUMN IF NOT EXISTS amount BIGINT DEFAULT 0;
 ALTER TABLE user_debt ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
+-- monthly_trade_cache
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS lawd_cd VARCHAR(5);
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS deal_ym VARCHAR(6);
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS payload JSONB;
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS trade_count INT DEFAULT 0;
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMP WITH TIME ZONE;
+
 -- ---------------------------------------------------------------------------
 -- 3. 인덱스 (docs/DDL.sql 기준)
 -- ---------------------------------------------------------------------------
@@ -716,6 +732,7 @@ CREATE INDEX IF NOT EXISTS ix_regulation_param_profile ON regulation_param (prof
 CREATE INDEX IF NOT EXISTS idx_land_use_property ON land_use (property_id);
 CREATE INDEX IF NOT EXISTS idx_regulated_area_prefix ON regulated_area (code_prefix);
 CREATE INDEX IF NOT EXISTS ix_legal_dong_code_dong ON legal_dong_code (sigungu, dong_name);
+CREATE INDEX IF NOT EXISTS ix_monthly_trade_cache_fetched ON monthly_trade_cache (fetched_at);
 
 -- ---------------------------------------------------------------------------
 -- 4. 선택 — 옛 스키마의 잔재 정리
