@@ -59,7 +59,7 @@
    - `REST API 키` → `KAKAO_REST_KEY`
 4. **플랫폼 설정** → Web 플랫폼에 도메인 등록 (지도가 렌더되지 않으면 이 단계 누락):
    - `http://localhost:8080`
-   - `https://cena.furaiki-lifelog.com`
+   - `https://halley.furaiki-lifelog.com`
 5. 로컬/운영 각 환경의 환경변수에 주입
 
 ### 2.3 설정 키

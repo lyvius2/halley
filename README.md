@@ -188,7 +188,7 @@ Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. �
 | 외부 호출 | OpenFeign + Resilience4j |
 | 지도 | 카카오맵 JS SDK |
 | 비동기 | 가상 스레드 (`Thread.ofVirtual()`) + 세마포어 |
-| 배포 | `https://cena.furaiki-lifelog.com`, Let's Encrypt |
+| 배포 | `https://halley.furaiki-lifelog.com`, Let's Encrypt |
 
 ---
 

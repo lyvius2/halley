@@ -50,7 +50,7 @@
 | DB | **PostgreSQL** 단일 (JSONB, PostGIS 옵션) + **Redis** (세션 미러·캐시) — local은 **H2DB + 메모리 캐시** (Session 2.3) |
 | 영속화 | **jOOQ** (type-safe SQL DSL) — 코드 생성기(jooq-codegen) 미사용, 테이블/필드 수동 정의 (Session 2.4) |
 | 아키텍처 | **저장소는 포트 없이 jOOQ 직접 사용**, 외부 연동·캐시·세션만 포트로 격리 (Session 2.5) |
-| 배포 | `https://cena.furaiki-lifelog.com` · 리버스 프록시 + Let's Encrypt |
+| 배포 | `https://halley.furaiki-lifelog.com` · 리버스 프록시 + Let's Encrypt |
 | 인증 | **Spring Session Data Redis**, 30분 idle timeout, sliding expiration |
 | 알림 | Slack **Incoming Webhook**, URL은 `application.yaml` 정의 (Session 13.4) |
 | 설정 | `SYSTEM_CONFIG` 테이블 + Admin 화면(M6), 부팅 시 yml 시드 |
@@ -1559,7 +1559,7 @@ Slack 관련 항목은 `application.yaml`로 이동했습니다(Session 13.4). D
 
 | 항목 | 값 |
 |---|---|
-| 도메인 | `https://cena.furaiki-lifelog.com` |
+| 도메인 | `https://halley.furaiki-lifelog.com` |
 | TLS | Let's Encrypt (Caddy 권장 — 자동 갱신 내장) |
 | 구조 | Reverse Proxy(Caddy/nginx) → Spring Boot(8080) → PostgreSQL |
 | 프로파일 | `local` / `live` (Session 2.3) |
@@ -1579,7 +1579,7 @@ server:
         same-site: lax
 ```
 
-**카카오맵 JS 키에 도메인을 등록해야 합니다.** 카카오 개발자 콘솔의 플랫폼 → Web 사이트 도메인에 `https://cena.furaiki-lifelog.com`을 추가하지 않으면 지도가 렌더되지 않습니다. 로컬 개발용 `http://localhost:8080`도 함께 등록해 두세요.
+**카카오맵 JS 키에 도메인을 등록해야 합니다.** 카카오 개발자 콘솔의 플랫폼 → Web 사이트 도메인에 `https://halley.furaiki-lifelog.com`을 추가하지 않으면 지도가 렌더되지 않습니다. 로컬 개발용 `http://localhost:8080`도 함께 등록해 두세요.
 
 ### 14.3 PostgreSQL · MongoDB 사용 범위
 
