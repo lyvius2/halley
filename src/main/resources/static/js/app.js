@@ -2797,6 +2797,18 @@ function halley() {
         },
 
         /**
+         * 아무 모달도 안 열려 있는가 (설계 I146).
+         *
+         * <p>분석이 끝나면 결과를 열어 보여 주는데, 그동안 사용자가 다른 걸 보고 있으면
+         * <b>보던 것을 덮어써서는 안 된다.</b>
+         */
+        noModalOpen() {
+            return !this.showForecast && !this.showM2 && !this.showPropertyForm
+                && !this.showLoanModal && !this.showRefModal && !this.showComments
+                && !this.showCompare && !this.showSettings && !this.showUsers;
+        },
+
+        /**
          * 결과가 올 때까지 목록을 다시 읽는다.
          *
          * <p>멈추는 조건이 둘 다 있어야 한다 — 하나라도 빠지면 탭이 열려 있는 동안 계속 두드린다.
@@ -2817,6 +2829,12 @@ function halley() {
                 // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
                 if (!found || !found.forecast?.running) {
                     this.stopForecastPolling();
+                    // 사용자가 직접 시킨 일이다. 결과를 보여 준다 (설계 I146).
+                    // 판단 보류로 끝나면 화살표가 안 뜨므로, 열어 주지 않으면
+                    // 2분을 기다린 끝에 아무 변화도 못 본다
+                    if (found && this.noModalOpen()) {
+                        await this.openForecast(found);
+                    }
                 }
             }, FORECAST_POLL_INTERVAL_MS);
         },
