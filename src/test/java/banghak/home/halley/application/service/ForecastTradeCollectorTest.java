@@ -4,6 +4,7 @@ import banghak.home.halley.adapter.outbound.persistence.MonthlyTradeCacheReposit
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.property.ReferenceTrade;
+import banghak.home.halley.domain.reference.CachedDealType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -54,10 +55,10 @@ class ForecastTradeCollectorTest {
     @DisplayName("처음에는 모든 달을 받고, 두 번째부터는 캐시가 받는다")
     void secondCallHitsCache() {
         // when — 같은 법정동을 두 번
-        collector.collect("11110");
+        collector.collect("11110", CachedDealType.TRADE);
         final int first = calls.get();
         calls.set(0);
-        collector.collect("11110");
+        collector.collect("11110", CachedDealType.TRADE);
 
         // then — 최근 3개월은 24시간 규칙에 걸리지 않아(방금 받음) 다시 안 부른다
         assertThat(first).isEqualTo(6);
@@ -68,11 +69,11 @@ class ForecastTradeCollectorTest {
     @DisplayName("다른 매물이어도 같은 법정동이면 다시 부르지 않는다 — 캐시의 핵심")
     void differentPropertySameDistrictReusesCache() {
         // given — 첫 매물이 이미 받아 뒀다
-        collector.collect("11140");
+        collector.collect("11140", CachedDealType.TRADE);
         calls.set(0);
 
         // when — 같은 법정동의 다른 매물 (수집기는 매물을 모른다. 법정동만 본다)
-        final var result = collector.collect("11140");
+        final var result = collector.collect("11140", CachedDealType.TRADE);
 
         // then
         assertThat(calls.get()).isZero();
@@ -82,7 +83,7 @@ class ForecastTradeCollectorTest {
     @Test
     @DisplayName("오래된 순으로 돌려준다 — 추세 계산이 순서를 전제한다")
     void returnsOldestFirst() {
-        final var result = collector.collect("11170");
+        final var result = collector.collect("11170", CachedDealType.TRADE);
 
         assertThat(result).isSortedAccordingTo(
                 java.util.Comparator.comparing(m -> m.dealYm()));
@@ -104,7 +105,7 @@ class ForecastTradeCollectorTest {
         });
 
         // when
-        final var result = collector.collect("11215");
+        final var result = collector.collect("11215", CachedDealType.TRADE);
 
         // then — 5개월은 남는다. 실패한 달은 저장하지 않아 다음에 다시 받는다
         assertThat(result).hasSize(5);
@@ -115,8 +116,8 @@ class ForecastTradeCollectorTest {
     @Test
     @DisplayName("법정동코드가 없으면 부르지 않는다")
     void skipsWithoutLawdCd() {
-        assertThat(collector.collect(null)).isEmpty();
-        assertThat(collector.collect(" ")).isEmpty();
+        assertThat(collector.collect(null, CachedDealType.TRADE)).isEmpty();
+        assertThat(collector.collect(" ", CachedDealType.TRADE)).isEmpty();
         assertThat(calls.get()).isZero();
     }
 
@@ -130,9 +131,9 @@ class ForecastTradeCollectorTest {
         });
 
         // when
-        collector.collect("11230");
+        collector.collect("11230", CachedDealType.TRADE);
         calls.set(0);
-        collector.collect("11230");
+        collector.collect("11230", CachedDealType.TRADE);
 
         // then
         assertThat(calls.get()).isZero();
@@ -148,7 +149,7 @@ class ForecastTradeCollectorTest {
             return List.of();
         });
 
-        final var result = collector.collect("11260");
+        final var result = collector.collect("11260", CachedDealType.TRADE);
 
         assertThat(seen).hasSize(6);
         assertThat(result).hasSize(6);

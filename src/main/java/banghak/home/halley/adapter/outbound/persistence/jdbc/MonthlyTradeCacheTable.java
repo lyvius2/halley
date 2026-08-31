@@ -19,6 +19,7 @@ public final class MonthlyTradeCacheTable {
 
     public static final Field<String> LAWD_CD = field(name(T, "lawd_cd"), String.class);
     public static final Field<String> DEAL_YM = field(name(T, "deal_ym"), String.class);
+    public static final Field<String> DEAL_TYPE = field(name(T, "deal_type"), String.class);
     public static final Field<JSON> PAYLOAD = field(name(T, "payload"), JSON.class);
     /**
      * 읽을 때는 타입을 못 박지 않는다 (설계 I117).

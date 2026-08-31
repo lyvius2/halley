@@ -372,8 +372,9 @@ CREATE TABLE IF NOT EXISTS user_debt (
 CREATE TABLE IF NOT EXISTS monthly_trade_cache (
     lawd_cd     VARCHAR(5)  NOT NULL,
     deal_ym     VARCHAR(6)  NOT NULL,
+    deal_type   VARCHAR(20) NOT NULL DEFAULT 'TRADE',
     payload     JSON,
     trade_count INT         NOT NULL DEFAULT 0,
     fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,
-    PRIMARY KEY (lawd_cd, deal_ym)
+    PRIMARY KEY (lawd_cd, deal_ym, deal_type)
 );

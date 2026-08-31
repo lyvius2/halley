@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.outbound.persistence;
 
 import banghak.home.halley.domain.property.ReferenceTrade;
+import banghak.home.halley.domain.reference.CachedDealType;
 import banghak.home.halley.domain.reference.MonthlyTrades;
 import lombok.extern.slf4j.Slf4j;
 import org.jooq.DSLContext;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.DEAL_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.DEAL_YM;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.FETCHED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.LAWD_CD;
@@ -30,6 +32,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTrade
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.PAYLOAD_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.TABLE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.MonthlyTradeCacheTable.TRADE_COUNT;
+import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toEnum;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toInstant;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJson;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJsonNode;
@@ -64,10 +67,11 @@ public class MonthlyTradeCacheRepository {
         dsl.insertInto(TABLE)
                 .set(LAWD_CD, monthly.lawdCd())
                 .set(DEAL_YM, ym)
+                .set(DEAL_TYPE, monthly.dealType().name())
                 .set(PAYLOAD, toJson(toJsonArray(monthly.trades()), objectMapper))
                 .set(TRADE_COUNT, monthly.count())
                 .set(FETCHED_AT, toOffset(monthly.fetchedAt()))
-                .onConflict(LAWD_CD, DEAL_YM)
+                .onConflict(LAWD_CD, DEAL_YM, DEAL_TYPE)
                 .doUpdate()
                 .set(PAYLOAD, toJson(toJsonArray(monthly.trades()), objectMapper))
                 .set(TRADE_COUNT, monthly.count())
@@ -75,9 +79,9 @@ public class MonthlyTradeCacheRepository {
                 .execute();
     }
 
-    public Optional<MonthlyTrades> find(String lawdCd, YearMonth dealYm) {
+    public Optional<MonthlyTrades> find(String lawdCd, YearMonth dealYm, CachedDealType dealType) {
         return dsl.selectFrom(TABLE)
-                .where(LAWD_CD.eq(lawdCd), DEAL_YM.eq(dealYm.format(YM)))
+                .where(LAWD_CD.eq(lawdCd), DEAL_YM.eq(dealYm.format(YM)), DEAL_TYPE.eq(dealType.name()))
                 .fetchOptional()
                 .map(this::map);
     }
@@ -87,13 +91,14 @@ public class MonthlyTradeCacheRepository {
      *
      * <p>60개월을 달마다 따로 물으면 <b>왕복이 60번</b>입니다. 캐시를 두는 뜻이 없어집니다.
      */
-    public Map<YearMonth, MonthlyTrades> findAll(String lawdCd, Collection<YearMonth> months) {
+    public Map<YearMonth, MonthlyTrades> findAll(String lawdCd, Collection<YearMonth> months,
+                                                 CachedDealType dealType) {
         if (lawdCd == null || months == null || months.isEmpty()) {
             return Map.of();
         }
         final List<String> keys = months.stream().map(m -> m.format(YM)).toList();
         return dsl.selectFrom(TABLE)
-                .where(LAWD_CD.eq(lawdCd), DEAL_YM.in(keys))
+                .where(LAWD_CD.eq(lawdCd), DEAL_YM.in(keys), DEAL_TYPE.eq(dealType.name()))
                 .fetch()
                 .map(this::map)
                 .stream()
@@ -104,6 +109,7 @@ public class MonthlyTradeCacheRepository {
         return new MonthlyTrades(
                 r.get(LAWD_CD),
                 YearMonth.parse(r.get(DEAL_YM), YM),
+                toEnum(CachedDealType.class, r.get(DEAL_TYPE)),
                 toTrades(toJsonNode(r.get(PAYLOAD_RAW), objectMapper)),
                 toInstant(r.get(FETCHED_AT)));
     }

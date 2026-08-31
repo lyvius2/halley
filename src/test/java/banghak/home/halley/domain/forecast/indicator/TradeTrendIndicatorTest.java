@@ -7,6 +7,7 @@ import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import banghak.home.halley.domain.property.SourceType;
+import banghak.home.halley.domain.reference.CachedDealType;
 import banghak.home.halley.domain.reference.MonthlyTrades;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ class TradeTrendIndicatorTest {
         final List<MonthlyTrades> monthly = new ArrayList<>();
         monthly.addAll(monthsWithCount(3, 1_000_000_000L, 3));   // 직전
         monthly.addAll(monthsWithCount(3, 1_000_000_000L, 3));   // 최근 — 같은 값이라 FLAT
-        monthly.add(new MonthlyTrades("11110", YearMonth.now(),
+        monthly.add(new MonthlyTrades("11110", YearMonth.now(), CachedDealType.TRADE,
                 java.util.Collections.nCopies(20, trade("측정단지", 5_000_000_000L, "84.9")),
                 Instant.now()));
 
@@ -59,12 +60,12 @@ class TradeTrendIndicatorTest {
         final List<MonthlyTrades> ordered = new ArrayList<>();
         for (int i = 0; i < monthly.size(); i++) {
             ordered.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(monthly.size() - 1L - i),
-                    monthly.get(i).trades(), Instant.now()));
+                    CachedDealType.TRADE, monthly.get(i).trades(), Instant.now()));
         }
 
         // when
         final PriceFactor factor = indicator.evaluate(
-                new ForecastInput(property("측정단지", "84.9"), ordered)).orElseThrow();
+                ForecastInput.ofTrades(property("측정단지", "84.9"), ordered)).orElseThrow();
 
         // then — 지연 달(50억 × 20건)이 최근 구간에 들어오면 UP 이 된다
         assertThat(factor.effect()).isEqualTo(ForecastDirection.FLAT);
@@ -106,7 +107,7 @@ class TradeTrendIndicatorTest {
         monthly.set(4, one(monthly.get(4).dealYm(), 1_100_000_000L));
         monthly.addAll(months(1, 1_100_000_000L));
 
-        assertThat(indicator.evaluate(new ForecastInput(property("측정단지", "84.9"), monthly)))
+        assertThat(indicator.evaluate(ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)))
                 .isEmpty();
     }
 
@@ -114,8 +115,8 @@ class TradeTrendIndicatorTest {
     @DisplayName("달이 모자라면 판단하지 않는다")
     void skipsWhenNotEnoughMonths() {
         assertThat(indicator.evaluate(input(months(4, 1_000_000_000L)))).isEmpty();
-        assertThat(indicator.evaluate(new ForecastInput(property("단지", "84.9"), List.of()))).isEmpty();
-        assertThat(indicator.evaluate(new ForecastInput(property("단지", "84.9"), null))).isEmpty();
+        assertThat(indicator.evaluate(ForecastInput.ofTrades(property("단지", "84.9"), List.of()))).isEmpty();
+        assertThat(indicator.evaluate(ForecastInput.ofTrades(property("단지", "84.9"), null))).isEmpty();
     }
 
     @Test
@@ -126,7 +127,7 @@ class TradeTrendIndicatorTest {
         final List<MonthlyTrades> monthly = new ArrayList<>(months(3, 1_000_000_000L));
         for (int i = 0; i < 3; i++) {
             final YearMonth ym = YearMonth.now().minusMonths(3L - i);
-            monthly.add(new MonthlyTrades("11110", ym, List.of(
+            monthly.add(new MonthlyTrades("11110", ym, CachedDealType.TRADE, List.of(
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9"),
@@ -139,7 +140,7 @@ class TradeTrendIndicatorTest {
 
         // when
         final PriceFactor factor = indicator.evaluate(
-                new ForecastInput(property("측정단지", "84.9"), monthly)).orElseThrow();
+                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)).orElseThrow();
 
         // then — 안 걸러지면 중앙값이 20억이 되어 UP 이 나온다
         assertThat(factor.effect()).isEqualTo(ForecastDirection.FLAT);
@@ -152,7 +153,7 @@ class TradeTrendIndicatorTest {
         final List<MonthlyTrades> monthly = new ArrayList<>();
         for (int i = 0; i < 6; i++) {
             final YearMonth ym = YearMonth.now().minusMonths(6L - i);
-            monthly.add(new MonthlyTrades("11110", ym, List.of(
+            monthly.add(new MonthlyTrades("11110", ym, CachedDealType.TRADE, List.of(
                     trade("래미안 아파트", i < 3 ? 1_000_000_000L : 1_100_000_000L, "84.9"),
                     trade("래미안아파트", i < 3 ? 1_000_000_000L : 1_100_000_000L, "84.9"),
                     trade("래미안", i < 3 ? 1_000_000_000L : 1_100_000_000L, "84.9")),
@@ -161,7 +162,7 @@ class TradeTrendIndicatorTest {
         monthly.addAll(months(1, 1_100_000_000L));
 
         final PriceFactor factor = indicator.evaluate(
-                new ForecastInput(property("래미안", "84.9"), monthly)).orElseThrow();
+                ForecastInput.ofTrades(property("래미안", "84.9"), monthly)).orElseThrow();
 
         assertThat(factor.effect()).isEqualTo(ForecastDirection.UP);
         assertThat(factor.evidence()).contains("표본 9건 → 9건");
@@ -173,13 +174,13 @@ class TradeTrendIndicatorTest {
         // given — 직전 구간에 30억 한 건. 평균이면 크게 뛰지만 중앙값은 안 움직인다
         final List<MonthlyTrades> monthly = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            monthly.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(6L - i), List.of(
+            monthly.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(6L - i), CachedDealType.TRADE, List.of(
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9")), Instant.now()));
         }
         monthly.get(0).trades();
-        monthly.set(0, new MonthlyTrades("11110", monthly.get(0).dealYm(), List.of(
+        monthly.set(0, new MonthlyTrades("11110", monthly.get(0).dealYm(), CachedDealType.TRADE, List.of(
                 trade("측정단지", 1_000_000_000L, "84.9"),
                 trade("측정단지", 1_000_000_000L, "84.9"),
                 trade("측정단지", 3_000_000_000L, "84.9")), Instant.now()));
@@ -188,7 +189,7 @@ class TradeTrendIndicatorTest {
 
         // when
         final PriceFactor factor = indicator.evaluate(
-                new ForecastInput(property("측정단지", "84.9"), monthly)).orElseThrow();
+                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)).orElseThrow();
 
         // then — 평균이었다면 직전 중앙값이 뛰어 DOWN 이 나온다
         assertThat(factor.effect()).isEqualTo(ForecastDirection.FLAT);
@@ -217,9 +218,9 @@ class TradeTrendIndicatorTest {
         final List<MonthlyTrades> ordered = new ArrayList<>();
         for (int i = 0; i < all.size(); i++) {
             final YearMonth ym = YearMonth.now().minusMonths(all.size() - 1L - i);
-            ordered.add(new MonthlyTrades("11110", ym, all.get(i).trades(), Instant.now()));
+            ordered.add(new MonthlyTrades("11110", ym, CachedDealType.TRADE, all.get(i).trades(), Instant.now()));
         }
-        return new ForecastInput(property("측정단지", "84.9"), ordered);
+        return ForecastInput.ofTrades(property("측정단지", "84.9"), ordered);
     }
 
     /** 달마다 같은 가격 3건씩. */
@@ -234,14 +235,14 @@ class TradeTrendIndicatorTest {
             for (int j = 0; j < perMonth; j++) {
                 trades.add(trade("측정단지", price, "84.9"));
             }
-            list.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(count - (long) i), trades,
+            list.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(count - (long) i), CachedDealType.TRADE, trades,
                     Instant.now()));
         }
         return list;
     }
 
     private MonthlyTrades one(YearMonth ym, long price) {
-        return new MonthlyTrades("11110", ym, List.of(trade("측정단지", price, "84.9")), Instant.now());
+        return new MonthlyTrades("11110", ym, CachedDealType.TRADE, List.of(trade("측정단지", price, "84.9")), Instant.now());
     }
 
     private ReferenceTrade trade(String name, long price, String area) {

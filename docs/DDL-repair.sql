@@ -388,10 +388,11 @@ CREATE TABLE IF NOT EXISTS user_debt (
 CREATE TABLE IF NOT EXISTS monthly_trade_cache (
     lawd_cd     VARCHAR(5)  NOT NULL,
     deal_ym     VARCHAR(6)  NOT NULL,
+    deal_type   VARCHAR(20) NOT NULL DEFAULT 'TRADE',
     payload     JSONB,
     trade_count INT         NOT NULL DEFAULT 0,
     fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,
-    PRIMARY KEY (lawd_cd, deal_ym)
+    PRIMARY KEY (lawd_cd, deal_ym, deal_type)
 );
 
 -- ---------------------------------------------------------------------------
@@ -699,6 +700,7 @@ ALTER TABLE user_debt ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZO
 -- monthly_trade_cache
 ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS lawd_cd VARCHAR(5);
 ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS deal_ym VARCHAR(6);
+ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS deal_type VARCHAR(20) DEFAULT 'TRADE';
 ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS payload JSONB;
 ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS trade_count INT DEFAULT 0;
 ALTER TABLE monthly_trade_cache ADD COLUMN IF NOT EXISTS fetched_at TIMESTAMP WITH TIME ZONE;

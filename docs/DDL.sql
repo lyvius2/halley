@@ -705,9 +705,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_confirmed BOOLEAN NOT NULL DE
 CREATE TABLE monthly_trade_cache (
     lawd_cd     VARCHAR(5)  NOT NULL,                       -- 법정동코드 앞 5자리(시군구)
     deal_ym     VARCHAR(6)  NOT NULL,                       -- yyyyMM
+    deal_type   VARCHAR(20) NOT NULL DEFAULT 'TRADE',       -- TRADE|JEONSE (설계 I131)
     payload     JSONB,                                      -- 국토부 응답을 그대로
     trade_count INT         NOT NULL DEFAULT 0,             -- 사람이 눈으로 볼 때 쓰는 값
     fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,          -- 과거 달은 안 바뀌므로 최근만 재조회
-    PRIMARY KEY (lawd_cd, deal_ym)
+    PRIMARY KEY (lawd_cd, deal_ym, deal_type)
 );
 CREATE INDEX ix_monthly_trade_cache_fetched ON monthly_trade_cache (fetched_at);

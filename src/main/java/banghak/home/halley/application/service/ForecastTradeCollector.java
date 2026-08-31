@@ -4,6 +4,7 @@ import banghak.home.halley.adapter.outbound.persistence.MonthlyTradeCacheReposit
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.property.ReferenceTrade;
+import banghak.home.halley.domain.reference.CachedDealType;
 import banghak.home.halley.domain.reference.MonthlyTrades;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -64,9 +65,9 @@ public class ForecastTradeCollector {
      *
      * @return 오래된 달부터 정렬된 목록. 못 받은 달은 빠진다
      */
-    public List<MonthlyTrades> collect(String lawdCd) {
+    public List<MonthlyTrades> collect(String lawdCd, CachedDealType dealType) {
         if (lawdCd == null || lawdCd.isBlank()) {
-            log.info("Skipping forecast trade collection - no legal dong code.");
+            log.info("Skipping forecast trade collection - no legal dong code. dealType={}", dealType);
             return List.of();
         }
         final YearMonth now = YearMonth.now();
@@ -75,17 +76,17 @@ public class ForecastTradeCollector {
             months.add(now.minusMonths(i));
         }
 
-        final Map<YearMonth, MonthlyTrades> cached = cacheRepository.findAll(lawdCd, months);
+        final Map<YearMonth, MonthlyTrades> cached = cacheRepository.findAll(lawdCd, months, dealType);
         final List<YearMonth> toFetch = months.stream().filter(m -> needsFetch(m, cached.get(m), now)).toList();
 
         if (!toFetch.isEmpty()) {
-            fetchAndStore(lawdCd, toFetch);
+            fetchAndStore(lawdCd, toFetch, dealType);
         }
-        log.info("Forecast trades collected. lawdCd={}, months={}, cached={}, fetched={}",
-                lawdCd, months.size(), months.size() - toFetch.size(), toFetch.size());
+        log.info("Forecast trades collected. lawdCd={}, dealType={}, months={}, cached={}, fetched={}",
+                lawdCd, dealType, months.size(), months.size() - toFetch.size(), toFetch.size());
 
         // 갱신분을 포함해 다시 읽는다 — 방금 받은 것과 캐시에 있던 것을 합치는 것보다 단순하다
-        final Map<YearMonth, MonthlyTrades> all = cacheRepository.findAll(lawdCd, months);
+        final Map<YearMonth, MonthlyTrades> all = cacheRepository.findAll(lawdCd, months, dealType);
         return months.stream()
                 .sorted()
                 .map(all::get)
@@ -111,14 +112,16 @@ public class ForecastTradeCollector {
                 || Duration.between(cached.fetchedAt(), Instant.now()).compareTo(refetchAfter) > 0;
     }
 
-    private void fetchAndStore(String lawdCd, List<YearMonth> months) {
+    private void fetchAndStore(String lawdCd, List<YearMonth> months, CachedDealType dealType) {
         final List<Callable<MonthlyTrades>> tasks = months.stream()
                 .map(month -> (Callable<MonthlyTrades>) () -> {
-                    final List<ReferenceTrade> trades =
-                            ministryReferencePort.fetchTrades(lawdCd, month.format(YM));
+                    final String ym = month.format(YM);
+                    final List<ReferenceTrade> trades = dealType == CachedDealType.JEONSE
+                            ? ministryReferencePort.fetchJeonseDeposits(lawdCd, ym)
+                            : ministryReferencePort.fetchTrades(lawdCd, ym);
                     // 거래가 없는 달도 저장한다 — '아직 안 받은 달'과 구분되지 않으면
                     // 매번 다시 부른다 (설계 I128)
-                    return new MonthlyTrades(lawdCd, month,
+                    return new MonthlyTrades(lawdCd, month, dealType,
                             trades == null ? List.of() : trades, Instant.now());
                 })
                 .toList();

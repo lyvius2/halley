@@ -15,11 +15,13 @@ import java.util.List;
  *
  * <p>가격 전망은 60개월을 훑는데, 매물마다 60번씩 부르면 등록이 몇 분씩 걸립니다.
  *
+ * @param dealType  매매인지 전세인지 (설계 I131). <b>키에 들어갑니다</b> — 없으면 둘이 서로를 덮어씁니다
  * @param fetchedAt 언제 받았는지. <b>과거 달은 바뀌지 않으므로</b> 최근 몇 달만 다시 받는다
  */
 public record MonthlyTrades(
         String lawdCd,
         YearMonth dealYm,
+        CachedDealType dealType,
         List<ReferenceTrade> trades,
         Instant fetchedAt
 ) {

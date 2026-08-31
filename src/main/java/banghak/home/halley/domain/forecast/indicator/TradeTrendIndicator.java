@@ -4,16 +4,10 @@ import banghak.home.halley.domain.forecast.FactorWeight;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.PriceFactor;
 import banghak.home.halley.domain.forecast.TradeStat;
-import banghak.home.halley.domain.property.Property;
-import banghak.home.halley.domain.property.ReferenceTrade;
-import banghak.home.halley.domain.reference.MonthlyTrades;
 import banghak.home.halley.domain.support.WonFormat;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
 import java.util.Optional;
 
 /**
@@ -42,15 +36,9 @@ public class TradeTrendIndicator implements PriceIndicator {
     private static final int MIN_SAMPLES = 3;
     /** 국토부 신고 지연. 이번 달은 아직 덜 들어와 있어 뺀다. */
     private static final int REPORTING_LAG_MONTHS = 1;
-    /**
-     * 실거래 카드와 <b>같은 기준</b>을 씁니다(`ReferenceTransactionService.AREA_TOLERANCE`).
-     * 두 화면이 다른 면적대를 보면 사용자가 헷갈립니다.
-     */
-    private static final BigDecimal AREA_TOLERANCE = new BigDecimal("0.15");
-    /** 이보다 짧은 단지명은 우연히 걸린다 — 판정에 쓰지 않는다. */
-    private static final int MIN_NAME_LENGTH = 2;
-
     private final BigDecimal threshold;
+    /** 면적·이름 기준을 전세가율과 <b>같게</b> 두려고 공유합니다 (설계 I131). */
+    private final TradeStatCalculator calculator = new TradeStatCalculator();
 
     /**
      * @param threshold 이만큼 넘게 움직여야 방향을 준다. <b>임의의 값입니다</b> —
@@ -68,21 +56,13 @@ public class TradeTrendIndicator implements PriceIndicator {
 
     @Override
     public Optional<PriceFactor> evaluate(ForecastInput input) {
-        final List<MonthlyTrades> monthly = input.monthly();
-        if (monthly == null || monthly.isEmpty()) {
-            return Optional.empty();
-        }
-        // 신고 지연분을 뺀 뒤 최근 3개월 / 그 앞 3개월
-        final int end = monthly.size() - REPORTING_LAG_MONTHS;
-        if (end < WINDOW_MONTHS * 2) {
-            return Optional.empty();
-        }
-        final TradeStat recent = stat(input.property(), monthly.subList(end - WINDOW_MONTHS, end));
-        final TradeStat previous = stat(input.property(),
-                monthly.subList(Math.max(0, end - WINDOW_MONTHS * 2), end - WINDOW_MONTHS));
+        final TradeStat recent = calculator.medianOf(input.property(), input.monthlyTrades(),
+                0, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
+        final TradeStat previous = calculator.medianOf(input.property(), input.monthlyTrades(),
+                WINDOW_MONTHS, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
 
         if (recent.count() < MIN_SAMPLES || previous.count() < MIN_SAMPLES) {
-            // 표본이 얇으면 <b>내지 않습니다</b>. 억지로 방향을 주면 없는 신호를 만듭니다
+            // 표본이 얇으면 내지 않습니다. 억지로 방향을 주면 없는 신호를 만듭니다
             return Optional.empty();
         }
         final BigDecimal change = recent.median()
@@ -119,72 +99,9 @@ public class TradeTrendIndicator implements PriceIndicator {
                 previous.count(), recent.count());
     }
 
-    /**
-     * 같은 단지·면적대의 거래만 골라 중앙값을 낸다.
-     *
-     * <p><b>평균이 아니라 중앙값입니다.</b> 표본이 얇아 대형 평형 한 건이 섞이면
-     * 평균은 통째로 끌려갑니다.
-     */
-    private TradeStat stat(Property property, List<MonthlyTrades> window) {
-        final List<Long> prices = new ArrayList<>();
-        for (final MonthlyTrades month : window) {
-            for (final ReferenceTrade trade : month.trades()) {
-                if (matches(property, trade) && trade.dealAmount() != null) {
-                    prices.add(trade.dealAmount());
-                }
-            }
-        }
-        if (prices.isEmpty()) {
-            return new TradeStat(null, 0);
-        }
-        prices.sort(Comparator.naturalOrder());
-        return new TradeStat(median(prices), prices.size());
-    }
 
-    private BigDecimal median(List<Long> sorted) {
-        final int n = sorted.size();
-        if (n % 2 == 1) {
-            return BigDecimal.valueOf(sorted.get(n / 2));
-        }
-        return BigDecimal.valueOf(sorted.get(n / 2 - 1) + sorted.get(n / 2))
-                .divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
-    }
 
-    /**
-     * 같은 단지·같은 면적대인가.
-     *
-     * <p>단지명은 표기가 흔들리므로(`래미안` vs `래미안아파트`) <b>서로 포함</b>이면 같게 봅니다.
-     * 면적은 매물의 전용면적 ±15%.
-     */
-    private boolean matches(Property property, ReferenceTrade trade) {
-        return sameName(property, trade) && sameArea(property, trade);
-    }
 
-    private boolean sameName(Property property, ReferenceTrade trade) {
-        final String mine = normalize(property.name());
-        final String theirs = normalize(trade.apartmentName());
-        if (mine == null || theirs == null || mine.length() < MIN_NAME_LENGTH) {
-            // 이름을 못 가리면 면적으로만 본다 — 같은 법정동이라 아주 틀리진 않는다
-            return true;
-        }
-        return mine.contains(theirs) || theirs.contains(mine);
-    }
 
-    private boolean sameArea(Property property, ReferenceTrade trade) {
-        final BigDecimal mine = property.areaExclusiveM2();
-        final BigDecimal theirs = trade.areaM2();
-        if (mine == null || theirs == null || mine.signum() <= 0) {
-            return true;
-        }
-        final BigDecimal gap = theirs.subtract(mine).abs()
-                .divide(mine, 6, RoundingMode.HALF_UP);
-        return gap.compareTo(AREA_TOLERANCE) <= 0;
-    }
 
-    private String normalize(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.replaceAll("[\\s()·\\-]", "").replace("아파트", "");
-    }
 }

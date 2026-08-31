@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.outbound.persistence;
 
 import banghak.home.halley.domain.property.ReferenceTrade;
+import banghak.home.halley.domain.reference.CachedDealType;
 import banghak.home.halley.domain.reference.MonthlyTrades;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,10 +36,10 @@ class MonthlyTradeCacheRepositoryTest {
                         LocalDate.of(2026, 3, 2)));
 
         // when
-        repository.upsert(new MonthlyTrades("41597", YearMonth.of(2026, 3), trades, Instant.now()));
+        repository.upsert(new MonthlyTrades("41597", YearMonth.of(2026, 3), CachedDealType.TRADE, trades, Instant.now()));
 
         // then
-        final var found = repository.find("41597", YearMonth.of(2026, 3)).orElseThrow();
+        final var found = repository.find("41597", YearMonth.of(2026, 3), CachedDealType.TRADE).orElseThrow();
         assertThat(found.count()).isEqualTo(2);
         assertThat(found.trades().getFirst().dealAmount()).isEqualTo(1_140_000_000L);
         // 소수점이 살아 있어야 면적대 판정이 맞는다
@@ -51,15 +52,15 @@ class MonthlyTradeCacheRepositoryTest {
     @DisplayName("같은 법정동·달을 다시 넣으면 갈아 끼운다 — 행이 늘지 않는다")
     void upsertReplaces() {
         // given
-        repository.upsert(new MonthlyTrades("11710", YearMonth.of(2026, 1),
+        repository.upsert(new MonthlyTrades("11710", YearMonth.of(2026, 1), CachedDealType.TRADE,
                 List.of(trade(900_000_000L)), Instant.now()));
 
         // when — 국토부가 뒤늦게 신고분을 더 준 상황
-        repository.upsert(new MonthlyTrades("11710", YearMonth.of(2026, 1),
+        repository.upsert(new MonthlyTrades("11710", YearMonth.of(2026, 1), CachedDealType.TRADE,
                 List.of(trade(900_000_000L), trade(950_000_000L)), Instant.now()));
 
         // then
-        assertThat(repository.find("11710", YearMonth.of(2026, 1)).orElseThrow().count()).isEqualTo(2);
+        assertThat(repository.find("11710", YearMonth.of(2026, 1), CachedDealType.TRADE).orElseThrow().count()).isEqualTo(2);
     }
 
     @Test
@@ -67,13 +68,14 @@ class MonthlyTradeCacheRepositoryTest {
     void findsManyMonthsAtOnce() {
         // given
         for (int m = 1; m <= 5; m++) {
-            repository.upsert(new MonthlyTrades("28237", YearMonth.of(2025, m),
+            repository.upsert(new MonthlyTrades("28237", YearMonth.of(2025, m), CachedDealType.TRADE,
                     List.of(trade(800_000_000L + m)), Instant.now()));
         }
 
         // when — 없는 달을 섞어 물어도 있는 것만 온다
         final var found = repository.findAll("28237", List.of(
-                YearMonth.of(2025, 2), YearMonth.of(2025, 4), YearMonth.of(2025, 11)));
+                YearMonth.of(2025, 2), YearMonth.of(2025, 4), YearMonth.of(2025, 11)),
+                CachedDealType.TRADE);
 
         // then
         assertThat(found).containsOnlyKeys(YearMonth.of(2025, 2), YearMonth.of(2025, 4));
@@ -83,19 +85,19 @@ class MonthlyTradeCacheRepositoryTest {
     @DisplayName("거래가 없는 달도 저장한다 — '아직 안 받은 달'과 '받았는데 없는 달'은 다르다")
     void storesEmptyMonths() {
         // when
-        repository.upsert(new MonthlyTrades("50110", YearMonth.of(2024, 7), List.of(), Instant.now()));
+        repository.upsert(new MonthlyTrades("50110", YearMonth.of(2024, 7), CachedDealType.TRADE, List.of(), Instant.now()));
 
         // then — 비었다고 없는 것으로 치면 매번 다시 부른다
-        assertThat(repository.find("50110", YearMonth.of(2024, 7))).isPresent();
-        assertThat(repository.find("50110", YearMonth.of(2024, 7)).orElseThrow().count()).isZero();
+        assertThat(repository.find("50110", YearMonth.of(2024, 7), CachedDealType.TRADE)).isPresent();
+        assertThat(repository.find("50110", YearMonth.of(2024, 7), CachedDealType.TRADE).orElseThrow().count()).isZero();
     }
 
     @Test
     @DisplayName("안 받은 달은 비어 있다")
     void missingMonthIsEmpty() {
-        assertThat(repository.find("99999", YearMonth.of(2020, 1))).isEmpty();
-        assertThat(repository.findAll("99999", List.of())).isEmpty();
-        assertThat(repository.findAll(null, List.of(YearMonth.of(2020, 1)))).isEmpty();
+        assertThat(repository.find("99999", YearMonth.of(2020, 1), CachedDealType.TRADE)).isEmpty();
+        assertThat(repository.findAll("99999", List.of(), CachedDealType.TRADE)).isEmpty();
+        assertThat(repository.findAll(null, List.of(YearMonth.of(2020, 1)), CachedDealType.TRADE)).isEmpty();
     }
 
     private ReferenceTrade trade(long amount) {
