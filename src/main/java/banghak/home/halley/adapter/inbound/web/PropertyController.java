@@ -227,12 +227,13 @@ public class PropertyController {
 
     @GetMapping
     public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {
-        return scoringService.list(dealType);
+        // 전망 요약을 한 번에 붙인다 (설계 I136). 요인 상세는 모달에서 따로 받는다
+        return priceForecastService.attachForecasts(scoringService.list(dealType));
     }
 
     @GetMapping("/{id}")
     public ScoredPropertyResponse get(@PathVariable Long id) {
-        return scoringService.getScored(id);
+        return priceForecastService.attachForecast(scoringService.getScored(id));
     }
 
     @GetMapping("/sold-out/recent")

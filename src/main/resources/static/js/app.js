@@ -185,6 +185,10 @@ function halley() {
         // 연 시점의 채점 값. 저장할 때 달라진 항목만 가려내는 데 쓴다 (설계 I111).
         // Alpine은 선언된 것만 프록시에 올린다 — 여기 없으면 읽는 순간 던진다
         _scoreFormAtOpen: {},
+        // 가격 전망 (설계 I136)
+        showForecast: false,
+        forecastProperty: null,
+        forecastDetail: null,
         // 모달별 로딩 표시 (설계 I115). Alpine은 선언된 것만 프록시에 올린다 —
         // 여기 없으면 템플릿이 읽는 순간 던진다
         _loading: {},
@@ -2662,6 +2666,7 @@ function halley() {
                 ['showUserForm', () => this.closeUserForm()],
                 ['showAddMenu', () => this.closeAddMenu()],
                 ['confirmState', () => this.confirmNo()],
+                ['showForecast', () => this.closeForecast()],
                 ['showScoreModal', () => this.closeScoreModal()],
                 ['showLoanModal', () => this.closeLoanModal()],
                 ['showRefModal', () => this.closeRefModal()],
@@ -2688,6 +2693,121 @@ function halley() {
                     return;
                 }
             }
+        },
+
+        /**
+         * 매물 카드의 화살표 (설계 I136).
+         *
+         * <p>화살표는 <b>오직 LLM 예측</b>만 나타낸다. 코드 예측과 갈려도 색을 흐리지 않는다 —
+         * 목록은 여러 매물을 견주는 자리라 신호가 하나여야 읽힌다. 갈린 사실은 모달에서 말한다.
+         *
+         * <p>UNCERTAIN 은 아무것도 안 띄운다. 회색 화살표를 두면 '약한 전망'으로 읽히는데
+         * 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다.
+         */
+        forecastArrow(scored) {
+            const f = scored?.forecast;
+            if (!f) {
+                return '';
+            }
+            if (f.running) {
+                return '◌';
+            }
+            return this.arrowOf(f.direction);
+        },
+
+        arrowOf(direction) {
+            switch (direction) {
+                case 'UP': return '▲';
+                case 'DOWN': return '▼';
+                case 'FLAT': return '▶';
+                default: return '';
+            }
+        },
+
+        /** 색만이 아니라 모양도 다르다(▲▼▶) — 색각 이상에서도 방향이 읽힌다. */
+        arrowClassOf(direction) {
+            switch (direction) {
+                case 'UP': return 'up';
+                case 'DOWN': return 'down';
+                case 'FLAT': return 'flat';
+                default: return '';
+            }
+        },
+
+        forecastArrowClass(scored) {
+            const f = scored?.forecast;
+            if (f?.running) {
+                return 'running';
+            }
+            return this.arrowClassOf(f?.direction);
+        },
+
+        forecastTitle(scored) {
+            const f = scored?.forecast;
+            if (!f) {
+                return '';
+            }
+            if (f.running) {
+                return '가격 전망을 분석 중입니다…';
+            }
+            return '가격 전망: ' + f.directionLabel
+                + (f.confidenceLabel ? ' (확신도 ' + f.confidenceLabel + ')' : '');
+        },
+
+        async openForecast(scored) {
+            this.forecastProperty = scored;
+            this.forecastDetail = null;
+            this.error = null;
+            this.showForecast = true;
+            // 열 때 다시 읽는다 (설계 I112) — 목록을 받아 둔 시점과 지금이 다를 수 있다
+            const { ok, body } = await this.withLoading('forecast',
+                () => this.request(`/api/properties/${scored.property.id}/forecast`));
+            if (ok && body) {
+                this.forecastDetail = body;
+            }
+        },
+
+        closeForecast() {
+            this.showForecast = false;
+            this.forecastProperty = null;
+            this.forecastDetail = null;
+            this.error = null;
+        },
+
+        /** 사용자가 명시적으로 다시 분석할 때. 1~2분 걸린다. */
+        async refreshForecast() {
+            const id = this.forecastProperty?.property?.id;
+            if (!id) {
+                return;
+            }
+            const { ok, body } = await this.withLoading('forecastRefresh',
+                () => this.request(`/api/properties/${id}/forecast/refresh`, { method: 'POST' }));
+            if (ok && body) {
+                this.forecastDetail = body;
+                await this.loadProperties();
+            } else {
+                this.error = '다시 분석하지 못했습니다';
+            }
+        },
+
+        /**
+         * 코드 예측과 갈렸을 때의 참고 문구 (설계 5.2).
+         *
+         * <p>경고(⚠)가 아니라 참고다 — 코드 임계값은 임의의 값이라 갈렸다는 것이
+         * LLM이 틀렸다는 뜻은 아니다. 일치할 때도 한 줄 남긴다: 아무 말이 없으면
+         * 비교를 안 한 것인지 일치한 것인지 알 수 없다.
+         */
+        forecastCompareNote() {
+            const d = this.forecastDetail;
+            if (!d || !d.codeDirection || d.direction === 'UNCERTAIN') {
+                return '';
+            }
+            if (d.agreed) {
+                return '규칙 기반 계산도 같은 방향입니다.';
+            }
+            const label = { UP: '상승', DOWN: '하락', FLAT: '횡보', UNCERTAIN: '판단 보류' };
+            return `AI 모델은 ${d.directionLabel}을 예측했지만 `
+                + `규칙 기반 계산은 ${label[d.codeDirection] || d.codeDirection}였음을 참고하십시오.`;
         },
 
         /**

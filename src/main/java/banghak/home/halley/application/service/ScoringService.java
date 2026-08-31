@@ -468,7 +468,9 @@ public class ScoringService {
                 : null;
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property, batch),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property, batch)), total, views,
-                editVersionStore.current(scoreVersionKey(property.id())));
+                editVersionStore.current(scoreVersionKey(property.id())),
+                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
+                null);
     }
 
     private ScoredPropertyResponse toResponse(Property property, PropertyScoringResult result,
@@ -492,7 +494,9 @@ public class ScoringService {
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
-                editVersionStore.current(scoreVersionKey(property.id())));
+                editVersionStore.current(scoreVersionKey(property.id())),
+                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
+                null);
     }
 
 
@@ -573,7 +577,9 @@ public class ScoringService {
         return new ScoredPropertyResponse(
                 PropertyResponse.from(property, nicknameOf(property),
                         editVersionStore.current(versionKey(property.id())), groupNameFor(property)),
-                null, List.of(), editVersionStore.current(scoreVersionKey(property.id())));
+                null, List.of(), editVersionStore.current(scoreVersionKey(property.id())),
+                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
+                null);
     }
 
 

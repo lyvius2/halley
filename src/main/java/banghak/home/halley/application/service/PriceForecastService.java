@@ -8,6 +8,8 @@ import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.application.port.out.external.LoanRateHistoryPort;
 import banghak.home.halley.domain.building.BuildingLedger;
 import banghak.home.halley.application.port.out.external.BuildingLedgerPort;
+import banghak.home.halley.adapter.inbound.web.dto.ForecastSummary;
+import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.domain.forecast.PriceForecast;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.reference.CachedDealType;
@@ -146,6 +148,39 @@ public class PriceForecastService {
 
     public Optional<PriceForecast> find(Long propertyId) {
         return forecastRepository.findByPropertyId(propertyId);
+    }
+
+    /**
+     * 목록에 전망 요약을 붙인다 (설계 I136).
+     *
+     * <p><b>한 번에 읽습니다.</b> 매물마다 따로 부르면 목록의 N+1이 되살아납니다(I124).
+     *
+     * <p>진행 여부는 캐시를 봐야 하므로 매물마다 확인하지만, 인메모리·Redis 조회라
+     * DB 왕복과는 무게가 다릅니다.
+     */
+    public List<ScoredPropertyResponse> attachForecasts(List<ScoredPropertyResponse> scored) {
+        if (scored.isEmpty()) {
+            return scored;
+        }
+        final List<Long> ids = scored.stream().map(s -> s.property().id()).toList();
+        final java.util.Map<Long, PriceForecast> forecasts =
+                forecastRepository.findByPropertyIds(ids);
+        return scored.stream()
+                .map(s -> s.withForecast(summaryOf(s.property().id(), forecasts.get(s.property().id()))))
+                .toList();
+    }
+
+    /** 단건. */
+    public ScoredPropertyResponse attachForecast(ScoredPropertyResponse scored) {
+        final Long id = scored.property().id();
+        return scored.withForecast(summaryOf(id, forecastRepository.findByPropertyId(id).orElse(null)));
+    }
+
+    private ForecastSummary summaryOf(Long propertyId, PriceForecast forecast) {
+        final boolean running = isRunning(propertyId);
+        return forecast == null
+                ? ForecastSummary.pending(running)
+                : ForecastSummary.from(forecast, running);
     }
 
     /** 지금 분석 중인가 — 화면 폴링용. */

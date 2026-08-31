@@ -95,6 +95,14 @@
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
                                         <span class="property-card-name" x-text="r.property.name"></span>
+                                        <!-- 가격 전망 (설계 I136). 화살표는 오직 LLM 예측만 나타낸다 —
+                                             코드 예측과 갈려도 색을 흐리지 않는다. 그 사실은 모달에서 말한다 -->
+                                        <button class="forecast-arrow" type="button"
+                                                x-show="forecastArrow(r)"
+                                                :class="forecastArrowClass(r)"
+                                                :title="forecastTitle(r)"
+                                                @click.stop="openForecast(r)"
+                                                x-text="forecastArrow(r)"></button>
                                         <span class="owner-badge" x-show="r.property.createdByNickname"
                                               :title="'등록: ' + r.property.createdByNickname">
                                             <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
@@ -2077,6 +2085,84 @@
 </div>
 
 <!-- D25 매물 코멘트 모달 (설계 I56) -->
+<!-- 가격 전망 상세 (설계 I136) -->
+<div class="modal" x-show="showForecast" x-cloak>
+    <div class="modal-backdrop"></div>
+    <div class="modal-card modal-wide">
+        <button class="modal-close" @click="closeForecast()">×</button>
+        <div class="modal-head">
+            <span class="modal-kicker">가격 전망</span>
+            <h3 x-text="forecastProperty ? forecastProperty.property.name : ''"></h3>
+        </div>
+        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+        <div class="progress-strip" x-show="isLoading('forecast')" x-cloak>
+            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+            <div class="progress-strip-bar"><i></i></div>
+        </div>
+
+        <template x-if="forecastDetail">
+            <div>
+                <div class="forecast-verdict">
+                    <span class="forecast-verdict-arrow" :class="arrowClassOf(forecastDetail.direction)"
+                          x-text="arrowOf(forecastDetail.direction)"></span>
+                    <b x-text="forecastDetail.directionLabel"></b>
+                    <span class="forecast-verdict-meta" x-show="forecastDetail.confidenceLabel"
+                          x-text="'확신도 ' + forecastDetail.confidenceLabel"></span>
+                    <span class="forecast-verdict-meta" x-show="forecastDetail.horizonMonths"
+                          x-text="'향후 ' + forecastDetail.horizonMonths + '개월'"></span>
+                </div>
+
+                <!-- 요인별 근거를 접지 않고 펼쳐 둔다. 결론만 크게 띄우면 근거를 아무도 안 본다 -->
+                <template x-if="forecastDetail.factors && forecastDetail.factors.length">
+                    <div class="forecast-factors">
+                        <template x-for="f in forecastDetail.factors" :key="f.name">
+                            <div class="forecast-factor">
+                                <div class="forecast-factor-head">
+                                    <span class="forecast-factor-name" x-text="f.name"></span>
+                                    <span class="forecast-factor-effect" :class="arrowClassOf(f.effect)"
+                                          x-text="arrowOf(f.effect)"></span>
+                                    <span class="forecast-factor-weight" x-text="f.weightLabel"></span>
+                                </div>
+                                <p class="forecast-factor-evidence" x-text="f.evidence"></p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <template x-if="!forecastDetail.factors || !forecastDetail.factors.length">
+                    <p class="m2-empty">아직 산출된 지표가 없습니다.</p>
+                </template>
+
+                <!-- 코드 예측과 갈렸으면 문장으로 말한다 (설계 5.2). 경고가 아니라 참고다 -->
+                <p class="forecast-note" x-show="forecastCompareNote()"
+                   x-text="forecastCompareNote()"></p>
+
+                <template x-if="forecastDetail.caveats && forecastDetail.caveats.length">
+                    <div class="forecast-caveats">
+                        <template x-for="(c, i) in forecastDetail.caveats" :key="i">
+                            <p x-text="'⚠ ' + c"></p>
+                        </template>
+                    </div>
+                </template>
+
+                <p class="forecast-disclaimer">
+                    이 전망은 예측일 뿐이며 실제 결과와 괴리가 있을 수 있습니다.
+                    투자 판단의 근거로 삼지 마십시오.
+                </p>
+                <p class="settings-note" x-show="forecastDetail.computedAt"
+                   x-text="'산출 ' + fmtTime(forecastDetail.computedAt)
+                           + (forecastDetail.model ? ' · ' + forecastDetail.model : ' · 규칙 기반')"></p>
+            </div>
+        </template>
+
+        <div class="score-actions">
+            <button class="btn" type="button" @click="refreshForecast()"
+                    :disabled="isLoading('forecastRefresh')">다시 분석</button>
+            <button class="btn btn-primary" @click="closeForecast()">닫기</button>
+        </div>
+    </div>
+</div>
+
 <div class="modal" x-show="showComments" x-cloak>
     <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
