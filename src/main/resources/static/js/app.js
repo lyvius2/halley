@@ -56,6 +56,9 @@ const SCORE_WATCH_MS = 3000;
 const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
+// 전망은 60개월 수집 + LLM 판단이라 1~2분 걸린다. 5초 × 36 = 3분이면 넉넉하다 (설계 I142)
+const FORECAST_POLL_INTERVAL_MS = 5000;
+const FORECAST_POLL_MAX_ATTEMPTS = 36;
 
 function emptyRegAreaForm() {
     return {
@@ -185,6 +188,11 @@ function halley() {
         // 연 시점의 채점 값. 저장할 때 달라진 항목만 가려내는 데 쓴다 (설계 I111).
         // Alpine은 선언된 것만 프록시에 올린다 — 여기 없으면 읽는 순간 던진다
         _scoreFormAtOpen: {},
+        // 가격 전망 (설계 I136)
+        showForecast: false,
+        forecastProperty: null,
+        forecastDetail: null,
+        forecastNews: [],
         // 모달별 로딩 표시 (설계 I115). Alpine은 선언된 것만 프록시에 올린다 —
         // 여기 없으면 템플릿이 읽는 순간 던진다
         _loading: {},
@@ -2662,6 +2670,7 @@ function halley() {
                 ['showUserForm', () => this.closeUserForm()],
                 ['showAddMenu', () => this.closeAddMenu()],
                 ['confirmState', () => this.confirmNo()],
+                ['showForecast', () => this.closeForecast()],
                 ['showScoreModal', () => this.closeScoreModal()],
                 ['showLoanModal', () => this.closeLoanModal()],
                 ['showRefModal', () => this.closeRefModal()],
@@ -2688,6 +2697,234 @@ function halley() {
                     return;
                 }
             }
+        },
+
+        /**
+         * 매물 카드의 화살표 (설계 I136).
+         *
+         * <p>화살표는 <b>오직 LLM 예측</b>만 나타낸다. 코드 예측과 갈려도 색을 흐리지 않는다 —
+         * 목록은 여러 매물을 견주는 자리라 신호가 하나여야 읽힌다. 갈린 사실은 모달에서 말한다.
+         *
+         * <p>UNCERTAIN 은 아무것도 안 띄운다. 회색 화살표를 두면 '약한 전망'으로 읽히는데
+         * 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다.
+         */
+        forecastArrow(scored) {
+            const f = scored?.forecast;
+            if (!f) {
+                return '';
+            }
+            if (f.running) {
+                return '◌';
+            }
+            return this.arrowOf(f.direction);
+        },
+
+        arrowOf(direction) {
+            switch (direction) {
+                case 'UP': return '▲';
+                case 'DOWN': return '▼';
+                case 'FLAT': return '▶';
+                default: return '';
+            }
+        },
+
+        /** 색만이 아니라 모양도 다르다(▲▼▶) — 색각 이상에서도 방향이 읽힌다. */
+        arrowClassOf(direction) {
+            switch (direction) {
+                case 'UP': return 'up';
+                case 'DOWN': return 'down';
+                case 'FLAT': return 'flat';
+                default: return '';
+            }
+        },
+
+        forecastArrowClass(scored) {
+            const f = scored?.forecast;
+            if (f?.running) {
+                return 'running';
+            }
+            return this.arrowClassOf(f?.direction);
+        },
+
+        /**
+         * 매매가를 눌러 전망을 시킬 수 있는가 (설계 I142 · I145).
+         *
+         * <p>낸 적이 없으면 시킬 수 있다. <b>판단 보류(UNCERTAIN)도 시킬 수 있다</b> —
+         * UNCERTAIN 은 화살표를 안 띄우므로 모달을 열 길이 없고, 여기까지 막으면
+         * 화면에서 다시 시킬 방법이 아예 없어진다.
+         *
+         * <p>방향이 나온 전망(▲▼▶)은 막는다. 그건 화살표를 눌러 모달로 들어가
+         * '다시 분석'을 쓰면 된다.
+         *
+         * <p>direction 만으로는 '낸 적 있는지'를 알 수 없다 — 결과가 없을 때도
+         * UNCERTAIN 이라 서버가 stored 를 따로 준다.
+         */
+        canTriggerForecast(scored) {
+            const f = scored?.forecast;
+            if (!f || f.running) {
+                return false;
+            }
+            return !f.stored || f.direction === 'UNCERTAIN';
+        },
+
+        forecastPriceTitle(scored) {
+            if (!this.canTriggerForecast(scored)) {
+                return '';
+            }
+            return scored.forecast.stored
+                ? '판단을 보류한 전망입니다. 클릭하면 다시 분석합니다 (1~2분)'
+                : '클릭하면 가격 전망을 분석합니다 (1~2분)';
+        },
+
+        /**
+         * 매매가 클릭 — 등록 전에 만들어진 매물에는 전망이 없다 (설계 I142).
+         *
+         * <p><b>응답을 기다리지 않는다.</b> 60개월 수집과 LLM 판단에 1~2분이 걸리는데
+         * 그동안 화면이 멈춰 있으면 사용자는 눌린 줄도 모른다. 바로 진행 표시(◌)를
+         * 띄우고 목록을 폴링한다.
+         */
+        async triggerForecast(scored) {
+            if (!this.canTriggerForecast(scored)) {
+                return;
+            }
+            const id = scored.property.id;
+            // 서버가 markRunning 을 걸어 두므로 다음 조회부터 running 이 온다.
+            // 그래도 여기서 먼저 바꿔 둔다 — 첫 폴링까지의 몇 초를 비워 두지 않는다
+            scored.forecast.running = true;
+            this.request(`/api/properties/${id}/forecast/refresh`, { method: 'POST' })
+                .catch(() => {});
+            this.startForecastPolling(id);
+        },
+
+        /**
+         * 아무 모달도 안 열려 있는가 (설계 I146).
+         *
+         * <p>분석이 끝나면 결과를 열어 보여 주는데, 그동안 사용자가 다른 걸 보고 있으면
+         * <b>보던 것을 덮어써서는 안 된다.</b>
+         */
+        noModalOpen() {
+            return !this.showForecast && !this.showM2 && !this.showPropertyForm
+                && !this.showLoanModal && !this.showRefModal && !this.showComments
+                && !this.showCompare && !this.showSettings && !this.showUsers;
+        },
+
+        /**
+         * 결과가 올 때까지 목록을 다시 읽는다.
+         *
+         * <p>멈추는 조건이 둘 다 있어야 한다 — 하나라도 빠지면 탭이 열려 있는 동안 계속 두드린다.
+         * ① 결과 도착(또는 분석 중이 아님) ② 시도 상한.
+         */
+        startForecastPolling(propertyId) {
+            this.stopForecastPolling();
+            let attempts = 0;
+            this._forecastTimer = setInterval(async () => {
+                // ② 5초 × 36 = 3분. 전망은 1~2분이라 넉넉하다
+                if (++attempts > FORECAST_POLL_MAX_ATTEMPTS) {
+                    this.stopForecastPolling();
+                    await this.loadProperties();
+                    return;
+                }
+                await this.loadProperties();
+                const found = (this.properties || []).find(r => r.property.id === propertyId);
+                // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
+                if (!found || !found.forecast?.running) {
+                    this.stopForecastPolling();
+                    // 판단 보류로 끝나면 화살표가 안 뜬다 (설계 I136) — 열어 주지 않으면
+                    // 2분을 기다린 끝에 아무 변화도 못 본다. 방향이 나온 경우는
+                    // 화살표가 곧 응답이라 굳이 덮지 않는다 (설계 I146)
+                    if (found?.forecast?.direction === 'UNCERTAIN' && this.noModalOpen()) {
+                        await this.openForecast(found);
+                    }
+                }
+            }, FORECAST_POLL_INTERVAL_MS);
+        },
+
+        stopForecastPolling() {
+            if (this._forecastTimer) {
+                clearInterval(this._forecastTimer);
+                this._forecastTimer = null;
+            }
+        },
+
+        forecastTitle(scored) {
+            const f = scored?.forecast;
+            if (!f) {
+                return '';
+            }
+            if (f.running) {
+                return '가격 전망을 분석 중입니다…';
+            }
+            return '가격 전망: ' + f.directionLabel
+                + (f.confidenceLabel ? ' (확신도 ' + f.confidenceLabel + ')' : '');
+        },
+
+        async openForecast(scored) {
+            this.forecastProperty = scored;
+            this.forecastDetail = null;
+            this.forecastNews = [];
+            this.error = null;
+            this.showForecast = true;
+            // 열 때 다시 읽는다 (설계 I112) — 목록을 받아 둔 시점과 지금이 다를 수 있다
+            const { ok, body } = await this.withLoading('forecast',
+                () => this.request(`/api/properties/${scored.property.id}/forecast`));
+            if (ok && body) {
+                this.forecastDetail = body;
+            }
+            // 기사는 전망과 따로 받는다 (설계 I137) — 안 와도 전망은 멀쩡히 뜬다
+            this.loadForecastNews(scored.property.id);
+        },
+
+        async loadForecastNews(propertyId) {
+            const { ok, body } = await this.request(`/api/properties/${propertyId}/news`)
+                .catch(() => ({ ok: false }));
+            // 열어 둔 매물이 바뀌었으면 덮어쓰지 않는다
+            if (ok && body && this.forecastProperty?.property?.id === propertyId) {
+                this.forecastNews = body;
+            }
+        },
+
+        closeForecast() {
+            this.showForecast = false;
+            this.forecastProperty = null;
+            this.forecastDetail = null;
+            this.forecastNews = [];
+            this.error = null;
+        },
+
+        /** 사용자가 명시적으로 다시 분석할 때. 1~2분 걸린다. */
+        async refreshForecast() {
+            const id = this.forecastProperty?.property?.id;
+            if (!id) {
+                return;
+            }
+            const { ok, body } = await this.withLoading('forecastRefresh',
+                () => this.request(`/api/properties/${id}/forecast/refresh`, { method: 'POST' }));
+            if (ok && body) {
+                this.forecastDetail = body;
+                await this.loadProperties();
+            } else {
+                this.error = '다시 분석하지 못했습니다';
+            }
+        },
+
+        /**
+         * 코드 예측과 갈렸을 때의 참고 문구 (설계 5.2).
+         *
+         * <p>경고(⚠)가 아니라 참고다 — 코드 임계값은 임의의 값이라 갈렸다는 것이
+         * LLM이 틀렸다는 뜻은 아니다. 일치할 때도 한 줄 남긴다: 아무 말이 없으면
+         * 비교를 안 한 것인지 일치한 것인지 알 수 없다.
+         */
+        forecastCompareNote() {
+            const d = this.forecastDetail;
+            if (!d || !d.codeDirection || d.direction === 'UNCERTAIN') {
+                return '';
+            }
+            if (d.agreed) {
+                return '규칙 기반 계산도 같은 방향입니다.';
+            }
+            const label = { UP: '상승', DOWN: '하락', FLAT: '횡보', UNCERTAIN: '판단 보류' };
+            return `AI 모델은 ${d.directionLabel}을 예측했지만 `
+                + `규칙 기반 계산은 ${label[d.codeDirection] || d.codeDirection}였음을 참고하십시오.`;
         },
 
         /**

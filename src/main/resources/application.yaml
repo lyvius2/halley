@@ -33,6 +33,13 @@ ministry:
     lookback-months: ${MINISTRY_LOOKBACK_MONTHS:12}
   service-key: ${MINISTRY_API_KEY:}
   base-url: https://apis.data.go.kr/1613000
+  # 국토부는 초당 요청 수를 센다 (설계 I140).
+  #   LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND_EXCEEDS_ERROR
+  # 동시 실행 상한(forecast.max-concurrency)만으로는 못 막는다 — 6으로 묶어도
+  # 각 호출이 40ms 에 끝나면 초당 150건이 나간다. 실제로 그렇게 나가서 전부 429를 받았다.
+  # 전망(60개월)과 실거래 카드(12개월)가 같은 키를 쓰므로 이 제한도 같이 나눠 쓴다.
+  # 0 이하면 제한하지 않는다
+  permits-per-second: ${MINISTRY_PERMITS_PER_SECOND:4}
 
 # 국토교통부 공동주택/개별주택 공시가격 (V-World 국가공간정보 개방데이터) — 설계 I54
 vworld:
@@ -149,6 +156,10 @@ llm:
     api-key: ${ANTHROPIC_API_KEY:}
     base-url: https://api.anthropic.com
     model: ${LLM_CLAUDE_MODEL:claude-opus-5}
+    # 요즘 모델은 temperature 를 받지 않는다 (설계 I144).
+    #   400 `temperature` is deprecated for this model.
+    # 받는 모델로 내려갈 때만 켠다. 같은 지표에 같은 답은 프롬프트 해시(I59)가 지킨다
+    send-temperature: ${LLM_CLAUDE_SEND_TEMPERATURE:false}
 
 # 알림은 그룹마다 자기 웹훅으로 나간다 (설계 I96). 전역 주소는 없다
 slack:
@@ -185,6 +196,48 @@ loan:
     # clamp(과거 5년 최고 가계대출금리 − 현재, 하한, 상한). 고시가 바뀌면 여기만 고친다
     floor: ${LOAN_STRESS_FLOOR:0.015}
     cap: ${LOAN_STRESS_CAP:0.030}
+
+forecast:
+  # 가격 전망 (docs/PRICE_FORECAST.md)
+  # 실거래를 이만큼 거슬러 훑는다. 이 값이 그대로 국토부 호출 횟수다 —
+  # 다만 법정동·월 단위로 캐시되므로(설계 I128) 두 번째 매물부터는 거의 안 부른다
+  lookback-months: ${FORECAST_LOOKBACK_MONTHS:60}
+  # 판단 작업이라 흔들리면 안 된다 (설계 I127). 비우면 llm.claude.model 을 쓴다
+  # 몇 개월 앞을 보는가. 화면과 프롬프트에 그대로 나간다
+  horizon-months: ${FORECAST_HORIZON_MONTHS:12}
+  # 전망 전용 동시 실행 상한 (설계 I129). 보정(400)과 따로 둔다 —
+  # 한 매물에 60번을 던지므로 같은 줄에 세우면 다른 매물의 보정이 밀린다.
+  # 공공 API에 60건을 한꺼번에 던지면 429가 온다
+  max-concurrency: ${FORECAST_MAX_CONCURRENCY:6}
+  # 국토부 신고 지연 때문에 최근 몇 달은 다시 받는다. 그 이전은 바뀌지 않는다
+  refetch-recent-months: ${FORECAST_REFETCH_MONTHS:3}
+  # 전망을 다시 내는 주기 (설계 I143). 등록 때 한 번 내고 끝이면 반년 지난 매물의
+  # 화살표가 반년 전 시장을 가리킨다. 매월 15일 — 국토부 신고 기한이 계약 후 30일이라
+  # 월초에는 지난달 자료가 덜 찬다. 대개 값이 싸다: 새로 받을 달은 서너 달뿐이고(I128)
+  # 지표가 그대로면 프롬프트 해시가 같아 LLM 을 부르지 않는다(I59)
+  monthly-refresh-cron: ${FORECAST_REFRESH_CRON:0 15 4 15 * *}
+  monthly-refresh-enabled: ${FORECAST_REFRESH_ENABLED:true}
+  # 이 연식 이상이라야 용적률 여유를 재건축 여력으로 본다 (설계 I132).
+  # 신축에 여유가 크다고 재건축 호재가 아니다 — 실측에서 2015년 준공 단지의
+  # 여유가 127%p였는데 재건축은 수십 년 뒤 이야기다
+  redevelopment-age-years: ${FORECAST_REDEVELOPMENT_AGE:30}
+  # 최근 달을 다시 받는 주기
+  refetch-after-hours: ${FORECAST_REFETCH_HOURS:24}
+
+building:
+  # 국토교통부 건축물대장정보 서비스 (설계 I132).
+  # 실거래가와 같은 인증키(MINISTRY_API_KEY)를 쓰지만 다른 서비스라
+  # 공공데이터포털에서 따로 활용신청해야 한다
+  base-url: https://apis.data.go.kr/1613000/BldRgstHubService
+
+naver:
+  # 네이버 검색 API — 관련 기사 (설계 I137).
+  # developers.naver.com 에서 애플리케이션 등록 후 발급. 승인 절차는 없다.
+  # 기사는 점수에도 LLM 프롬프트에도 넣지 않는다 — 링크 목록으로만 쓴다
+  base-url: https://openapi.naver.com/v1/search
+  client-id: ${NAVER_CLIENT_ID:}
+  client-secret: ${NAVER_CLIENT_SECRET:}
+  news-limit: ${NAVER_NEWS_LIMIT:10}
 
 enrichment:
   # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).

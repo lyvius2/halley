@@ -139,18 +139,23 @@ public class ReferenceTransactionService {
      */
     private List<ReferenceTrade> fetchMonths(String lawdCd, String baseMonth, boolean exactMonth) {
         if (exactMonth) {
-            return ministryReferencePort.fetchTrades(lawdCd, baseMonth);
+            // null = 조회 실패 (설계 I140). 화면은 '없음'과 구분하지 않으므로 빈 목록으로 준다
+            return orEmpty(ministryReferencePort.fetchTrades(lawdCd, baseMonth));
         }
         final YearMonth start = YearMonth.parse(baseMonth, DateTimeFormatter.ofPattern("yyyyMM"))
                 .minusMonths(REPORTING_LAG_MONTHS);
         final List<ReferenceTrade> all = new ArrayList<>();
         for (int i = 0; i < lookbackMonths; i++) {
-            all.addAll(ministryReferencePort.fetchTrades(
-                    lawdCd, start.minusMonths(i).format(DateTimeFormatter.ofPattern("yyyyMM"))));
+            all.addAll(orEmpty(ministryReferencePort.fetchTrades(
+                    lawdCd, start.minusMonths(i).format(DateTimeFormatter.ofPattern("yyyyMM")))));
         }
         log.info("Ministry trades collected. lawdCd={}, months={}, from={}, trades={}",
                 lawdCd, lookbackMonths, start.minusMonths(lookbackMonths - 1L), all.size());
         return all;
+    }
+
+    private List<ReferenceTrade> orEmpty(List<ReferenceTrade> trades) {
+        return trades == null ? List.of() : trades;
     }
 
     private String blankToNull(String value) {

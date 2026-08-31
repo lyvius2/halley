@@ -13,4 +13,10 @@ public interface MinistryReferenceFeignClient {
     String fetchTrade(@RequestParam("serviceKey") String serviceKey,
                       @RequestParam("LAWD_CD") String lawdCd,
                       @RequestParam("DEAL_YMD") String dealYmd);
+
+    /** 전월세 (설계 I131). 같은 서비스의 다른 오퍼레이션이라 <b>인증키를 재사용</b>한다. */
+    @GetMapping("/RTMSDataSvcAptRent/getRTMSDataSvcAptRent")
+    String fetchRent(@RequestParam("serviceKey") String serviceKey,
+                     @RequestParam("LAWD_CD") String lawdCd,
+                     @RequestParam("DEAL_YMD") String dealYmd);
 }

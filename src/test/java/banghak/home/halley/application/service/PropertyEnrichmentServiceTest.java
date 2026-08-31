@@ -50,12 +50,12 @@ class PropertyEnrichmentServiceTest {
     private final ScoringService scoringService = mock(ScoringService.class);
 
     /** 실물과 같은 게이트를 쓴다 — 병렬 실행 자체가 검증 대상이다 (설계 I108). */
-    private final VirtualThreadGate gate = new VirtualThreadGate(400);
+    private final VirtualThreadGate gate = new VirtualThreadGate("test", 400);
 
     private final PropertyEnrichmentService service = new PropertyEnrichmentService(
             propertyRepository, kakaoLocalPort, housingPricePort, geoService,
             referenceTransactionService, llmRecommendationService, landUseService, scoringService,
-            gate);
+            gate, event -> { });
 
     @Test
     @DisplayName("초등학교가 비어 있으면 카카오 최근접 초등학교로 채우고 출처를 KAKAO로 남긴다")

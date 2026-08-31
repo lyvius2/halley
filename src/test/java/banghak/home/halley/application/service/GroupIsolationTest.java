@@ -43,6 +43,9 @@ class GroupIsolationTest {
     private static final AtomicInteger SEQ = new AtomicInteger();
 
     @Autowired
+    private PriceForecastService priceForecastService;
+
+    @Autowired
     private UserGroupRepository userGroupRepository;
 
     @Autowired
@@ -178,6 +181,39 @@ class GroupIsolationTest {
 
         // then — 900억이 섞였다면 만점이 나온다
         assertThat(price.effectiveScore()).isNotEqualTo(new java.math.BigDecimal("100.00"));
+    }
+
+    @Test
+    @DisplayName("목록의 전망 요약도 우리 그룹 매물에만 붙는다")
+    void forecastSummaryStaysInGroup() {
+        // given — 다른 그룹의 매물
+        final String tag = "fc" + SEQ.incrementAndGet();
+        loginAsNewMember(tag + "-other");
+        final Long theirs = propertyService.create(request("남의 매물 " + tag)).id();
+
+        // when — 우리 그룹으로 옮겨 목록을 본다
+        loginAsNewMember(tag + "-mine");
+        propertyService.create(request("내 매물 " + tag));
+        final var list = priceForecastService.attachForecasts(scoringService.list(null));
+
+        // then — 남의 매물은 애초에 목록에 없다
+        assertThat(list).extracting(s -> s.property().id()).doesNotContain(theirs);
+        // 우리 것에는 요약이 붙는다 (아직 안 냈으면 판단 보류)
+        assertThat(list).allSatisfy(s -> assertThat(s.forecast()).isNotNull());
+    }
+
+    @Test
+    @DisplayName("남의 매물 전망은 읽을 수 없다 — 길목을 탄다")
+    void cannotReadOtherGroupForecast() {
+        final String tag = "fcx" + SEQ.incrementAndGet();
+        loginAsNewMember(tag + "-other");
+        final Long theirs = propertyService.create(request("남의 매물 " + tag)).id();
+
+        loginAsNewMember(tag + "-mine");
+
+        // 전망 자체는 매물에 딸린 것이므로 매물 길목이 막는다
+        assertThatThrownBy(() -> propertyService.get(theirs))
+                .isInstanceOf(NotFoundListingsException.class);
     }
 
     @Test

@@ -3,6 +3,8 @@ package banghak.home.halley.adapter.outbound.external.ministry;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import lombok.extern.slf4j.Slf4j;
+import banghak.home.halley.config.RateGate;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
@@ -24,11 +26,14 @@ import java.util.Objects;
 public class MinistryReferenceAdapter implements MinistryReferencePort {
 
     private final MinistryReferenceFeignClient client;
+    private final RateGate rateGate;
     private final String serviceKey;
 
     public MinistryReferenceAdapter(MinistryReferenceFeignClient client,
+                                 @Qualifier("ministryRateGate") RateGate rateGate,
                                  @Value("${ministry.service-key:}") String serviceKey) {
         this.client = client;
+        this.rateGate = rateGate;
         this.serviceKey = decodeIfEncoded(serviceKey);
     }
 
@@ -46,14 +51,52 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
 
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
+        // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다 (설계 I140)
         if (serviceKey == null || serviceKey.isBlank()) {
-            return List.of();
+            return null;
         }
+        rateGate.acquire();
         final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd);
         if (xml == null) {
-            return List.of();
+            return null;
         }
         return parse(xml);
+    }
+
+    /**
+     * 순수 전세만 (설계 I131).
+     *
+     * <p>돌려주는 {@code dealAmount}는 <b>보증금</b>입니다 — 매매가가 아닙니다.
+     * 월세가 붙은 반전세는 보증금이 낮게 잡혀 전세가율을 왜곡하므로 <b>여기서 걸러 냅니다.</b>
+     */
+    @Override
+    public List<ReferenceTrade> fetchJeonseDeposits(String lawdCd, String dealYmd) {
+        if (serviceKey == null || serviceKey.isBlank()) {
+            return null;
+        }
+        rateGate.acquire();
+        final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd);
+        if (xml == null) {
+            return null;
+        }
+        return parseRents(xml);
+    }
+
+    List<ReferenceTrade> parseRents(String xml) {
+        final List<ReferenceTrade> rents = new ArrayList<>();
+        for (final Element item : items(xml)) {
+            // 월세가 0이 아니면 반전세다. 보증금이 낮아 전세가율을 왜곡한다
+            final String monthly = text(item, "monthlyRent", "월세금액");
+            if (monthly != null && parseMan(monthly) != 0L) {
+                continue;
+            }
+            final String deposit = text(item, "deposit", "보증금액");
+            if (deposit == null) {
+                continue;
+            }
+            rents.add(toRecord(item, parseMan(deposit)));
+        }
+        return rents;
     }
 
     List<ReferenceTrade> parse(String xml) {
@@ -75,6 +118,11 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
 
     private ReferenceTrade toTrade(Element item) {
         final String priceMan = text(item, "dealAmount", "거래금액");
+        return toRecord(item, priceMan == null ? null : parseMan(priceMan));
+    }
+
+    /** 매매·전세가 같은 모양이라 금액만 갈아 끼운다 — 나머지 칸은 태그가 같다. */
+    private ReferenceTrade toRecord(Element item, Long amountWon) {
         final String area = text(item, "excluUseAr", "전용면적");
         final String floor = text(item, "floor", "층");
         final String year = text(item, "dealYear", "년");
@@ -82,7 +130,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         final String day = text(item, "dealDay", "일");
         return new ReferenceTrade(
                 text(item, "aptNm", "아파트"),
-                priceMan == null ? null : Math.round(Double.parseDouble(priceMan.replace(",", "")) * 10_000L),
+                amountWon,
                 area == null ? null : new BigDecimal(area),
                 floor == null ? null : Integer.parseInt(floor),
                 year == null ? null : LocalDate.of(
@@ -91,6 +139,28 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
                         Integer.parseInt(Objects.requireNonNull(day))
                 )
         );
+    }
+
+    /** 국토부는 금액을 <b>만원 단위 문자열</b>로 준다 (`"110,000"`). 원으로 바꾼다. */
+    private long parseMan(String value) {
+        return Math.round(Double.parseDouble(value.replace(",", "").trim()) * 10_000L);
+    }
+
+    /** XML에서 {@code item} 요소를 뽑는다. 매매·전세가 같은 구조라 함께 쓴다. */
+    private List<Element> items(String xml) {
+        try {
+            final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+                    .parse(new org.xml.sax.InputSource(new StringReader(xml)));
+            final NodeList nodes = document.getElementsByTagName("item");
+            final List<Element> elements = new ArrayList<>(nodes.getLength());
+            for (int i = 0; i < nodes.getLength(); i++) {
+                elements.add((Element) nodes.item(i));
+            }
+            return elements;
+        } catch (Exception e) {
+            log.warn("Failed to parse ministry XML. cause={}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**

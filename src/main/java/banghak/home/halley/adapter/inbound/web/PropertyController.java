@@ -26,7 +26,12 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
 import banghak.home.halley.application.service.ComparativeAnalysisService;
 import banghak.home.halley.application.service.LandUseService;
+import banghak.home.halley.adapter.inbound.web.dto.NewsArticleResponse;
+import banghak.home.halley.adapter.inbound.web.dto.PriceForecastResponse;
+import banghak.home.halley.application.service.PriceForecastService;
+import banghak.home.halley.application.service.PropertyAccessGuard;
 import banghak.home.halley.application.service.PropertyEnrichmentService;
+import banghak.home.halley.application.service.PropertyNewsService;
 import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
@@ -72,6 +77,9 @@ public class PropertyController {
     private final ComparativeAnalysisService comparativeAnalysisService;
     private final LandUseService landUseService;
     private final PropertyEnrichmentService propertyEnrichmentService;
+    private final PriceForecastService priceForecastService;
+    private final PropertyNewsService propertyNewsService;
+    private final PropertyAccessGuard propertyAccessGuard;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -84,7 +92,10 @@ public class PropertyController {
                               LlmRecommendationService llmRecommendationService,
                               ComparativeAnalysisService comparativeAnalysisService,
                               LandUseService landUseService,
-                              PropertyEnrichmentService propertyEnrichmentService) {
+                              PropertyEnrichmentService propertyEnrichmentService,
+                              PriceForecastService priceForecastService,
+                              PropertyNewsService propertyNewsService,
+                              PropertyAccessGuard propertyAccessGuard) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -97,6 +108,9 @@ public class PropertyController {
         this.comparativeAnalysisService = comparativeAnalysisService;
         this.landUseService = landUseService;
         this.propertyEnrichmentService = propertyEnrichmentService;
+        this.priceForecastService = priceForecastService;
+        this.propertyNewsService = propertyNewsService;
+        this.propertyAccessGuard = propertyAccessGuard;
     }
 
     /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
@@ -218,12 +232,13 @@ public class PropertyController {
 
     @GetMapping
     public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {
-        return scoringService.list(dealType);
+        // 전망 요약을 한 번에 붙인다 (설계 I136). 요인 상세는 모달에서 따로 받는다
+        return priceForecastService.attachForecasts(scoringService.list(dealType));
     }
 
     @GetMapping("/{id}")
     public ScoredPropertyResponse get(@PathVariable Long id) {
-        return scoringService.getScored(id);
+        return priceForecastService.attachForecast(scoringService.getScored(id));
     }
 
     @GetMapping("/sold-out/recent")
@@ -290,6 +305,41 @@ public class PropertyController {
     @PostMapping("/{id}/scores/recompute")
     public ScoredPropertyResponse recomputeScores(@PathVariable Long id) {
         return scoringService.rescore(id);
+    }
+
+    /**
+     * 가격 전망 (설계 I135).
+     *
+     * <p>결과가 없어도 200을 줍니다 — 화면이 <b>분석 중인지</b>를 알아야 폴링을 이어갑니다.
+     * 204를 주면 "없다"와 "아직"을 구분할 수 없습니다.
+     */
+    @GetMapping("/{id}/forecast")
+    public PriceForecastResponse forecast(@PathVariable Long id) {
+        propertyAccessGuard.require(id);
+        final boolean running = priceForecastService.isRunning(id);
+        return priceForecastService.find(id)
+                .map(f -> PriceForecastResponse.from(f, running))
+                .orElseGet(() -> PriceForecastResponse.pending(id, running));
+    }
+
+    /**
+     * 관련 기사 (설계 I137).
+     *
+     * <p><b>점수에도 프롬프트에도 반영되지 않습니다.</b> 전망 모달에 링크 목록으로만 뜹니다.
+     * 전망 계산과 분리해 둔 이유는, 기사가 안 와도 전망이 멀쩡히 나와야 하기 때문입니다.
+     */
+    @GetMapping("/{id}/news")
+    public List<NewsArticleResponse> news(@PathVariable Long id) {
+        return propertyNewsService.find(id).stream().map(NewsArticleResponse::from).toList();
+    }
+
+    /** 사용자가 명시적으로 다시 분석할 때 (설계 3-A.5). */
+    @PostMapping("/{id}/forecast/refresh")
+    public PriceForecastResponse refreshForecast(@PathVariable Long id) {
+        propertyAccessGuard.require(id);
+        return priceForecastService.refresh(id)
+                .map(f -> PriceForecastResponse.from(f, false))
+                .orElseGet(() -> PriceForecastResponse.pending(id, false));
     }
 
     @PutMapping("/{id}/scores")
