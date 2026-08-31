@@ -6,7 +6,9 @@ import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.PriceFactor;
 import banghak.home.halley.domain.forecast.PriceForecast;
 import banghak.home.halley.domain.forecast.PriceOutlook;
+import banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastHistoryTable;
 import org.jooq.DSLContext;
+import org.jooq.Field;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 import tools.jackson.databind.JsonNode;
@@ -32,6 +34,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecas
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.PROMPT_HASH;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.PROPERTY_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.TABLE;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastHistoryTable.TABLE_HISTORY;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toEnum;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toInstant;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJson;
@@ -39,10 +42,14 @@ import static banghak.home.halley.adapter.outbound.persistence.support.JooqMappi
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 
 /**
- * 가격 전망 저장 (설계 I135).
+ * 가격 전망 저장 (설계 I135·I138).
  *
- * <p>매물당 <b>하나만</b> 둡니다 — 이력이 필요하면 그때 별도 테이블을 씁니다.
- * 지금 이력을 쌓으면 쓰지도 않으면서 행만 늘어납니다.
+ * <p>{@code price_forecast}는 매물당 <b>최신 한 건</b>만 들고 덮어씁니다 — 목록(I124)이
+ * 보는 것이 이쪽이라 "매물별 최신 한 건"을 매번 골라내게 만들지 않습니다.
+ *
+ * <p>덮어쓴 것은 {@code price_forecast_history}에 <b>쌓아 둡니다</b>(I138).
+ * 그러지 않으면 "3개월 전에 오른다고 했는데 실제로 올랐나"를 볼 수 없습니다 —
+ * 그 행이 이미 사라지고 없습니다.
  */
 @Repository
 public class PriceForecastRepository {
@@ -55,34 +62,76 @@ public class PriceForecastRepository {
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 최신 전망을 덮어쓰고, 같은 내용을 이력에도 남긴다 (설계 I138).
+     *
+     * <p><b>한 자리에서 같이 합니다.</b> 서비스가 두 번 부르게 하면 언젠가 한쪽을 빠뜨리고,
+     * 빠진 것은 조용히 지나갑니다 — 몇 달 뒤 이력을 열어 봐야 비어 있는 걸 압니다.
+     */
     public PriceForecast upsert(PriceForecast forecast) {
-        final PriceOutlook outlook = forecast.outlook();
-        dsl.insertInto(TABLE)
-                .set(PROPERTY_ID, forecast.propertyId())
-                .set(DIRECTION, outlook.direction().name())
-                .set(CODE_DIRECTION, forecast.codeDirection() == null
-                        ? null : forecast.codeDirection().name())
-                .set(CONFIDENCE, outlook.confidence().name())
-                .set(HORIZON_MONTHS, outlook.horizonMonths())
-                .set(FACTORS, toJson(factorsJson(outlook.factors()), objectMapper))
-                .set(CAVEATS, toJson(stringsJson(outlook.caveats()), objectMapper))
-                .set(MODEL, forecast.model())
-                .set(PROMPT_HASH, forecast.promptHash())
-                .set(COMPUTED_AT, toOffset(forecast.computedAt()))
-                .onConflict(PROPERTY_ID)
-                .doUpdate()
-                .set(DIRECTION, outlook.direction().name())
-                .set(CODE_DIRECTION, forecast.codeDirection() == null
-                        ? null : forecast.codeDirection().name())
-                .set(CONFIDENCE, outlook.confidence().name())
-                .set(HORIZON_MONTHS, outlook.horizonMonths())
-                .set(FACTORS, toJson(factorsJson(outlook.factors()), objectMapper))
-                .set(CAVEATS, toJson(stringsJson(outlook.caveats()), objectMapper))
-                .set(MODEL, forecast.model())
-                .set(PROMPT_HASH, forecast.promptHash())
-                .set(COMPUTED_AT, toOffset(forecast.computedAt()))
-                .execute();
+        dsl.transaction(cfg -> {
+            final DSLContext tx = cfg.dsl();
+            tx.insertInto(TABLE)
+                    .set(PROPERTY_ID, forecast.propertyId())
+                    .set(columns(forecast))
+                    .onConflict(PROPERTY_ID)
+                    .doUpdate()
+                    .set(columns(forecast))
+                    .execute();
+            tx.insertInto(TABLE_HISTORY)
+                    .set(PriceForecastHistoryTable.PROPERTY_ID, forecast.propertyId())
+                    .set(historyColumns(forecast))
+                    .execute();
+        });
         return findByPropertyId(forecast.propertyId()).orElseThrow();
+    }
+
+    /**
+     * 이 매물의 전망 이력 — 최근 것부터 (설계 I138).
+     *
+     * <p>사후 검증(구현 10)의 재료입니다. 판정 기준은 아직 정하지 않았습니다 —
+     * <b>표본을 보고 정할 일</b>이라 지금은 쌓기만 합니다.
+     */
+    public List<PriceForecast> history(Long propertyId) {
+        return dsl.selectFrom(TABLE_HISTORY)
+                .where(PriceForecastHistoryTable.PROPERTY_ID.eq(propertyId))
+                .orderBy(PriceForecastHistoryTable.COMPUTED_AT.desc(),
+                        PriceForecastHistoryTable.ID.desc())
+                .fetch()
+                .map(this::mapHistory);
+    }
+
+    /** 최신과 이력이 어긋나지 않도록 <b>한 곳에서</b> 만든다. */
+    private java.util.Map<Field<?>, Object> columns(PriceForecast forecast) {
+        final PriceOutlook outlook = forecast.outlook();
+        final java.util.Map<Field<?>, Object> values = new java.util.LinkedHashMap<>();
+        values.put(DIRECTION, outlook.direction().name());
+        values.put(CODE_DIRECTION, forecast.codeDirection() == null
+                ? null : forecast.codeDirection().name());
+        values.put(CONFIDENCE, outlook.confidence().name());
+        values.put(HORIZON_MONTHS, outlook.horizonMonths());
+        values.put(FACTORS, toJson(factorsJson(outlook.factors()), objectMapper));
+        values.put(CAVEATS, toJson(stringsJson(outlook.caveats()), objectMapper));
+        values.put(MODEL, forecast.model());
+        values.put(PROMPT_HASH, forecast.promptHash());
+        values.put(COMPUTED_AT, toOffset(forecast.computedAt()));
+        return values;
+    }
+
+    private java.util.Map<Field<?>, Object> historyColumns(PriceForecast forecast) {
+        final PriceOutlook outlook = forecast.outlook();
+        final java.util.Map<Field<?>, Object> values = new java.util.LinkedHashMap<>();
+        values.put(PriceForecastHistoryTable.DIRECTION, outlook.direction().name());
+        values.put(PriceForecastHistoryTable.CODE_DIRECTION, forecast.codeDirection() == null
+                ? null : forecast.codeDirection().name());
+        values.put(PriceForecastHistoryTable.CONFIDENCE, outlook.confidence().name());
+        values.put(PriceForecastHistoryTable.HORIZON_MONTHS, outlook.horizonMonths());
+        values.put(PriceForecastHistoryTable.FACTORS, toJson(factorsJson(outlook.factors()), objectMapper));
+        values.put(PriceForecastHistoryTable.CAVEATS, toJson(stringsJson(outlook.caveats()), objectMapper));
+        values.put(PriceForecastHistoryTable.MODEL, forecast.model());
+        values.put(PriceForecastHistoryTable.PROMPT_HASH, forecast.promptHash());
+        values.put(PriceForecastHistoryTable.COMPUTED_AT, toOffset(forecast.computedAt()));
+        return values;
     }
 
     /**
@@ -124,6 +173,22 @@ public class PriceForecastRepository {
                 r.get(PROMPT_HASH),
                 r.get(MODEL),
                 toInstant(r.get(COMPUTED_AT)));
+    }
+
+    private PriceForecast mapHistory(Record r) {
+        return new PriceForecast(
+                r.get(PriceForecastHistoryTable.ID),
+                r.get(PriceForecastHistoryTable.PROPERTY_ID),
+                new PriceOutlook(
+                        toEnum(ForecastDirection.class, r.get(PriceForecastHistoryTable.DIRECTION)),
+                        toEnum(ForecastConfidence.class, r.get(PriceForecastHistoryTable.CONFIDENCE)),
+                        r.get(PriceForecastHistoryTable.HORIZON_MONTHS),
+                        toFactors(toJsonNode(r.get(PriceForecastHistoryTable.FACTORS_RAW), objectMapper)),
+                        toStrings(toJsonNode(r.get(PriceForecastHistoryTable.CAVEATS_RAW), objectMapper))),
+                toEnum(ForecastDirection.class, r.get(PriceForecastHistoryTable.CODE_DIRECTION)),
+                r.get(PriceForecastHistoryTable.PROMPT_HASH),
+                r.get(PriceForecastHistoryTable.MODEL),
+                toInstant(r.get(PriceForecastHistoryTable.COMPUTED_AT)));
     }
 
     private JsonNode factorsJson(List<PriceFactor> factors) {
