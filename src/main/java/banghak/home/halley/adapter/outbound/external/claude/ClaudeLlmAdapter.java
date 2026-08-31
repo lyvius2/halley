@@ -68,6 +68,11 @@ public class ClaudeLlmAdapter implements LlmPort {
         root.put("model", message.model() == null || message.model().isBlank()
                 ? model : message.model());
         root.put("max_tokens", message.maxTokens());
+        // 호출자가 정하지 않았으면 아예 보내지 않는다 (설계 I127).
+        // 0을 기본값으로 삼으면 기존 호출의 답이 통째로 달라진다
+        if (message.temperature() != null) {
+            root.put("temperature", message.temperature());
+        }
         if (message.system() != null && !message.system().isBlank()) {
             root.put("system", message.system());
         }

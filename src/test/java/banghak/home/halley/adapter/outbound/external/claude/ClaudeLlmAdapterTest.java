@@ -77,6 +77,47 @@ class ClaudeLlmAdapterTest {
     }
 
     @Test
+    @DisplayName("temperature를 안 주면 아예 보내지 않는다 — 기존 호출의 답이 달라지면 안 된다 (설계 I127)")
+    void omitsTemperatureWhenNotGiven() {
+        // given
+        final AtomicReference<String> sent = new AtomicReference<>();
+        final ClaudeFeignClient client = capture(sent);
+
+        // when — 기존 호출은 temperature를 모른다
+        adapter(client, "sk-test").complete(new LlmMessage("s", "u", 512));
+
+        // then — 0을 기본값으로 넣으면 AI 추천도의 답이 통째로 바뀐다
+        assertThat(objectMapper.readTree(sent.get()).has("temperature")).isFalse();
+    }
+
+    @Test
+    @DisplayName("판단 작업은 temperature 0으로 보낸다 (설계 I127)")
+    void sendsZeroTemperatureForDeterministicCalls() {
+        // given
+        final AtomicReference<String> sent = new AtomicReference<>();
+        final ClaudeFeignClient client = capture(sent);
+
+        // when
+        adapter(client, "sk-test").complete(
+                LlmMessage.deterministic("s", "u", 512, null));
+
+        // then
+        final var node = objectMapper.readTree(sent.get());
+        assertThat(node.path("temperature").asDouble()).isEqualTo(0.0);
+        // 모델을 안 골랐으므로 기본 모델은 그대로다
+        assertThat(node.path("model").asString()).isEqualTo("claude-sonnet-4-5-20250929");
+    }
+
+    private ClaudeFeignClient capture(AtomicReference<String> sent) {
+        return (apiKey, ver, body) -> {
+            sent.set(body);
+            return """
+                    {"type": "message", "model": "m", "content": [{"type": "text", "text": "ok"}]}
+                    """;
+        };
+    }
+
+    @Test
     @DisplayName("요청 본문에 model·max_tokens·system·messages를 담는다")
     void buildsRequestBody() {
         // given
