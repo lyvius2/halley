@@ -178,8 +178,6 @@ function halley() {
         pasteForm: {},
         pasteError: null,
         _pasteTimer: null,
-        showDraftModal: false,
-        draftForm: { sourceUrl: '', memo: '' },
         pasteDraftId: null,
         pasteDraftName: null,
         showScoreModal: false,
@@ -816,11 +814,13 @@ function halley() {
                     const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
                     const label = data.buildingName ? `${address} (${data.buildingName})` : address;
                     const coords = await this.geocodeAddress(address);
-                    if (!coords) {
-                        this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
-                        return;
-                    }
+
                     if (target === 'itinerary') {
+                        // 출발지는 좌표가 있어야 경로를 못 짠다 — 여기서만 좌표를 필수로 본다
+                        if (!coords) {
+                            this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
+                            return;
+                        }
                         this.itinStart = { address: label, lat: coords.lat, lng: coords.lng };
                         await this.rememberStartLocation();
                         return;
@@ -828,9 +828,16 @@ function halley() {
                     const form = target === 'setup' ? this.setupForm
                         : target === 'user' ? this.userForm
                         : this.profileForm;
+                    // 사용자가 고른 주소는 <b>무조건 담는다</b> (설계 I154).
+                    // 좌표 조회가 실패했다고 주소까지 버리면, 화면에서는 아무 일도 안 일어난 것처럼
+                    // 보이고 직장을 영영 못 바꾼다 — 사용자가 한 선택을 우리가 지우는 셈이다
                     form.workplaceName = label;
-                    form.workplaceLat = coords.lat;
-                    form.workplaceLng = coords.lng;
+                    form.workplaceLat = coords ? coords.lat : '';
+                    form.workplaceLng = coords ? coords.lng : '';
+                    if (!coords) {
+                        // 좌표가 없으면 직주근접만 못 낸다. 나머지는 저장된다
+                        this.error = '주소는 담았지만 좌표를 찾지 못했습니다 — 직주근접 점수는 산출되지 않습니다.';
+                    }
                 }
             }).open();
         },
@@ -2257,44 +2264,6 @@ function halley() {
             this.openAddProperty();
         },
 
-        openDraftModal() {
-            this.closeAddMenu();
-            this.draftForm = { sourceUrl: '', memo: '' };
-            this.error = null;
-            this.showDraftModal = true;
-        },
-
-        closeDraftModal() {
-            this.showDraftModal = false;
-            this.draftForm = { sourceUrl: '', memo: '' };
-            this.error = null;
-        },
-
-        async saveDraft() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/properties/draft', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sourceUrl: this.draftForm.sourceUrl,
-                        memo: this.draftForm.memo
-                    })
-                });
-                if (ok) {
-                    this.closeDraftModal();
-                    await this.loadProperties();
-                } else {
-                    this.error = (body && body.message) || '저장에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
         openPasteModal(item) {
             this.closeAddMenu();
             this.pasteDraftId = item ? item.property.id : null;
@@ -2652,11 +2621,14 @@ function halley() {
         },
 
         /**
-         * Esc로 맨 위 모달을 닫는다 (설계 I122).
+         * Esc 또는 배경 클릭으로 맨 위 모달을 닫는다 (설계 I122 · I155).
          *
-         * <p>배경을 클릭해도 닫히던 것을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러
-         * <b>입력이 통째로 사라지는</b> 일이 있었습니다. 대신 Esc를 남겨 빠른 탈출은
-         * 그대로 둡니다.
+         * <p>한때 배경 클릭을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러 입력이 사라지는
+         * 일이 있었습니다. <b>쓰기 불편하다는 쪽이 더 컸습니다.</b> 되살립니다.
+         *
+         * <p>강제 모달(로그인·비밀번호 변경·프로필 확인·세션 경고)은 <b>아래 목록에
+         * 없습니다.</b> 그래서 같은 핸들러를 달아도 배경을 눌러 빠져나갈 수 없습니다 —
+         * 끝내야 넘어가는 화면이라 그래야 합니다.
          *
          * <p><b>순서가 중요합니다.</b> 겹쳐 뜬 모달은 위에 있는 것부터 닫아야 합니다 —
          * 아래 것을 먼저 닫으면 위에 뜬 모달만 남아 배경 없이 떠 있게 됩니다.
@@ -2679,7 +2651,6 @@ function halley() {
                 ['showPhotoModal', () => this.closePhotoModal()],
                 ['showRoadview', () => this.closeRoadview()],
                 ['showPasteModal', () => this.closePasteModal()],
-                ['showDraftModal', () => this.closeDraftModal()],
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
