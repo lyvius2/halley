@@ -126,7 +126,7 @@ public class PriceForecastService {
         jobCache.markRunning(jobKey(propertyId));
         try {
             final ForecastVerdict verdict = forecast(gather(property));
-            final String hash = verdict.prompt() == null ? null : sha256(verdict.prompt().full());
+            final String hash = hashToStore(verdict);
 
             final Optional<PriceForecast> cached = forecastRepository.findByPropertyId(propertyId);
             if (cached.isPresent() && hash != null && hash.equals(cached.get().promptHash())) {
@@ -135,7 +135,7 @@ public class PriceForecastService {
             }
             final PriceForecast saved = forecastRepository.upsert(new PriceForecast(
                     null, propertyId, verdict.conclusion(), verdict.byCode().direction(),
-                    hash, verdict.prompt() == null ? null : llmPort.provider(), Instant.now()));
+                    hash, modelToStore(verdict, llmPort.provider()), Instant.now()));
             log.info("Price forecast stored. propertyId={}, direction={}, codeDirection={}, agreed={}",
                     propertyId, saved.outlook().direction(), saved.codeDirection(), saved.agreed());
             return Optional.of(saved);
@@ -144,6 +144,30 @@ public class PriceForecastService {
             // 화면이 영영 돕니다 — completed 를 따로 볼 이유가 없습니다
             jobCache.clear(jobKey(propertyId));
         }
+    }
+
+    /**
+     * 저장할 프롬프트 해시 (설계 I145).
+     *
+     * <p><b>답을 받았을 때만 남깁니다.</b> 실패한 호출에 해시를 붙이면 다음 호출이
+     * "같은 지표니 다시 안 묻는다"(I59)로 건너뛰어, <b>일시적 장애가 영구적인 답이 됩니다.</b>
+     *
+     * <p>프롬프트가 만들어졌다는 것과 답을 받았다는 것은 다릅니다 — 키가 없어도,
+     * 400을 맞아도, 답이 읽히지 않아도 프롬프트는 남습니다.
+     */
+    static String hashToStore(ForecastVerdict verdict) {
+        return verdict.llmAnswered() ? sha256(verdict.prompt().full()) : null;
+    }
+
+    /**
+     * 저장할 모델 이름 (설계 I145).
+     *
+     * <p>답을 못 받았으면 <b>비워 둡니다.</b> "claude가 냈다"고 적어 두면
+     * 사후 검증(구현 10)이 <b>호출 실패를 모델의 판단으로 세게</b> 됩니다 —
+     * 적중률이 통째로 틀어집니다.
+     */
+    static String modelToStore(ForecastVerdict verdict, String provider) {
+        return verdict.llmAnswered() ? provider : null;
     }
 
     public Optional<PriceForecast> find(Long propertyId) {
@@ -215,7 +239,7 @@ public class PriceForecastService {
                 ledger);
     }
 
-    private String sha256(String value) {
+    private static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8)));
@@ -237,19 +261,30 @@ public class PriceForecastService {
             // 재료가 없으면 묻지 않는다 — 일반론이 돌아온다
             log.info("Skipping forecast LLM call - no indicators. propertyId={}",
                     input.property() == null ? null : input.property().id());
-            return new ForecastVerdict(byCode, byCode, null);
+            return new ForecastVerdict(byCode, byCode, null, false);
         }
         final ForecastPrompt prompt = ForecastPrompt.of(input.property(), byCode.factors(), horizon);
 
         if (!enabled || !llmPort.isEnabled()) {
             log.info("Skipping forecast LLM call - provider not enabled. provider={}", llmPort.provider());
-            return new ForecastVerdict(byCode, byCode, prompt);
+            // 키를 나중에 넣으면 다시 물어야 한다. 해시를 남기면 그 기회가 사라진다
+            return new ForecastVerdict(byCode, byCode, prompt, false);
         }
-        final PriceOutlook byLlm = ask(prompt, horizon, byCode);
-        return new ForecastVerdict(guard(byLlm, byCode), byCode, prompt);
+        final Optional<PriceOutlook> byLlm = ask(prompt, horizon);
+        return byLlm
+                .map(llm -> new ForecastVerdict(guard(llm, byCode), byCode, prompt, true))
+                // 못 받았으면 코드 예측으로 답하되, 답한 것처럼 굳히지는 않는다
+                .orElseGet(() -> new ForecastVerdict(byCode, byCode, prompt, false));
     }
 
-    private PriceOutlook ask(ForecastPrompt prompt, int horizon, PriceOutlook fallback) {
+    /**
+     * LLM에 묻는다. <b>못 받으면 비어 있다</b> (설계 I145).
+     *
+     * <p>예전에는 코드 예측을 대신 돌려줬는데, 부른 쪽에서 <b>답을 받은 것과 구분할 수
+     * 없었습니다.</b> 그래서 실패한 호출에도 프롬프트 해시가 저장됐고, 다시 물으면
+     * 해시가 같아 <b>영영 건너뛰었습니다.</b>
+     */
+    private Optional<PriceOutlook> ask(ForecastPrompt prompt, int horizon) {
         log.info("Asking LLM for price forecast. factors={}, promptChars={}",
                 prompt.allowedNumbers().size(), prompt.user().length());
         log.debug("Forecast prompt.\n{}", prompt.user());
@@ -264,14 +299,13 @@ public class PriceForecastService {
         if (!result.isPresent()) {
             log.warn("Forecast LLM unavailable - falling back to rule-based. cause={}",
                     result.failureCause());
-            return fallback;
+            return Optional.empty();
         }
         final Optional<PriceOutlook> parsed = parser.parse(result.text(), prompt, horizon);
         if (parsed.isEmpty()) {
             log.warn("Forecast verdict unreadable - falling back to rule-based.");
-            return fallback;
         }
-        return parsed.get();
+        return parsed;
     }
 
     /**
@@ -312,8 +346,13 @@ public class PriceForecastService {
      * @param conclusion 결론 — LLM이 있으면 LLM, 없으면 코드
      * @param byCode     코드 예측. <b>화면의 참고 문구에만 씁니다</b> (설계 5.2)
      * @param prompt     해시로 중복 호출을 막을 때 쓴다 (설계 I59). 안 부른 경우 null
+     * @param llmAnswered LLM이 <b>실제로 답했는가</b> (설계 I145).
+     *                   프롬프트가 만들어졌다고 답을 받은 것은 아니다 — 키가 없거나
+     *                   400을 맞아도 프롬프트는 남는다. <b>이걸 구분하지 않으면
+     *                   실패가 해시로 굳어 다시 물을 수 없게 된다.</b>
      */
-    public record ForecastVerdict(PriceOutlook conclusion, PriceOutlook byCode, ForecastPrompt prompt) {
+    public record ForecastVerdict(PriceOutlook conclusion, PriceOutlook byCode,
+                                  ForecastPrompt prompt, boolean llmAnswered) {
 
         /** 둘이 같은 방향인가 — 모달 문구를 가른다. */
         public boolean agreed() {

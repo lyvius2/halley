@@ -1,5 +1,7 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.domain.forecast.PriceOutlook;
+import banghak.home.halley.domain.forecast.ForecastPrompt;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.indicator.ForecastInput;
@@ -41,6 +43,18 @@ class PriceForecastServiceTest {
 
     @Autowired
     private PriceForecastService service;
+
+    @Autowired
+    private banghak.home.halley.adapter.outbound.persistence.PriceForecastRepository forecastRepository;
+
+    @Autowired
+    private PropertyService propertyService;
+
+    @Autowired
+    private banghak.home.halley.adapter.outbound.persistence.UserGroupRepository userGroupRepository;
+
+    @Autowired
+    private banghak.home.halley.adapter.outbound.persistence.UserRepository userRepository;
 
     @Test
     @DisplayName("코드 예측을 LLM에 넘기지 않는다 — 넘기면 두 예측이 독립이 아니게 된다")
@@ -84,6 +98,34 @@ class PriceForecastServiceTest {
         assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.DOWN);
         assertThat(verdict.conclusion().factors()).isNotEmpty();
         assertThat(verdict.agreed()).isTrue();
+        // 답을 못 받았다 (설계 I145). 이걸 표시하지 않으면 실패에 해시가 붙어
+        // 다음 호출이 "같은 지표니 다시 안 묻는다"로 영영 건너뛴다
+        assertThat(verdict.llmAnswered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("읽을 수 없는 답도 '답한 것'이 아니다 — 해시로 굳으면 다시 물을 수 없다 (설계 I145)")
+    void unreadableAnswerIsNotAnAnswer() {
+        stub(new AtomicReference<>(), "이건 JSON 이 아니다");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.llmAnswered()).isFalse();
+    }
+
+    @Test
+    @DisplayName("답을 받았으면 표시한다 — 그때만 해시로 굳힌다 (설계 I145)")
+    void answeredIsMarked() {
+        stub(new AtomicReference<>(), """
+                {"direction":"DOWN","confidence":"MEDIUM","factors":[
+                  {"name":"실거래 추세","effect":"DOWN","weight":"HIGH",
+                   "evidence":"직전 3개월 중앙값 12억 1,000만원 → 최근 11억 4,000만원"}],
+                 "caveats":[]}
+                """);
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.llmAnswered()).isTrue();
     }
 
     @Test
@@ -142,6 +184,42 @@ class PriceForecastServiceTest {
 
         assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.DOWN);
         assertThat(verdict.agreed()).isTrue();
+        // 키를 나중에 넣으면 다시 물어야 한다 (설계 I145)
+        assertThat(verdict.llmAnswered()).isFalse();
+    }
+
+    /**
+     * 저장할 해시 (설계 I145).
+     *
+     * <p>이것이 <b>화면에서 다시 시킬 유일한 길</b>을 지킨다. 판단 보류는 화살표가 없어
+     * 모달을 못 열고 매매가 클릭이 전부인데, 실패에 해시가 붙으면 눌러도 건너뛴다.
+     */
+    @Test
+    @DisplayName("실패한 호출에는 해시를 남기지 않는다 — 남기면 다시 눌러도 건너뛴다 (설계 I145)")
+    void noHashWhenLlmDidNotAnswer() {
+        // given — 프롬프트는 만들어졌지만 답을 못 받았다 (400·키 없음·읽을 수 없는 답)
+        final var outlook = PriceOutlook.uncertain(12, List.of());
+        final var prompt = ForecastPrompt.of(property(), List.of(), 12);
+
+        final var failed = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, false);
+        final var answered = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, true);
+
+        // then — 프롬프트가 있다고 해시를 남기면 안 된다. 그 둘은 다른 얘기다
+        assertThat(PriceForecastService.hashToStore(failed)).isNull();
+        assertThat(PriceForecastService.hashToStore(answered)).isNotNull();
+
+        // 모델도 비워 둔다. "claude가 냈다"고 적으면 사후 검증이 호출 실패를
+        // 모델의 판단으로 센다 — 그리고 정리 SQL 이 model IS NULL 로 실패분을 고른다
+        assertThat(PriceForecastService.modelToStore(failed, "claude")).isNull();
+        assertThat(PriceForecastService.modelToStore(answered, "claude")).isEqualTo("claude");
+    }
+
+    @Test
+    @DisplayName("아예 묻지 않았어도 해시는 없다 — 프롬프트 자체가 없다")
+    void noHashWhenNeverAsked() {
+        final var outlook = PriceOutlook.uncertain(12, List.of());
+        assertThat(PriceForecastService.hashToStore(
+                new PriceForecastService.ForecastVerdict(outlook, outlook, null, false))).isNull();
     }
 
     // ── 도우미 ─────────────────────────────────────────────

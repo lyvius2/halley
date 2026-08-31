@@ -2747,24 +2747,33 @@ function halley() {
         },
 
         /**
-         * 매매가를 눌러 전망을 시킬 수 있는가 (설계 I142).
+         * 매매가를 눌러 전망을 시킬 수 있는가 (설계 I142 · I145).
          *
-         * <p><b>이미 낸 적이 있으면 안 시킨다.</b> UNCERTAIN 이라도 그것은 답이다 —
-         * 다시 물어도 같은 지표면 같은 답이 나온다(프롬프트 해시, I59).
-         * 다시 보고 싶으면 모달의 '다시 분석'이 있다.
+         * <p>낸 적이 없으면 시킬 수 있다. <b>판단 보류(UNCERTAIN)도 시킬 수 있다</b> —
+         * UNCERTAIN 은 화살표를 안 띄우므로 모달을 열 길이 없고, 여기까지 막으면
+         * 화면에서 다시 시킬 방법이 아예 없어진다.
          *
-         * <p>direction 만으로는 판단할 수 없다. 결과가 없을 때도, 판단을 못 했을 때도
-         * 똑같이 UNCERTAIN 이라 서버가 stored 를 따로 준다.
+         * <p>방향이 나온 전망(▲▼▶)은 막는다. 그건 화살표를 눌러 모달로 들어가
+         * '다시 분석'을 쓰면 된다.
+         *
+         * <p>direction 만으로는 '낸 적 있는지'를 알 수 없다 — 결과가 없을 때도
+         * UNCERTAIN 이라 서버가 stored 를 따로 준다.
          */
         canTriggerForecast(scored) {
             const f = scored?.forecast;
-            return !!f && !f.stored && !f.running;
+            if (!f || f.running) {
+                return false;
+            }
+            return !f.stored || f.direction === 'UNCERTAIN';
         },
 
         forecastPriceTitle(scored) {
-            return this.canTriggerForecast(scored)
-                ? '클릭하면 가격 전망을 분석합니다 (1~2분)'
-                : '';
+            if (!this.canTriggerForecast(scored)) {
+                return '';
+            }
+            return scored.forecast.stored
+                ? '판단을 보류한 전망입니다. 클릭하면 다시 분석합니다 (1~2분)'
+                : '클릭하면 가격 전망을 분석합니다 (1~2분)';
         },
 
         /**
