@@ -53,12 +53,13 @@ public class JeonseRatioIndicator implements PriceIndicator {
 
     @Override
     public Optional<PriceFactor> evaluate(ForecastInput input) {
-        final BigDecimal recent = ratio(input.property(), input.monthlyTrades(), input.monthlyJeonse(), 0);
+        final BigDecimal recent = ratio(input.property(), input.monthlyTrades(), input.monthlyJeonse(),
+                input.baseMonth(), 0);
         if (recent == null) {
             return Optional.empty();
         }
         final BigDecimal before = ratio(input.property(), input.monthlyTrades(), input.monthlyJeonse(),
-                WINDOW_MONTHS);
+                input.baseMonth(), WINDOW_MONTHS);
 
         return Optional.of(new PriceFactor(
                 "전세가율",
@@ -98,10 +99,10 @@ public class JeonseRatioIndicator implements PriceIndicator {
      * @return 표본이 모자라면 null — <b>0으로 두면 그 값이 계산에 섞입니다</b>
      */
     private BigDecimal ratio(Property property, List<MonthlyTrades> trades,
-                             List<MonthlyTrades> jeonse, int offset) {
-        final TradeStat sale = calculator.medianOf(property, trades, offset, WINDOW_MONTHS,
+                             List<MonthlyTrades> jeonse, java.time.YearMonth base, int offset) {
+        final TradeStat sale = calculator.medianOf(property, trades, base, offset, WINDOW_MONTHS,
                 REPORTING_LAG_MONTHS);
-        final TradeStat rent = calculator.medianOf(property, jeonse, offset, WINDOW_MONTHS,
+        final TradeStat rent = calculator.medianOf(property, jeonse, base, offset, WINDOW_MONTHS,
                 REPORTING_LAG_MONTHS);
         if (sale.count() < MIN_SAMPLES || rent.count() < MIN_SAMPLES
                 || sale.median() == null || sale.median().signum() <= 0) {

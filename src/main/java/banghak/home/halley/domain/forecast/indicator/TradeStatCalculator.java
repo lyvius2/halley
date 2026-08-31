@@ -7,6 +7,7 @@ import banghak.home.halley.domain.reference.MonthlyTrades;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -29,21 +30,31 @@ public class TradeStatCalculator {
     private static final int MIN_NAME_LENGTH = 2;
 
     /**
+     * <b>위치가 아니라 연월로 자릅니다</b> (설계 I147).
+     *
+     * <p>예전에는 리스트 인덱스로 창을 잘랐습니다. 그런데 <b>못 받은 달은 목록에서
+     * 빠집니다</b> — 60개 중 다섯 달이 없으면 "최근 3개월"이 실제로는 다른 달 셋을
+     * 가리키고, 근거 문장에는 그대로 "직전 3개월"이라고 적힙니다.
+     *
+     * <p>구멍이 있으면 <b>표본이 줄어들 뿐</b>이어야 합니다. 그러면 표본 하한이
+     * 알아서 판단을 보류합니다 — 조용히 다른 달을 보는 것보다 훨씬 낫습니다.
+     *
+     * @param base         "최근"의 기준 달. 목록의 마지막이 아니라 오늘이다
      * @param offsetMonths 몇 달 전 구간인지. 0이면 가장 최근
      * @param windowMonths 구간 길이
      * @param lagMonths    신고 지연으로 뺄 최근 달 수
      */
-    public TradeStat medianOf(Property property, List<MonthlyTrades> monthly,
+    public TradeStat medianOf(Property property, List<MonthlyTrades> monthly, YearMonth base,
                               int offsetMonths, int windowMonths, int lagMonths) {
-        if (monthly == null || monthly.isEmpty()) {
+        if (monthly == null || monthly.isEmpty() || base == null || windowMonths <= 0) {
             return new TradeStat(null, 0);
         }
-        final int end = monthly.size() - lagMonths - offsetMonths;
-        final int start = end - windowMonths;
-        if (end <= 0 || start < 0) {
-            return new TradeStat(null, 0);
-        }
-        return statOf(property, monthly.subList(start, end));
+        final YearMonth newest = base.minusMonths((long) lagMonths + offsetMonths);
+        final YearMonth oldest = newest.minusMonths(windowMonths - 1L);
+        return statOf(property, monthly.stream()
+                .filter(m -> m != null && m.dealYm() != null
+                        && !m.dealYm().isBefore(oldest) && !m.dealYm().isAfter(newest))
+                .toList());
     }
 
     private TradeStat statOf(Property property, List<MonthlyTrades> window) {

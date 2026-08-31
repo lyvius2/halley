@@ -2829,10 +2829,10 @@ function halley() {
                 // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
                 if (!found || !found.forecast?.running) {
                     this.stopForecastPolling();
-                    // 사용자가 직접 시킨 일이다. 결과를 보여 준다 (설계 I146).
-                    // 판단 보류로 끝나면 화살표가 안 뜨므로, 열어 주지 않으면
-                    // 2분을 기다린 끝에 아무 변화도 못 본다
-                    if (found && this.noModalOpen()) {
+                    // 판단 보류로 끝나면 화살표가 안 뜬다 (설계 I136) — 열어 주지 않으면
+                    // 2분을 기다린 끝에 아무 변화도 못 본다. 방향이 나온 경우는
+                    // 화살표가 곧 응답이라 굳이 덮지 않는다 (설계 I146)
+                    if (found?.forecast?.direction === 'UNCERTAIN' && this.noModalOpen()) {
                         await this.openForecast(found);
                     }
                 }

@@ -57,9 +57,9 @@ public class TradeTrendIndicator implements PriceIndicator {
     @Override
     public Optional<PriceFactor> evaluate(ForecastInput input) {
         final TradeStat recent = calculator.medianOf(input.property(), input.monthlyTrades(),
-                0, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
+                input.baseMonth(), 0, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
         final TradeStat previous = calculator.medianOf(input.property(), input.monthlyTrades(),
-                WINDOW_MONTHS, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
+                input.baseMonth(), WINDOW_MONTHS, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
 
         if (recent.count() < MIN_SAMPLES || previous.count() < MIN_SAMPLES) {
             // 표본이 얇으면 내지 않습니다. 억지로 방향을 주면 없는 신호를 만듭니다

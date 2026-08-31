@@ -124,10 +124,9 @@ class TradeTrendIndicatorTest {
     void ignoresDifferentAreas() {
         // given — 최근 구간에 큰 평형 거래를 84㎡와 '같은 수'만큼 넣는다.
         // 몇 건만 섞으면 중앙값이 튼튼해서 걸러지든 말든 결과가 같아 검증이 안 된다
-        final List<MonthlyTrades> monthly = new ArrayList<>(months(3, 1_000_000_000L));
+        final List<MonthlyTrades> mixed = new ArrayList<>();
         for (int i = 0; i < 3; i++) {
-            final YearMonth ym = YearMonth.now().minusMonths(3L - i);
-            monthly.add(new MonthlyTrades("11110", ym, CachedDealType.TRADE, List.of(
+            mixed.add(new MonthlyTrades("11110", YearMonth.now(), CachedDealType.TRADE, List.of(
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9"),
                     trade("측정단지", 1_000_000_000L, "84.9"),
@@ -136,11 +135,10 @@ class TradeTrendIndicatorTest {
                     trade("측정단지", 3_000_000_000L, "115.5")),
                     Instant.now()));
         }
-        monthly.addAll(months(1, 1_000_000_000L));
 
-        // when
+        // when — 달은 input()이 오래된 순으로 다시 매긴다
         final PriceFactor factor = indicator.evaluate(
-                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)).orElseThrow();
+                input(months(3, 1_000_000_000L), mixed, months(1, 1_000_000_000L))).orElseThrow();
 
         // then — 안 걸러지면 중앙값이 20억이 되어 UP 이 나온다
         assertThat(factor.effect()).isEqualTo(ForecastDirection.FLAT);
@@ -207,6 +205,61 @@ class TradeTrendIndicatorTest {
     }
 
     // ── 도우미 ─────────────────────────────────────────────
+
+    /**
+     * 구멍이 있어도 창이 밀리지 않는가 (설계 I147).
+     *
+     * <p>예전에는 리스트 <b>위치</b>로 창을 잘랐다. 못 받은 달은 목록에서 빠지므로,
+     * 구멍이 있으면 "최근 3개월"이 <b>조용히 더 오래된 달</b>을 가리켰다.
+     * I140 이후로 실패한 달을 캐시에 담지 않으므로 <b>구멍은 정상 상태</b>가 됐다.
+     */
+    @Test
+    @DisplayName("못 받은 달이 있어도 창이 밀리지 않는다 — 표본이 줄어들 뿐이다 (설계 I147)")
+    void gapsDoNotSlideTheWindow() {
+        // given — 달력상 자리를 정해 두고 최근 구간(2~4개월 전)에서 한 달을 통째로 뺀다
+        final List<MonthlyTrades> monthly = new ArrayList<>();
+        for (int monthsAgo = 7; monthsAgo >= 1; monthsAgo--) {
+            if (monthsAgo == 3) {
+                continue;   // ← 이 달은 못 받았다
+            }
+            // 직전 구간(5~7개월 전)은 10억, 최근 구간(2~4개월 전)은 11억
+            final long price = monthsAgo >= 5 ? 1_000_000_000L : 1_100_000_000L;
+            monthly.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(monthsAgo),
+                    CachedDealType.TRADE,
+                    java.util.Collections.nCopies(3, trade("측정단지", price, "84.9")),
+                    Instant.now()));
+        }
+
+        // when
+        final PriceFactor factor = indicator.evaluate(
+                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)).orElseThrow();
+
+        // then — 최근은 6건(2·4개월 전)으로 줄고, 직전은 그대로 9건이다.
+        // 창이 밀렸다면 직전 구간에 10억 대신 다른 달이 섞여 들어온다
+        assertThat(factor.evidence()).contains("표본 9건 → 6건");
+        assertThat(factor.effect()).isEqualTo(ForecastDirection.UP);
+    }
+
+    @Test
+    @DisplayName("구멍 때문에 표본이 3건 미만이 되면 판단하지 않는다 — 다른 달로 메우지 않는다 (설계 I147)")
+    void gapsReduceSamplesRatherThanBorrowingOtherMonths() {
+        // given — 최근 구간(2~4개월 전)에서 두 달이 빠져 1건만 남는다
+        final List<MonthlyTrades> monthly = new ArrayList<>();
+        for (int monthsAgo = 7; monthsAgo >= 1; monthsAgo--) {
+            if (monthsAgo == 3 || monthsAgo == 4) {
+                continue;
+            }
+            final int perMonth = monthsAgo >= 5 ? 3 : 1;
+            monthly.add(new MonthlyTrades("11110", YearMonth.now().minusMonths(monthsAgo),
+                    CachedDealType.TRADE,
+                    java.util.Collections.nCopies(perMonth, trade("측정단지", 1_000_000_000L, "84.9")),
+                    Instant.now()));
+        }
+
+        // when / then — 위치로 잘랐다면 더 오래된 달을 끌어와 3건을 채워 버린다
+        assertThat(indicator.evaluate(
+                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly))).isEmpty();
+    }
 
     @SafeVarargs
     private ForecastInput input(List<MonthlyTrades>... parts) {
