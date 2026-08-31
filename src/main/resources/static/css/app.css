@@ -1008,6 +1008,11 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 가격 전망 화살표 (설계 I136).
    한국 관습을 따른다 — 상승이 빨강, 하락이 파랑. 서구권과 반대지만 한국 부동산만 다룬다.
    색만이 아니라 모양도 다르게(▲▼▶) 해 색각 이상에서도 방향이 읽히게 한다. */
+/* 전망을 시킬 수 있는 매매가만 눌리는 티를 낸다 (설계 I142).
+   전부 밑줄을 그으면 어느 것이 눌리는지 알 수 없다 */
+.price-triggerable { cursor: pointer; text-decoration: underline dotted var(--sand); text-underline-offset: 3px; }
+.price-triggerable:hover { color: var(--ocean); text-decoration-color: var(--ocean); }
+
 .forecast-arrow {
     border: none;
     background: none;

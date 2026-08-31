@@ -56,6 +56,9 @@ const SCORE_WATCH_MS = 3000;
 const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
+// 전망은 60개월 수집 + LLM 판단이라 1~2분 걸린다. 5초 × 36 = 3분이면 넉넉하다 (설계 I142)
+const FORECAST_POLL_INTERVAL_MS = 5000;
+const FORECAST_POLL_MAX_ATTEMPTS = 36;
 
 function emptyRegAreaForm() {
     return {
@@ -2741,6 +2744,79 @@ function halley() {
                 return 'running';
             }
             return this.arrowClassOf(f?.direction);
+        },
+
+        /**
+         * 매매가를 눌러 전망을 시킬 수 있는가 (설계 I142).
+         *
+         * <p><b>이미 낸 적이 있으면 안 시킨다.</b> UNCERTAIN 이라도 그것은 답이다 —
+         * 다시 물어도 같은 지표면 같은 답이 나온다(프롬프트 해시, I59).
+         * 다시 보고 싶으면 모달의 '다시 분석'이 있다.
+         *
+         * <p>direction 만으로는 판단할 수 없다. 결과가 없을 때도, 판단을 못 했을 때도
+         * 똑같이 UNCERTAIN 이라 서버가 stored 를 따로 준다.
+         */
+        canTriggerForecast(scored) {
+            const f = scored?.forecast;
+            return !!f && !f.stored && !f.running;
+        },
+
+        forecastPriceTitle(scored) {
+            return this.canTriggerForecast(scored)
+                ? '클릭하면 가격 전망을 분석합니다 (1~2분)'
+                : '';
+        },
+
+        /**
+         * 매매가 클릭 — 등록 전에 만들어진 매물에는 전망이 없다 (설계 I142).
+         *
+         * <p><b>응답을 기다리지 않는다.</b> 60개월 수집과 LLM 판단에 1~2분이 걸리는데
+         * 그동안 화면이 멈춰 있으면 사용자는 눌린 줄도 모른다. 바로 진행 표시(◌)를
+         * 띄우고 목록을 폴링한다.
+         */
+        async triggerForecast(scored) {
+            if (!this.canTriggerForecast(scored)) {
+                return;
+            }
+            const id = scored.property.id;
+            // 서버가 markRunning 을 걸어 두므로 다음 조회부터 running 이 온다.
+            // 그래도 여기서 먼저 바꿔 둔다 — 첫 폴링까지의 몇 초를 비워 두지 않는다
+            scored.forecast.running = true;
+            this.request(`/api/properties/${id}/forecast/refresh`, { method: 'POST' })
+                .catch(() => {});
+            this.startForecastPolling(id);
+        },
+
+        /**
+         * 결과가 올 때까지 목록을 다시 읽는다.
+         *
+         * <p>멈추는 조건이 둘 다 있어야 한다 — 하나라도 빠지면 탭이 열려 있는 동안 계속 두드린다.
+         * ① 결과 도착(또는 분석 중이 아님) ② 시도 상한.
+         */
+        startForecastPolling(propertyId) {
+            this.stopForecastPolling();
+            let attempts = 0;
+            this._forecastTimer = setInterval(async () => {
+                // ② 5초 × 36 = 3분. 전망은 1~2분이라 넉넉하다
+                if (++attempts > FORECAST_POLL_MAX_ATTEMPTS) {
+                    this.stopForecastPolling();
+                    await this.loadProperties();
+                    return;
+                }
+                await this.loadProperties();
+                const found = (this.properties || []).find(r => r.property.id === propertyId);
+                // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
+                if (!found || !found.forecast?.running) {
+                    this.stopForecastPolling();
+                }
+            }, FORECAST_POLL_INTERVAL_MS);
+        },
+
+        stopForecastPolling() {
+            if (this._forecastTimer) {
+                clearInterval(this._forecastTimer);
+                this._forecastTimer = null;
+            }
         },
 
         forecastTitle(scored) {

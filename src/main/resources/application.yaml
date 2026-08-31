@@ -207,6 +207,12 @@ forecast:
   max-concurrency: ${FORECAST_MAX_CONCURRENCY:6}
   # 국토부 신고 지연 때문에 최근 몇 달은 다시 받는다. 그 이전은 바뀌지 않는다
   refetch-recent-months: ${FORECAST_REFETCH_MONTHS:3}
+  # 전망을 다시 내는 주기 (설계 I143). 등록 때 한 번 내고 끝이면 반년 지난 매물의
+  # 화살표가 반년 전 시장을 가리킨다. 매월 15일 — 국토부 신고 기한이 계약 후 30일이라
+  # 월초에는 지난달 자료가 덜 찬다. 대개 값이 싸다: 새로 받을 달은 서너 달뿐이고(I128)
+  # 지표가 그대로면 프롬프트 해시가 같아 LLM 을 부르지 않는다(I59)
+  monthly-refresh-cron: ${FORECAST_REFRESH_CRON:0 15 4 15 * *}
+  monthly-refresh-enabled: ${FORECAST_REFRESH_ENABLED:true}
   # 이 연식 이상이라야 용적률 여유를 재건축 여력으로 본다 (설계 I132).
   # 신축에 여유가 크다고 재건축 호재가 아니다 — 실측에서 2015년 준공 단지의
   # 여유가 127%p였는데 재건축은 수십 년 뒤 이야기다

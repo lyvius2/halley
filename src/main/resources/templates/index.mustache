@@ -115,7 +115,13 @@
                                         <!-- 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121) -->
                                         <span class="badge b-visited" x-show="hasVisited(r)"
                                               title="공간의 쾌적함이 채점되어 있습니다">🚩 임장완료</span>
-                                        <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
+                                        <!-- 전망이 없는 매물은 매매가를 눌러 분석시킨다 (설계 I142).
+                                             이미 낸 적이 있으면 누를 수 없다 — UNCERTAIN 이라도 그건 답이다 -->
+                                        <span class="property-card-price"
+                                              :class="{'price-triggerable': canTriggerForecast(r)}"
+                                              :title="forecastPriceTitle(r)"
+                                              @click.stop="triggerForecast(r)"
+                                              x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
                                         <span class="badge" :class="dealBadge(r.property.dealType)" x-text="dealLabel(r.property.dealType)"></span>
