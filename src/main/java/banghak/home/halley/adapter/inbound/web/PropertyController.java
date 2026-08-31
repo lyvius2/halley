@@ -26,6 +26,9 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
 import banghak.home.halley.application.service.ComparativeAnalysisService;
 import banghak.home.halley.application.service.LandUseService;
+import banghak.home.halley.adapter.inbound.web.dto.PriceForecastResponse;
+import banghak.home.halley.application.service.PriceForecastService;
+import banghak.home.halley.application.service.PropertyAccessGuard;
 import banghak.home.halley.application.service.PropertyEnrichmentService;
 import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
@@ -72,6 +75,8 @@ public class PropertyController {
     private final ComparativeAnalysisService comparativeAnalysisService;
     private final LandUseService landUseService;
     private final PropertyEnrichmentService propertyEnrichmentService;
+    private final PriceForecastService priceForecastService;
+    private final PropertyAccessGuard propertyAccessGuard;
 
     public PropertyController(PropertyService propertyService,
                               ScoringService scoringService,
@@ -84,7 +89,9 @@ public class PropertyController {
                               LlmRecommendationService llmRecommendationService,
                               ComparativeAnalysisService comparativeAnalysisService,
                               LandUseService landUseService,
-                              PropertyEnrichmentService propertyEnrichmentService) {
+                              PropertyEnrichmentService propertyEnrichmentService,
+                              PriceForecastService priceForecastService,
+                              PropertyAccessGuard propertyAccessGuard) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
         this.parsePreviewService = parsePreviewService;
@@ -97,6 +104,8 @@ public class PropertyController {
         this.comparativeAnalysisService = comparativeAnalysisService;
         this.landUseService = landUseService;
         this.propertyEnrichmentService = propertyEnrichmentService;
+        this.priceForecastService = priceForecastService;
+        this.propertyAccessGuard = propertyAccessGuard;
     }
 
     /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
@@ -290,6 +299,30 @@ public class PropertyController {
     @PostMapping("/{id}/scores/recompute")
     public ScoredPropertyResponse recomputeScores(@PathVariable Long id) {
         return scoringService.rescore(id);
+    }
+
+    /**
+     * 가격 전망 (설계 I135).
+     *
+     * <p>결과가 없어도 200을 줍니다 — 화면이 <b>분석 중인지</b>를 알아야 폴링을 이어갑니다.
+     * 204를 주면 "없다"와 "아직"을 구분할 수 없습니다.
+     */
+    @GetMapping("/{id}/forecast")
+    public PriceForecastResponse forecast(@PathVariable Long id) {
+        propertyAccessGuard.require(id);
+        final boolean running = priceForecastService.isRunning(id);
+        return priceForecastService.find(id)
+                .map(f -> PriceForecastResponse.from(f, running))
+                .orElseGet(() -> PriceForecastResponse.pending(id, running));
+    }
+
+    /** 사용자가 명시적으로 다시 분석할 때 (설계 3-A.5). */
+    @PostMapping("/{id}/forecast/refresh")
+    public PriceForecastResponse refreshForecast(@PathVariable Long id) {
+        propertyAccessGuard.require(id);
+        return priceForecastService.refresh(id)
+                .map(f -> PriceForecastResponse.from(f, false))
+                .orElseGet(() -> PriceForecastResponse.pending(id, false));
     }
 
     @PutMapping("/{id}/scores")

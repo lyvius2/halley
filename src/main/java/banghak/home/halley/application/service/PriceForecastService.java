@@ -1,6 +1,16 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.outbound.persistence.LandUseRepository;
+import banghak.home.halley.adapter.outbound.persistence.PriceForecastRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.application.port.out.external.LoanRateHistoryPort;
+import banghak.home.halley.domain.building.BuildingLedger;
+import banghak.home.halley.application.port.out.external.BuildingLedgerPort;
+import banghak.home.halley.domain.forecast.PriceForecast;
+import banghak.home.halley.domain.property.Property;
+import banghak.home.halley.domain.reference.CachedDealType;
 import banghak.home.halley.domain.forecast.ForecastConfidence;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.ForecastPrompt;
@@ -15,7 +25,12 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.time.YearMonth;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,19 +62,131 @@ public class PriceForecastService {
     private final LlmPort llmPort;
     private final ForecastIndicatorFactory indicatorFactory;
     private final ForecastVerdictParser parser;
+    private final ForecastTradeCollector collector;
+    private final LoanRateHistoryPort loanRateHistoryPort;
+    private final BuildingLedgerPort buildingLedgerPort;
+    private final LandUseRepository landUseRepository;
+    private final PropertyRepository propertyRepository;
+    private final PriceForecastRepository forecastRepository;
+    private final LegalDongCodeService legalDongCodeService;
+    private final LlmJobCache jobCache;
     private final boolean enabled;
     private final String model;
+    private final int rateLookbackMonths;
 
     public PriceForecastService(LlmPort llmPort,
                                 ForecastIndicatorFactory indicatorFactory,
+                                ForecastTradeCollector collector,
+                                LoanRateHistoryPort loanRateHistoryPort,
+                                BuildingLedgerPort buildingLedgerPort,
+                                LandUseRepository landUseRepository,
+                                PropertyRepository propertyRepository,
+                                PriceForecastRepository forecastRepository,
+                                LegalDongCodeService legalDongCodeService,
+                                LlmJobCache jobCache,
                                 ObjectMapper objectMapper,
                                 @Value("${llm.enabled:true}") boolean enabled,
-                                @Value("${llm.claude.model.forecast:}") String model) {
+                                @Value("${llm.claude.model.forecast:}") String model,
+                                @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths) {
         this.llmPort = llmPort;
         this.indicatorFactory = indicatorFactory;
         this.parser = new ForecastVerdictParser(objectMapper);
+        this.collector = collector;
+        this.loanRateHistoryPort = loanRateHistoryPort;
+        this.buildingLedgerPort = buildingLedgerPort;
+        this.landUseRepository = landUseRepository;
+        this.propertyRepository = propertyRepository;
+        this.forecastRepository = forecastRepository;
+        this.legalDongCodeService = legalDongCodeService;
+        this.jobCache = jobCache;
         this.enabled = enabled;
         this.model = model == null || model.isBlank() ? null : model;
+        this.rateLookbackMonths = rateLookbackMonths;
+    }
+
+    /** 화면이 "지금 분석 중인가"를 물어볼 키 (설계 I72와 같은 방식). */
+    public static String jobKey(Long propertyId) {
+        return "forecast:" + propertyId;
+    }
+
+    /**
+     * 매물 하나의 전망을 낸다 — 재료를 모으고, 판단하고, 저장한다 (설계 I135).
+     *
+     * <p><b>같은 지표면 다시 묻지 않습니다</b>(I59). 60개월 조회는 캐시가 받고,
+     * LLM은 프롬프트 해시가 받습니다.
+     */
+    public Optional<PriceForecast> refresh(Long propertyId) {
+        final Optional<Property> found = propertyRepository.findById(propertyId);
+        if (found.isEmpty()) {
+            return Optional.empty();
+        }
+        final Property property = found.get();
+        jobCache.markRunning(jobKey(propertyId));
+        try {
+            final ForecastVerdict verdict = forecast(gather(property));
+            final String hash = verdict.prompt() == null ? null : sha256(verdict.prompt().full());
+
+            final Optional<PriceForecast> cached = forecastRepository.findByPropertyId(propertyId);
+            if (cached.isPresent() && hash != null && hash.equals(cached.get().promptHash())) {
+                log.info("Price forecast unchanged - keeping stored verdict. propertyId={}", propertyId);
+                return cached;
+            }
+            final PriceForecast saved = forecastRepository.upsert(new PriceForecast(
+                    null, propertyId, verdict.conclusion(), verdict.byCode().direction(),
+                    hash, verdict.prompt() == null ? null : llmPort.provider(), Instant.now()));
+            log.info("Price forecast stored. propertyId={}, direction={}, codeDirection={}, agreed={}",
+                    propertyId, saved.outlook().direction(), saved.codeDirection(), saved.agreed());
+            return Optional.of(saved);
+        } finally {
+            // 성공이든 실패든 지운다 (설계 I109). 결과는 DB에 있고, 표시가 남으면
+            // 화면이 영영 돕니다 — completed 를 따로 볼 이유가 없습니다
+            jobCache.clear(jobKey(propertyId));
+        }
+    }
+
+    public Optional<PriceForecast> find(Long propertyId) {
+        return forecastRepository.findByPropertyId(propertyId);
+    }
+
+    /** 지금 분석 중인가 — 화면 폴링용. */
+    public boolean isRunning(Long propertyId) {
+        return jobCache.get(jobKey(propertyId))
+                .map(banghak.home.halley.domain.llm.LlmJobState::isRunning)
+                .orElse(false);
+    }
+
+    /**
+     * 재료를 모은다.
+     *
+     * <p>실거래 60개월은 캐시가 받고(I128), 금리는 ECOS(I116), 용도지역은 토지이용계획(I69),
+     * 용적률은 건축물대장(I132)입니다. <b>하나가 없어도 나머지로 갑니다.</b>
+     */
+    private ForecastInput gather(Property property) {
+        final String lawdCd = legalDongCodeService.deriveSigunguCode(property.addressJibun())
+                .orElse(null);
+        final YearMonth now = YearMonth.now();
+        final BuildingLedger ledger = buildingLedgerPort.isEnabled()
+                ? buildingLedgerPort.fetchRecapTitle(property.pnu()).orElse(null)
+                : null;
+        return new ForecastInput(
+                property,
+                collector.collect(lawdCd, CachedDealType.TRADE),
+                collector.collect(lawdCd, CachedDealType.JEONSE),
+                loanRateHistoryPort.isEnabled()
+                        ? loanRateHistoryPort.fetchHouseholdLoanRates(
+                                now.minusMonths(rateLookbackMonths), now)
+                        : List.of(),
+                landUseRepository.findByPropertyId(property.id()),
+                ledger);
+    }
+
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(value.getBytes(StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
     }
 
     /**

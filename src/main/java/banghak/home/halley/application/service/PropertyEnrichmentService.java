@@ -1,6 +1,7 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.application.event.PropertyEnrichedEvent;
 import banghak.home.halley.application.port.out.external.HousingPricePort;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
 import banghak.home.halley.config.VirtualThreadGate;
@@ -10,6 +11,7 @@ import banghak.home.halley.domain.property.OfficialPrice;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SchoolSource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -48,6 +50,7 @@ public class PropertyEnrichmentService {
     private final LandUseService landUseService;
     private final ScoringService scoringService;
     private final VirtualThreadGate gate;
+    private final ApplicationEventPublisher eventPublisher;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
@@ -57,7 +60,8 @@ public class PropertyEnrichmentService {
                                      LlmRecommendationService llmRecommendationService,
                                      LandUseService landUseService,
                                      ScoringService scoringService,
-                                     VirtualThreadGate gate) {
+                                     VirtualThreadGate gate,
+                                     ApplicationEventPublisher eventPublisher) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
@@ -67,6 +71,7 @@ public class PropertyEnrichmentService {
         this.landUseService = landUseService;
         this.scoringService = scoringService;
         this.gate = gate;
+        this.eventPublisher = eventPublisher;
     }
 
     /**
@@ -143,6 +148,9 @@ public class PropertyEnrichmentService {
         llmRecommendationService.clearPendingIfUnresolved(propertyId);
         log.info("Enrichment(rest) finished. propertyId={}, elapsedMs={}",
                 propertyId, System.currentTimeMillis() - startedAt);
+        // 보정이 끝났으니 더 오래 걸리는 후속 작업을 띄운다 (설계 I126).
+        // 등록 이벤트로 띄우면 앞 단계와 겹쳐 돈다
+        eventPublisher.publishEvent(new PropertyEnrichedEvent(propertyId));
     }
 
     /**
