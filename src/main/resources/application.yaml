@@ -197,8 +197,18 @@ forecast:
   max-concurrency: ${FORECAST_MAX_CONCURRENCY:6}
   # 국토부 신고 지연 때문에 최근 몇 달은 다시 받는다. 그 이전은 바뀌지 않는다
   refetch-recent-months: ${FORECAST_REFETCH_MONTHS:3}
+  # 이 연식 이상이라야 용적률 여유를 재건축 여력으로 본다 (설계 I132).
+  # 신축에 여유가 크다고 재건축 호재가 아니다 — 실측에서 2015년 준공 단지의
+  # 여유가 127%p였는데 재건축은 수십 년 뒤 이야기다
+  redevelopment-age-years: ${FORECAST_REDEVELOPMENT_AGE:30}
   # 최근 달을 다시 받는 주기
   refetch-after-hours: ${FORECAST_REFETCH_HOURS:24}
+
+building:
+  # 국토교통부 건축물대장정보 서비스 (설계 I132).
+  # 실거래가와 같은 인증키(MINISTRY_API_KEY)를 쓰지만 다른 서비스라
+  # 공공데이터포털에서 따로 활용신청해야 한다
+  base-url: https://apis.data.go.kr/1613000/BldRgstHubService
 
 enrichment:
   # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).

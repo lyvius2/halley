@@ -26,7 +26,7 @@
 | **금감원 주담대** | 은행별 금리·기간·상환방식 (대출 계산) | 서버(Feign) | `auth` 쿼리 파라미터 | `FSS_API_KEY` | `FssFeignClient` | 사용 중 (5.8) |
 | **법제처 국가법령정보** | 규제지역 고시 원문 → 투기과열지구·조정대상지역 | 서버(Feign) | `OC` 쿼리 파라미터 | `LAW_OC` | `LawNoticeFeignClient` | 사용 중 (5.9) |
 | **한국은행 ECOS** | 가계대출 금리 5년 → 스트레스 DSR 기준 금리 | 서버(Feign) | 인증키(**URL 경로**) | `ECOS_KEY` | `EcosFeignClient` | 사용 중 (5.10) |
-| **국토부 건축물대장** | 연면적·대지면적·용적률 → 재건축 여력 | 서버(Feign) | 서비스 키(`serviceKey`, 재사용) | `MINISTRY_API_KEY` | — | **구현 예정** (5.11) — 별도 활용신청 필요 |
+| **국토부 건축물대장** | 연면적·대지면적·용적률 → 재건축 여력 | 서버(Feign) | 서비스 키(`serviceKey`, 재사용) | `MINISTRY_API_KEY` | `BuildingLedgerFeignClient` | 사용 중 (5.11) — 별도 활용신청 필요 |
 | **네이버 검색(뉴스)** | 관련 기사 링크 목록 — **점수 미반영** | 서버(Feign) | Client ID/Secret 헤더 | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | — | **구현 예정** (5.12) — 키 미발급 |
 | **국토부 전월세 실거래** | 전세가율 산출 | 서버(Feign) | 서비스 키(재사용) | `MINISTRY_API_KEY` | — | **구현 예정** (5.13) |
 
@@ -897,7 +897,7 @@ GET https://ecos.bok.or.kr/api/StatisticSearch/{KEY}/json/kr/{start}/{end}/{stat
 
 ---
 
-## 5.11 국토부 건축물대장 — 연면적·용적률 **[구현 예정 — 가격 전망 구현 4]**
+## 5.11 국토부 건축물대장 — 연면적·용적률 **[사용 중]**
 
 재건축 여력(`조례 상한 용적률 − 현재 용적률`)을 **추정이 아니라 실측**으로 구합니다
 (`docs/PRICE_FORECAST.md` 4-A.2). **`MINISTRY_API_KEY`를 실거래가와 공유합니다.**
@@ -970,11 +970,34 @@ GET https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo
 재건축 사업성은 이 앱에서 <b>가장 크게 틀릴 수 있는 숫자</b>입니다
 (`docs/PRICE_FORECAST.md` 4-A.2).
 
-### ⚠ 붙이기 전에 확인할 것
+### 실호출로 확인한 것 (2026-08-31)
 
-**경로와 오퍼레이션 이름을 data.go.kr에서 실물로 확인하십시오.** 이 서비스는
-`BldRgstService_v2` → `BldRgstHubService` 등으로 개편된 이력이 있습니다.
-국토부 실거래가에서 겪은 것과 같은 종류의 함정입니다.
+**동탄역시범호반써밋** (PNU `4159710500105250000`)으로 실제 호출해 확인했습니다.
+
+```json
+{"resultCode":"00","resultMsg":"NORMAL SERVICE"}
+"regstrKindCdNm":"총괄표제부","bldNm":"동탄역시범호반써밋",
+"platArea":64303,"vlRatEstmTotArea":111465.7649,"vlRat":173.34,"bcRat":15.71,
+"hhldCnt":1002,"mainBldCnt":16,"totPkngCnt":1328,"useAprDay":"20150212"
+```
+
+| 확인 | 결과 |
+|---|---|
+| 경로·오퍼레이션 | `BldRgstHubService/getBrRecapTitleInfo` **유효** |
+| `vlRat` 채워짐 | **173.34** — `111465.7649 / 64303 × 100`과 정확히 일치. <b>직접 계산하지 않고 이 값을 씁니다</b> |
+| 총괄표제부 | 아파트 단지에서 정상적으로 옴 |
+| PNU 분해 | `41597 / 10500 / 0525 / 0000` — 위 표대로 |
+
+> **⚠ 실거래가와 달리 JSON입니다.** 실거래가는 XML이라 어댑터가 DOM으로 읽는데,
+> 여기는 `_type=json`이 먹어 Jackson으로 읽습니다. 같은 기관이라고 같은 형식이 아닙니다.
+
+> **`numOfRows`가 문자열(`"1"`)로 옵니다.** 숫자 칸도 문자열로 오는 경우가 있어
+> 파싱을 관대하게 둡니다.
+
+#### 딸려 오는 값들
+
+`hhldCnt`(세대수) · `totPkngCnt`(주차대수) · `mainBldCnt`(동 수) · `bldNm`(단지명)이
+함께 옵니다. <b>붙여넣기로 받은 값을 검증할 재료</b>입니다 — 지금은 안 쓰지만 남겨 뒀습니다.
 
 ```bash
 curl -s "https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo\

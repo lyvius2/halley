@@ -1,5 +1,6 @@
 package banghak.home.halley.domain.forecast.indicator;
 
+import banghak.home.halley.domain.building.BuildingLedger;
 import banghak.home.halley.domain.landuse.LandUse;
 import banghak.home.halley.domain.loan.RatePoint;
 import banghak.home.halley.domain.property.Property;
@@ -18,17 +19,19 @@ import java.util.List;
  * @param monthlyJeonse 순수 전세. 금액은 <b>보증금</b>입니다 (설계 I131)
  * @param loanRates     가계대출 금리 시계열 (ECOS, 설계 I116). 정렬은 보장하지 않는다
  * @param landUses      토지이용계획 (설계 I69). 용도지역을 여기서 고른다
+ * @param ledger        건축물대장 총괄표제부 (설계 I132). 없으면 null — 용적률 여유를 내지 않는다
  */
 public record ForecastInput(
         Property property,
         List<MonthlyTrades> monthlyTrades,
         List<MonthlyTrades> monthlyJeonse,
         List<RatePoint> loanRates,
-        List<LandUse> landUses
+        List<LandUse> landUses,
+        BuildingLedger ledger
 ) {
 
     /** 실거래만 있으면 되는 지표를 위한 간편 생성 — 테스트와 초기 단계에서 쓴다. */
     public static ForecastInput ofTrades(Property property, List<MonthlyTrades> monthlyTrades) {
-        return new ForecastInput(property, monthlyTrades, List.of(), List.of(), List.of());
+        return new ForecastInput(property, monthlyTrades, List.of(), List.of(), List.of(), null);
     }
 }

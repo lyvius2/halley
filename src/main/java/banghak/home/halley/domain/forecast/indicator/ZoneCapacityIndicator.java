@@ -3,11 +3,13 @@ package banghak.home.halley.domain.forecast.indicator;
 import banghak.home.halley.domain.forecast.FactorWeight;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.PriceFactor;
+import banghak.home.halley.domain.building.BuildingLedger;
 import banghak.home.halley.domain.landuse.LandUse;
 import banghak.home.halley.domain.landuse.LandUseConflict;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.Map;
 import java.util.Optional;
 
@@ -17,12 +19,19 @@ import java.util.Optional;
  * <p>용도지역은 <b>재건축 사업성의 뿌리</b>입니다. 제1종일반주거(상한 150%)와
  * 제3종일반주거(300%)는 같은 단지라도 이야기가 완전히 다릅니다.
  *
- * <p><b>지금은 상한만 압니다.</b> 현재 용적률은 건축물대장이 있어야 알 수 있어(구현 4-b),
- * 그때까지는 <b>여유를 계산하지 않고 방향도 주지 않습니다</b>(`FLAT`).
- * 상한만 알고 "여유가 있다"고 말하면 <b>없는 정보를 지어내는 것</b>입니다.
+ * <p>건축물대장(I132)이 붙어 <b>현재 용적률을 실측</b>으로 압니다.
+ * `여유 = 조례 상한 − 현재 용적률`.
  *
- * <p>그래도 요인으로 내는 이유는 LLM에게 <b>맥락</b>이 되기 때문입니다 —
- * 준주거와 제1종일반주거는 같은 추세라도 다르게 읽어야 합니다.
+ * <h4>연식과 함께 봅니다</h4>
+ *
+ * <p><b>신축에 용적률 여유가 크다고 재건축 호재가 아닙니다.</b> 실측(동탄역시범호반써밋)에서
+ * 2015년 준공에 여유가 127%p였는데, 재건축은 수십 년 뒤 이야기입니다 —
+ * "여유를 안 쓰고 지었다"는 뜻일 뿐입니다.
+ *
+ * <p>그래서 <b>연식이 기준에 못 미치면 여유를 말하지 않고</b> 용도지역만 씁니다.
+ * 안 그러면 신축 단지마다 "재건축 여력 큼"이 뜹니다.
+ *
+ * <p>대장을 못 받았을 때도 마찬가지입니다 — <b>근사값으로 채우지 않습니다.</b>
  */
 public class ZoneCapacityIndicator implements PriceIndicator {
 
@@ -31,13 +40,16 @@ public class ZoneCapacityIndicator implements PriceIndicator {
     private static final String COMMERCIAL = "상업지역";
 
     private final Map<String, BigDecimal> farLimits;
+    private final int redevelopmentAgeYears;
 
     /**
-     * @param farLimits 용도지역명 → 용적률 상한(비율). <b>지자체 조례라 지역마다 다릅니다</b> —
-     *                  `regulation_param`에서 주입합니다. 모르는 용도지역이면 상한 없이 이름만 씁니다
+     * @param farLimits             용도지역명 → 용적률 상한(비율). <b>지자체 조례라 지역마다
+     *                              다릅니다</b> — `regulation_param`에서 주입합니다
+     * @param redevelopmentAgeYears 이 연식 이상이라야 용적률 여유를 말한다 (기본 30)
      */
-    public ZoneCapacityIndicator(Map<String, BigDecimal> farLimits) {
+    public ZoneCapacityIndicator(Map<String, BigDecimal> farLimits, int redevelopmentAgeYears) {
         this.farLimits = farLimits == null ? Map.of() : farLimits;
+        this.redevelopmentAgeYears = redevelopmentAgeYears;
     }
 
     @Override
@@ -47,12 +59,38 @@ public class ZoneCapacityIndicator implements PriceIndicator {
 
     @Override
     public Optional<PriceFactor> evaluate(ForecastInput input) {
-        return zoneOf(input).map(zone -> new PriceFactor(
+        final Optional<LandUse> zone = zoneOf(input);
+        if (zone.isEmpty()) {
+            return Optional.empty();
+        }
+        final BigDecimal limit = farLimits.get(zone.get().zoneName());
+        final BigDecimal headroom = headroom(limit, input.ledger());
+
+        return Optional.of(new PriceFactor(
                 "용도지역",
-                // 상한만으로는 방향을 말할 수 없다. 여유는 건축물대장이 붙어야 안다
-                ForecastDirection.FLAT,
-                FactorWeight.LOW,
-                evidence(zone)));
+                // 여유가 크고 연식이 찼을 때만 방향을 준다. 그 밖에는 맥락으로만 쓴다
+                headroom != null && headroom.signum() > 0
+                        ? ForecastDirection.UP : ForecastDirection.FLAT,
+                headroom != null ? FactorWeight.MEDIUM : FactorWeight.LOW,
+                evidence(zone.get(), limit, input.ledger(), headroom)));
+    }
+
+    /**
+     * 재건축 여력.
+     *
+     * <p><b>연식이 안 찼으면 내지 않습니다.</b> 신축의 용적률 여유는 재건축과 무관합니다.
+     *
+     * @return 상한을 모르거나, 대장이 없거나, 연식이 모자라면 {@code null}
+     */
+    private BigDecimal headroom(BigDecimal limitRatio, BuildingLedger ledger) {
+        if (limitRatio == null || ledger == null || ledger.floorAreaRatio() == null) {
+            return null;
+        }
+        final Integer age = ledger.ageYears(LocalDate.now());
+        if (age == null || age < redevelopmentAgeYears) {
+            return null;
+        }
+        return limitRatio.multiply(BigDecimal.valueOf(100)).subtract(ledger.floorAreaRatio());
     }
 
     /**
@@ -72,14 +110,28 @@ public class ZoneCapacityIndicator implements PriceIndicator {
                 .findFirst();
     }
 
-    private String evidence(LandUse zone) {
-        final BigDecimal limit = farLimits.get(zone.zoneName());
+    private String evidence(LandUse zone, BigDecimal limit, BuildingLedger ledger, BigDecimal headroom) {
         if (limit == null) {
             // 상한을 모르면 <b>모른다고 씁니다</b>. 임의의 값을 넣지 않습니다
             return String.format("%s (용적률 상한은 지자체 조례 확인 필요)", zone.zoneName());
         }
-        return String.format("%s · 용적률 상한 %s%% (현재 용적률은 건축물대장 연동 전이라 미산출)",
-                zone.zoneName(),
-                limit.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).toPlainString());
+        final String cap = percent(limit.multiply(BigDecimal.valueOf(100)));
+        if (ledger == null || ledger.floorAreaRatio() == null) {
+            return String.format("%s · 용적률 상한 %s%% (현재 용적률은 건축물대장을 못 받아 미산출)",
+                    zone.zoneName(), cap);
+        }
+        final String now = percent(ledger.floorAreaRatio());
+        final Integer age = ledger.ageYears(LocalDate.now());
+        if (headroom == null) {
+            // 연식이 안 찼다 — 여유는 있지만 재건축 이야기가 아니다
+            return String.format("%s · 상한 %s%% / 현재 %s%% (준공 %d년차, 재건축 논의 시점은 아님)",
+                    zone.zoneName(), cap, now, age == null ? 0 : age);
+        }
+        return String.format("%s · 상한 %s%% / 현재 %s%% → 여유 %s%%p (준공 %d년차)",
+                zone.zoneName(), cap, now, percent(headroom), age);
+    }
+
+    private String percent(BigDecimal value) {
+        return value.setScale(0, RoundingMode.HALF_UP).toPlainString();
     }
 }

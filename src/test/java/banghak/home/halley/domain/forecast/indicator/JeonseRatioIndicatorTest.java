@@ -72,7 +72,7 @@ class JeonseRatioIndicatorTest {
         final List<MonthlyTrades> sales = months(CachedDealType.TRADE, 1_000_000_000L, 3, 13);
         final List<MonthlyTrades> rents = months(CachedDealType.JEONSE, 700_000_000L, 0, 13);
 
-        assertThat(indicator.evaluate(new ForecastInput(property(), sales, rents, List.of(), List.of())))
+        assertThat(indicator.evaluate(new ForecastInput(property(), sales, rents, List.of(), List.of(), null)))
                 .isEmpty();
     }
 
@@ -84,7 +84,7 @@ class JeonseRatioIndicatorTest {
         final List<MonthlyTrades> rents = months(CachedDealType.JEONSE, 750_000_000L, 3, 7);
 
         final var factor = indicator.evaluate(
-                new ForecastInput(property(), sales, rents, List.of(), List.of())).orElseThrow();
+                new ForecastInput(property(), sales, rents, List.of(), List.of(), null)).orElseThrow();
 
         assertThat(factor.effect()).isEqualTo(ForecastDirection.UP);
         assertThat(factor.evidence()).contains("표본이 모자라 비교하지 않음");
@@ -103,7 +103,7 @@ class JeonseRatioIndicatorTest {
             sales.add(month(ym, CachedDealType.TRADE, old ? oldSale : recentSale, 3));
             rents.add(month(ym, CachedDealType.JEONSE, old ? oldRent : recentRent, 3));
         }
-        return new ForecastInput(property(), sales, rents, List.of(), List.of());
+        return new ForecastInput(property(), sales, rents, List.of(), List.of(), null);
     }
 
     private List<MonthlyTrades> months(CachedDealType type, long amount, int perMonth, int count) {

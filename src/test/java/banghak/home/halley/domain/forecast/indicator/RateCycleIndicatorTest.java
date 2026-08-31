@@ -94,6 +94,6 @@ class RateCycleIndicatorTest {
     }
 
     private ForecastInput input(List<RatePoint> rates) {
-        return new ForecastInput(null, List.of(), List.of(), rates, List.of());
+        return new ForecastInput(null, List.of(), List.of(), rates, List.of(), null);
     }
 }
