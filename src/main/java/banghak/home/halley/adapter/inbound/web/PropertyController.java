@@ -26,10 +26,12 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
 import banghak.home.halley.application.service.AgentService;
 import banghak.home.halley.application.service.ComparativeAnalysisService;
 import banghak.home.halley.application.service.LandUseService;
+import banghak.home.halley.adapter.inbound.web.dto.NewsArticleResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PriceForecastResponse;
 import banghak.home.halley.application.service.PriceForecastService;
 import banghak.home.halley.application.service.PropertyAccessGuard;
 import banghak.home.halley.application.service.PropertyEnrichmentService;
+import banghak.home.halley.application.service.PropertyNewsService;
 import banghak.home.halley.application.service.LlmRecommendationService;
 import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
@@ -76,6 +78,7 @@ public class PropertyController {
     private final LandUseService landUseService;
     private final PropertyEnrichmentService propertyEnrichmentService;
     private final PriceForecastService priceForecastService;
+    private final PropertyNewsService propertyNewsService;
     private final PropertyAccessGuard propertyAccessGuard;
 
     public PropertyController(PropertyService propertyService,
@@ -91,6 +94,7 @@ public class PropertyController {
                               LandUseService landUseService,
                               PropertyEnrichmentService propertyEnrichmentService,
                               PriceForecastService priceForecastService,
+                              PropertyNewsService propertyNewsService,
                               PropertyAccessGuard propertyAccessGuard) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
@@ -105,6 +109,7 @@ public class PropertyController {
         this.landUseService = landUseService;
         this.propertyEnrichmentService = propertyEnrichmentService;
         this.priceForecastService = priceForecastService;
+        this.propertyNewsService = propertyNewsService;
         this.propertyAccessGuard = propertyAccessGuard;
     }
 
@@ -315,6 +320,17 @@ public class PropertyController {
         return priceForecastService.find(id)
                 .map(f -> PriceForecastResponse.from(f, running))
                 .orElseGet(() -> PriceForecastResponse.pending(id, running));
+    }
+
+    /**
+     * 관련 기사 (설계 I137).
+     *
+     * <p><b>점수에도 프롬프트에도 반영되지 않습니다.</b> 전망 모달에 링크 목록으로만 뜹니다.
+     * 전망 계산과 분리해 둔 이유는, 기사가 안 와도 전망이 멀쩡히 나와야 하기 때문입니다.
+     */
+    @GetMapping("/{id}/news")
+    public List<NewsArticleResponse> news(@PathVariable Long id) {
+        return propertyNewsService.find(id).stream().map(NewsArticleResponse::from).toList();
     }
 
     /** 사용자가 명시적으로 다시 분석할 때 (설계 3-A.5). */

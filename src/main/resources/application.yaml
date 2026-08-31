@@ -213,6 +213,15 @@ building:
   # 공공데이터포털에서 따로 활용신청해야 한다
   base-url: https://apis.data.go.kr/1613000/BldRgstHubService
 
+naver:
+  # 네이버 검색 API — 관련 기사 (설계 I137).
+  # developers.naver.com 에서 애플리케이션 등록 후 발급. 승인 절차는 없다.
+  # 기사는 점수에도 LLM 프롬프트에도 넣지 않는다 — 링크 목록으로만 쓴다
+  base-url: https://openapi.naver.com/v1/search
+  client-id: ${NAVER_CLIENT_ID:}
+  client-secret: ${NAVER_CLIENT_SECRET:}
+  news-limit: ${NAVER_NEWS_LIMIT:10}
+
 enrichment:
   # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).
   # 스레드가 아니라 그 끝에 붙은 외부 API를 지키려는 값이다 — 넘어선 작업은

@@ -2145,6 +2145,22 @@
                     </div>
                 </template>
 
+                <!-- 관련 기사 (설계 I137). 점수에도 프롬프트에도 반영되지 않는다 -->
+                <template x-if="forecastNews.length">
+                    <div class="forecast-news">
+                        <h4 class="card-title">관련 기사
+                            <span class="forecast-news-warn">※ 검증하지 않은 외부 기사입니다</span>
+                        </h4>
+                        <template x-for="n in forecastNews" :key="n.link">
+                            <a class="forecast-news-item" :href="n.link" target="_blank" rel="noopener noreferrer">
+                                <span class="forecast-news-date" x-text="n.publishedOn || ''"></span>
+                                <span class="forecast-news-title" x-text="n.title"></span>
+                                <span class="forecast-news-source" x-text="n.source || ''"></span>
+                            </a>
+                        </template>
+                    </div>
+                </template>
+
                 <p class="forecast-disclaimer">
                     이 전망은 예측일 뿐이며 실제 결과와 괴리가 있을 수 있습니다.
                     투자 판단의 근거로 삼지 마십시오.

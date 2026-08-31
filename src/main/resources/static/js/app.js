@@ -189,6 +189,7 @@ function halley() {
         showForecast: false,
         forecastProperty: null,
         forecastDetail: null,
+        forecastNews: [],
         // 모달별 로딩 표시 (설계 I115). Alpine은 선언된 것만 프록시에 올린다 —
         // 여기 없으면 템플릿이 읽는 순간 던진다
         _loading: {},
@@ -2757,6 +2758,7 @@ function halley() {
         async openForecast(scored) {
             this.forecastProperty = scored;
             this.forecastDetail = null;
+            this.forecastNews = [];
             this.error = null;
             this.showForecast = true;
             // 열 때 다시 읽는다 (설계 I112) — 목록을 받아 둔 시점과 지금이 다를 수 있다
@@ -2765,12 +2767,24 @@ function halley() {
             if (ok && body) {
                 this.forecastDetail = body;
             }
+            // 기사는 전망과 따로 받는다 (설계 I137) — 안 와도 전망은 멀쩡히 뜬다
+            this.loadForecastNews(scored.property.id);
+        },
+
+        async loadForecastNews(propertyId) {
+            const { ok, body } = await this.request(`/api/properties/${propertyId}/news`)
+                .catch(() => ({ ok: false }));
+            // 열어 둔 매물이 바뀌었으면 덮어쓰지 않는다
+            if (ok && body && this.forecastProperty?.property?.id === propertyId) {
+                this.forecastNews = body;
+            }
         },
 
         closeForecast() {
             this.showForecast = false;
             this.forecastProperty = null;
             this.forecastDetail = null;
+            this.forecastNews = [];
             this.error = null;
         },
 
