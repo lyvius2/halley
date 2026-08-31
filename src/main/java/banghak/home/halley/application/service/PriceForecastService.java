@@ -53,7 +53,17 @@ import java.util.Optional;
 @Service
 public class PriceForecastService {
 
-    private static final int MAX_TOKENS = 1500;
+    /**
+     * 예산이 모자라면 <b>답이 JSON 중간에서 잘립니다</b> (설계 I149).
+     *
+     * <p>1,500으로 뒀다가 운영에서 정확히 다 쓰고 잘렸습니다. 요인이 여섯으로 늘어(I148)
+     * 답이 길어진 데다, <b>요즘 모델은 생각(thinking)에도 예산을 씁니다</b> —
+     * 그날 549토큰이 생각에 나갔습니다.
+     *
+     * <p>잘리면 파싱이 실패해 코드 예측으로 되돌아갑니다. <b>조용히는 아닙니다</b>
+     * (I144의 경고가 잡습니다) — 다만 LLM을 부르고도 안 쓴 셈이라 값만 치릅니다.
+     */
+    private final int maxTokens;
     /**
      * 실거래 표본이 이보다 적으면 <b>LLM이 뭐라 하든 UNCERTAIN</b>입니다.
      * 3건으로는 누구도 알 수 없습니다 — 판단의 문제가 아니라 사실의 문제입니다.
@@ -89,7 +99,8 @@ public class PriceForecastService {
                                 ObjectMapper objectMapper,
                                 @Value("${llm.enabled:true}") boolean enabled,
                                 @Value("${llm.claude.model.forecast:}") String model,
-                                @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths) {
+                                @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths,
+                                @Value("${forecast.max-tokens:4000}") int maxTokens) {
         this.llmPort = llmPort;
         this.indicatorFactory = indicatorFactory;
         this.parser = new ForecastVerdictParser(objectMapper);
@@ -104,6 +115,7 @@ public class PriceForecastService {
         this.enabled = enabled;
         this.model = model == null || model.isBlank() ? null : model;
         this.rateLookbackMonths = rateLookbackMonths;
+        this.maxTokens = maxTokens;
     }
 
     /** 화면이 "지금 분석 중인가"를 물어볼 키 (설계 I72와 같은 방식). */
@@ -292,7 +304,7 @@ public class PriceForecastService {
         final long askedAt = System.currentTimeMillis();
         // 판단 작업이라 흔들리면 안 된다 (설계 I127)
         final LlmResult result = llmPort.complete(
-                LlmMessage.deterministic(prompt.system(), prompt.user(), MAX_TOKENS, model));
+                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens, model));
         log.info("LLM forecast responded. present={}, elapsedMs={}",
                 result.isPresent(), System.currentTimeMillis() - askedAt);
 

@@ -215,6 +215,10 @@ forecast:
   # 화살표가 반년 전 시장을 가리킨다. 매월 15일 — 국토부 신고 기한이 계약 후 30일이라
   # 월초에는 지난달 자료가 덜 찬다. 대개 값이 싸다: 새로 받을 달은 서너 달뿐이고(I128)
   # 지표가 그대로면 프롬프트 해시가 같아 LLM 을 부르지 않는다(I59)
+  # 답의 토큰 상한 (설계 I149). 모자라면 JSON 중간에서 잘려 파싱이 실패한다 —
+  # 1500 으로 뒀다가 운영에서 정확히 다 쓰고 잘렸다. 요인이 여섯으로 늘어(I148) 답이
+  # 길어진 데다, 요즘 모델은 생각(thinking)에도 예산을 쓴다 (그날 549 토큰)
+  max-tokens: ${FORECAST_MAX_TOKENS:4000}
   monthly-refresh-cron: ${FORECAST_REFRESH_CRON:0 15 4 15 * *}
   monthly-refresh-enabled: ${FORECAST_REFRESH_ENABLED:true}
   # 이 연식 이상이라야 용적률 여유를 재건축 여력으로 본다 (설계 I132).

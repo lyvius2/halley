@@ -46,6 +46,7 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
             - direction은 향후 %d개월 동안 이 매물의 가격이 어느 쪽으로 움직일지입니다.
             - 재료가 모자라면 UNCERTAIN을 고르세요. 넷 중 하나를 억지로 고르지 마세요.
             - evidence에는 위에 주어진 숫자만 인용하세요. 없는 숫자를 지어내지 마세요.
+            - evidence는 한 문장, summary는 두세 문장으로 줄이세요. 길게 쓰면 답이 잘립니다.
             - 지표들이 서로 다른 방향을 가리키면 그 사실을 summary에 밝히고 confidence를 낮추세요.
             - caveats에는 이 판단이 보지 못한 것을 적으세요. 정책 변화와 개별 단지의 수급은 알 수 없습니다.
             - 이것은 예측이며 틀릴 수 있습니다. 단정적인 표현을 쓰지 마세요.
