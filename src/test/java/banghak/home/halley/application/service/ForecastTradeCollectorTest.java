@@ -52,6 +52,48 @@ class ForecastTradeCollectorTest {
     }
 
     @Test
+    @DisplayName("429로 실패한 달은 캐시에 담지 않는다 — 담으면 '거래 0건'으로 굳는다 (설계 I140)")
+    void doesNotCacheFailedMonths() {
+        // given — 전부 실패한다 (429 를 맞으면 폴백이 null 을 준다)
+        when(ministryReferencePort.fetchTrades(anyString(), anyString())).thenAnswer(inv -> {
+            calls.incrementAndGet();
+            return null;
+        });
+        // when(...) 이 기존 스텁을 한 번 부른다 — 그 몫을 빼고 센다
+        calls.set(0);
+
+        // when — 다른 테스트와 법정동을 겹치지 않게 한다. 캐시는 테스트 사이에 살아남는다
+        final var first = collector.collect("41450", CachedDealType.TRADE);
+        final int firstCalls = calls.get();
+        calls.set(0);
+
+        // then — 아무것도 안 담겼다
+        assertThat(first).isEmpty();
+
+        // 다시 부르면 그 달들을 전부 다시 받는다. 담겼다면 과거 달은 영영 안 받는다
+        collector.collect("41450", CachedDealType.TRADE);
+        assertThat(calls.get()).isEqualTo(firstCalls);
+    }
+
+    @Test
+    @DisplayName("일부만 실패하면 성공한 달은 담는다 — 실패한 달만 다음에 다시 받는다")
+    void cachesSuccessfulMonthsOnly() {
+        // given — 짝수 번째 호출만 성공한다
+        when(ministryReferencePort.fetchTrades(anyString(), anyString())).thenAnswer(inv -> {
+            final int n = calls.incrementAndGet();
+            return n % 2 == 0 ? List.of(new ReferenceTrade("단지", 1_000_000_000L,
+                    new BigDecimal("84.9"), 5, LocalDate.of(2026, 1, 1))) : null;
+        });
+
+        // when
+        final var collected = collector.collect("41460", CachedDealType.TRADE);
+
+        // then — 절반은 담겼다. 실패한 자리는 구멍으로 남고 0건으로 굳지 않았다
+        assertThat(collected).hasSize(3);
+        assertThat(collected).allSatisfy(m -> assertThat(m.trades()).isNotEmpty());
+    }
+
+    @Test
     @DisplayName("처음에는 모든 달을 받고, 두 번째부터는 캐시가 받는다")
     void secondCallHitsCache() {
         // when — 같은 법정동을 두 번

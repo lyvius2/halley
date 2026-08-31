@@ -119,19 +119,30 @@ public class ForecastTradeCollector {
                     final List<ReferenceTrade> trades = dealType == CachedDealType.JEONSE
                             ? ministryReferencePort.fetchJeonseDeposits(lawdCd, ym)
                             : ministryReferencePort.fetchTrades(lawdCd, ym);
-                    // 거래가 없는 달도 저장한다 — '아직 안 받은 달'과 구분되지 않으면
+                    if (trades == null) {
+                        // 조회 실패는 저장하지 않는다 (설계 I140). 여기서 빈 목록으로 담으면
+                        // '거래 0건'으로 굳고, 과거 달은 다시 받지 않으므로 영영 구멍이 된다
+                        return null;
+                    }
+                    // 거래가 없는 달은 저장한다 — '아직 안 받은 달'과 구분되지 않으면
                     // 매번 다시 부른다 (설계 I128)
-                    return new MonthlyTrades(lawdCd, month, dealType,
-                            trades == null ? List.of() : trades, Instant.now());
+                    return new MonthlyTrades(lawdCd, month, dealType, trades, Instant.now());
                 })
                 .toList();
 
+        int failed = 0;
         for (final MonthlyTrades monthly : gate.runAll(tasks)) {
             if (monthly == null) {
-                // 한 달이 실패해도 나머지는 저장한다. 다음 실행에서 그 달만 다시 받는다
+                // 한 달이 실패해도 나머지는 저장한다. 담지 않았으므로 다음 실행에서 그 달만 다시 받는다
+                failed++;
                 continue;
             }
             cacheRepository.upsert(monthly);
+        }
+        if (failed > 0) {
+            // 몇 달이 비었는지 알아야 전망을 얼마나 믿을지 판단할 수 있다
+            log.warn("Forecast trade months failed - will retry next run. lawdCd={}, dealType={}, failed={}/{}",
+                    lawdCd, dealType, failed, months.size());
         }
     }
 }

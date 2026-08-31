@@ -33,6 +33,13 @@ ministry:
     lookback-months: ${MINISTRY_LOOKBACK_MONTHS:12}
   service-key: ${MINISTRY_API_KEY:}
   base-url: https://apis.data.go.kr/1613000
+  # 국토부는 초당 요청 수를 센다 (설계 I140).
+  #   LIMITED_NUMBER_OF_SERVICE_REQUESTS_PER_SECOND_EXCEEDS_ERROR
+  # 동시 실행 상한(forecast.max-concurrency)만으로는 못 막는다 — 6으로 묶어도
+  # 각 호출이 40ms 에 끝나면 초당 150건이 나간다. 실제로 그렇게 나가서 전부 429를 받았다.
+  # 전망(60개월)과 실거래 카드(12개월)가 같은 키를 쓰므로 이 제한도 같이 나눠 쓴다.
+  # 0 이하면 제한하지 않는다
+  permits-per-second: ${MINISTRY_PERMITS_PER_SECOND:4}
 
 # 국토교통부 공동주택/개별주택 공시가격 (V-World 국가공간정보 개방데이터) — 설계 I54
 vworld:

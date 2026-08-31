@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.outbound.external.ministry;
 
+import banghak.home.halley.config.RateGate;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -10,7 +11,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class MinistryReferenceAdapterTest {
 
-    private final MinistryReferenceAdapter adapter = new MinistryReferenceAdapter(null, "key");
+    private final MinistryReferenceAdapter adapter = new MinistryReferenceAdapter(null, new RateGate("test", 0), "key");
 
     @Test
     @DisplayName("국토부 XML 응답을 ReferenceTrade로 매핑한다")
@@ -109,15 +110,16 @@ class MinistryReferenceAdapterTest {
     }
 
     @Test
-    @DisplayName("서비스 키가 없으면 호출하지 않고 빈 목록을 반환한다")
-    void blankKeyReturnsEmpty() {
+    @DisplayName("서비스 키가 없으면 호출하지 않고 null — 빈 목록으로 주면 '거래 0건'으로 굳는다 (설계 I140)")
+    void blankKeyReturnsNull() {
         // given
-        final MinistryReferenceAdapter adapter = new MinistryReferenceAdapter(null, "  ");
+        final MinistryReferenceAdapter adapter =
+                new MinistryReferenceAdapter(null, new RateGate("test", 0), "  ");
 
         // when
         final List<ReferenceTrade> trades = adapter.fetchTrades("11010", "202607");
 
-        // then
-        assertThat(trades).isEmpty();
+        // then — 빈 목록이 아니라 null 이어야 한다. 캐시가 '모르는 것'과 '없는 것'을 구분한다
+        assertThat(trades).isNull();
     }
 }

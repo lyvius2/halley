@@ -1636,7 +1636,8 @@ tr.dragging { opacity: .5; background: var(--line2); }
     font-size: 10.5px;
     font-weight: 500;
 }
-.lu-notable small { font-size: 10px; color: var(--ink3); margin-left: auto; }
+/* 배지 아래 줄에서 왼쪽부터 시작한다 — flex-basis 100% 로 줄을 바꾼다 */
+.lu-notable small { font-size: 10px; color: var(--ink3); flex-basis: 100%; }
 
 .lu-groups { display: grid; gap: 6px; }
 .lu-group { display: flex; gap: 10px; align-items: baseline; font-size: 11.5px; }

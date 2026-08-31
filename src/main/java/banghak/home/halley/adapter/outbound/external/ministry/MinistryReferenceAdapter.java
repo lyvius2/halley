@@ -3,6 +3,8 @@ package banghak.home.halley.adapter.outbound.external.ministry;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import lombok.extern.slf4j.Slf4j;
+import banghak.home.halley.config.RateGate;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.w3c.dom.Document;
@@ -24,11 +26,14 @@ import java.util.Objects;
 public class MinistryReferenceAdapter implements MinistryReferencePort {
 
     private final MinistryReferenceFeignClient client;
+    private final RateGate rateGate;
     private final String serviceKey;
 
     public MinistryReferenceAdapter(MinistryReferenceFeignClient client,
+                                 @Qualifier("ministryRateGate") RateGate rateGate,
                                  @Value("${ministry.service-key:}") String serviceKey) {
         this.client = client;
+        this.rateGate = rateGate;
         this.serviceKey = decodeIfEncoded(serviceKey);
     }
 
@@ -46,12 +51,14 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
 
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
+        // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다 (설계 I140)
         if (serviceKey == null || serviceKey.isBlank()) {
-            return List.of();
+            return null;
         }
+        rateGate.acquire();
         final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd);
         if (xml == null) {
-            return List.of();
+            return null;
         }
         return parse(xml);
     }
@@ -65,11 +72,12 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     @Override
     public List<ReferenceTrade> fetchJeonseDeposits(String lawdCd, String dealYmd) {
         if (serviceKey == null || serviceKey.isBlank()) {
-            return List.of();
+            return null;
         }
+        rateGate.acquire();
         final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd);
         if (xml == null) {
-            return List.of();
+            return null;
         }
         return parseRents(xml);
     }

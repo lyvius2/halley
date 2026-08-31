@@ -14,6 +14,9 @@ import org.springframework.context.annotation.Primary;
  *
  * <p>전망 쪽 상한이 <b>훨씬 작습니다</b>(6 대 400). 공공 API에 60건을 한꺼번에 던지면
  * 429가 돌아옵니다 — 값이 싼 가상 스레드와 달리 <b>그 끝에 붙은 API는 값이 비쌉니다.</b>
+ *
+ * <p><b>동시 실행 상한만으로는 모자랐습니다.</b> 국토부는 초당 요청 수를 세므로
+ * {@link RateGate}를 따로 둡니다 (설계 I140).
  */
 @Configuration
 public class VirtualThreadGateConfig {
@@ -31,5 +34,20 @@ public class VirtualThreadGateConfig {
     public VirtualThreadGate forecastGate(
             @Value("${forecast.max-concurrency:6}") int maxConcurrency) {
         return new VirtualThreadGate("forecast", maxConcurrency);
+    }
+
+    /**
+     * 국토부는 <b>초당</b> 요청 수를 셉니다 (설계 I140).
+     *
+     * <p>동시 실행 상한만으로는 부족했습니다. 6으로 묶어도 각 호출이 40ms에 끝나면
+     * 초당 150건이 나가고, 실제로 그렇게 나가서 전부 429를 받았습니다.
+     *
+     * <p>전망(60개월)과 실거래 카드(12개월)가 <b>같은 키를 씁니다.</b> 그래서 게이트도
+     * 하나를 나눠 씁니다 — 따로 두면 둘이 동시에 돌 때 합쳐서 제한을 넘습니다.
+     */
+    @Bean
+    public RateGate ministryRateGate(
+            @Value("${ministry.permits-per-second:4}") double permitsPerSecond) {
+        return new RateGate("ministry", permitsPerSecond);
     }
 }
