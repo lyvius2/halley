@@ -132,6 +132,10 @@ domain/forecast/indicator/
   SupplyIndicator.java         공급 (미분양·입주)
   PriceIndicator.java          공통 인터페이스
 
+application/event/
+  PropertyEnrichedEvent.java   보정 2단계가 끝났다 (설계 I126)
+  PriceForecastListener.java   그 이벤트를 받아 가상 스레드로 넘긴다
+
 application/service/
   PriceForecastService.java    지표 계산 → 프롬프트 → LLM → 저장
 
@@ -152,7 +156,7 @@ adapter/outbound/persistence/
 
 | 시점 | 이유 |
 |---|---|
-| 매물 등록 보정의 <b>뒤 단계</b> | 실거래·공시가격이 채워진 뒤라야 지표가 나온다 |
+| **보정 완료 이벤트** (`PropertyEnrichedEvent`) | 실거래·공시가격이 채워진 뒤라야 지표가 나온다. 자세히는 3-A.2 |
 | 실거래가 갱신됐을 때 | 추세가 바뀐다 |
 | 월 1회 | 금리·지수는 월 단위로 움직인다 |
 
@@ -194,30 +198,83 @@ CREATE UNIQUE INDEX ux_price_forecast_property ON price_forecast (property_id);
 등록 요청이 이걸 기다리면 **브라우저가 타임아웃**됩니다. 보정 앞 단계(I110)에 넣어도
 `저장 중입니다…` 화면이 1분간 멈춥니다. **뒤로 빼야 합니다.**
 
-### 3-A.2 3단계로 둔다
+### 3-A.2 보정 완료 이벤트로 트리거한다
 
-보정은 이미 두 단계입니다(I110). 전망은 **세 번째**입니다.
+보정은 이미 두 단계입니다(I110). 전망은 **세 번째**이고, **이벤트로 띄웁니다.**
 
 ```
 [등록 요청]  초등학교 ∥ 토지이용계획 ∥ 채점              → 응답 (수 초)
 [배경 2단계] 실거래 12개월 ∥ (공시가격 → AI 추천도)      → 수십 초
+                    │
+                    └── PropertyEnrichedEvent 발행
+                                │
 [배경 3단계] 실거래 60개월 → 지표 계산 → LLM 해석        → 1~2분
 ```
 
-**3단계는 2단계가 끝난 뒤에 시작합니다.** 공시가격이 지표에 들어가고, 무엇보다
-**같은 국토부 API를 동시에 두드리지 않기 위해서**입니다.
+#### 왜 '등록' 이벤트가 아니라 '보정 완료' 이벤트인가
+
+**`PropertyCreatedEvent`(커밋 직후)로 띄우면 안 됩니다.** I110에서 이미 겪은 것입니다 —
+커밋 직후에 뜬 작업이 <b>요청이 기다리는 앞 단계와 겹쳐 돌았습니다.</b>
+
+전망도 같은 문제를 만납니다.
+
+```
+커밋 → PropertyCreatedEvent → 전망 시작 ─┐
+                                        ├─ 겹친다
+       앞 단계(채점) 진행 중 ─────────────┘
+       2단계(공시가격) 진행 중 ───────────┘
+```
+
+- 공시가격이 아직 없는 상태로 지표를 계산합니다
+- **같은 국토부 API를 2단계와 동시에 두드립니다** (12개월 + 60개월)
+
+그래서 **2단계가 끝날 때 새 이벤트를 발행**합니다.
 
 ```java
-// PropertyEnrichmentService.enrichRest() 끝에서
-Thread.ofVirtual().name("forecast-" + propertyId).start(() -> {
-    try {
-        priceForecastService.refresh(propertyId);
-    } catch (RuntimeException e) {
-        // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
-        log.error("Price forecast failed. propertyId={}, cause={}", propertyId, e.toString(), e);
-    }
-});
+// PropertyEnrichmentService.enrichRest() 끝
+llmRecommendationService.clearPendingIfUnresolved(propertyId);
+eventPublisher.publishEvent(new PropertyEnrichedEvent(propertyId));
 ```
+
+```java
+/**
+ * 보정이 끝났으니 가격 전망을 낸다 (설계 I126).
+ *
+ * <p><b>등록 이벤트가 아니라 보정 완료 이벤트를 받습니다.</b> 커밋 직후에 시작하면
+ * 요청이 기다리는 앞 단계와 겹쳐 돌고(I110), 공시가격이 없는 상태로 지표를 계산하며,
+ * 같은 국토부 API를 2단계와 동시에 두드립니다.
+ */
+@Slf4j
+@Component
+public class PriceForecastListener {
+
+    @Async("notificationExecutor")
+    @EventListener
+    public void onEnriched(PropertyEnrichedEvent event) {
+        Thread.ofVirtual().name("forecast-" + event.propertyId()).start(() -> {
+            try {
+                priceForecastService.refresh(event.propertyId());
+            } catch (RuntimeException e) {
+                // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
+                log.error("Price forecast failed. propertyId={}, cause={}",
+                        event.propertyId(), e.toString(), e);
+            }
+        });
+    }
+}
+```
+
+> **`@TransactionalEventListener`가 아니라 `@EventListener`입니다.** 보정은 이미 커밋된
+> 뒤 배경에서 도는 작업이라 <b>묶일 트랜잭션이 없습니다.</b> `AFTER_COMMIT`을 걸면
+> 트랜잭션 밖에서 발행된 이벤트가 <b>조용히 버려집니다</b>.
+
+#### 이벤트로 두는 값어치
+
+- **결합이 느슨해집니다.** 나중에 보정 완료에 다른 후속 작업(알림·통계)을 붙일 때
+  `PropertyEnrichmentService`를 건드리지 않습니다.
+- **끄기 쉽습니다.** 리스너 하나를 빼면 전망만 멈춥니다.
+- 다만 **순서 보장은 발행 시점이 책임집니다** — 이벤트를 어디서 쏘는지가 설계의 핵심입니다.
+  "이벤트니까 알아서 순서가 맞겠지"는 틀립니다.
 
 ### 3-A.3 60개월을 어떻게 빨리 받나
 
@@ -286,9 +343,10 @@ const FORECAST_POLL_MAX_ATTEMPTS = 60;   // 3초 x 60 = 3분이면 그만 본다
 
 ### 3-A.5 언제 다시 도나
 
-| 계기 | 이유 |
+| 계기 | 어떻게 |
 |---|---|
-| 매물 등록 (3단계) | 처음 한 번 |
+| 매물 등록 | `PropertyEnrichedEvent` — 보정 2단계가 끝날 때 |
+| 매물 수정 | 같은 이벤트. 수정도 보정을 다시 타면 자연히 걸린다 |
 | 실거래가 갱신 | 추세가 바뀐다 |
 | 월 1회 배치 | 금리·지수가 월 단위로 움직인다 |
 | 사용자가 `다시 분석` | 명시적으로 원할 때 |
