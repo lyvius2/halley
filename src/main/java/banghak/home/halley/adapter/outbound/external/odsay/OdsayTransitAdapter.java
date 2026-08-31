@@ -54,7 +54,7 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
         if (error != null) {
             final String code = error.path("code").asString("?");
             log.warn("ODsay rejected the request. code={}, msg={}, hint={}, start=({},{}), end=({},{})",
-                    code, error.path("msg").asString("?"), hintFor(code),
+                    code, messageOf(error), hintFor(code),
                     startX, startY, endX, endY);
             return TransitResult.missing();
         }
@@ -77,6 +77,26 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
     }
 
     /**
+     * ODsay가 설명을 어느 이름으로 담는지 <b>확실하지 않습니다.</b>
+     *
+     * <p>`msg`로 읽었더니 운영 로그에 {@code msg=?}만 남았습니다 — 이름이 틀렸는데
+     * <b>틀린 줄도 모르고 설명을 또 버렸습니다.</b> 알려진 이름을 차례로 보고,
+     * 그래도 없으면 <b>error 노드를 통째로 남깁니다.</b>
+     *
+     * <p>모르는 모양일수록 통째로 남기는 편이 낫습니다. 골라 담으려다 놓치면
+     * 다음 배포를 기다려야 합니다.
+     */
+    private String messageOf(JsonNode error) {
+        for (final String field : new String[]{"message", "msg", "errorMessage", "desc"}) {
+            final String value = error.path(field).asString(null);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return error.toString();
+    }
+
+    /**
      * 자주 보는 코드에 사람이 읽을 설명을 붙인다.
      *
      * <p>코드만 남기면 결국 문서를 다시 뒤지게 됩니다. <b>로그를 보는 순간 무엇을 해야 하는지</b>
@@ -85,7 +105,8 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
     private String hintFor(String code) {
         return switch (code) {
             case "-8" -> "출발지와 도착지가 너무 가깝다 (도보권)";
-            case "500" -> "경로 없음 — 좌표가 서비스 지역 밖일 수 있다";
+            // 500은 뭉뚱그린 코드다. ApiKeyAuthFailed 도 500으로 온다 (설계 I141)
+            case "500" -> "msg 를 봐야 갈린다 — ApiKeyAuthFailed 면 키·허용 IP 문제다";
             case "3" -> "일일 사용량 초과";
             case "4" -> "서비스 권한 없음 — 키에 이 API가 열려 있는지 확인";
             case "-9" -> "좌표 형식 오류 (X=경도, Y=위도 순서 확인)";

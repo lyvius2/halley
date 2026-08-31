@@ -141,14 +141,15 @@ class OdsayTransitAdapterTest {
     void errorArrayReturnsMissing() {
         final OdsayTransitAdapter adapter = new OdsayTransitAdapter(
                 stubClient("""
-                        {"error":[{"code":"500","msg":"검색 결과가 없습니다."}]}
+                        {"error":[{"code":"500","message":"Not Found Route"}]}
                         """), "key", objectMapper);
 
         assertThat(adapter.findTransit(126.9, 37.5, 130.0, 37.5).isComputed()).isFalse();
 
+        // ODsay 는 설명을 message 에 담는다. msg 로만 읽어 운영에서 놓쳤다
         assertThat(warnings()).singleElement().satisfies(line -> assertThat(line)
                 .contains("code=500")
-                .contains("서비스 지역 밖"));
+                .contains("Not Found Route"));
     }
 
     @Test
@@ -191,6 +192,57 @@ class OdsayTransitAdapterTest {
                 .findTransit(126.9, 37.5, 127.0, 37.5);
 
         assertThat(warnings()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("인증 실패도 code=500으로 온다 — 코드만 보면 '경로 없음'으로 오해한다 (설계 I141)")
+    void authFailureLooksLikeNoRoute() {
+        // 실제 ODsay 응답이다. 코드가 같아서 msg 없이는 구분할 수 없다
+        new OdsayTransitAdapter(
+                stubClient("""
+                        {"error":[{"code":"500","message":"[ApiKeyAuthFailed] ApiKey authentication failed."}]}
+                        """), "key", objectMapper)
+                .findTransit(127.02446582, 37.50210083, 127.1925914, 37.57245424);
+
+        assertThat(warnings()).singleElement().asString()
+                .contains("ApiKeyAuthFailed")
+                // 힌트가 '경로 없음'이라고 단정하면 엉뚱한 데를 파게 된다
+                .doesNotContain("서비스 지역 밖");
+    }
+
+    @Test
+    @DisplayName("설명을 어느 이름에 담아 와도 남긴다 — 이름을 잘못 짚어 운영에서 msg=? 만 봤다")
+    void keepsMessageWhateverItIsCalled() {
+        for (final String field : new String[]{"message", "msg", "errorMessage", "desc"}) {
+            captureLogs();
+            new OdsayTransitAdapter(
+                    stubClient("{\"error\":{\"code\":\"9\",\"" + field + "\":\"이유가 여기 있다\"}}"),
+                    "key", objectMapper)
+                    .findTransit(126.9, 37.5, 127.0, 37.5);
+
+            assertThat(warnings()).singleElement()
+                    .as("설명이 %s 에 있을 때", field)
+                    .asString()
+                    .contains("이유가 여기 있다")
+                    // 통째 덤프로 때우면 안 된다 — 아는 이름이면 문장만 남아야 읽힌다
+                    .contains("msg=이유가 여기 있다,")
+                    .doesNotContain("{");
+            releaseLogs();
+        }
+    }
+
+    @Test
+    @DisplayName("모르는 이름이면 error를 통째로 남긴다 — 골라 담으려다 놓치면 다음 배포를 기다려야 한다")
+    void dumpsWholeErrorWhenShapeIsUnknown() {
+        new OdsayTransitAdapter(
+                stubClient("""
+                        {"error":{"code":"9","unexpectedField":"진짜 이유"}}
+                        """), "key", objectMapper)
+                .findTransit(126.9, 37.5, 127.0, 37.5);
+
+        assertThat(warnings()).singleElement().asString()
+                .contains("진짜 이유")
+                .contains("unexpectedField");
     }
 
     private static OdsayTransitFeignClient stubClient(String json) {
