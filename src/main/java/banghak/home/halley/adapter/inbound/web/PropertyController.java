@@ -1,7 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
 import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
@@ -244,11 +243,6 @@ public class PropertyController {
     @GetMapping("/sold-out/recent")
     public List<PropertyResponse> recentSoldOut() {
         return propertyService.recentSoldOut();
-    }
-
-    @GetMapping("/{id}/check-logs")
-    public List<CheckLogResponse> checkLogs(@PathVariable Long id) {
-        return propertyService.checkLogs(id);
     }
 
     @PatchMapping("/{id}/status")

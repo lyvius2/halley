@@ -11,7 +11,6 @@ import banghak.home.halley.adapter.inbound.web.dto.UpdateRegulationParamRequest;
 import banghak.home.halley.application.service.NotificationService;
 import banghak.home.halley.application.service.RegulationAdminService;
 import banghak.home.halley.application.service.SystemConfigService;
-import banghak.home.halley.batch.ListingCheckJob;
 import java.util.List;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
@@ -36,20 +35,17 @@ public class AdminSettingsController {
 
     private final SystemConfigService systemConfigService;
     private final NotificationService notificationService;
-    private final ListingCheckJob listingCheckJob;
     private final RegulationAdminService regulationAdminService;
     private final GroupService groupService;
     private final StressRateService stressRateService;
 
     public AdminSettingsController(SystemConfigService systemConfigService,
                                    NotificationService notificationService,
-                                   ListingCheckJob listingCheckJob,
                                    RegulationAdminService regulationAdminService,
                                    GroupService groupService,
                                    StressRateService stressRateService) {
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
-        this.listingCheckJob = listingCheckJob;
         this.regulationAdminService = regulationAdminService;
         this.groupService = groupService;
         this.stressRateService = stressRateService;
@@ -126,12 +122,6 @@ public class AdminSettingsController {
     @GetMapping("/notifications")
     public List<NotificationLogResponse> notifications() {
         return notificationService.recentNotifications();
-    }
-
-    @PostMapping("/listing-check/run")
-    public Map<String, Object> runListingCheck() {
-        listingCheckJob.run();
-        return Map.of("done", true);
     }
 
     /**

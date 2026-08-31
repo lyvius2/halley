@@ -44,7 +44,7 @@ class SystemConfigBootstrapTest {
         systemConfigBootstrap.run(null);
 
         // then
-        assertThat(systemConfigRepository.findById("batch.listingCheck.cron")).isPresent();
+        assertThat(systemConfigRepository.findById("loan.regulation.profile")).isPresent();
         assertThat(systemConfigRepository.findById("loan.regulation.profile")).isPresent();
     }
 }

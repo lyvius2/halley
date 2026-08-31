@@ -28,8 +28,7 @@ class SystemConfigServiceTest {
 
         // then
         assertThat(configs).extracting(SystemConfigResponse::configKey)
-                .contains("batch.listingCheck.enabled", "batch.listingCheck.cron",
-                        "batch.listingCheck.failThreshold", "loan.regulation.profile");
+                .contains("loan.regulation.profile");
     }
 
     @Test
@@ -50,19 +49,19 @@ class SystemConfigServiceTest {
     void updateChangesValue() {
         // given
         final String original = systemConfigService.list().stream()
-                .filter(c -> c.configKey().equals("batch.listingCheck.cron"))
+                .filter(c -> c.configKey().equals("loan.regulation.profile"))
                 .map(SystemConfigResponse::configValue)
                 .findFirst().orElseThrow();
 
         // when
         final List<SystemConfigResponse> updated = systemConfigService.update(
-                List.of(new UpdateConfigRequest("batch.listingCheck.cron", "0 0 10 * * *")));
+                List.of(new UpdateConfigRequest("loan.regulation.profile", "2099-01-01")));
 
         // then
-        assertThat(updated).filteredOn(c -> c.configKey().equals("batch.listingCheck.cron"))
-                .singleElement().satisfies(c -> assertThat(c.configValue()).isEqualTo("0 0 10 * * *"));
+        assertThat(updated).filteredOn(c -> c.configKey().equals("loan.regulation.profile"))
+                .singleElement().satisfies(c -> assertThat(c.configValue()).isEqualTo("2099-01-01"));
 
         // restore
-        systemConfigService.update(List.of(new UpdateConfigRequest("batch.listingCheck.cron", original)));
+        systemConfigService.update(List.of(new UpdateConfigRequest("loan.regulation.profile", original)));
     }
 }

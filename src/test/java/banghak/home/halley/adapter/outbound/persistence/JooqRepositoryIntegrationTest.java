@@ -5,7 +5,6 @@ import banghak.home.halley.adapter.outbound.persistence.CommuteResultRepository;
 import banghak.home.halley.adapter.outbound.persistence.CriterionRepository;
 import banghak.home.halley.adapter.outbound.persistence.CriterionWeightRepository;
 import banghak.home.halley.adapter.outbound.persistence.LegalDongCodeRepository;
-import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.LoanEstimateRepository;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyAgentRepository;
@@ -35,9 +34,7 @@ import banghak.home.halley.domain.property.Agent;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.ImageType;
-import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
-import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.MoveInType;
 import banghak.home.halley.domain.property.OpinionType;
 import banghak.home.halley.domain.property.Property;
@@ -86,7 +83,6 @@ class JooqRepositoryIntegrationTest {
     @Autowired private UserCriterionScoreRepository userCriterionScoreRepository;
     @Autowired private CommuteResultRepository commuteResultRepository;
     @Autowired private PropertyOpinionRepository propertyOpinionRepository;
-    @Autowired private ListingCheckLogRepository listingCheckLogRepository;
     @Autowired private SystemConfigRepository systemConfigRepository;
     @Autowired private NotificationLogRepository notificationLogRepository;
     @Autowired private ReferenceTransactionRepository referenceTransactionRepository;
@@ -203,16 +199,6 @@ class JooqRepositoryIntegrationTest {
 
         PropertyOpinion found = propertyOpinionRepository.findById(saved.id()).orElseThrow();
         assertThat(found.opinionType()).isEqualTo(OpinionType.MERIT);
-    }
-
-    @Test
-    void listingCheckLogRoundTrip() {
-        ListingCheckLog saved = listingCheckLogRepository.save(new ListingCheckLog(
-                null, 1L, null, 200, ListingVerdict.ALIVE, "ok", 123, false));
-
-        ListingCheckLog found = listingCheckLogRepository.findById(saved.id()).orElseThrow();
-        assertThat(found.verdict()).isEqualTo(ListingVerdict.ALIVE);
-        assertThat(found.checkedAt()).isNotNull();
     }
 
     @Test

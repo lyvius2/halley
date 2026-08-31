@@ -141,7 +141,6 @@
                                     <div class="property-card-actions" @click.stop>
                                         <button class="btn-link" @click="openDetail(r)">상세</button>
                                         <button class="btn-link" x-show="r.property.isDraft" @click="openPasteModal(r)">완성</button>
-                                        <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openComments(r)">코멘트</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
@@ -1303,12 +1302,6 @@
         </div>
 
         <div class="settings-section">
-            <h4>생존 확인 배치</h4>
-            <p class="settings-note">매일 09:00 스케줄로 자동 실행됩니다. 즉시 수동 실행하려면 아래 버튼을 누르세요.</p>
-            <button class="btn" @click="runListingCheck()" :disabled="loading">배치 수동 실행</button>
-        </div>
-
-        <div class="settings-section">
             <h4>알림 이력</h4>
             <div class="card table-wrap">
                 <table>
@@ -1539,7 +1532,6 @@
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
                 <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
                 <button class="btn btn-sm" @click="openComments(detailItem)">코멘트</button>
-                <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
                 <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
                 <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">정보 수정</button>
             </div>
@@ -2277,41 +2269,6 @@
         <template x-if="!hasCompareResult() && !compareRunning">
             <p class="m2-empty">아직 분석 결과가 없습니다.</p>
         </template>
-    </div>
-</div>
-
-<!-- D20 매물 점검 이력 모달 -->
-<div class="modal" x-show="showCheckLogs" x-cloak>
-    <div class="modal-backdrop" @click="closeTopModal()"></div>
-    <div class="modal-card modal-wide">
-        <div class="modal-head">
-            <span class="modal-kicker">점검 이력</span>
-            <h3 x-text="checkLogProperty?.property?.name"></h3>
-            <p>생존 확인 배치의 판정 기록입니다.</p>
-        </div>
-        <div class="card table-wrap">
-            <table>
-                <thead><tr><th>시각</th><th>판정</th><th>HTTP</th><th>근거</th></tr></thead>
-                <tbody>
-                <template x-if="checkLogs.length === 0">
-                    <tr><td colspan="4" class="empty-cell">점검 이력이 없습니다</td></tr>
-                </template>
-                <template x-for="l in checkLogs" :key="l.id">
-                    <tr>
-                        <td x-text="fmtTime(l.checkedAt)"></td>
-                        <td><span class="badge" :class="l.verdict==='ALIVE' ? 'b-on' : 'b-off'" x-text="verdictLabel(l.verdict)"></span></td>
-                        <td class="num" x-text="l.httpStatus ?? '-'"></td>
-                        <td x-text="l.evidence"></td>
-                    </tr>
-                </template>
-                </tbody>
-            </table>
-        </div>
-        <div class="paste-actions">
-            <button class="btn btn-ghost" @click="closeCheckLogs()">닫기</button>
-            <button class="btn btn-primary" x-show="checkLogProperty?.property?.listingStatus==='SOLD_OUT'"
-                    @click="restoreListing(checkLogProperty)">판매중으로 복구</button>
-        </div>
     </div>
 </div>
 

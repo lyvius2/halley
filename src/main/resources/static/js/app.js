@@ -85,9 +85,6 @@ function halley() {
         soldOutRecent: [],
         showSoldOutAlert: false,
         soldOutAlertShown: false,
-        showCheckLogs: false,
-        checkLogs: [],
-        checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
         loanForm: { firstHome: false, mortgageInsured: false, ownedHouseCount: 0, rateType: 'VARIABLE' },
@@ -1912,19 +1909,6 @@ function halley() {
             this.showSoldOutAlert = false;
         },
 
-        async openCheckLogs(item) {
-            this.checkLogProperty = item;
-            const { ok, body } = await this.request(`/api/properties/${item.property.id}/check-logs`);
-            this.checkLogs = ok ? (body || []) : [];
-            this.showCheckLogs = true;
-        },
-
-        closeCheckLogs() {
-            this.showCheckLogs = false;
-            this.checkLogs = [];
-            this.checkLogProperty = null;
-        },
-
         restoreListing(item) {
             this.askConfirm('판매중 복구', `'${item.property.name}' 매물을 판매중으로 복구할까요?`, async () => {
                 await this.request(`/api/properties/${item.property.id}/status`, {
@@ -2654,7 +2638,6 @@ function halley() {
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
-                ['showCheckLogs', () => this.closeCheckLogs()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
                 ['showUsers', () => this.closeUsers()],
                 ['showSettings', () => this.closeSettings()],
@@ -3111,23 +3094,6 @@ function halley() {
                     await this.loadSettings();
                 } else {
                     this.error = (resBody && resBody.message) || '설정 저장에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async runListingCheck() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/admin/listing-check/run', { method: 'POST' });
-                if (!ok) {
-                    this.error = (body && body.message) || '배치 실행에 실패했습니다';
-                } else {
-                    this.error = '생존 확인 배치를 실행했습니다.';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

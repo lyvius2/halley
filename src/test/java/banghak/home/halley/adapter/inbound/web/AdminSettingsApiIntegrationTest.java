@@ -66,7 +66,7 @@ class AdminSettingsApiIntegrationTest {
         mockMvc.perform(put("/api/admin/settings").session(session)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                [{"configKey":"batch.listingCheck.cron","configValue":"0 0 8 * * *"}]
+                                [{"configKey":"loan.regulation.profile","configValue":"2025-10-15"}]
                                 """))
                 .andExpect(status().isOk());
 

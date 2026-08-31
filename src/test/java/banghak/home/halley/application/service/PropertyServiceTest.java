@@ -8,7 +8,6 @@ import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.domain.property.DealType;
-import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.SourceType;
@@ -125,19 +124,15 @@ class PropertyServiceTest {
     }
 
     @Test
-    @DisplayName("점검 이력과 최근 판매완료 목록을 조회한다")
-    void checkLogsAndRecentSoldOut() {
+    @DisplayName("최근 판매완료 목록을 조회한다 — 상태는 이제 사람이 정한다 (설계 I157)")
+    void recentSoldOut() {
         // given
         final PropertyResponse created = propertyService.create(request("이력 테스트", DealType.SALE, 400_000_000L));
         propertyRepository.updateListingStatus(created.id(), ListingStatus.SOLD_OUT, false, 3, Instant.now());
 
-        // when
-        final var logs = propertyService.checkLogs(created.id());
-        final var recent = propertyService.recentSoldOut();
-
-        // then
-        assertThat(logs).isEmpty();
-        assertThat(recent).extracting(PropertyResponse::id).contains(created.id());
+        // when / then
+        assertThat(propertyService.recentSoldOut())
+                .extracting(PropertyResponse::id).contains(created.id());
     }
 
     @Test
