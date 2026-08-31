@@ -33,16 +33,8 @@ public class PriceScorer implements CriterionScorer {
                 targetValue < 0 ? ", 예산상한을 넘어 0점" : ""));
     }
 
-    /** 억·만원 단위로 읽기 쉽게 — 설명 문구 전용. */
+    /** 전망 근거(`TradeTrendIndicator`)와 같은 표기를 쓴다 (설계 I130). */
     private static String won(long amount) {
-        final long eok = amount / 100_000_000L;
-        final long man = (amount % 100_000_000L) / 10_000L;
-        if (eok > 0 && man > 0) {
-            return String.format("%d억 %,d만원", eok, man);
-        }
-        if (eok > 0) {
-            return eok + "억원";
-        }
-        return String.format("%,d만원", man);
+        return banghak.home.halley.domain.support.WonFormat.of(amount);
     }
 }
