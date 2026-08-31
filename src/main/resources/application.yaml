@@ -186,6 +186,20 @@ loan:
     floor: ${LOAN_STRESS_FLOOR:0.015}
     cap: ${LOAN_STRESS_CAP:0.030}
 
+forecast:
+  # 가격 전망 (docs/PRICE_FORECAST.md)
+  # 실거래를 이만큼 거슬러 훑는다. 이 값이 그대로 국토부 호출 횟수다 —
+  # 다만 법정동·월 단위로 캐시되므로(설계 I128) 두 번째 매물부터는 거의 안 부른다
+  lookback-months: ${FORECAST_LOOKBACK_MONTHS:60}
+  # 전망 전용 동시 실행 상한 (설계 I129). 보정(400)과 따로 둔다 —
+  # 한 매물에 60번을 던지므로 같은 줄에 세우면 다른 매물의 보정이 밀린다.
+  # 공공 API에 60건을 한꺼번에 던지면 429가 온다
+  max-concurrency: ${FORECAST_MAX_CONCURRENCY:6}
+  # 국토부 신고 지연 때문에 최근 몇 달은 다시 받는다. 그 이전은 바뀌지 않는다
+  refetch-recent-months: ${FORECAST_REFETCH_MONTHS:3}
+  # 최근 달을 다시 받는 주기
+  refetch-after-hours: ${FORECAST_REFETCH_HOURS:24}
+
 enrichment:
   # 보정 단계를 가상 스레드로 동시에 돌릴 때의 총 동시 실행 상한 (설계 I108).
   # 스레드가 아니라 그 끝에 붙은 외부 API를 지키려는 값이다 — 넘어선 작업은

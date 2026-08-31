@@ -50,7 +50,7 @@ class PropertyEnrichmentServiceTest {
     private final ScoringService scoringService = mock(ScoringService.class);
 
     /** 실물과 같은 게이트를 쓴다 — 병렬 실행 자체가 검증 대상이다 (설계 I108). */
-    private final VirtualThreadGate gate = new VirtualThreadGate(400);
+    private final VirtualThreadGate gate = new VirtualThreadGate("test", 400);
 
     private final PropertyEnrichmentService service = new PropertyEnrichmentService(
             propertyRepository, kakaoLocalPort, housingPricePort, geoService,
