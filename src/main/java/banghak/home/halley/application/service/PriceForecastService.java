@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 지표를 놓고 LLM에게 방향을 묻는다 (설계 I134).
@@ -69,7 +70,16 @@ public class PriceForecastService {
      * 3건으로는 누구도 알 수 없습니다 — 판단의 문제가 아니라 사실의 문제입니다.
      */
     private static final int MIN_TRADE_SAMPLES = 3;
-    private static final String TREND_CODE = "실거래 추세";
+    /**
+     * 실거래를 <b>실제로 세어 본</b> 지표들 (설계 I151).
+     *
+     * <p>둘 중 하나라도 값을 냈으면 표본이 있었다는 뜻입니다 — 각 지표가 이미
+     * 3건 미만이면 내지 않습니다(I130 · I148). 그래서 요인의 존재로 가립니다.
+     *
+     * <p>금리 국면과 용적률 여유는 <b>여기 없습니다.</b> 그 둘은 실거래를 안 봅니다 —
+     * ECOS 통계와 건축물대장이라 아무리 나와도 <b>이 매물의 표본</b>과는 무관합니다.
+     */
+    private static final Set<String> TRADE_BASED_FACTORS = Set.of("실거래 추세", "장기 추세");
 
     private final LlmPort llmPort;
     private final ForecastIndicatorFactory indicatorFactory;
@@ -339,9 +349,13 @@ public class PriceForecastService {
             return byCode;
         }
         if (!hasEnoughTradeSamples(byCode)) {
-            log.info("Forcing UNCERTAIN - trade samples below {}.", MIN_TRADE_SAMPLES);
+            log.info("Forcing UNCERTAIN - no trade-based indicator. required={}, got=[{}]",
+                    TRADE_BASED_FACTORS, byCode.factors().stream()
+                            .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                            .collect(java.util.stream.Collectors.joining(", ")));
             final List<String> caveats = new ArrayList<>(byLlm.caveats());
-            caveats.add(String.format("실거래 표본이 %d건 미만이라 방향을 판단하지 않았습니다",
+            caveats.add(String.format(
+                    "이 단지·면적대의 실거래 표본이 %d건 미만이라 방향을 판단하지 않았습니다",
                     MIN_TRADE_SAMPLES));
             return new PriceOutlook(ForecastDirection.UNCERTAIN, ForecastConfidence.LOW,
                     byLlm.horizonMonths(), byLlm.factors(), caveats);
@@ -350,11 +364,17 @@ public class PriceForecastService {
     }
 
     /**
-     * 실거래 추세 요인이 나왔다는 것은 <b>표본이 충분했다는 뜻</b>입니다 —
-     * 지표가 이미 3건 미만이면 내지 않습니다(I130). 그래서 요인의 존재로 가립니다.
+     * 실거래 표본이 있었는가 (설계 I151).
+     *
+     * <p>예전에는 <b>실거래 추세 하나만</b> 봤습니다. 그 지표는 3개월 창이라,
+     * 장기 표본이 넉넉해도 <b>최근 석 달이 한산하면</b> 판단이 덮였습니다.
+     *
+     * <p>§2.2-A의 취지는 "3건으로는 누구도 알 수 없다"입니다 — <b>3개월 창이 얇은 것</b>과
+     * <b>실거래 자료가 없는 것</b>은 다른 얘기인데 둘을 같게 보고 있었습니다.
+     * 장기 추세(12개월 창 둘)가 나왔다면 표본은 이미 충분합니다.
      */
     private boolean hasEnoughTradeSamples(PriceOutlook byCode) {
-        return byCode.factors().stream().anyMatch(f -> TREND_CODE.equals(f.name()));
+        return byCode.factors().stream().anyMatch(f -> TRADE_BASED_FACTORS.contains(f.name()));
     }
 
     /**
