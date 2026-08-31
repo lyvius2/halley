@@ -99,8 +99,18 @@ public class AuthService {
                 remainingSessionSeconds(request));
     }
 
+    /**
+     * 세션이 얼마나 남았는지 (설계 I120).
+     *
+     * <p><b>로그인 응답에서는 세션이 아직 없습니다.</b> Spring Security가 인증을 저장하기 전이라
+     * {@code getSession(false)}가 null을 돌려주고, 그러면 화면이 남은 시간을 모르는 채로
+     * 시작합니다 — 세션 경고가 영영 뜨지 않았습니다.
+     *
+     * <p>그래서 <b>없으면 만들어</b> 답합니다. 어차피 로그인 직후 첫 요청에서 만들어질
+     * 세션이고, 여기서 만드나 거기서 만드나 같습니다.
+     */
     private Integer remainingSessionSeconds(HttpServletRequest request) {
-        final jakarta.servlet.http.HttpSession session = request.getSession(false);
+        final jakarta.servlet.http.HttpSession session = request.getSession(true);
         if (session == null) {
             return null;
         }

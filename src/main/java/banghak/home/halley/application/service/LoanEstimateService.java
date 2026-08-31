@@ -180,6 +180,17 @@ public class LoanEstimateService {
      * 금리가 어디서 왔는지 (설계 I81). 못 받아 기본값으로 떨어졌으면 <b>그 사실을 밝힙니다</b> —
      * 조용히 다른 값을 쓰면 사용자는 검증할 수 없습니다.
      */
+    /**
+     * 스트레스 금리의 출처 (설계 I116). 한국은행 통계로 산출했으면 그 근거가 담겨 있고,
+     * 사람이 넣은 값이면 비어 있습니다 — 화면은 있을 때만 보여 줍니다.
+     */
+    private String stressRateSource() {
+        return systemConfigRepository.findById("loan.stressRate.source")
+                .map(banghak.home.halley.domain.setting.SystemConfig::configValue)
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(null);
+    }
+
     private String rateSource(Optional<MarketRate> marketRate, RegulationParams params) {
         return marketRate
                 .map(MarketRate::describe)
@@ -238,7 +249,7 @@ public class LoanEstimateService {
 
         return LoanEstimateResponse.mortgage(propertyId, result, askingPrice, annualIncome, cash,
                 existingLoan, groupCash, insured, zone, ownership, ltv.rate(), ltv.reason(),
-                zoneWarning(), rateSource(marketRate, params), rateType.label());
+                zoneWarning(), rateSource(marketRate, params), rateType.label(), stressRateSource());
     }
 
     private LoanEstimateResponse estimateJeonse(Long propertyId, long deposit,
@@ -259,7 +270,7 @@ public class LoanEstimateService {
                 Instant.now()));
 
         return LoanEstimateResponse.jeonse(propertyId, result, deposit, annualIncome, cash, existingLoan,
-                groupCash, rateSource(marketRate, params));
+                groupCash, rateSource(marketRate, params), stressRateSource());
     }
 
     public List<LoanEstimateHistoryResponse> history(Long propertyId) {

@@ -12,6 +12,7 @@ import java.util.Optional;
 
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.ACQUISITION_TAX;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.ASSUMPTIONS;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.ASSUMPTIONS_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.COMPUTED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.DSR_LIMIT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.LoanEstimateTable.FINAL_LIMIT;
@@ -86,7 +87,7 @@ public class LoanEstimateRepository {
                 r.get(FINAL_LIMIT),
                 r.get(REQUIRED_CASH),
                 r.get(ACQUISITION_TAX),
-                toJsonNode(r.get(ASSUMPTIONS), objectMapper),
+                toJsonNode(r.get(ASSUMPTIONS_RAW), objectMapper),
                 toInstant(r.get(COMPUTED_AT))
         );
     }

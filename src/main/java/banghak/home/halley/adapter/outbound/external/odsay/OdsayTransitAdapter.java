@@ -25,6 +25,11 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
     }
 
     @Override
+    public boolean isEnabled() {
+        return apiKey != null && !apiKey.isBlank();
+    }
+
+    @Override
     public TransitResult findTransit(double startX, double startY, double endX, double endY) {
         if (apiKey == null || apiKey.isBlank()) {
             return TransitResult.missing();

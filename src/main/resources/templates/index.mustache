@@ -16,7 +16,7 @@
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<body x-data="halley()" x-init="init()">
+<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()">
 
 <div class="shell">
     <div class="topbar">
@@ -30,6 +30,12 @@
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
+                    <!-- 그룹명을 눌러 그룹 정보 화면으로 (설계 I123) -->
+                    <button class="group-chip" x-show="myGroup" :class="{on: view==='group'}"
+                            @click="setView('group')"
+                            :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
+                        <span x-text="myGroup ? myGroup.name : ''"></span>
+                    </button>
                     <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -71,7 +77,12 @@
                             <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
                         </div>
                         <div class="property-list">
-                            <template x-if="visibleProperties.length === 0">
+                            <!-- 목록이 오기 전에는 '없습니다'가 아니라 기다리는 중임을 말한다 (설계 I122) -->
+                            <div class="progress-strip" x-show="isLoading('properties')" x-cloak>
+                                <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+                                <div class="progress-strip-bar"><i></i></div>
+                            </div>
+                            <template x-if="visibleProperties.length === 0 && !isLoading('properties')">
                                 <div class="empty">
                                     <div class="empty-ic">◌</div>
                                     <h4>아직 등록된 매물이 없습니다</h4>
@@ -93,6 +104,9 @@
                                         <span class="group-badge" x-show="r.property.groupName"
                                               :title="'그룹: ' + r.property.groupName"
                                               x-text="r.property.groupName"></span>
+                                        <!-- 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121) -->
+                                        <span class="badge b-visited" x-show="hasVisited(r)"
+                                              title="공간의 쾌적함이 채점되어 있습니다">🚩 임장완료</span>
                                         <span class="property-card-price" x-text="fmtWon(r.property.priceDeposit)"></span>
                                     </div>
                                     <div class="property-card-meta">
@@ -436,6 +450,102 @@
                         </div>
                     </div>
 
+                    <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —
+                         구성원·초대 코드까지 함께 보는 자리라 좁은 상자에 넣지 않는다 -->
+                    <div x-show="view==='group'">
+                        <div class="sec-head"><span class="sec-num">07</span><h2>그룹 정보</h2></div>
+                        <div class="progress-strip" x-show="isLoading('groupDetail')" x-cloak>
+                            <span class="progress-strip-label">데이터 로딩 중입니다…</span>
+                            <div class="progress-strip-bar"><i></i></div>
+                        </div>
+                        <template x-if="!groupDetail && !isLoading('groupDetail')">
+                            <div class="empty">
+                                <div class="empty-ic">◌</div>
+                                <h4>속한 그룹이 없습니다</h4>
+                                <p>초대 코드로 그룹에 가입하거나 새 그룹을 만들어 주세요.</p>
+                            </div>
+                        </template>
+                        <template x-if="groupDetail">
+                            <div>
+                                <!-- 이 앱은 모아서 집을 사려고 만든 것이라 합계가 먼저 보인다 -->
+                                <div class="group-stats">
+                                    <div class="group-stat">
+                                        <span>그룹 보유 현금</span>
+                                        <b x-text="fmtWon(groupDetail.totalCash)"></b>
+                                        <small x-text="groupDetail.memberCount + '명 합산'"></small>
+                                    </div>
+                                    <div class="group-stat">
+                                        <span>관심 매물</span>
+                                        <b x-text="groupDetail.propertyCount + '건'"></b>
+                                        <small>그룹이 함께 보고 있는 매물</small>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <div class="form-grid">
+                                        <label class="span2">그룹 이름
+                                            <div class="workplace-search">
+                                                <input type="text" x-model="groupForm.name" placeholder="그룹 이름">
+                                                <button class="btn" type="button" @click="renameGroup()"
+                                                        :disabled="loading || !groupForm.name">변경</button>
+                                            </div>
+                                            <span class="settings-note">그룹의 누구나 바꿀 수 있습니다.</span>
+                                        </label>
+                                        <label class="span2">Slack Webhook URL
+                                            <div class="workplace-search">
+                                                <input type="url" x-model="groupForm.slackWebhookUrl"
+                                                       placeholder="https://hooks.slack.com/services/...">
+                                                <button class="btn" type="button" @click="saveWebhook()"
+                                                        :disabled="loading">저장</button>
+                                                <button class="btn" type="button" @click="testWebhook()"
+                                                        :disabled="loading || !groupForm.slackWebhookUrl">테스트</button>
+                                            </div>
+                                            <span class="settings-note">비워 두면 알림을 보내지 않습니다.
+                                                매물 등록·삭제, 코멘트, 쾌적함 평가가 이 주소로 갑니다.</span>
+                                        </label>
+                                    </div>
+                                </div>
+
+                                <div class="card">
+                                    <h4 class="card-title">구성원 <span x-text="groupDetail.memberCount + '명'"></span></h4>
+                                    <table class="tbl">
+                                        <thead>
+                                        <tr><th>닉네임</th><th>직장</th><th class="num">보유 현금</th><th>상태</th></tr>
+                                        </thead>
+                                        <tbody>
+                                        <template x-for="m in groupDetail.members" :key="m.id">
+                                            <tr>
+                                                <td x-text="m.nickname"></td>
+                                                <td x-text="m.workplaceName || '-'"></td>
+                                                <td class="num" x-text="fmtWon(m.availableBudget)"></td>
+                                                <td><span class="badge" :class="m.enabled ? 'b-on' : 'b-off'"
+                                                          x-text="m.enabled ? '활성' : '비활성'"></span></td>
+                                            </tr>
+                                        </template>
+                                        </tbody>
+                                    </table>
+                                    <p class="settings-note">열람만 가능합니다. 프로필 수정은 각자 합니다.</p>
+                                </div>
+
+                                <div class="card">
+                                    <h4 class="card-title">초대 코드</h4>
+                                    <p class="settings-note">코드는 <b>24시간</b> 동안만 쓸 수 있고, 새로 만들면 이전 코드는 사라집니다.</p>
+                                    <div class="workplace-search">
+                                        <button class="btn btn-primary" type="button"
+                                                @click="createInvite()" :disabled="isLoading('invite')">초대 코드 생성</button>
+                                    </div>
+                                    <template x-if="inviteCode">
+                                        <div class="invite-box">
+                                            <b x-text="inviteCode.code"></b>
+                                            <small x-text="'만료 ' + fmtTime(inviteCode.expiresAt)"></small>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+
                 </div>
             </template>
         </aside>
@@ -521,7 +631,7 @@
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
             <h3>비밀번호 변경</h3>
-            <p>최초 로그인 또는 임시 비밀번호로 접속하셨습니다. 새 비밀번호를 설정해야 계속할 수 있습니다.</p>
+            <p>최초 로그인 또는 임시 비밀번호로 접속하셨습니다.<br>새 비밀번호를 설정해야 계속할 수 있습니다.</p>
         </div>
         <form class="form" @submit.prevent="changePassword()">
             <label>현재 비밀번호
@@ -541,7 +651,8 @@
 <!-- D2-2 프로필 확인 (강제 — 설계 6.1 · I48 · I100) -->
 <div class="modal" x-show="showProfileSetup" x-cloak>
     <div class="modal-backdrop"></div>
-    <div class="modal-card modal-wide">
+    <!-- 로그인·비밀번호 화면과 같은 결로 (설계 I121). 초기 설정 흐름은 하나로 읽혀야 한다 -->
+    <div class="modal-card modal-wide modal-login">
         <div class="modal-head">
             <span class="modal-kicker">최초 설정</span>
             <h3>프로필을 확인해 주세요</h3>
@@ -627,7 +738,7 @@
 
 <!-- DRAFT 빠른 저장 모달 -->
 <div class="modal" x-show="showDraftModal" x-cloak>
-    <div class="modal-backdrop" @click="closeDraftModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">빠른 저장</span>
@@ -649,7 +760,7 @@
 
 <!-- D9 붙여넣기 등록 모달 -->
 <div class="modal" x-show="showPasteModal" x-cloak>
-    <div class="modal-backdrop" @click="closePasteModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide modal-tall">
         <div class="modal-head">
             <span class="modal-kicker">붙여넣기 등록</span>
@@ -726,7 +837,7 @@
 
 <!-- 비밀번호 변경 (자발) 모달 -->
 <div class="modal" x-show="showChangePw" x-cloak>
-    <div class="modal-backdrop" @click="closeChangePw()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
@@ -747,7 +858,7 @@
 
 <!-- D4/D5 사용자 생성·수정 모달 -->
 <div class="modal modal-stacked" x-show="showUserForm" x-cloak>
-    <div class="modal-backdrop" @click="closeUserForm()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">사용자 관리</span>
@@ -867,7 +978,7 @@
 
 <!-- D11 중개인 관리 모달 -->
 <div class="modal" x-show="showAgentModal" x-cloak>
-    <div class="modal-backdrop" @click="closeAgentModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">중개인</span>
@@ -925,7 +1036,7 @@
 
 <!-- D12 사진 업로드 모달 -->
 <div class="modal" x-show="showPhotoModal" x-cloak>
-    <div class="modal-backdrop" @click="closePhotoModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
@@ -997,7 +1108,7 @@
 
 <!-- D17 확인 모달 -->
 <div class="modal modal-top" x-show="confirmState" x-cloak>
-    <div class="modal-backdrop" @click="confirmNo()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">확인</span>
@@ -1013,7 +1124,7 @@
 
 <!-- M3 사용자 관리 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showUsers" x-cloak>
-    <div class="modal-backdrop" @click="closeUsers()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeUsers()">×</button>
         <div class="modal-head">
@@ -1062,7 +1173,7 @@
 
 <!-- M6 시스템 설정 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showSettings" x-cloak>
-    <div class="modal-backdrop" @click="closeSettings()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeSettings()">×</button>
         <div class="modal-head">
@@ -1234,7 +1345,7 @@
 
 <!-- M2 매물 상세 모달 -->
 <div class="modal modal-detail" x-show="showM2" x-cloak>
-    <div class="modal-backdrop" @click="closeDetail()"></div>
+    <div class="modal-backdrop"></div>
     <template x-if="detailItem">
         <div class="modal-card modal-xwide">
             <button class="modal-close" @click="closeDetail()">×</button>
@@ -1448,7 +1559,7 @@
 
 <!-- D10 매물 수기 등록/수정 모달 -->
 <div class="modal" x-show="showPropertyForm" x-cloak>
-    <div class="modal-backdrop" @click="closePropertyForm()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">매물 등록</span>
@@ -1568,7 +1679,7 @@
 
 <!-- D14 평가 채점 모달 -->
 <div class="modal" x-show="showScoreModal" x-cloak>
-    <div class="modal-backdrop" @click="closeScoreModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
@@ -1622,10 +1733,22 @@
                     </div>
                     <p class="score-item-locked" x-show="scoreLocked(s)">자동으로 채점된 항목입니다.</p>
 
-                    <p class="score-item-reason" x-show="s.fallbackReason" x-text="s.fallbackReason"></p>
+                    <p class="score-item-reason" x-show="s.fallbackReason">
+                        <span x-text="s.fallbackReason"></span>
+                        <!-- 미산출은 대개 그때 조회가 실패한 것이다. 다시 눌러 볼 수 있게 한다 (설계 I119).
+                             이미 점수가 있으면 버튼은 안 보인다 -->
+                        <button class="btn btn-xs" type="button"
+                                x-show="s.effectiveScore == null"
+                                :disabled="isLoading('recompute')"
+                                @click="recomputeScores()">재산출</button>
+                    </p>
                     <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
-                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.effectiveScore == null">
+                    <!-- 남이 매겼는지가 아니라 '내가' 매겼는지로 가른다 (설계 I118) -->
+                    <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.myScore == null">
                         방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
+                    </p>
+                    <p class="score-item-mine" x-show="s.code === 'COMFORT' && s.myScore != null">
+                        내가 매긴 점수 <b x-text="s.myScore + '점'"></b>
                     </p>
                     <!-- 총점에는 사용자들의 평균이 들어간다. 내 점수만 보이면 왜 그 총점인지 알 수 없다 -->
                     <p class="score-item-others" x-show="s.othersAverage != null">
@@ -1649,7 +1772,7 @@
 
 <!-- D16-2 국토부 실거래가 참고 카드 모달 -->
 <div class="modal" x-show="showRefModal" x-cloak>
-    <div class="modal-backdrop" @click="closeRefModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">최근 실거래</span>
@@ -1690,7 +1813,7 @@
 
 <!-- D16 대출 한도 시뮬레이션 모달 -->
 <div class="modal" x-show="showLoanModal" x-cloak>
-    <div class="modal-backdrop" @click="closeLoanModal()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide loan-modal">
         <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
@@ -1813,6 +1936,10 @@
                             한도 산정은 <b x-text="(loanResult.dsrRate * 100).toFixed(2) + '%'"></b>
                             (스트레스 DSR · <span x-text="loanResult.rateTypeLabel"></span>)
                         </small>
+                        <!-- 스트레스 금리도 어디서 왔는지 밝힌다 (설계 I116).
+                             한도를 좁히는 숫자라 출처가 없으면 검증할 수 없다 -->
+                        <small class="loan-rate-source" x-show="loanResult.stressRateSource"
+                               x-text="loanResult.stressRateSource"></small>
                     </div>
                     <div class="loan-card">
                         <span>필요 자기자본</span>
@@ -1951,7 +2078,7 @@
 
 <!-- D25 매물 코멘트 모달 (설계 I56) -->
 <div class="modal" x-show="showComments" x-cloak>
-    <div class="modal-backdrop" @click="closeComments()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closeComments()">×</button>
         <div class="modal-head">
@@ -2010,7 +2137,7 @@
 
 <!-- D26 비교 우위 분석 모달 (설계 I61) -->
 <div class="modal" x-show="showCompare" x-cloak>
-    <div class="modal-backdrop" @click="closeCompare()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeCompare()">×</button>
         <div class="modal-head">
@@ -2071,7 +2198,7 @@
 
 <!-- D20 매물 점검 이력 모달 -->
 <div class="modal" x-show="showCheckLogs" x-cloak>
-    <div class="modal-backdrop" @click="closeCheckLogs()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">점검 이력</span>
@@ -2106,7 +2233,7 @@
 
 <!-- D21 판매완료 알림 확인 모달 -->
 <div class="modal" x-show="showSoldOutAlert" x-cloak>
-    <div class="modal-backdrop" @click="closeSoldOutAlert()"></div>
+    <div class="modal-backdrop"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">알림</span>

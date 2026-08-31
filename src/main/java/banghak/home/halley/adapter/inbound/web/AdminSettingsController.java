@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import banghak.home.halley.adapter.inbound.web.dto.GroupRenameRequest;
 import banghak.home.halley.adapter.inbound.web.dto.GroupResponse;
 import banghak.home.halley.application.service.GroupService;
+import banghak.home.halley.application.service.StressRateService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,17 +39,20 @@ public class AdminSettingsController {
     private final ListingCheckJob listingCheckJob;
     private final RegulationAdminService regulationAdminService;
     private final GroupService groupService;
+    private final StressRateService stressRateService;
 
     public AdminSettingsController(SystemConfigService systemConfigService,
                                    NotificationService notificationService,
                                    ListingCheckJob listingCheckJob,
                                    RegulationAdminService regulationAdminService,
-                                   GroupService groupService) {
+                                   GroupService groupService,
+                                   StressRateService stressRateService) {
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
         this.listingCheckJob = listingCheckJob;
         this.regulationAdminService = regulationAdminService;
         this.groupService = groupService;
+        this.stressRateService = stressRateService;
     }
 
     @GetMapping("/settings")
@@ -62,6 +66,24 @@ public class AdminSettingsController {
     }
 
     // ── 규제 파라미터·규제지역 (설계 I68) ─────────
+
+    /**
+     * 기준 스트레스 금리를 한국은행 통계로 다시 산출한다 (설계 I116).
+     *
+     * <p>월 1회 자동으로 돌지만, 규제가 바뀌었거나 값을 확인하고 싶을 때 손으로 부릅니다.
+     * 산출하지 못하면(키 미설정·조회 실패) <b>기존 값을 그대로 둡니다.</b>
+     */
+    @PostMapping("/stress-rate/refresh")
+    public Map<String, Object> refreshStressRate() {
+        return stressRateService.refresh()
+                .map(d -> Map.<String, Object>of(
+                        "refreshed", true,
+                        "stressRate", d.stressRate(),
+                        "source", d.source()))
+                .orElse(Map.of(
+                        "refreshed", false,
+                        "message", "산출하지 못했습니다. 기존 값을 그대로 씁니다 (키 미설정이거나 조회 실패)"));
+    }
 
     @GetMapping("/regulations")
     public RegulationProfileResponse regulations() {

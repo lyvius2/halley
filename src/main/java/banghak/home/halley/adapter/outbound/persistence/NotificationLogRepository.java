@@ -18,6 +18,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.Notification
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.EVENT_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.PAYLOAD;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.PAYLOAD_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.PROPERTY_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.RETRY_COUNT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.NotificationLogTable.SENT_AT;
@@ -123,7 +124,7 @@ public class NotificationLogRepository {
                 toEnum(NotificationStatus.class, r.get(STATUS)),
                 r.get(RETRY_COUNT),
                 r.get(ERROR_MESSAGE),
-                toJsonNode(r.get(PAYLOAD), objectMapper),
+                toJsonNode(r.get(PAYLOAD_RAW), objectMapper),
                 toInstant(r.get(CREATED_AT)),
                 toInstant(r.get(SENT_AT))
         );

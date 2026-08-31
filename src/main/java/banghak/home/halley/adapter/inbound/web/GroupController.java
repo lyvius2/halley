@@ -2,6 +2,7 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.GroupInviteResponse;
 import banghak.home.halley.adapter.inbound.web.dto.GroupRenameRequest;
+import banghak.home.halley.adapter.inbound.web.dto.GroupDetailResponse;
 import banghak.home.halley.adapter.inbound.web.dto.GroupResponse;
 import banghak.home.halley.adapter.inbound.web.dto.GroupWebhookRequest;
 import banghak.home.halley.adapter.inbound.web.dto.JoinGroupRequest;
@@ -35,6 +36,12 @@ public class GroupController {
     }
 
     /** 그룹 이름은 그 그룹의 누구나 바꾼다 (설계 I87). */
+    /** 그룹 정보 화면 (설계 I123). 구성원·현금 합계·매물 수를 한 번에 준다. */
+    @GetMapping("/me/detail")
+    public GroupDetailResponse myGroupDetail() {
+        return groupService.myGroupDetail();
+    }
+
     @PutMapping("/me")
     public GroupResponse rename(@RequestBody GroupRenameRequest request) {
         return groupService.rename(request.name());

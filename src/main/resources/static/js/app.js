@@ -106,7 +106,7 @@ function halley() {
         itinPlan: null,
         _itinMarkers: {},
         _itinPolyline: null,
-        sessionExpiresAt: 0,
+        sessionExpiresAt: null,
         _sessionTimer: null,
         showSessionWarn: false,
         showUserForm: false,
@@ -224,6 +224,8 @@ function halley() {
         groupForm: { name: '', slackWebhookUrl: '' },
         joinForm: { code: '' },
         inviteCode: null,
+        // 그룹 정보 화면이 쓰는 상세 (설계 I123)
+        groupDetail: null,
         withdrawForm: { password: '' },
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
@@ -313,8 +315,11 @@ function halley() {
             const { ok, body } = await this.request('/api/auth/session');
             if (ok) {
                 this.session = Object.assign({ authenticated: true }, body);
+                // 남은 시간을 모를 수도 있다. 0을 넣으면 tickSession이 '이미 만료'로 읽어
+                // 15초 만에 로그아웃시킨다 (설계 I120) — 임시 비밀번호 변경 화면이
+                // 갑자기 로그인 화면으로 바뀌던 원인이다. 모르는 것과 만료된 것은 다르다
                 this.sessionExpiresAt = body.expiresInSeconds != null
-                    ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                    ? Date.now() + body.expiresInSeconds * 1000 : null;
                 this.startSessionTimer();
                 this.showLogin = false;
                 this.showPassword = body.mustChangePassword === true;
@@ -350,6 +355,9 @@ function halley() {
             }
             if (view === 'me') {
                 this.loadProfile();
+            }
+            if (view === 'group') {
+                this.loadGroupDetail();
             }
             if (view === 'itinerary') {
                 this.loadStartLocation();
@@ -624,6 +632,10 @@ function halley() {
             });
             if (ok) {
                 this.myGroup = body;
+                // 화면에 띄운 상세도 같이 맞춘다 — 안 그러면 위쪽 배지만 바뀐다
+                if (this.groupDetail) {
+                    this.groupDetail = { ...this.groupDetail, name: body.name };
+                }
             } else {
                 this.error = (body && body.message) || '그룹 이름을 바꾸지 못했습니다';
             }
@@ -638,6 +650,9 @@ function halley() {
             });
             if (ok) {
                 this.myGroup = body;
+                if (this.groupDetail) {
+                    this.groupDetail = { ...this.groupDetail, slackWebhookUrl: body.slackWebhookUrl };
+                }
             } else {
                 this.error = (body && body.message) || '웹훅을 저장하지 못했습니다';
             }
@@ -651,8 +666,20 @@ function halley() {
                 : '테스트 메시지를 보내지 못했습니다. 웹훅 주소를 확인해 주세요';
         },
 
+        /** 그룹 정보 화면 (설계 I123). 구성원·현금 합계·매물 수를 한 번에 받는다. */
+        async loadGroupDetail() {
+            const { ok, body } = await this.withLoading('groupDetail',
+                () => this.request('/api/groups/me/detail'));
+            this.groupDetail = ok ? body : null;
+            if (this.groupDetail) {
+                this.groupForm.name = this.groupDetail.name || '';
+                this.groupForm.slackWebhookUrl = this.groupDetail.slackWebhookUrl || '';
+            }
+        },
+
         async createInvite() {
-            const { ok, body } = await this.request('/api/groups/me/invites', { method: 'POST' });
+            const { ok, body } = await this.withLoading('invite',
+                () => this.request('/api/groups/me/invites', { method: 'POST' }));
             if (ok) {
                 this.inviteCode = body;
             } else {
@@ -1668,7 +1695,7 @@ function halley() {
                 if (ok) {
                     this.session = Object.assign({ authenticated: true }, body);
                     this.sessionExpiresAt = body.expiresInSeconds != null
-                        ? Date.now() + body.expiresInSeconds * 1000 : 0;
+                        ? Date.now() + body.expiresInSeconds * 1000 : null;
                     this.startSessionTimer();
                     this.loginForm = { loginId: '', password: '' };
                     this.showLogin = false;
@@ -1723,7 +1750,7 @@ function halley() {
             }
             this.stopSessionTimer();
             this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
-            this.sessionExpiresAt = 0;
+            this.sessionExpiresAt = null;
             this.users = [];
             this.properties = [];
             this.visibleProperties = [];
@@ -1754,6 +1781,10 @@ function halley() {
             if (!this.session.authenticated) {
                 return;
             }
+            // 만료 시각을 모르면 아무 판단도 하지 않는다 (설계 I120)
+            if (this.sessionExpiresAt == null) {
+                return;
+            }
             const remain = this.sessionExpiresAt - Date.now();
             if (remain <= 0) {
                 this.logout();
@@ -1772,7 +1803,8 @@ function halley() {
         async loadProperties() {
             const url = '/api/properties'
                 + (this.dealTypeFilter !== 'ALL' ? '?dealType=' + this.dealTypeFilter : '');
-            const { ok, body } = await this.request(url);
+            // 목록이 오기 전에는 '등록된 매물이 없습니다'가 떠서 정말 없는 줄 알았다 (설계 I122)
+            const { ok, body } = await this.withLoading('properties', () => this.request(url));
             if (ok) {
                 this.properties = body || [];
                 this.applySoldOutFilter();
@@ -2611,6 +2643,85 @@ function halley() {
             }
         },
 
+        /**
+         * Esc로 맨 위 모달을 닫는다 (설계 I122).
+         *
+         * <p>배경을 클릭해도 닫히던 것을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러
+         * <b>입력이 통째로 사라지는</b> 일이 있었습니다. 대신 Esc를 남겨 빠른 탈출은
+         * 그대로 둡니다.
+         *
+         * <p><b>순서가 중요합니다.</b> 겹쳐 뜬 모달은 위에 있는 것부터 닫아야 합니다 —
+         * 아래 것을 먼저 닫으면 위에 뜬 모달만 남아 배경 없이 떠 있게 됩니다.
+         *
+         * <p>초기 설정(비밀번호·프로필)은 닫지 않습니다. 끝내야 넘어갈 수 있는 화면이라
+         * Esc로 빠져나가면 아무것도 못 하는 상태가 됩니다.
+         */
+        closeTopModal() {
+            const stack = [
+                ['photoViewerIndex', () => this.closePhotoViewer()],
+                ['showUserForm', () => this.closeUserForm()],
+                ['showAddMenu', () => this.closeAddMenu()],
+                ['confirmState', () => this.confirmNo()],
+                ['showScoreModal', () => this.closeScoreModal()],
+                ['showLoanModal', () => this.closeLoanModal()],
+                ['showRefModal', () => this.closeRefModal()],
+                ['showComments', () => this.closeComments()],
+                ['showAgentModal', () => this.closeAgentModal()],
+                ['showPhotoModal', () => this.closePhotoModal()],
+                ['showRoadview', () => this.closeRoadview()],
+                ['showPasteModal', () => this.closePasteModal()],
+                ['showDraftModal', () => this.closeDraftModal()],
+                ['showPropertyForm', () => this.closePropertyForm()],
+                ['showM2', () => this.closeDetail()],
+                ['showCompare', () => this.closeCompare()],
+                ['showCheckLogs', () => this.closeCheckLogs()],
+                ['showSoldOutAlert', () => this.closeSoldOutAlert()],
+                ['showUsers', () => this.closeUsers()],
+                ['showSettings', () => this.closeSettings()],
+                ['showChangePw', () => this.closeChangePw()],
+            ];
+            for (const [flag, close] of stack) {
+                // photoViewerIndex 는 안 열렸을 때 -1 이다. 0도 '열림'이므로 >= 0 으로 본다
+                const open = flag === 'photoViewerIndex' ? this[flag] >= 0 : !!this[flag];
+                if (open) {
+                    close();
+                    return;
+                }
+            }
+        },
+
+        /**
+         * 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121).
+         *
+         * 쾌적함은 직접 가 보지 않으면 매길 수 없는 항목이라, 점수가 있다는 것은
+         * 임장을 다녀왔다는 뜻이다. 따로 '다녀옴' 칸을 두면 사람이 또 눌러야 한다.
+         */
+        hasVisited(scored) {
+            return (scored?.scores || []).some(
+                s => s.code === 'COMFORT' && s.effectiveScore != null);
+        },
+
+        /**
+         * 미산출 항목을 다시 계산한다 (설계 I119).
+         *
+         * 미산출은 대개 그때 외부 조회가 실패한 것이고, 실패는 저장하지 않으므로
+         * 다시 채점하면 다시 시도한다. 직장 좌표를 넣은 뒤 여기서 바로 되살릴 수 있다.
+         */
+        async recomputeScores() {
+            const id = this.scoreProperty?.property?.id;
+            if (!id) {
+                return;
+            }
+            const { ok, body } = await this.withLoading('recompute',
+                () => this.request(`/api/properties/${id}/scores/recompute`, { method: 'POST' }));
+            if (ok && body) {
+                this.applyScoreForm(body);
+                await this.loadProperties();
+            } else {
+                this.error = '재산출에 실패했습니다';
+            }
+        },
+
         /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */
         applyScoreForm(scored) {
             this.scoreProperty = scored;
@@ -2619,12 +2730,13 @@ function halley() {
                 // 추정값을 기본으로 채워 둔다. 예전에는 '추정값 확정' 버튼을 눌러야 들어갔는데,
                 // 안 누르면 추정이 저장되지 않아 채점이 비는 것과 같았다.
                 // 사용자는 여기서 자유롭게 고쳐 쓴다 (설계 I76)
-                if (s.manualScore != null) {
+                if (s.code === 'COMFORT') {
+                    // 쾌적함은 사람마다 따로 매긴다 (설계 I118). 그룹 평균이 아니라
+                    // 내가 매긴 값을 채운다 — 남이 매긴 값을 채우면 내가 매긴 줄 안다.
+                    // 1~5 척도라 100점 만점 추정값을 넣어서도 안 된다
+                    form[s.code] = s.myScore != null ? String(s.myScore) : '';
+                } else if (s.manualScore != null) {
                     form[s.code] = String(s.manualScore);
-                } else if (s.code === 'COMFORT') {
-                    // 쾌적함은 1~5 척도라 100점 만점 추정값을 넣으면 안 된다.
-                    // 애초에 사람만 매기는 항목이므로 비워 둔다
-                    form[s.code] = '';
                 } else {
                     form[s.code] = s.effectiveScore != null ? String(s.effectiveScore) : '';
                 }

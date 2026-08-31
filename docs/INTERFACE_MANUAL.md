@@ -1,6 +1,10 @@
 # Halley 외부 인터페이스 매뉴얼
 
-> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, Claude)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
+> **최종 갱신**: 2026-08-31 · 연동 11건 사용 중 · 3건 설계 예정
+> **[설계 예정]** 표시가 붙은 절은 아직 코드가 없습니다 — 규격 검토 단계입니다.
+
+> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, 법제처, 금감원, 한국은행 ECOS, Claude)의
+> 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
 > 수치는 실제 코드(`src/main/resources/application.yaml`, 각 `@FeignClient`, `config/`)와 정합합니다.
 > 인터페이스 아키텍처 원칙은 `docs/DESIGN.md` 2.5(외부 연동은 port/어댑터)를 따릅니다.
 
@@ -14,14 +18,23 @@
 | **카카오 로컬 REST** | 주소→좌표 지오코딩 · POI 반경검색(채점용) | 서버(Feign) | REST 키(`Authorization: KakaoAK …`) | `KAKAO_REST_KEY` | `KakaoLocalFeignClient` | 사용 중 |
 | **카카오 Directions** | 자가용 이동시간·경로선(임장 플래너) | 서버(Feign) | REST 키(`KakaoAK`, 재사용) | `KAKAO_REST_KEY` | `KakaoDirectionsFeignClient` | 사용 중 |
 | **ODsay** | 대중교통 경로(직주근접 채점) | 서버(Feign) | `apiKey` 쿼리 파라미터 | `ODSAY_API_KEY` | `OdsayTransitFeignClient` | 사용 중 |
-| **Slack Incoming Webhook** | 알림(매물 등록 등) | 서버(Feign) | Webhook URL 자체가 인증 | `SLACK_WEBHOOK_URL` | `SlackWebhookClient` | 사용 중(선택) |
+| **Slack Incoming Webhook** | 그룹별 알림(등록·삭제·코멘트·쾌적함) | 서버(Feign) | Webhook URL 자체가 인증 | **DB** `user_group.slack_webhook_url` | `SlackWebhookClient` | 사용 중(그룹별 선택) |
 | **국토부 실거래가** | 최근 실거래 참고 카드(M2) — **채점 미반영** | 서버(Feign) | 서비스 키(`serviceKey`) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient` | 사용 중(참고 전용) |
 | **V-World 공시가격** | 공동주택·개별주택 공시가격(M2) — **채점 미반영** | 서버(Feign) | 인증키(`key`) | `HOUSING_PRICE_API_KEY` | `VworldHousingPriceFeignClient` | 사용 중(참고 전용) |
 | **V-World 토지이용계획** | 토지거래허가구역·정비구역 등(M2) | 서버(Feign) | 인증키(`key`, 공유) | `HOUSING_PRICE_API_KEY` | `VworldLandUseFeignClient` | 사용 중(참고 전용) |
 | **Claude (LLM)** | AI 추천도 — **채점 반영** | 서버(Feign) | `x-api-key` 헤더 | `ANTHROPIC_API_KEY` | `ClaudeFeignClient` | 사용 중 |
-| **금감원 주담대** | 은행별 금리·기간·상환방식 (대출 계산) | 서버(Feign) | `auth` 쿼리 파라미터 | `FSS_API_KEY` | — | **설계 예정** (5.8) |
+| **금감원 주담대** | 은행별 금리·기간·상환방식 (대출 계산) | 서버(Feign) | `auth` 쿼리 파라미터 | `FSS_API_KEY` | `FssFeignClient` | 사용 중 (5.8) |
+| **법제처 국가법령정보** | 규제지역 고시 원문 → 투기과열지구·조정대상지역 | 서버(Feign) | `OC` 쿼리 파라미터 | `LAW_OC` | `LawNoticeFeignClient` | 사용 중 (5.9) |
+| **한국은행 ECOS** | 가계대출 금리 5년 → 스트레스 DSR 기준 금리 | 서버(Feign) | 인증키(**URL 경로**) | `ECOS_KEY` | `EcosFeignClient` | 사용 중 (5.10) |
+| **국토부 건축물대장** | 연면적·대지면적·용적률 → 재건축 여력 | 서버(Feign) | 서비스 키(`serviceKey`, 재사용) | `MINISTRY_API_KEY` | — | **설계 예정** (5.11) |
+| **네이버 검색(뉴스)** | 관련 기사 링크 목록 — **점수 미반영** | 서버(Feign) | Client ID/Secret 헤더 | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | — | **설계 예정** (5.12) |
+| **국토부 전월세 실거래** | 전세가율 산출 | 서버(Feign) | 서비스 키(재사용) | `MINISTRY_API_KEY` | — | **설계 예정** (5.13) |
 
-> **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·Webhook URL·국토부 키는 **전량 서버 보관**입니다. 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
+> **키 보관 원칙 (설계 8장)**: REST 키·ODsay 키·국토부 키는 **전량 서버 보관**입니다.
+> 클라이언트에는 카카오 **JS 키만** 노출됩니다. `raw_paste_text`를 포함해 어떤 데이터도 외부로 전송하지 않습니다.
+>
+> **Slack Webhook URL은 환경변수가 아니라 DB에 있습니다** — 그룹마다 다르기 때문입니다(설계 I96).
+> `user_group.slack_webhook_url`에 저장되고 그룹 정보 화면에서 관리합니다.
 
 ---
 
@@ -46,7 +59,7 @@
    - `REST API 키` → `KAKAO_REST_KEY`
 4. **플랫폼 설정** → Web 플랫폼에 도메인 등록 (지도가 렌더되지 않으면 이 단계 누락):
    - `http://localhost:8080`
-   - `https://cena.furaiki-lifelog.com`
+   - `https://halley.furaiki-lifelog.com`
 5. 로컬/운영 각 환경의 환경변수에 주입
 
 ### 2.3 설정 키
@@ -203,7 +216,8 @@ Webhook은 생성 시점에 **채널이 고정**되므로 채널 변경은 새 W
 
 1. [Slack API](https://api.slack.com/apps) → **Create New App** → *From scratch* → 앱 이름/워크스페이스 선택
 2. 좌측 **Incoming Webhooks** → 활성화 → **Add New Webhook to Workspace** → 알림을 받을 채널 선택 → **Allow**
-3. 생성된 **Webhook URL**을 `SLACK_WEBHOOK_URL` 환경변수로 주입
+3. 생성된 **Webhook URL**을 **그룹 정보 화면**에 붙여넣습니다 (설계 I96).
+   환경변수가 아니라 DB(`user_group.slack_webhook_url`)에 그룹마다 따로 저장됩니다.
 4. (선택) 알림 활성화: `SLACK_ENABLED=true`, `SLACK_NOTIFY_PROPERTY_CREATED=true`
 
 ### 4.3 설정 키
@@ -211,7 +225,7 @@ Webhook은 생성 시점에 **채널이 고정**되므로 채널 변경은 새 W
 | application.yaml 키 | 환경변수 | 기본값 | 설명 |
 |---|---|---|---|
 | `slack.enabled` | `SLACK_ENABLED` | `false` | 알림 전체 활성화 |
-| `slack.webhook-url` | `SLACK_WEBHOOK_URL` | (없음) | Incoming Webhook URL |
+| ~~`slack.webhook-url`~~ | — | — | **I96에서 DB로 이동** — `user_group.slack_webhook_url` |
 | `slack.notify.property-created` | `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림 여부 |
 
 **서킷브레이커/타임아웃**: `slack-webhook` connect 5s / read 15s(default), 실패율 30%, open 60s
@@ -822,6 +836,160 @@ GET https://finlife.fss.or.kr/finlifeapi/mortgageLoanProductsSearch.json
   일 허용횟수(`020`)가 있는 API다.
 - 금리를 못 받으면 규제 파라미터의 기본 금리로 떨어뜨린다 — 대출 계산 자체는 계속 돌아야 한다.
 - 키 미설정과 조회 실패를 **구분해 로그로 남긴다.** 구분되지 않으면 원인을 찾을 수 없다.
+
+---
+
+## 5.10 한국은행 ECOS — 가계대출 금리 시계열 (설계 I116)
+
+스트레스 DSR의 기준 금리를 만드는 재료입니다.
+`clamp(과거 5년 최고 가계대출금리 − 현재 금리, 1.5%, 3.0%)`.
+
+### 요청
+
+```
+GET https://ecos.bok.or.kr/api/StatisticSearch/{KEY}/json/kr/{start}/{end}/{statCode}/{cycle}/{from}/{to}
+```
+
+| 조각 | 값 | 비고 |
+|---|---|---|
+| `KEY` | `ECOS_KEY` | **URL 경로에 들어갑니다** |
+| `start` / `end` | `1` / `1000` | 행 범위. 5년치 60행이라 넉넉하다 |
+| `statCode` | `121Y006` | 예금은행 대출금리(신규취급액 기준) |
+| `cycle` | `M` | 월 |
+| `from` / `to` | `202101` / `202601` | 주기에 맞춘 형식 |
+
+> **인증키가 쿼리 파라미터가 아니라 경로 조각입니다.** URL을 통째로 로그에 남기면
+> 키가 새어 나갑니다 — 어댑터와 FallbackFactory 어디에서도 URL을 찍지 않습니다.
+
+### 항목 코드 — 하나만 골라야 합니다
+
+한 통계 안에 여러 항목이 섞여 옵니다. `ITEM_CODE1`으로 거르지 않으면 **기업대출 금리가
+들어옵니다.**
+
+| 코드 | 항목 |
+|---|---|
+| `BECBLA01` | 대출평균 |
+| `BECBLA02` | 기업대출 |
+| **`BECBLA03`** | **가계대출** ← 규제 문구가 말하는 것 |
+| `BECBLA0302` | 주택담보대출 |
+| `BECBLA030202` | 변동형 주택담보대출 |
+
+`ecos.item-code.household-loan` 프로퍼티로 둡니다. 한국은행이 체계를 바꾸면 설정만 고칩니다.
+
+### 응답
+
+```json
+{"StatisticSearch":{"list_total_count":95,"row":[
+  {"STAT_CODE":"121Y006","ITEM_CODE1":"BECBLA03","ITEM_NAME1":"가계대출",
+   "UNIT_NAME":"연%","TIME":"202401","DATA_VALUE":"4.82"}
+]}}
+```
+
+- **`DATA_VALUE`는 퍼센트입니다** (`UNIT_NAME: 연%`). 어댑터 경계에서 100으로 나눠
+  소수로 담습니다 — 여기서 통일하지 않으면 계산이 100배 어긋납니다.
+- **인증 실패도 HTTP 200입니다.** 본문에 `RESULT.CODE`가 실립니다. V-World와 같은 성질이라
+  Feign 예외만으로는 실패를 알 수 없어 본문을 먼저 확인합니다.
+
+### 실패했을 때
+
+**기존 `loan.stressRate` 값을 그대로 둡니다.** 0으로 떨어뜨리면 스트레스가 사라져
+한도가 실제보다 넉넉하게 나옵니다 — 조용히 낙관적으로 틀리는 쪽이라 가장 위험합니다.
+
+---
+
+## 5.11 국토부 건축물대장 — 연면적·용적률 **[설계 예정]**
+
+재건축 여력(`조례 상한 용적률 − 현재 용적률`)을 **추정이 아니라 실측**으로 구하려는 것입니다
+(`docs/PRICE_FORECAST.md` 4-A.2).
+
+### 요청
+
+```
+GET https://apis.data.go.kr/1613000/BldRgstHubService/getBrTitleInfo
+  ?serviceKey={MINISTRY_API_KEY}&sigunguCd=&bjdongCd=&bun=&ji=&_type=json&numOfRows=100
+```
+
+**PNU 19자리를 쪼개서 넣습니다.** 이미 갖고 있습니다(설계 I54).
+
+```
+41597 10500 1 0525 0000
+sigunguCd(5) bjdongCd(5) 산여부(1) bun(4) ji(4)
+```
+
+### 받을 값
+
+| 필드 | 뜻 | 쓸모 |
+|---|---|---|
+| `platArea` | 대지면적 | 용적률 분모 |
+| `totArea` | 연면적 | |
+| `vlRatEstmTotArea` | 용적률 산정 연면적 | **이것이 분자다** — `totArea`와 다르다 |
+| `vlRat` | 용적률 | 대장에 계산돼 있으면 그대로 쓴다 |
+| `bcRat` | 건폐율 | |
+| `useAprDay` | 사용승인일 | 연식 검증 |
+
+> **`totArea`가 아니라 `vlRatEstmTotArea`입니다.** 지하층·주차장은 용적률 산정에서 빠지므로
+> 연면적을 그대로 쓰면 용적률이 부풀려집니다. 대장에 `vlRat`이 이미 있으면 그것을 씁니다.
+
+> **표제부는 동(棟)마다 한 행입니다.** 단지에 동이 여러 개면 여러 행이 옵니다.
+> 대지면적은 단지 전체 값이므로 **연면적만 합산**하고 대지면적은 중복 더하지 않습니다.
+
+### 확인이 필요한 것
+
+**엔드포인트 경로와 오퍼레이션 이름은 data.go.kr에서 확인하십시오.** 이 서비스는
+`BldRgstService_v2` 등으로 개편된 이력이 있어 위 경로가 현재도 유효한지 실호출로
+검증해야 합니다 — 국토부 실거래가에서 겪은 것과 같은 종류의 함정입니다.
+
+---
+
+## 5.12 네이버 검색 (뉴스) — 관련 기사 링크 **[설계 예정]**
+
+**점수에 반영하지 않습니다.** 제목·날짜·출처·링크만 보여 주고 판단은 사람이 합니다
+(`docs/PRICE_FORECAST.md` 4-B).
+
+### 요청
+
+```
+GET https://openapi.naver.com/v1/search/news.json?query={단지명 지역명}&display=10&sort=date
+Headers:
+  X-Naver-Client-Id: {NAVER_CLIENT_ID}
+  X-Naver-Client-Secret: {NAVER_CLIENT_SECRET}
+```
+
+### 응답 다룰 때
+
+```json
+{"items":[{"title":"<b>◯◯역</b> 복합환승센터 착공",
+           "originallink":"https://…","link":"https://n.news.naver.com/…",
+           "description":"…","pubDate":"Sat, 12 Jul 2026 09:00:00 +0900"}]}
+```
+
+- **`title`·`description`에 `<b>` 태그가 섞여 옵니다.** 그대로 렌더하면 HTML 주입 통로가
+  됩니다 — <b>태그를 걷어내고 텍스트로만</b> 다룹니다.
+- `pubDate`는 RFC 1123 형식입니다.
+- `originallink`(원 언론사)와 `link`(네이버 뉴스)가 다릅니다. **출처를 보여 주려면
+  `originallink`의 도메인**을 씁니다.
+
+### 반드시 지킬 것
+
+> **검색 결과를 LLM 프롬프트에 넣지 마십시오.** 웹 내용은 신뢰할 수 없는 입력이고,
+> 그 출력은 수억 원짜리 판단에 들어갑니다. 프롬프트 주입 통로가 됩니다.
+> 그리고 결과가 매번 바뀌어 프롬프트 해시 중복 방지(I59)가 무력화됩니다.
+
+---
+
+## 5.13 국토부 전월세 실거래 — 전세가율 **[설계 예정]**
+
+매매 실거래와 **같은 서비스의 다른 오퍼레이션**입니다. 인증키를 재사용합니다.
+
+```
+전세가율 = 전세 실거래 중앙값 / 매매 실거래 중앙값
+```
+
+- 매매와 **같은 면적대**로 맞춰야 합니다. 84㎡ 전세와 115㎡ 매매를 나누면 의미가 없습니다.
+- 보증금만 있는 순수 전세만 씁니다 — 월세가 섞인 반전세는 보증금이 낮아 비율을 왜곡합니다.
+- 매매·전세 어느 한쪽이 3건 미만이면 **내지 않습니다.**
+
+> 이 앱은 월세를 취급하지 않습니다(설계 I94). 전월세 API는 **전세가율 계산 재료로만** 씁니다.
 
 ---
 

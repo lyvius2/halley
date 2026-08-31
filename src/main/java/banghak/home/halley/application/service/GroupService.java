@@ -1,6 +1,7 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.GroupInviteResponse;
+import banghak.home.halley.adapter.inbound.web.dto.GroupDetailResponse;
 import banghak.home.halley.adapter.inbound.web.dto.GroupResponse;
 import banghak.home.halley.adapter.outbound.persistence.GroupInviteRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
@@ -69,6 +70,34 @@ public class GroupService {
     public GroupResponse myGroup() {
         final Long groupId = accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
         return toResponse(userGroupRepository.findById(groupId).orElseThrow(GroupNotFoundException::new));
+    }
+
+    /**
+     * 그룹 정보 화면용 상세 (설계 I123).
+     *
+     * <p>구성원과 매물 수까지 한 번에 담습니다. 화면이 값마다 따로 부르면
+     * 느린 DB에서 왕복이 그만큼 늘어납니다.
+     */
+    public GroupDetailResponse myGroupDetail() {
+        final Long groupId = accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+        final UserGroup group = userGroupRepository.findById(groupId).orElseThrow(GroupNotFoundException::new);
+        final List<User> members = userRepository.findByGroupId(groupId);
+        final long totalCash = members.stream()
+                .filter(User::enabled)
+                .mapToLong(User::cashOrZero)
+                .sum();
+        return new GroupDetailResponse(
+                group.id(), group.name(), group.slackWebhookUrl(),
+                (int) members.stream().filter(User::enabled).count(),
+                totalCash,
+                propertyRepository.findByGroupId(groupId).size(),
+                members.stream()
+                        .sorted(java.util.Comparator.comparing(User::nickname))
+                        .map(u -> new GroupDetailResponse.Member(
+                                u.id(), u.nickname(), u.workplaceName(),
+                                u.cashOrZero(), u.enabled()))
+                        .toList(),
+                group.createdAt());
     }
 
     /** 그룹 이름은 <b>그 그룹의 누구나</b> 바꾼다 (설계 I87). */
