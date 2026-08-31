@@ -1,8 +1,38 @@
 # 부동산 평가 애플리케이션 설계서 (v0.1 Draft)
 
 > **문서 목적**: 요구사항을 구현 가능한 수준으로 구체화하고, 기술 선택의 근거와 미해결 이슈를 명시한다.
-> **작성일**: 2026-08-24
+> **작성일**: 2026-08-24 · **최종 갱신**: 2026-08-31 (I1~I125)
 > **스택**: Java 25 / Spring Boot 4.1.x / Mustache / PostgreSQL / Alpine.js
+
+---
+
+## 0. 이 문서를 읽는 법
+
+**두 겹으로 되어 있습니다.**
+
+| 장 | 성격 | 읽는 법 |
+|---|---|---|
+| 1~15장 | **처음 세운 설계** | 그때의 판단이다. 이후 뒤집힌 곳이 있다 |
+| **16장 (I1~I125)** | **결정 이력** | <b>여기가 현행입니다.</b> 뒤 번호가 앞 번호를 이긴다 |
+
+> **충돌하면 큰 번호가 맞습니다.** 앞 장을 지우지 않는 이유는 <b>왜 바뀌었는지</b>가
+> 남아야 같은 실수를 되풀이하지 않기 때문입니다. 뒤집힌 곳에는 `→ I94` 처럼
+> 이긴 결정을 달아 두었습니다.
+
+**코드 주석의 `(설계 I117)` 표기는 16장의 해당 항목을 가리킵니다.**
+무엇을 했는지는 코드에 있고, **왜 그렇게 했는지**가 거기 있습니다.
+
+### 크게 뒤집힌 것들
+
+| 처음 | 지금 | 결정 |
+|---|---|---|
+| 2인 전용 | **그룹 단위** (1인 1그룹 · 초대 코드) | I87~I91 |
+| 로그인 = 이메일 | 로그인 = `login_id`, 이메일 폐지 | I74 |
+| 거래유형에 월세 포함 | 매매·전세만 | I94 |
+| Slack Webhook = 환경변수 | **DB · 그룹마다 다름** | I96 |
+| 채점 12개 항목 | **14개** (AI 추천도 · 비교 우위 추가) | I59 · I61 |
+| 스트레스 금리 = 고정값 | 한국은행 ECOS로 산출 | I116 |
+| 실거래 1개월 조회 | 12개월 | I98 · I108 |
 
 ---
 
@@ -260,7 +290,7 @@ erDiagram
         bigint id PK
         varchar login_id UK "로그인 ID (I51)"
         varchar nickname UK
-        varchar email UK "연락처 — 최초 설정에서 입력
+        varchar email UK "폐지됨 → I74 (닉네임으로 대체)
         varchar password_hash
         varchar role "ADMIN | MEMBER"
         varchar workplace_name
@@ -282,9 +312,9 @@ erDiagram
         bigint id PK
         varchar name "단지명"
         varchar dong_ho "동/호"
-        varchar deal_type "SALE|JEONSE|MONTHLY"
+        varchar deal_type "SALE|JEONSE — MONTHLY는 I94에서 폐지"
         bigint price_deposit "매매가 or 보증금(원)"
-        bigint price_monthly "월세(원)"
+        bigint price_monthly "폐지됨 → I94"
         int maintenance_fee
         varchar address_road
         varchar address_jibun
@@ -482,9 +512,9 @@ erDiagram
 **거래 정보**
 | 필드 | 타입 | 비고 |
 |---|---|---|
-| 거래 유형 | enum | 매매 / 전세 / 월세 |
+| 거래 유형 | enum | 매매 / 전세 — **월세는 I94에서 폐지** |
 | 매매가·보증금 | bigint | 원 단위 저장, 표시는 억/만원 |
-| 월세 | bigint | 월세일 때만 |
+| ~~월세~~ | bigint | **I94에서 폐지** |
 | 관리비 | int | 포함 항목 별도 텍스트 |
 | 융자금 | bigint | optional |
 
@@ -687,7 +717,7 @@ sequenceDiagram
     alt 사용자 0명
         Boot->>Boot: SecureRandom 16자 비밀번호 생성
         Boot->>DB: INSERT admin (must_change_password=true)
-        Boot->>Log: ★ 초기 관리자 계정 ★<br/>email / password 출력
+        Boot->>Log: ★ 초기 관리자 계정 ★<br/>login_id / password 출력 (I74)
     end
     U->>API: POST /api/auth/login
     API-->>U: 200 { mustChangePassword: true }
@@ -778,7 +808,7 @@ sequenceDiagram
 |---|---|---|---|
 | M1 | `/` | 메인 (매물 비교) | 좌 리스트 3 : 우 지도 7 |
 | M2 | `/properties/:id` | 매물 상세 | **모달** (Session 16-I45 — 지도 위 슬라이드 패널에서 변경) |
-| M3 | — | 사용자 관리 | Admin 전용 **모달**, 표: ID·닉네임·이메일·역할·가용 예산·상태 (Session 16-I51) |
+| M3 | — | 사용자 관리 | Admin 전용 **모달**, 표: ID·닉네임·그룹·역할·보유 현금·연소득·상태 (I51 · 이메일은 I74에서 폐지) |
 | M4 | `/admin/criteria` | 평가 기준·가중치 | Admin 전용, 드래그 정렬 |
 | M5 | `/me` | 내 프로필 | 닉네임·직장 위치·비밀번호 |
 | M6 | — | 시스템 설정 | Admin 전용 **모달**, 섹션: 배치/대출 + Slack 테스트 + 알림 이력 (Session 16-I46) |
@@ -852,7 +882,7 @@ sequenceDiagram
 | D1 | 로그인 | 비인증 접근 | ALL | 배경 `backdrop-filter: blur(8px)`, 닫기 불가 |
 | D2 | 비밀번호 강제 변경 | `mustChangePassword` | ALL | ESC·배경클릭 차단, 서버에서도 차단 |
 | D3 | 세션 만료 경고 | 잔여 3분 | ALL | 연장 / 로그아웃 |
-| D4 | 사용자 생성 | M3 | ADMIN | 닉네임·이메일·비번·직장명·직장좌표 |
+| D4 | 사용자 생성 | M3 | ADMIN | 아이디·닉네임·비번·소속 그룹·직장명·직장좌표·보유 현금·연소득 (I74 · I100) |
 | D5 | 사용자 수정 | M3 | ADMIN | |
 | D6 | 사용자 삭제 확인 | M3 | ADMIN | 해당 사용자 채점 데이터 처리 방식 선택 |
 | D7 | 직장 위치 지정 | D4/D5/M5 | ALL | **지도 임베드 + 주소검색 + 핀 드래그** |
@@ -934,7 +964,7 @@ sequenceDiagram
 | 그룹 | 필드 |
 |---|---|
 | 식별 | 단지명, 동, **매물번호(`naverArticleNo`)** |
-| 거래 | 거래유형, 매매가/보증금/월세, 평당가, 융자금, 관리비 |
+| 거래 | 거래유형, 매매가/보증금, 평당가, 융자금, 관리비 (월세는 I94에서 폐지) |
 | 면적·구조 | 공급면적, 전용면적, 해당층/총층, 방/욕실, 향, 복층여부 |
 | 입주 | 입주가능일 유형, 입주가능일(초순/중순/하순 → 5/15/25일 추정) |
 | 단지 | 지번주소, 사용승인일, 연차, 세대수, 현관구조, 난방, **주차 세대당 대수**, 용적률/건폐율, 관리사무소 전화, 건설사 |
@@ -1479,10 +1509,14 @@ sequenceDiagram
 
 **Incoming Webhook + `application.yaml` 정의**로 확정합니다.
 
+> **⚠ 이 절은 I96에서 뒤집혔습니다.** Webhook URL은 이제 환경변수가 아니라
+> **DB(`user_group.slack_webhook_url`)** 에 있습니다 — 그룹마다 다른 채널로 보내야 하기
+> 때문입니다. 아래는 그렇게 바뀌기 전의 기록입니다. `slack.enabled`와 `notify.*`는 그대로입니다.
+
 ```yaml
 slack:
   enabled: true
-  webhook-url: ${SLACK_WEBHOOK_URL}      # 환경변수 주입
+  webhook-url: ${SLACK_WEBHOOK_URL}      # I96에서 DB로 이동
   notify:
     property-created: true
     sold-out: true
@@ -1549,7 +1583,7 @@ server:
 
 ### 14.3 PostgreSQL · MongoDB 사용 범위
 
-**PostgreSQL 단일 사용을 권합니다.** 반정형 데이터(`parse_confidence`, `path_summary`, `payload`)는 JSONB로 충분하고, 인덱싱·트랜잭션·조인이 한 곳에서 끝납니다. 2인용 앱에 DB 두 개를 운영하면 백업 경로도 두 개가 됩니다.
+**PostgreSQL 단일 사용을 권합니다.** 반정형 데이터(`parse_confidence`, `path_summary`, `payload`)는 JSONB로 충분하고, 인덱싱·트랜잭션·조인이 한 곳에서 끝납니다. 소수 사용자 앱에 DB 두 개를 운영하면 백업 경로도 두 개가 됩니다.
 
 MongoDB를 굳이 쓰신다면 후보는 다음 두 개입니다.
 

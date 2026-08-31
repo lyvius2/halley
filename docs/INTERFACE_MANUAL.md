@@ -1,6 +1,10 @@
 # Halley 외부 인터페이스 매뉴얼
 
-> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, Claude)의 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
+> **최종 갱신**: 2026-08-31 · 연동 11건 사용 중 · 3건 설계 예정
+> **[설계 예정]** 표시가 붙은 절은 아직 코드가 없습니다 — 규격 검토 단계입니다.
+
+> Halley가 연동하는 **모든 외부 API**(카카오, ODsay, Slack, 국토부, V-World, 법제처, 금감원, 한국은행 ECOS, Claude)의
+> 목적, 키 발급처, 설정 키, 호출 흐름을 정리한 문서입니다.
 > 수치는 실제 코드(`src/main/resources/application.yaml`, 각 `@FeignClient`, `config/`)와 정합합니다.
 > 인터페이스 아키텍처 원칙은 `docs/DESIGN.md` 2.5(외부 연동은 port/어댑터)를 따릅니다.
 
@@ -212,7 +216,8 @@ Webhook은 생성 시점에 **채널이 고정**되므로 채널 변경은 새 W
 
 1. [Slack API](https://api.slack.com/apps) → **Create New App** → *From scratch* → 앱 이름/워크스페이스 선택
 2. 좌측 **Incoming Webhooks** → 활성화 → **Add New Webhook to Workspace** → 알림을 받을 채널 선택 → **Allow**
-3. 생성된 **Webhook URL**을 `SLACK_WEBHOOK_URL` 환경변수로 주입
+3. 생성된 **Webhook URL**을 **그룹 정보 화면**에 붙여넣습니다 (설계 I96).
+   환경변수가 아니라 DB(`user_group.slack_webhook_url`)에 그룹마다 따로 저장됩니다.
 4. (선택) 알림 활성화: `SLACK_ENABLED=true`, `SLACK_NOTIFY_PROPERTY_CREATED=true`
 
 ### 4.3 설정 키
@@ -220,7 +225,7 @@ Webhook은 생성 시점에 **채널이 고정**되므로 채널 변경은 새 W
 | application.yaml 키 | 환경변수 | 기본값 | 설명 |
 |---|---|---|---|
 | `slack.enabled` | `SLACK_ENABLED` | `false` | 알림 전체 활성화 |
-| `slack.webhook-url` | `SLACK_WEBHOOK_URL` | (없음) | Incoming Webhook URL |
+| ~~`slack.webhook-url`~~ | — | — | **I96에서 DB로 이동** — `user_group.slack_webhook_url` |
 | `slack.notify.property-created` | `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림 여부 |
 
 **서킷브레이커/타임아웃**: `slack-webhook` connect 5s / read 15s(default), 실패율 30%, open 60s
