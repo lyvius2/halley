@@ -949,34 +949,280 @@ ECOS 가계대출금리(I116에서 이미 받고 있습니다)의 최근 12개�
 | 구현 | 내용 | 새 연동 | 비고 |
 |---|---|---|---|
 | **0** | `LlmMessage`에 `temperature` 추가 | 없음 | 전망은 0. 지금은 기본값 1.0이 나간다 |
-| **1** | **월별 실거래 캐시** `(법정동코드, 년월)` | 없음 | 3-A.3 — <b>기존 `reference_transaction`으로는 안 된다</b> |
+| **1** | **월별 실거래 캐시** `(법정동코드, 년월)` · DB | 없음 | 3-A.3 — <b>기존 `reference_transaction`으로는 안 된다</b> |
 | **2** | 60개월 병렬 수집 — 전용 게이트 | 없음 | 3-A.3 |
-| **3** | `TradeTrendIndicator` — 코드로만 | 없음 | **여기까지만 해도 쓸모가 있습니다** |
-| **4** | 저장 · 이벤트 · 폴링 | 없음 | I126 · 3-A.2 · 3-A.4 |
-| **5** | 화면 — 화살표 · 모달 | 없음 | 5장 |
-| **6** | 지표 추가 — 전세가율 · 금리 국면 · 용도지역 | 없음 | 4-A.1 · 4-A.4 — 재료가 이미 있다 |
-| **7** | **코드 예측기** (규칙 기반) | 없음 | 4.5 — 이중 예측의 한쪽 |
-| **8** | **LLM 판단·해석** + 안전장치 | 없음 | 2.2 · 2.2-A. 지표가 갖춰진 뒤에 |
+| **3** | `TradeTrendIndicator` — 실거래 추세 | 없음 | 4.1 |
+| **4** | 지표 추가 — 전세가율 · 금리 국면 · 용도지역 | 없음 | 4.2~4.4 · 4-A.1 — 재료가 이미 있다 |
+| **5** | **코드 예측기** (규칙 기반) | 없음 | 4.5 — 이중 예측의 한쪽 |
+| **6** | **LLM 판단·해석** + 안전장치 | 없음 | 2.2 · 2.2-A |
+| **7** | 저장 · 이벤트 · 폴링 | 없음 | I126 · 3-A.2 · 3-A.4 |
+| **8** | **화면** — 화살표 · 모달 | 없음 | 5장 |
 | 9 | 건축물대장 → 용적률 여유 | 국토부 1건 | 4-A.2 |
 | 10 | 관련 기사 링크 목록 (점수 미반영) | 네이버 검색 | 4-B |
 | 11 | 정비사업 단계 (서울부터) | 지자체별 | 4-A.3 — 커버가 안 되는 지역은 비워 둔다 |
 | 12 | 과거 전망 대비 실제 결과 | 없음 | 두 예측을 다 저장해 뒀으므로 가능하다 |
 
-**구현 1~8은 새 연동이 하나도 없습니다.** 이미 붙은 API와 이미 받아 놓고 안 쓰던 데이터입니다.
+**구현 0~8은 새 연동이 하나도 없습니다.** 이미 붙은 API와 이미 받아 놓고 안 쓰던 데이터입니다.
 
-**구현 3~5에서 멈춰도 됩니다.** "최근 6개월 중앙값이 12.1억에서 11.4억으로 내렸습니다"는
-그 자체로 유용하고, <b>틀릴 수 없는 사실</b>입니다. LLM은 그 위에 얹는 선택지입니다.
+#### 화면을 맨 뒤에 두는 이유
 
-> **구현 7(코드 예측)을 구현 8(LLM)보다 앞에 둔 이유**: 코드 예측은 구현 3·6의 지표를
-> 그대로 쓰므로 값이 쌉니다. 그리고 LLM을 붙이기 전에 <b>비교 대상이 먼저 있어야</b>
-> 모달의 참고 문구(5.2)가 첫날부터 동작합니다.
+**화살표의 뜻이 도중에 바뀌면 안 됩니다.** 화면을 먼저 만들면 그때는 코드 예측으로
+화살표가 뜨고, LLM을 붙이는 순간 <b>같은 매물의 화살표가 뒤집힐 수 있습니다</b> —
+게다가 LLM을 배포하면 프롬프트 해시가 없어 전 매물이 재계산되므로 <b>한꺼번에</b> 바뀝니다.
+
+> "어제는 하락이라더니 오늘은 상승"은 예측 화면의 신뢰를 크게 깎습니다.
+> 며칠 일찍 보는 것보다 그 대가가 큽니다.
+
+**지표 추가(구현 4)를 앞으로 당긴 이유**도 같은 맥락입니다. 요인이 추세 하나뿐이면
+LLM은 <b>그 추세를 되풀이할 뿐입니다.</b> 전세가율·금리가 같이 있어야
+"실거래는 오르는데 전세가율은 내린다" 같은 저울질이 생깁니다 — 그게 LLM을 쓰는 이유입니다.
+
+> **구현 8 전에도 검증은 됩니다.** `GET /api/properties/{id}/forecast`가 지표와 두 예측을
+> 돌려주므로 화면 없이도 값이 맞는지 확인할 수 있습니다.
+
+---
+
+## 7-A. 구현 0~8 상세
+
+각 구현은 **혼자서 검증 가능**해야 합니다. 앞 구현이 끝나면 다음으로 넘어가기 전에
+아래 `검증`을 통과시킵니다.
+
+---
+
+### 구현 0 — `temperature`
+
+**파일**
+
+```
+domain/llm/LlmMessage.java                          temperature 추가
+adapter/outbound/external/claude/ClaudeLlmAdapter   root.put("temperature", …)
+```
+
+`temperature`는 `Double`로 두고 **null이면 보내지 않습니다** — 기존 호출(AI 추천도·비교 우위)의
+동작을 바꾸지 않기 위해서입니다. 전망만 `0.0`을 넘깁니다.
+
+**검증**: 기존 테스트 전부 통과 + AI 추천도 응답이 예전과 같은 모양인지 실호출 1회.
+
+---
+
+### 구현 1 — 월별 실거래 캐시 (DB)
+
+**파일**
+
+```
+domain/reference/MonthlyTrades.java                 (lawdCd, dealYm, trades, fetchedAt)
+adapter/outbound/persistence/MonthlyTradeCacheRepository
+adapter/outbound/persistence/jdbc/MonthlyTradeCacheTable
+docs/DDL.sql · docs/DDL-repair.sql                  테이블 추가
+```
+
+```sql
+CREATE TABLE monthly_trade_cache (
+    lawd_cd     VARCHAR(5)  NOT NULL,
+    deal_ym     VARCHAR(6)  NOT NULL,
+    payload     JSONB,                    -- 국토부 원본 응답 그대로
+    trade_count INT         NOT NULL DEFAULT 0,
+    fetched_at  TIMESTAMP WITH TIME ZONE NOT NULL,
+    PRIMARY KEY (lawd_cd, deal_ym)
+);
+```
+
+> **`payload`를 읽을 때 타입을 못 박지 마십시오** — live는 `jsonb`, local은 `json`입니다(I117).
+> `Field<Object>` 짝을 두고 `toJsonNode(Object, …)`로 읽습니다.
+
+**갱신 규칙**
+
+```
+최근 3개월  →  fetched_at 이 24시간보다 오래됐으면 다시 받는다
+그 이전     →  다시 받지 않는다 (과거 달은 바뀌지 않는다)
+```
+
+**검증**: 같은 법정동으로 두 번 조회 → 두 번째는 국토부 호출 0회 (jOOQ 쿼리 로그로 확인).
+
+---
+
+### 구현 2 — 60개월 병렬 수집
+
+**파일**
+
+```
+application/service/ForecastTradeCollector.java
+config/VirtualThreadGate.java                       전망 전용 게이트 빈 추가
+application.yaml                                    forecast.* 프로퍼티
+```
+
+```yaml
+forecast:
+  lookback-months: ${FORECAST_LOOKBACK_MONTHS:60}
+  max-concurrency: ${FORECAST_MAX_CONCURRENCY:6}
+```
+
+**전용 게이트를 별도 빈으로 둡니다.** 전체 상한(400)을 쓰면 전망 하나가 다른 보정을
+전부 밀어냅니다. 캐시에 없는 달만 던집니다.
+
+**검증**: 첫 매물 60회 호출 3~10초, 같은 법정동 두 번째 0~3회 1초 미만.
+
+---
+
+### 구현 3 — 실거래 추세 지표
+
+**파일**
+
+```
+domain/forecast/RatePoint 유사 → TradeStat.java     (month, median, sampleCount)
+domain/forecast/indicator/PriceIndicator.java       공통 인터페이스
+domain/forecast/indicator/TradeTrendIndicator.java
+domain/forecast/PriceFactor.java · ForecastDirection.java
+```
+
+```
+최근 = median(최근 3개월, 같은 면적대 ±15%)
+직전 = median(그 앞 3개월)
+변동률 = (최근 − 직전) / 직전
+```
+
+**중앙값입니다.** 평균은 대형 평형 한 건에 끌려갑니다. 면적대는 기존
+`AREA_TOLERANCE = 0.15`를 재사용합니다 — 실거래 카드와 기준이 달라지면 사용자가 헷갈립니다.
+
+> **표본 3건 미만이면 지표를 내지 않습니다.** null을 돌려주고, 그 사실을 남깁니다.
+
+`PriceIndicator`는 `CriterionScorer`와 같은 모양입니다 — 이 프로젝트가 이미 쓰는 패턴이라
+새로 배울 것이 없습니다.
+
+**검증**: 순수 단위 테스트. 이상치·표본 부족·동률을 넣어 본다. **외부 호출 없음.**
+
+---
+
+### 구현 4 — 지표 추가
+
+**파일**
+
+```
+domain/forecast/indicator/JeonseRatioIndicator.java
+domain/forecast/indicator/RateCycleIndicator.java
+domain/forecast/indicator/ZoneCapacityIndicator.java
+application/port/out/external/MinistryReferencePort   전월세 오퍼레이션 추가
+docs/INTERFACE_MANUAL.md                              5.13 [설계 예정] → 구현됨
+```
+
+| 지표 | 재료 | 이미 있는 것 |
+|---|---|---|
+| 전세가율 | 국토부 전월세 | **키 재사용** |
+| 금리 국면 | ECOS 가계대출금리 12개월 기울기 | **어댑터 완성됨** (I116) |
+| 용도지역 | 토지이용계획 `INCLUDED` 중 `…주거지역` | **이미 받는 35건 안에 있다** |
+
+전세가율은 **매매와 같은 면적대**로 맞추고 **순수 전세만** 씁니다(반전세는 보증금이 낮아 왜곡).
+용적률 상한은 `regulation_param`에 둡니다 — 지자체 조례라 지역마다 다릅니다.
+
+**검증**: 각 지표 단위 테스트 + 전월세 API 실호출 1회로 응답 모양 확인.
+
+---
+
+### 구현 5 — 코드 예측기
+
+**파일**
+
+```
+domain/forecast/RuleBasedForecaster.java
+config/RegulationParamBootstrap.java                임계값 시드 추가
+```
+
+```
+forecast.trend.threshold      0.02     실거래 ±2%
+forecast.jeonse.high          0.70
+forecast.jeonse.low           0.50
+```
+
+**임계값은 전부 `regulation_param`입니다.** 임의의 값이라는 걸 인정하고, 구현 12(사후 검증)에서
+조정할 수 있게 둡니다.
+
+> **처음에는 둔감하게 잡으십시오.** 코드가 쉽게 방향을 바꾸면 LLM과 자주 갈리고,
+> 모달의 참고 문구가 <b>없는 불확실성</b>을 자꾸 알립니다.
+
+**검증**: 순수 단위 테스트. 각 조합이 기대한 방향을 내는지.
+
+---
+
+### 구현 6 — LLM 판단·해석
+
+**파일**
+
+```
+application/service/PriceForecastService.java       프롬프트 조립 · 호출 · 검증
+domain/forecast/PriceOutlook.java
+```
+
+**넘기는 것과 넘기지 않는 것**
+
+```
+✅ 계산된 지표 (중앙값 · 변동률 · 표본 수 · 전세가율 · 금리)
+✅ 매물 제원 · 용도지역 · 규제지역
+❌ 원본 거래 목록            ← 산술을 시키게 된다
+❌ 코드 예측 결과            ← 앵커링 (4.5)
+```
+
+**안전장치**(2.2-A)를 이 구현에서 함께 넣습니다. 특히 `evidence` 숫자 대조 —
+프롬프트로 준 숫자 집합을 들고 있다가 출력과 맞춰 보고, 없는 숫자를 인용한 factor는 버립니다.
+
+**검증**: 
+- 표본 2건 → LLM이 뭐라 하든 `UNCERTAIN`인지
+- 지어낸 숫자를 포함한 가짜 응답을 넣어 그 factor가 버려지는지
+- `temperature=0`으로 같은 입력 두 번 → 같은 방향인지
+
+---
+
+### 구현 7 — 저장 · 이벤트 · 폴링
+
+**파일**
+
+```
+application/event/PropertyEnrichedEvent.java
+application/event/PriceForecastListener.java
+application/port/out/cache/ForecastJobCache.java
+adapter/outbound/cache/{InMemory,Redis}ForecastJobCache.java
+adapter/outbound/persistence/PriceForecastRepository.java
+adapter/inbound/web/PropertyController.java         GET /{id}/forecast
+docs/DDL.sql · docs/DDL-repair.sql
+```
+
+`enrichRest()` 끝에서 이벤트 발행 → `@EventListener`(I126) → 가상 스레드.
+
+> **`@TransactionalEventListener`가 아닙니다.** 보정은 이미 커밋된 뒤 배경에서 도는
+> 작업이라 묶일 트랜잭션이 없고, `AFTER_COMMIT`을 걸면 이벤트가 <b>조용히 버려집니다.</b>
+
+진행 표시는 **3단계가 시작될 때** 켜고, 끝났는데 결과가 없으면 끕니다(I109).
+
+**검증**: 매물 등록 → 로그에 `Price forecast started/finished` → `GET /{id}/forecast`가
+방향·요인·두 예측을 돌려주는지. **여기까지가 화면 없이 확인 가능한 마지막 지점입니다.**
+
+---
+
+### 구현 8 — 화면
+
+**파일**
+
+```
+adapter/inbound/web/dto/ScoredPropertyResponse.java   forecast 요약 추가
+templates/index.mustache                              카드 화살표 · 모달
+static/js/app.js                                      openForecastModal · 폴링
+static/css/app.css                                    화살표 · 모달
+```
+
+목록 응답에는 **요약만**(방향·확신도·진행중), 요인 상세는 모달에서 받습니다(5.3).
+
+**검증**: 등록 → 카드에 ◌ → 1~2분 뒤 화살표 → 클릭 시 모달에 요인과 참고 문구.
 
 ---
 
 ## 8. 권고
 
-**구현 8(LLM 판단)을 먼저 만들고 싶은 유혹을 참으십시오.** 가장 화려하지만
+**구현 6(LLM 판단)을 먼저 만들고 싶은 유혹을 참으십시오.** 가장 화려하지만
 지표가 없으면 LLM은 <b>일반론</b>을 씁니다 — "금리와 정책에 따라 달라질 수 있습니다" 같은,
 읽어도 아무것도 알 수 없는 문장입니다.
 
-지표를 먼저 만들면 LLM 없이도 쓸 수 있고, LLM을 붙였을 때 답이 <b>구체적</b>이 됩니다.
+**화면(구현 8)을 먼저 만들고 싶은 유혹도 참으십시오.** 그게 더 큽니다 —
+눈에 보이는 것이 없으면 진척이 없어 보이니까요. 그래도 화살표의 뜻이 도중에
+바뀌는 대가가 더 큽니다.
+
+구현 7까지 오면 `GET /api/properties/{id}/forecast`로 **화면 없이도 전부 확인**할 수 있습니다.
+지표가 맞는지, 두 예측이 어떻게 갈리는지, 안전장치가 도는지 — 화면은 그 위에 얹는 마지막 겹입니다.
