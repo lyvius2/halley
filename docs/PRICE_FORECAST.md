@@ -202,14 +202,46 @@ CREATE UNIQUE INDEX ux_price_forecast_property ON price_forecast (property_id);
 
 보정은 이미 두 단계입니다(I110). 전망은 **세 번째**이고, **이벤트로 띄웁니다.**
 
+```mermaid
+flowchart TD
+    A["사용자: 매물 등록"] --> B[("DB 저장 · 커밋")]
+
+    subgraph P1["1단계 — 등록 요청이 기다린다 (수 초)"]
+        direction LR
+        S1["초등학교<br/>카카오 POI"]
+        S2["토지이용계획<br/>V-World"]
+        S3["채점<br/>14개 항목"]
+    end
+
+    B --> P1
+    P1 --> R(["응답 — 실제 점수가 실려 온다"])
+    P1 -.->|"가상 스레드로 이어서"| P2
+
+    subgraph P2["2단계 — 배경 (수십 초)"]
+        direction LR
+        T1["실거래 12개월<br/>국토부"]
+        T2["공시가격<br/>V-World"] --> T3["AI 추천도<br/>Claude"]
+    end
+
+    P2 ==>|"PropertyEnrichedEvent"| L{{"PriceForecastListener"}}
+
+    subgraph P3["3단계 — 가격 전망 (1~2분)"]
+        direction TB
+        F1["실거래 60개월<br/>동시 6 · 이미 받은 달은 건너뜀"]
+        F1 --> F2["지표 계산<br/>추세 · 전세가율 · 금리 · 용적률"]
+        F2 --> F3["LLM 해석<br/>숫자는 코드가, 해석만 LLM이"]
+    end
+
+    L --> P3
+    P3 --> D[("price_forecast 저장")]
+
+    style R fill:#e8f4ea,stroke:#4a7
+    style L fill:#fdf3e0,stroke:#c95
+    style D fill:#eef2f8,stroke:#57a
 ```
-[등록 요청]  초등학교 ∥ 토지이용계획 ∥ 채점              → 응답 (수 초)
-[배경 2단계] 실거래 12개월 ∥ (공시가격 → AI 추천도)      → 수십 초
-                    │
-                    └── PropertyEnrichedEvent 발행
-                                │
-[배경 3단계] 실거래 60개월 → 지표 계산 → LLM 해석        → 1~2분
-```
+
+**이벤트는 굵은 화살표 한 곳뿐입니다** — 2단계가 끝날 때만 발행됩니다.
+등록 커밋 직후에 띄우면 1·2단계와 겹쳐 돕니다(아래).
 
 #### 왜 '등록' 이벤트가 아니라 '보정 완료' 이벤트인가
 
@@ -328,6 +360,74 @@ final List<List<ReferenceTrade>> results = gate.runAll(tasks);
 const FORECAST_POLL_INTERVAL_MS = 3000;
 const FORECAST_POLL_MAX_ATTEMPTS = 60;   // 3초 x 60 = 3분이면 그만 본다
 ```
+
+#### 전체 흐름 — 화면이 어떻게 결과를 받나
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as 사용자
+    participant FE as 브라우저
+    participant API as PropertyController
+    participant ENR as PropertyEnrichmentService
+    participant EV as PriceForecastListener
+    participant FC as PriceForecastService
+    participant C as ForecastJobCache
+    participant DB as DB
+
+    U->>FE: 매물 등록
+    FE->>API: POST /api/properties
+    API->>DB: 저장 · 커밋
+
+    rect rgb(240, 246, 240)
+    Note over API,ENR: 1단계 — 요청이 기다린다
+    API->>ENR: enrichCore()
+    par 가상 스레드로 동시에
+        ENR->>ENR: 초등학교
+    and
+        ENR->>ENR: 토지이용계획
+    and
+        ENR->>ENR: 채점
+    end
+    ENR-->>API: 완료
+    end
+
+    API-->>FE: 201 · 점수 포함
+    FE-->>U: 목록에 매물이 뜬다
+
+    rect rgb(246, 244, 238)
+    Note over ENR: 2단계 — 배경
+    ENR->>ENR: enrichRest()<br/>실거래 12개월 ∥ (공시가격 → AI)
+    ENR->>EV: PropertyEnrichedEvent
+    end
+
+    rect rgb(250, 243, 235)
+    Note over EV,FC: 3단계 — 가격 전망 (1~2분)
+    EV->>C: markRunning(propertyId)
+    EV->>FC: refresh() · 가상 스레드
+    FC->>FC: 실거래 60개월 (동시 6)
+    FC->>FC: 지표 계산
+    FC->>FC: LLM 해석
+    FC->>DB: price_forecast 저장
+    FC->>C: markDone()
+    Note right of FC: DB 먼저, 캐시 나중.<br/>뒤집으면 DB보다 앞선 값이 보인다
+    end
+
+    loop 3초마다 (채점 판 번호 폴링에 얹음)
+        FE->>API: GET /api/properties
+        API-->>FE: forecast 요약 (방향 · 확신도 · 진행중)
+    end
+
+    FE-->>U: 카드의 ◌ 가 ▲ 로 바뀐다
+
+    U->>FE: 화살표 클릭
+    FE->>API: GET /api/properties/{id}/forecast
+    API-->>FE: 요인별 근거 · 유의사항
+    FE-->>U: 모달
+```
+
+> **폴링이 매물마다 따로 묻지 않습니다.** 목록 응답에 전망 요약이 이미 실려 오므로,
+> 채점 판 번호 폴링(I85)에 얹으면 <b>추가 요청이 없습니다.</b>
 
 #### SSE·WebSocket은 쓰지 않습니다
 
