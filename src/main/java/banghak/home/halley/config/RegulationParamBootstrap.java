@@ -34,6 +34,24 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                             + "주택임대차보호법 시행령 개정 시 갱신 필요. MCI/MCG 가입 시 미차감"),
             new Seed("valuation.officialPriceRatio", "0.7", RegulationValueType.DECIMAL,
                     "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"),
+            // 가격 전망의 요인 판정 임계값 (설계 I133).
+            // 전부 임의의 값이다 — 결론도 화살표도 정하지 않고 모달의 참고 문구에만
+            // 영향을 주므로 위험은 작지만, 사후 검증(구현 10)에서 조정할 거리다
+            new Seed("forecast.trend.threshold", "0.02", RegulationValueType.DECIMAL,
+                    "실거래 추세를 방향으로 읽는 최소 변동률. 부동산 월간 변동의 잡음이 이 정도라 잡았다"),
+            new Seed("forecast.jeonse.high", "0.70", RegulationValueType.DECIMAL,
+                    "이 위면 실거주 수요가 하방을 받친다고 본다"),
+            new Seed("forecast.jeonse.low", "0.50", RegulationValueType.DECIMAL,
+                    "이 아래면 매매가에 기대가 많이 실려 있다고 본다"),
+            // 용적률 상한은 지자체 조례다 (설계 I132). 지역마다 달라 반드시 확인 후 조정
+            new Seed("forecast.far.제1종일반주거지역", "1.5", RegulationValueType.DECIMAL,
+                    "용적률 상한 — 지자체 조례. 서울 기준"),
+            new Seed("forecast.far.제2종일반주거지역", "2.5", RegulationValueType.DECIMAL,
+                    "용적률 상한 — 지자체 조례. 서울 기준"),
+            new Seed("forecast.far.제3종일반주거지역", "3.0", RegulationValueType.DECIMAL,
+                    "용적률 상한 — 지자체 조례. 서울 기준"),
+            new Seed("forecast.far.준주거지역", "4.0", RegulationValueType.DECIMAL,
+                    "용적률 상한 — 지자체 조례. 서울 기준"),
             // LTV 매트릭스 (설계 I66) — 지역 × 보유주택. 고시로 자주 바뀌므로 반드시 확인 후 조정
             new Seed("ltv.rate.normal.none", "0.7", RegulationValueType.DECIMAL, "비규제·무주택 LTV"),
             new Seed("ltv.rate.normal.one", "0.6", RegulationValueType.DECIMAL, "비규제·1주택 LTV"),
