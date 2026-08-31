@@ -2408,10 +2408,16 @@ function halley() {
             return field ? field.note : null;
         },
 
+        /**
+         * 파싱 항목의 화면 이름 (설계 I159).
+         *
+         * <p><b>여기 없으면 영문 키가 그대로 뜹니다.</b> kbPrice 가 화면에 'kbPrice' 로
+         * 보이던 것이 그것입니다 — 파서는 읽고 있는데 이름표만 빠져 있었습니다.
+         */
         fieldLabel(key) {
             return {
                 name: '단지명', naverArticleNo: '매물번호', dongHo: '동/호', dealType: '거래유형',
-                priceDeposit: '매매가/보증금',                maintenanceFee: '관리비',
+                priceDeposit: '매매가/보증금', kbPrice: 'KB시세', maintenanceFee: '관리비',
                 areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
                 roomBath: '방/욕실', direction: '향', heatingType: '난방',
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
@@ -2437,6 +2443,9 @@ function halley() {
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
+                // 폼에 칸이 생겼으므로 carry 에서 뺐다 (설계 I160). 양쪽에 두면
+                // carry 가 폼 값을 덮어써서 고쳐도 안 바뀐다
+                kbPrice: p.kbPrice ?? '',
                 addressRoad: p.addressRoad || '',
                 sourceUrl: p.sourceUrl || '',
                 addressJibun: p.addressJibun || '',
@@ -2461,7 +2470,6 @@ function halley() {
                     floorBand: p.floorBand ?? null,
                     roomBath: p.roomBath ?? null,
                     heatingType: p.heatingType ?? null,
-                    kbPrice: p.kbPrice ?? null,
                     brokerageFee: p.brokerageFee ?? null,
                     brokerageRate: p.brokerageRate ?? null,
                     acquisitionTax: p.acquisitionTax ?? null,
@@ -2532,6 +2540,7 @@ function halley() {
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
+                kbPrice: toNum(this.propertyForm.kbPrice),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
                 sourceUrl: this.propertyForm.sourceUrl || null,

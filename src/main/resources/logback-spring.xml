@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  로깅 설정 (설계 I162).
+
+  여태 Spring Boot 기본값만 쓰고 있었습니다 — 콘솔 한 줄, 전부 INFO, 파일 없음.
+  운영에서 로그를 볼 때마다 journalctl 을 훑어야 했고, 문제 하나를 좇으려면
+  관계없는 줄이 너무 많았습니다.
+
+  콘솔은 그대로 둡니다. systemd 가 journald 로 받고 있어 그것이 1차 경로입니다.
+  파일은 journald 보존 한도를 넘겨 남기려는 것이라 live 에서만 켭니다.
+-->
+<configuration>
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- 로그 파일 위치. 배포마다 다르므로 property 로 뺀다 -->
+    <springProperty scope="context" name="logPath" source="logging.file.path" defaultValue="logs"/>
+    <springProperty scope="context" name="appName" source="spring.application.name" defaultValue="halley"/>
+
+    <!--
+      한 줄에 무엇을 담을지.
+      스레드 이름을 반드시 남깁니다 — 이 앱은 가상 스레드로 배경 작업을 돌리므로
+      (forecast-6, enrich-rest-3) 그 이름이 곧 "어느 매물의 어느 단계"입니다.
+    -->
+    <property name="CONSOLE_PATTERN"
+              value="%d{HH:mm:ss.SSS} %clr(%-5level) %clr([%15.15thread]){faint} %clr(%-40.40logger{39}){cyan} %msg%n%wEx"/>
+    <property name="FILE_PATTERN"
+              value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{40} - %msg%n%wEx"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <springProfile name="live">
+        <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+            <file>${logPath}/${appName}.log</file>
+            <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+                <fileNamePattern>${logPath}/${appName}.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+                <!-- 한 파일 50MB, 30일, 다 합쳐 2GB 를 넘기지 않는다.
+                     상한을 안 두면 디스크가 차는 날 앱이 같이 죽는다 -->
+                <maxFileSize>50MB</maxFileSize>
+                <maxHistory>30</maxHistory>
+                <totalSizeCap>2GB</totalSizeCap>
+                <cleanHistoryOnStart>true</cleanHistoryOnStart>
+            </rollingPolicy>
+            <encoder>
+                <pattern>${FILE_PATTERN}</pattern>
+                <charset>UTF-8</charset>
+            </encoder>
+        </appender>
+
+        <!--
+          파일 쓰기가 요청 스레드를 붙잡지 않게 한다.
+          queueSize 를 넘기면 기본은 INFO 이하를 버리는데, discardingThreshold=0 으로
+          두어 <b>아무것도 버리지 않습니다</b> — 로그가 몰리는 때가 대개 사고 나는 때입니다.
+        -->
+        <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+            <appender-ref ref="FILE"/>
+            <queueSize>2048</queueSize>
+            <discardingThreshold>0</discardingThreshold>
+            <!-- 종료할 때 큐를 비울 시간. 없으면 마지막 줄들이 사라진다 -->
+            <maxFlushTime>3000</maxFlushTime>
+        </appender>
+
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="ASYNC_FILE"/>
+        </root>
+    </springProfile>
+
+    <springProfile name="!live">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+        </root>
+    </springProfile>
+</configuration>

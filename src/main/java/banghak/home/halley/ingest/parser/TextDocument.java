@@ -46,6 +46,34 @@ public final class TextDocument {
     }
 
     /**
+     * <b>라벨과 값이 한 줄에 붙어 있는 경우</b> (설계 I159).
+     *
+     * <pre>
+     * KB시세 7억 4,000만원      ← 라벨 다음 줄이 아니라 같은 줄이다
+     * </pre>
+     *
+     * <p>네이버 화면은 대부분 라벨과 값을 줄로 나누지만 <b>대출 계산기 블록만 붙여 씁니다.</b>
+     * 그래서 KB시세가 텍스트에 분명히 있는데도 못 읽고 있었습니다.
+     *
+     * <p>라벨로 <b>시작하는</b> 줄만 봅니다 — 가운데에 낀 것을 잡으면
+     * "이 매물의 KB시세는" 같은 문장에서 엉뚱한 숫자를 집습니다.
+     */
+    public Optional<String> valueOnSameLine(String label) {
+        for (final String line : lines) {
+            final String trimmed = line.trim();
+            if (!trimmed.startsWith(label) || trimmed.length() == label.length()) {
+                continue;
+            }
+            final String rest = trimmed.substring(label.length()).trim();
+            // 라벨 바로 뒤에 다른 글자가 붙어 있으면 다른 라벨이다 (관리비 vs 관리비부과기준)
+            if (!rest.isEmpty() && !Character.isLetter(rest.charAt(0))) {
+                return Optional.of(rest);
+            }
+        }
+        return Optional.empty();
+    }
+
+    /**
      * 라벨 다음 maxLines개(비어 있지 않은) 라인을 반환한다. 지하철·학교처럼 여러 줄 블록을 파싱할 때 사용.
      */
     public List<String> linesAfter(String label, int maxLines) {

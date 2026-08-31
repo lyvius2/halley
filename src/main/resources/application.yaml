@@ -252,3 +252,28 @@ enrichment:
 membership:
   sign-up:
     open: ${MEMBERSHIP_SIGN_UP_OPEN:true}
+
+# ── 로깅 (설계 I162) ────────────────────────────────────────────────
+# 자세한 출력 모양·파일 회전은 logback-spring.xml 에 있다. 여기는 무엇을 얼마나
+# 남길지만 정한다.
+logging:
+  file:
+    # live 에서만 파일을 쓴다 (logback-spring.xml). 상대경로면 작업 디렉터리 기준
+    path: ${LOG_PATH:logs}
+  level:
+    root: INFO
+    # 우리 코드는 INFO. 배경 작업이 어디까지 갔는지가 여기서 보인다
+    banghak.home.halley: ${LOG_LEVEL_APP:INFO}
+    # 기동 때만 시끄럽고 그 뒤로는 쓸모가 적다
+    org.springframework: WARN
+    org.springframework.boot.autoconfigure: WARN
+    org.apache.catalina: WARN
+    com.zaxxer.hikari: WARN
+    # 커넥션 풀이 마르면 이건 봐야 한다
+    com.zaxxer.hikari.pool.HikariPool: INFO
+    # jOOQ 는 기본으로 조용히. 쿼리를 세야 할 때만 DEBUG 로 올린다 (설계 I124)
+    org.jooq: WARN
+    org.jooq.tools.LoggerListener: ${LOG_LEVEL_SQL:WARN}
+    # Feign 이 요청 URL 을 남기면 인증키가 새어 나간다 (설계 I140)
+    feign: WARN
+    org.springframework.cloud.openfeign: WARN

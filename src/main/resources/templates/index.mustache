@@ -482,7 +482,7 @@
                             </div>
                         </template>
                         <template x-if="groupDetail">
-                            <div>
+                            <div class="group-view">
                                 <!-- 이 앱은 모아서 집을 사려고 만든 것이라 합계가 먼저 보인다 -->
                                 <div class="group-stats">
                                     <div class="group-stat">
@@ -497,7 +497,8 @@
                                     </div>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
+                                    <h4 class="card-title">그룹 설정</h4>
                                     <div class="form-grid">
                                         <label class="span2">그룹 이름
                                             <div class="workplace-search">
@@ -522,9 +523,10 @@
                                     </div>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
                                     <h4 class="card-title">구성원 <span x-text="groupDetail.memberCount + '명'"></span></h4>
-                                    <table class="tbl">
+                                    <div class="table-wrap group-table">
+                                    <table>
                                         <thead>
                                         <tr><th>닉네임</th><th>직장</th><th class="num">보유 현금</th><th>상태</th></tr>
                                         </thead>
@@ -540,10 +542,11 @@
                                         </template>
                                         </tbody>
                                     </table>
+                                    </div>
                                     <p class="settings-note">열람만 가능합니다. 프로필 수정은 각자 합니다.</p>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
                                     <h4 class="card-title">초대 코드</h4>
                                     <p class="settings-note">코드는 <b>24시간</b> 동안만 쓸 수 있고, 새로 만들면 이전 코드는 사라집니다.</p>
                                     <div class="workplace-search">
@@ -1559,19 +1562,40 @@
                         <option value="JEONSE">전세</option>
                     </select>
                 </label>
+                <!-- 금액은 type=text + 숫자만 (설계 I160). number 는 화살표가 붙고 휠로 값이
+                     바뀌며, 자릿수 많은 원 단위에서 실수를 부른다 -->
                 <label>보증금/매매가 (원)
                     <span class="money-row">
-                        <input type="number" min="0" x-model="propertyForm.priceDeposit" placeholder="550000000">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.priceDeposit"
+                               @input="propertyForm.priceDeposit = numericInput($event)"
+                               placeholder="550000000">
                         <span class="money-hint" x-show="moneyHint(propertyForm.priceDeposit)"
                               x-text="moneyHint(propertyForm.priceDeposit)"></span>
                     </span>
                 </label>
                 <label>관리비 (원/월)
                     <span class="money-row">
-                        <input type="number" min="0" x-model="propertyForm.maintenanceFee" placeholder="0">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.maintenanceFee"
+                               @input="propertyForm.maintenanceFee = numericInput($event)"
+                               placeholder="0">
                         <span class="money-hint" x-show="moneyHint(propertyForm.maintenanceFee)"
                               x-text="moneyHint(propertyForm.maintenanceFee)"></span>
                     </span>
+                </label>
+                <!-- KB시세는 대출 한도(LTV)를 가르는 값이다 (설계 I160). 파싱이 놓치거나
+                     은행이 다르게 볼 때 사람이 고칠 수 있어야 한다 -->
+                <label>KB시세 (원)
+                    <span class="money-row">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.kbPrice"
+                               @input="propertyForm.kbPrice = numericInput($event)"
+                               placeholder="740000000">
+                        <span class="money-hint" x-show="moneyHint(propertyForm.kbPrice)"
+                              x-text="moneyHint(propertyForm.kbPrice)"></span>
+                    </span>
+                    <span class="settings-note">은행이 LTV를 매길 때 보는 값입니다. 비우면 실거래·공시가격으로 대신합니다.</span>
                 </label>
                 <label class="span2">주소로 좌표 검색
                     <div class="workplace-search">

@@ -773,6 +773,32 @@ input[type=checkbox], input[type=radio] {
 }
 
 /* ── 프로필 (M5) ───────────────────────────────────── */
+/* ── 그룹 정보 화면 (설계 I161) ─────────────────────
+   .card 는 테두리만 있고 안쪽 여백이 없다 — 다른 화면들은 .profile-panel 같은
+   안쪽 클래스나 인라인 margin 으로 각자 메우고 있었는데, 이 화면만 아무것도 없어
+   내용이 테두리에 붙고 카드끼리 맞닿아 있었다. */
+.group-panel { padding: 18px; }
+.group-panel + .group-panel { margin-top: 14px; }
+.group-stats + .group-panel { margin-top: 14px; }
+
+/* 카드 안의 소제목. 여러 화면이 쓰는데 정의가 아예 없었다 */
+.card-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink2);
+    margin-bottom: 12px;
+}
+.card-title span { font-size: 11.5px; color: var(--ink3); font-weight: 400; margin-left: 4px; }
+
+/* 표는 카드 가장자리까지 붙인다 — 다른 화면의 표와 같은 모양이 된다 */
+.group-table { margin: 0 -18px; }
+.group-panel .settings-note { display: block; margin-top: 10px; }
+
+/* 이름·웹훅 줄은 입력이 늘어나고 버튼은 제 폭을 지킨다 */
+.group-panel .workplace-search { flex-wrap: wrap; }
+.group-panel .workplace-search .btn { flex: 0 0 auto; }
+
 .profile-panel { padding: 18px; }
 .profile-title { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 12px; color: var(--ink2); }
 /* 카드 안 액션 버튼은 입력과 붙지 않게 띄운다 */
