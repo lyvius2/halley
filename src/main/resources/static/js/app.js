@@ -4338,7 +4338,8 @@ function halley() {
             box.appendChild(area);
 
             const price = document.createElement('span');
-            price.textContent = `${jeonse ? '전세' : '매매'} ${this.fmtWonShort(p.priceDeposit)}`;
+            // 한 글자면 충분하다 (설계 I223) — 색이 이미 매매·전세를 가른다
+            price.textContent = `${jeonse ? '전' : '매'} ${this.fmtWonShort(p.priceDeposit)}`;
             box.appendChild(price);
 
             const tail = document.createElement('i');
