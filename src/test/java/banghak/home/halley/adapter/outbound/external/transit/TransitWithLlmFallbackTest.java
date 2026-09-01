@@ -45,6 +45,9 @@ class TransitWithLlmFallbackTest {
     private final AtomicInteger llmCalls = new AtomicInteger();
     private String llmAnswer = GOOD_ANSWER;
     private boolean llmEnabled = true;
+    /** 첫 호출만 이 사유로 실패시킨다 — 재시도 여부를 본다 (설계 I218). */
+    private String failFirstWith = null;
+    private boolean failEveryTime = false;
 
     /** 마지막 요청의 토큰 예산 — 생각 몫을 떼어 두는지 본다 (설계 I217). */
     private int lastMaxTokens;
@@ -63,8 +66,11 @@ class TransitWithLlmFallbackTest {
 
             @Override
             public LlmResult complete(LlmMessage message) {
-                llmCalls.incrementAndGet();
+                final int attempt = llmCalls.incrementAndGet();
                 lastMaxTokens = message.maxTokens();
+                if (failFirstWith != null && (failEveryTime || attempt == 1)) {
+                    return LlmResult.failed(failFirstWith);
+                }
                 return LlmResult.of(llmAnswer, "stub");
             }
         };
@@ -82,6 +88,8 @@ class TransitWithLlmFallbackTest {
         llmCalls.set(0);
         llmAnswer = GOOD_ANSWER;
         llmEnabled = true;
+        failFirstWith = null;
+        failEveryTime = false;
     }
 
     @Test
@@ -319,6 +327,40 @@ class TransitWithLlmFallbackTest {
         fallback().findTransitBatch(legs("a", "b", "c", "d", "e"));
 
         assertThat(lastMaxTokens).isGreaterThan(one);
+    }
+
+    /**
+     * Anthropic 이 <b>`529 overloaded`</b> 를 줄 때가 있다 (설계 I218).
+     * 우리가 뭘 잘못한 것이 아니라 잠시 붐비는 것이라 조금 뒤엔 된다.
+     */
+    @Test
+    @DisplayName("붐벼서 실패하면 한 번 더 묻는다")
+    void retriesOnceWhenBusy() {
+        when(odsay.findTransit(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenThrow(new TransitQuotaExceededException("code=429"));
+        failFirstWith = "call failed";
+
+        final TransitResult result = fallback().findTransit(126.9, 37.5, 127.0, 37.5);
+
+        assertThat(llmCalls).hasValue(2);
+        assertThat(result.totalMinutes()).isEqualTo(37);
+    }
+
+    /**
+     * 키가 없거나 예산이 모자란 것은 <b>몇 번을 물어도 같은 답</b>입니다.
+     * 기다리는 시간만 버립니다.
+     */
+    @Test
+    @DisplayName("붐빈 것이 아니면 다시 묻지 않는다 — 같은 답을 두 번 받을 뿐이다")
+    void doesNotRetryOtherFailures() {
+        when(odsay.findTransit(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenThrow(new TransitQuotaExceededException("code=429"));
+        failFirstWith = "token budget exhausted by thinking";
+        failEveryTime = true;
+
+        fallback().findTransit(126.9, 37.5, 127.0, 37.5);
+
+        assertThat(llmCalls).hasValue(1);
     }
 
     @Test

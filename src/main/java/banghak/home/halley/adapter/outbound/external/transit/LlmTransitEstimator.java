@@ -60,6 +60,15 @@ public class LlmTransitEstimator {
     /** 쌍 하나당 실제 JSON 이 차지하는 몫. 구간 상세까지 담아 넉넉히 잡았다. */
     private static final int TOKENS_PER_PAIR = 200;
 
+    /**
+     * 붐빌 때 한 번만 더 (설계 I218).
+     *
+     * <p>이 호출은 <b>사람이 화면 앞에서 기다리는</b> 요청 안에서 돕니다.
+     * 여러 번 재시도하면 그만큼 화면이 멈춰 있습니다 — 한 번이면 충분합니다.
+     * 그래도 안 되면 저장하지 않으므로 <b>다음 재산출에서 다시 시도합니다.</b>
+     */
+    private static final long RETRY_WAIT_MS = 2000;
+
     /** 서울·수도권 안에서 대중교통으로 이만큼 넘게 걸리는 곳은 사실상 없다. */
     private static final int MAX_PLAUSIBLE_MINUTES = 300;
 
@@ -134,14 +143,42 @@ public class LlmTransitEstimator {
             user.append(String.format("id=%s 출발=(경도 %.6f, 위도 %.6f) 도착=(경도 %.6f, 위도 %.6f)%n",
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
-        final LlmResult answer = llmPort.complete(LlmMessage.deterministic(
+        final LlmMessage message = LlmMessage.deterministic(
                 SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
-                model == null || model.isBlank() ? null : model));
+                model == null || model.isBlank() ? null : model);
+
+        LlmResult answer = llmPort.complete(message);
+        if (retryable(answer)) {
+            log.info("LLM is busy - waiting {}ms and asking once more. legs={}", RETRY_WAIT_MS, legs.size());
+            sleep();
+            answer = llmPort.complete(message);
+        }
         if (answer.failureCause() != null) {
             log.warn("LLM transit fallback failed. legs={}, cause={}", legs.size(), answer.failureCause());
             return Map.of();
         }
         return parse(answer.text(), legs);
+    }
+
+    /**
+     * 다시 물어볼 만한 실패인가 (설계 I218).
+     *
+     * <p>Anthropic 이 <b>`529 overloaded`</b> 를 줄 때가 있습니다 — 우리가 뭘 잘못한
+     * 것이 아니라 <b>잠시 붐비는 것</b>이라 조금 뒤엔 됩니다.
+     *
+     * <p><b>다른 실패는 다시 묻지 않습니다.</b> 키가 없거나 예산이 모자란 것은
+     * 몇 번을 물어도 같은 답입니다 — 기다리는 시간만 버립니다.
+     */
+    private static boolean retryable(LlmResult answer) {
+        return "call failed".equals(answer.failureCause());
+    }
+
+    private static void sleep() {
+        try {
+            Thread.sleep(RETRY_WAIT_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private Map<String, TransitResult> parse(String text, List<Leg> asked) {
