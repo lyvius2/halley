@@ -2280,3 +2280,9 @@ tr.dragging { opacity: .5; background: var(--line2); }
 
 /* 내가 다녀온 곳은 배지도 또렷하게 (설계 I226) — 남이 다녀온 것과 구분된다 */
 .badge.b-visited.mine { font-weight: 700; }
+
+/* 쾌적함으로 켜진 방문완료 (설계 I228) — 누를 수 없다는 것이 보여야 한다 */
+.itin-visit.locked { cursor: default; opacity: .7; }
+.itin-visit.locked input { cursor: default; }
+/* 법정동코드를 못 찾았을 때 (설계 I227) — 조회가 안 되는 이유다 */
+.ref-nocode { color: var(--lava); }

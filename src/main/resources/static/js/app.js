@@ -2822,6 +2822,17 @@ function halley() {
             return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
         },
 
+        /**
+         * 쾌적함 때문에 켜진 것인가 (설계 I228).
+         *
+         * <p>그렇다면 <b>체크를 끌 수 없어야</b> 합니다. 근거가 채점이라 끄려면
+         * 그 점수를 지워야 하는데, 그건 채점 화면의 일입니다 — 여기서 눌러도
+         * 아무 일이 안 일어나면 <b>고장으로 보입니다.</b>
+         */
+        visitedByComfort(propertyId) {
+            return this.scoredComfort(this.properties.find(x => x.property.id === propertyId));
+        },
+
         /** 가 본 곳을 서버에서 받아 온다 — 새로고침해도, 다른 기기에서도 남는다. */
         async loadVisited() {
             const { ok, body } = await this.request('/api/itinerary/visits')

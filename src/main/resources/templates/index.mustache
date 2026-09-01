@@ -314,10 +314,18 @@
                                                 <span class="itin-time" x-show="legFor(i)"
                                                       x-text="arrivalAt(i) + ' 도착'"></span>
                                                 <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
-                                                <label class="itin-visit">
+                                                <!-- 쾌적함으로 켜진 것은 못 끈다 (설계 I228).
+                                                     근거가 채점이므로 끄려면 그 점수를 지워야 하는데,
+                                                     그건 채점 화면의 일이다 -->
+                                                <label class="itin-visit"
+                                                       :class="{locked: visitedByComfort(id)}"
+                                                       :title="visitedByComfort(id)
+                                                           ? '공간의 쾌적함을 매겨 다녀온 곳으로 봅니다 (설계 I121)'
+                                                           : ''">
                                                     <input type="checkbox" :checked="isVisited(id)"
+                                                           :disabled="visitedByComfort(id)"
                                                            @change="toggleVisited(id)">
-                                                    <span>방문완료</span>
+                                                    <span x-text="visitedByComfort(id) ? '방문완료 (채점됨)' : '방문완료'"></span>
                                                 </label>
                                             </div>
                                             <template x-if="legFor(i)">
@@ -1985,8 +1993,21 @@
             <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
         </div>
         <div class="form-grid">
+            <!-- 빈 칸이면 지번주소에서 뽑아 씁니다. 무엇으로 물었는지 아래에 적습니다 (설계 I227) -->
             <label>법정동코드 (5자리)
-                <input type="text" x-model="refForm.legalDongCode" placeholder="11010" maxlength="5">
+                <input type="text" x-model="refForm.legalDongCode"
+                       :placeholder="refCard?.lawdCd || '주소에서 자동'" maxlength="5">
+                <span class="paste-note" x-show="refCard">
+                    <template x-if="refCard?.lawdCd">
+                        <span>이번 조회에 쓴 코드: <b x-text="refCard.lawdCd"></b>
+                            — 국토부는 <b>시군구 5자리</b>를 받습니다
+                            (법정동 10자리 <code>1135010500</code> 의 앞 다섯 자리)</span>
+                    </template>
+                    <template x-if="!refCard?.lawdCd">
+                        <span class="ref-nocode">지번주소에서 법정동코드를 못 찾았습니다 —
+                            <b>그래서 조회 자체가 안 됩니다.</b> 직접 넣어 보십시오</span>
+                    </template>
+                </span>
             </label>
             <label>계약년월 (YYYYMM)
                 <input type="text" x-model="refForm.dealMonth" placeholder="202607" maxlength="6">
