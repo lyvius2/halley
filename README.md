@@ -1,5 +1,7 @@
 # Halley
 
+<img src="src/main/resources/static/image/logo-240.png" alt="Halley" width="180">
+
 ![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.x-6DB33F?logo=springboot&logoColor=white)
 ![jOOQ](https://img.shields.io/badge/jOOQ-3.21-FF6D00?logo=databricks&logoColor=white)

@@ -52,6 +52,9 @@ body {
 }
 /* 서비스명은 라틴 문자라 Noto Sans를 쓴다 — 로그인 모달의 제목과 같은 얼굴 */
 .wordmark {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-family: 'Noto Sans', sans-serif;
     font-size: 16px;
     font-weight: 700;
@@ -59,6 +62,8 @@ body {
     text-decoration: none;
     letter-spacing: -.01em;
 }
+/* 로고는 배경이 투명하고 어두운 헤더 위에 놓인다 (설계 I174) */
+.wordmark-logo { display: block; width: 24px; height: 24px; }
 .wordmark em { font-style: normal; color: #e8c98a; font-weight: 300; }
 /* 상단 메뉴는 건반처럼 — 각진 사각형이 맞붙고, 선택된 키만 눌린 듯 밝아진다 */
 .nav { display: flex; align-items: center; gap: 0; }

@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Halley — 부동산 매물 비교</title>
+    <!-- 파비콘 (설계 I174). 32px 는 탭, 180px 는 iOS 홈 화면 -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32.png">
+    <link rel="apple-touch-icon" href="/image/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -21,7 +24,12 @@
 <div class="shell">
     <div class="topbar">
         <div class="topbar-in">
-            <a class="wordmark" href="/">Halley</a>
+            <a class="wordmark" href="/">
+                <!-- 64px 원본을 24px 로 줄여 쓴다 — 고해상도 화면에서 흐려지지 않는다.
+                     원본(1254px · 940KB)을 그대로 걸면 헤더 하나에 1MB 를 쓴다 (설계 I174) -->
+                <img class="wordmark-logo" src="/image/logo-64.png" alt="" width="24" height="24">
+                <span>Halley</span>
+            </a>
             <template x-if="session.authenticated">
                 <nav class="nav">
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
