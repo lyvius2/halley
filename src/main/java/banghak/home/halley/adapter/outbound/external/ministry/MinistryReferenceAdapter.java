@@ -66,10 +66,15 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
      * 노원(11350) 2025-06  885      성북(11290) 2025-06  660
      * </pre>
      *
+     * <p>충분히 크게 잡아 <b>한 번에 다 받습니다.</b> 페이지를 넘기면 호출이
+     * 그만큼 늘고, 국토부는 초당 호출을 제한합니다(`RateGate`, [I140]).
+     * 100,000 을 줘도 실제로는 `totalCount` 만큼만 옵니다 — 실측 확인했습니다.
+     *
      * <p>그래도 넘칠 수 있으므로 <b>넘쳤는지 확인합니다</b>(`warnIfTruncated`).
-     * 주석에 "어긋나면 알 수 있다"고 적어 두고 <b>비교하는 코드는 없었습니다.</b>
+     * 앞서 주석에 "어긋나면 알 수 있다"고 적어 두고 <b>비교하는 코드는
+     * 없었습니다</b> — 그래서 10건만 받던 것을 오래 몰랐습니다([I219]).
      */
-    private static final int PAGE_SIZE = 3000;
+    private static final int PAGE_SIZE = 100_000;
 
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {

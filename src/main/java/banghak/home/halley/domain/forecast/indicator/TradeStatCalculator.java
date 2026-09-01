@@ -1,6 +1,7 @@
 package banghak.home.halley.domain.forecast.indicator;
 
 import banghak.home.halley.domain.forecast.TradeStat;
+import banghak.home.halley.domain.property.ComplexName;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import banghak.home.halley.domain.reference.MonthlyTrades;
@@ -117,15 +118,20 @@ public class TradeStatCalculator {
         return sameName(property, trade) && sameArea(property, trade);
     }
 
-    /** 표기가 흔들리므로(`래미안` vs `래미안아파트`) <b>서로 포함</b>이면 같게 본다. */
+    /**
+     * 표기가 흔들리므로(`래미안` vs `래미안아파트`) <b>서로 포함</b>이면 같게 본다.
+     *
+     * <p><b>규칙은 `ComplexName` 하나입니다 (설계 I230).</b> 여기서 따로 정규화하다가
+     * 괄호 안을 남겨, `상계주공7(고층)` 이 `상계주공7단지` 와 안 맞았습니다 —
+     * 그 단지는 전망이 <b>늘 자료 부족</b>이었습니다.
+     */
     private boolean sameName(Property property, ReferenceTrade trade) {
-        final String mine = normalize(property == null ? null : property.name());
-        final String theirs = normalize(trade.apartmentName());
-        if (mine == null || theirs == null || mine.length() < MIN_NAME_LENGTH) {
+        final String mine = property == null ? null : property.name();
+        if (!ComplexName.comparable(mine, trade.apartmentName())) {
             // 이름을 못 가리면 면적으로만 본다 — 같은 법정동이라 아주 틀리진 않는다
             return true;
         }
-        return mine.contains(theirs) || theirs.contains(mine);
+        return ComplexName.same(mine, trade.apartmentName());
     }
 
     private boolean sameArea(Property property, ReferenceTrade trade) {
@@ -139,10 +145,4 @@ public class TradeStatCalculator {
                 .compareTo(AREA_TOLERANCE) <= 0;
     }
 
-    private String normalize(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return value.replaceAll("[\\s()·\\-]", "").replace("아파트", "");
-    }
 }

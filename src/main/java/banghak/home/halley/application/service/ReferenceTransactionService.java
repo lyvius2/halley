@@ -7,6 +7,7 @@ import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepo
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
+import banghak.home.halley.domain.property.ComplexName;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceDealType;
 import banghak.home.halley.domain.property.ReferenceSource;
@@ -235,13 +236,12 @@ public class ReferenceTransactionService {
      * 참고 카드가 비는 것이 남의 단지 가격을 이 매물 것처럼 보여주는 것보다 낫습니다.
      */
     private boolean matches(Property property, ReferenceTrade trade) {
-        final String propertyName = normalizeComplexName(property.name());
-        final String tradeName = normalizeComplexName(trade.apartmentName());
-        final boolean nameKnown = propertyName != null && tradeName != null;
+        // 규칙은 `ComplexName` 하나다 (설계 I230) — 전망과 다르게 정규화하다 갈라졌다
+        final boolean nameKnown = ComplexName.comparable(property.name(), trade.apartmentName());
         final boolean areaKnown = property.areaExclusiveM2() != null && trade.areaM2() != null
                 && property.areaExclusiveM2().signum() > 0;
 
-        if (nameKnown && !sameComplex(propertyName, tradeName)) {
+        if (nameKnown && !ComplexName.same(property.name(), trade.apartmentName())) {
             return false;
         }
         if (!areaKnown) {
@@ -249,10 +249,6 @@ public class ReferenceTransactionService {
         }
         final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
         return diff / property.areaExclusiveM2().doubleValue() <= AREA_TOLERANCE;
-    }
-
-    private boolean sameComplex(String left, String right) {
-        return left.contains(right) || right.contains(left);
     }
 
     /** `은마아파트(테스트)` → `은마`. 표기 흔들림을 걷어낸다. */
