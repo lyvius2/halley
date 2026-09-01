@@ -258,10 +258,14 @@
                             </div>
                             <div class="itin-props">
                                 <template x-for="r in visibleProperties" :key="r.property.id">
-                                    <label class="itin-check">
+                                    <!-- 이미 다녀온 곳은 흐리게 (설계 I225).
+                                         고를 수는 있다 — 다시 갈 이유는 사람이 안다 -->
+                                    <label class="itin-check" :class="{done: isVisited(r.property.id)}"
+                                           :title="isVisited(r.property.id) ? '이미 다녀온 곳입니다' : ''">
                                         <input type="checkbox" :checked="itinProperties.includes(r.property.id)"
                                                @change="toggleItineraryProperty(r.property.id)">
                                         <span x-text="r.property.name"></span>
+                                        <small x-show="isVisited(r.property.id)" class="itin-check-done">다녀옴</small>
                                         <small x-text="fmtWon(r.property.priceDeposit)"></small>
                                     </label>
                                 </template>
