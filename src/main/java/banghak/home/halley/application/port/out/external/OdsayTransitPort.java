@@ -1,5 +1,6 @@
 package banghak.home.halley.application.port.out.external;
 
+import banghak.home.halley.domain.itinerary.RoutePath;
 import banghak.home.halley.domain.scoring.TransitResult;
 
 public interface OdsayTransitPort {
@@ -18,4 +19,17 @@ public interface OdsayTransitPort {
     }
 
     TransitResult findTransit(double startX, double startY, double endX, double endY);
+
+    /**
+     * 그 경로의 <b>실제 선</b>을 받아 온다 (설계 I177).
+     *
+     * <p>{@code mapObj} 는 `findTransit` 이 돌려준 열쇠입니다 — 그것 없이는 못 받습니다.
+     * 그래서 <b>호출이 한 번 더</b> 듭니다. 지도에 그릴 때만 부릅니다.
+     *
+     * <p>기본값은 빈 경로입니다 — 이 인터페이스를 <b>람다로 대신하는 테스트</b>가 여럿이라
+     * 메서드를 늘리면 그 전부가 깨집니다.
+     */
+    default RoutePath findLane(String mapObj) {
+        return RoutePath.empty();
+    }
 }

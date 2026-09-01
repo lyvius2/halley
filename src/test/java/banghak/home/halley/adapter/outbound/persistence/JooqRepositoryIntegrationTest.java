@@ -264,8 +264,11 @@ class JooqRepositoryIntegrationTest {
 
     @Test
     void visitPlanStopRoundTrip() {
+        // (plan_id, stop_order) 가 유니크다. 1L·0 을 박아 두면 다른 테스트가 같은 조합을
+        // 먼저 만들 때 순서에 따라 깨진다 — 실제로 겪었다. 이 테스트만의 값을 쓴다
+        final long planId = System.nanoTime() % 1_000_000L + 1_000L;
         VisitPlanStop saved = visitPlanStopRepository.save(new VisitPlanStop(
-                null, 1L, 1L, 0, LocalTime.of(9, 0), LocalTime.of(9, 25),
+                null, planId, 1L, 0, LocalTime.of(9, 0), LocalTime.of(9, 25),
                 30, "TRANSIT", false, null));
 
         VisitPlanStop found = visitPlanStopRepository.findById(saved.id()).orElseThrow();

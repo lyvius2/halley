@@ -2,6 +2,7 @@ package banghak.home.halley.adapter.outbound.external.odsay;
 
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
 import banghak.home.halley.config.exception.TransitSearchFailedException;
+import banghak.home.halley.domain.itinerary.RoutePath;
 import banghak.home.halley.domain.scoring.TransitResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * ODsay 대중교통 경로.
@@ -113,6 +117,37 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
             case "2" -> "인증키 오류 — 등록된 도메인·IP가 맞는지 확인";
             default -> "ODsay 오류 코드표 확인 필요";
         };
+    }
+
+    /**
+     * 경로선 (설계 I177).
+     *
+     * <p>`lane[].section[].graphPos` 에 좌표가 들어 있습니다 — <b>`x` 가 경도, `y` 가 위도</b>입니다.
+     * 뒤집으면 지도에 아프리카 앞바다가 그려집니다.
+     */
+    @Override
+    public RoutePath findLane(String mapObj) {
+        if (apiKey == null || apiKey.isBlank() || mapObj == null || mapObj.isBlank()) {
+            return RoutePath.empty();
+        }
+        final String json = client.loadLane(apiKey, "0:0@" + mapObj);
+        if (json == null) {
+            return RoutePath.empty();
+        }
+        final JsonNode root = parse(json);
+        if (errorNode(root) != null) {
+            log.warn("ODsay rejected the lane request. mapObj={}", mapObj);
+            return RoutePath.empty();
+        }
+        final List<RoutePath.Point> points = new ArrayList<>();
+        for (final JsonNode lane : root.path("result").path("lane")) {
+            for (final JsonNode section : lane.path("section")) {
+                for (final JsonNode pos : section.path("graphPos")) {
+                    points.add(new RoutePath.Point(pos.path("y").asDouble(), pos.path("x").asDouble()));
+                }
+            }
+        }
+        return new RoutePath(points);
     }
 
     private JsonNode parse(String json) {

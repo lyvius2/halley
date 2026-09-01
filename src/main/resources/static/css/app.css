@@ -1973,3 +1973,35 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .coord-cell { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .coord-cell i { font-style: normal; font-size: 11px; color: var(--ink3); white-space: nowrap; }
 .coord-cell input { flex: 1; min-width: 0; }
+
+/* ── 임장 구간 안내 (설계 I176) ─────────────────────
+   "2호선 신림 → 강남 17분" 을 한 줄씩. 임장 당일 실제로 보는 것이라
+   훑어보기 쉬운 것이 먼저다 — 꾸밈은 뒤다 */
+.itin-legs { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line2); }
+.itin-leg { margin-bottom: 10px; }
+.itin-leg:last-child { margin-bottom: 0; }
+.itin-leg-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 11.5px;
+    color: var(--ink2);
+    margin-bottom: 4px;
+}
+.itin-leg-head b { font-family: 'JetBrains Mono', monospace; color: var(--ink); }
+.itin-step {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--ink);
+    padding: 3px 0 3px 10px;
+    border-left: 2px solid var(--line);
+    line-height: 1.5;
+}
+/* 수단마다 색을 달리해 훑을 때 갈아타는 지점이 보인다 */
+.itin-step.is-subway { border-left-color: var(--ocean); }
+.itin-step.is-bus { border-left-color: #3f7a4a; }
+.itin-step.is-walk { border-left-color: var(--line); color: var(--ink3); }
+.itin-step-ic { flex: 0 0 auto; font-size: 11px; }

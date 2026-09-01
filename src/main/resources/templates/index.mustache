@@ -252,6 +252,28 @@
                                         <span x-text="propertyName(id)"></span>
                                     </div>
                                 </template>
+
+                                <!-- 구간별 이동 안내 (설계 I176). 임장 당일 실제로 쓰는 정보다 -->
+                                <template x-if="(itinResult.legs || []).some(l => (l.steps || []).length)">
+                                    <div class="itin-legs">
+                                        <h4 class="card-title">이동 경로</h4>
+                                        <template x-for="(leg, i) in (itinResult.legs || [])" :key="i">
+                                            <div class="itin-leg" x-show="(leg.steps || []).length">
+                                                <div class="itin-leg-head">
+                                                    <span x-text="legTitle(leg)"></span>
+                                                    <b x-text="leg.minutes + '분'"></b>
+                                                </div>
+                                                <template x-for="(step, j) in (leg.steps || [])" :key="j">
+                                                    <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">
+                                                        <span class="itin-step-ic"
+                                                              x-text="step.kind === 'SUBWAY' ? '🚇' : (step.kind === 'BUS' ? '🚌' : '🚶')"></span>
+                                                        <span x-text="legStepText(step)"></span>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
                         </template>
 

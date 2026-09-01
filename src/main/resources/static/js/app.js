@@ -106,6 +106,7 @@ function halley() {
         itinPlan: null,
         _itinMarkers: {},
         _itinPolyline: null,
+        _itinPolylines: [],
         sessionExpiresAt: null,
         _sessionTimer: null,
         showSessionWarn: false,
@@ -2201,22 +2202,82 @@ function halley() {
                 this._itinMarkers[id] = overlay;
                 points.push(position);
             });
-            if (points.length >= 2) {
-                this._itinPolyline = new kakao.maps.Polyline({
-                    path: points,
-                    strokeWeight: 4,
-                    strokeColor: '#2d8ba8',
-                    strokeOpacity: 0.85,
-                    strokeStyle: 'solid'
+            this.drawItineraryPath(points);
+        },
+
+        /**
+         * 실제 이동 동선을 그린다 (설계 I177).
+         *
+         * <p>여태 매물 사이를 <b>직선</b>으로 이었다. 실제로 그렇게 갈 수는 없으므로
+         * 거리감이 왜곡된다 — 강 건너편이 가까워 보인다.
+         *
+         * <p>서버가 구간마다 경로선을 준다. <b>못 받은 구간만</b> 직선으로 잇는다 —
+         * 하나가 비었다고 전체를 직선으로 되돌리면 받은 것까지 버리는 셈이다.
+         */
+        drawItineraryPath(fallbackPoints) {
+            const legs = (this.itinResult && this.itinResult.legs) || [];
+            const bounds = new kakao.maps.LatLngBounds();
+            this._itinPolylines = [];
+
+            const drawn = legs.filter(l => (l.path || []).length >= 2);
+            if (drawn.length > 0) {
+                drawn.forEach(leg => {
+                    const path = leg.path.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+                    path.forEach(pt => bounds.extend(pt));
+                    const line = new kakao.maps.Polyline({
+                        path,
+                        strokeWeight: 5,
+                        strokeColor: '#2d8ba8',
+                        strokeOpacity: 0.9,
+                        strokeStyle: 'solid'
+                    });
+                    line.setMap(this.map);
+                    this._itinPolylines.push(line);
                 });
-                this._itinPolyline.setMap(this.map);
-                const bounds = new kakao.maps.LatLngBounds();
-                points.forEach(p => bounds.extend(p));
+            }
+            // 경로선을 못 받은 구간은 점선 직선으로 — 받은 것과 눈으로 구분된다
+            if (drawn.length < legs.length || legs.length === 0) {
+                if (fallbackPoints.length >= 2) {
+                    fallbackPoints.forEach(pt => bounds.extend(pt));
+                    const line = new kakao.maps.Polyline({
+                        path: fallbackPoints,
+                        strokeWeight: 3,
+                        strokeColor: '#8a8378',
+                        strokeOpacity: 0.7,
+                        strokeStyle: 'shortdash'
+                    });
+                    line.setMap(this.map);
+                    this._itinPolylines.push(line);
+                }
+            }
+            if (this._itinPolylines.length > 0) {
                 this.map.setBounds(bounds);
             }
         },
 
+        /** "2호선 신림 → 강남 17분 (8정거장)" 한 줄로 (설계 I176). */
+        legStepText(step) {
+            if (step.kind === 'WALK') {
+                return `도보 ${step.minutes}분`;
+            }
+            const name = step.lineName || (step.kind === 'BUS' ? '버스' : '지하철');
+            const suffix = step.kind === 'BUS' ? '번 버스' : '';
+            const stations = step.stationCount ? ` · ${step.stationCount}정거장` : '';
+            return `${name}${suffix} ${step.from} → ${step.to} ${step.minutes}분${stations}`;
+        },
+
+        legTitle(leg) {
+            const to = this.properties.find(x => x.property.id === leg.toPropertyId);
+            const from = leg.fromPropertyId
+                ? this.properties.find(x => x.property.id === leg.fromPropertyId)
+                : null;
+            const fromName = from ? from.property.name : '출발지';
+            return `${fromName} → ${to ? to.property.name : ''}`;
+        },
+
         clearItinerary() {
+            (this._itinPolylines || []).forEach(l => l.setMap(null));
+            this._itinPolylines = [];
             if (this._itinPolyline) {
                 this._itinPolyline.setMap(null);
                 this._itinPolyline = null;

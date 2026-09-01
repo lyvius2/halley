@@ -190,26 +190,37 @@ class ItineraryServiceTest {
         assertThat(recomputed.stops().getFirst().visited()).isFalse();
     }
 
+    /**
+     * 재계산이 <b>훨씬</b> 싸야 한다 (설계 I52 · I176).
+     *
+     * <p>이동시간 캐시(TTL 7일)가 <b>행렬</b>을 받습니다 — n개 매물이면 n×(n+1) 칸입니다.
+     * 다만 구간 안내(설계 I176)는 <b>분 단위 캐시에 담기지 않아</b> 매번 다시 받습니다.
+     * 정해진 순서의 <b>구간 수만큼</b>이라 행렬보다 훨씬 적습니다.
+     *
+     * <p>그래서 "추가 호출 0" 이 아니라 <b>"행렬만큼은 안 부른다"</b>를 봅니다.
+     */
     @Test
-    @DisplayName("대중교통 이동시간은 TTL 캐시로 재계산 시 조회하지 않는다")
+    @DisplayName("재계산은 행렬을 다시 받지 않는다 — 구간 안내 몫만 부른다")
     void transitTravelTimeCached() {
         // given — 좌표가 서로 다른 매물
         final List<Long> ids = List.of(
                 propertyService.create(request("캐시A", "37.51", "126.91")).id(),
                 propertyService.create(request("캐시B", "37.52", "126.92")).id());
 
-        // when — 첫 계산은 캐시 미스 → ODsay 호출
+        // when — 첫 계산은 캐시 미스 → 행렬 + 구간 안내
         itineraryService.optimize(new OptimizeItineraryRequest(
                 ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
         final int firstCalls = stubConfig.transitCalls.get();
         assertThat(firstCalls).isGreaterThan(0);
 
-        // 같은 요청 재계산 → 캐시 히트로 추가 호출 없음
+        // 같은 요청 재계산
+        stubConfig.transitCalls.set(0);
         itineraryService.optimize(new OptimizeItineraryRequest(
                 ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
 
-        // then
-        assertThat(stubConfig.transitCalls.get()).isEqualTo(firstCalls);
+        // then — 매물 2개면 구간은 2개다. 행렬(6칸)을 다시 받지 않는다
+        assertThat(stubConfig.transitCalls.get()).isEqualTo(ids.size());
+        assertThat(stubConfig.transitCalls.get()).isLessThan(firstCalls);
     }
 
     private PropertyRequest request(String name) {

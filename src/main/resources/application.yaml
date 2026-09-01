@@ -25,6 +25,8 @@ odsay:
   api-key: ${ODSAY_API_KEY:}
   base-url: https://api.odsay.com
   transit-path: /v1/api/searchPubTransPathT
+  # 경로선 (설계 I177). 지도에 실제 동선을 그릴 때만 부른다
+  lane-path: /v1/api/loadLane
 
 ministry:
   reference:

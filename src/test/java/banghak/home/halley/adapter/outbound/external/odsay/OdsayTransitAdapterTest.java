@@ -251,6 +251,11 @@ class OdsayTransitAdapterTest {
             public String findTransit(String apiKey, double startX, double startY, double endX, double endY) {
                 return json;
             }
+
+            @Override
+            public String loadLane(String apiKey, String mapObject) {
+                return null;
+            }
         };
     }
 }
