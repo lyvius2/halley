@@ -84,6 +84,9 @@ class ScoringServiceTest {
     private PropertyEnrichmentService propertyEnrichmentService;
 
     @Autowired
+    private banghak.home.halley.adapter.outbound.persistence.CriterionWeightRepository criterionWeightRepository;
+
+    @Autowired
     private UserGroupRepository userGroupRepository;
 
     @Autowired
@@ -142,6 +145,51 @@ class ScoringServiceTest {
         assertThat(jeonseList).extracting(r -> r.property().name())
                 .contains("전세 매물")
                 .doesNotContain("싼 매물");
+    }
+
+    @Test
+    @DisplayName("저장해도 항목 순서가 그대로다 — 읽는 쪽과 재채점하는 쪽이 같은 순서여야 한다 (설계 I199)")
+    void scoreOrderSurvivesSaving() {
+        // given — 한 번 읽어 둔 순서
+        final PropertyResponse created = propertyService.create(request("순서 매물", DealType.SALE, 400_000_000L));
+        final List<String> before = scoringService.getScored(created.id()).scores().stream()
+                .map(CriterionScoreView::code)
+                .toList();
+        assertThat(before).hasSizeGreaterThan(3);
+
+        // when — 저장하면 재채점이 돈다. 여기가 다른 순서를 만들던 자리다
+        final List<String> afterSave = scoringService
+                .saveManualScores(created.id(), Map.of("COMFORT", new BigDecimal("4")))
+                .scores().stream()
+                .map(CriterionScoreView::code)
+                .toList();
+
+        // then — 저장 직후도, 다시 읽어도 같은 순서다
+        assertThat(afterSave).containsExactlyElementsOf(before);
+        assertThat(scoringService.getScored(created.id()).scores().stream()
+                .map(CriterionScoreView::code).toList())
+                .containsExactlyElementsOf(before);
+    }
+
+    @Test
+    @DisplayName("항목은 가중치 순위대로 온다 — 총점에 크게 물리는 것이 위에 (설계 I199)")
+    void scoresComeInPriorityOrder() {
+        // given
+        final PropertyResponse created = propertyService.create(request("순위 매물", DealType.SALE, 400_000_000L));
+
+        // when
+        final List<String> codes = scoringService.getScored(created.id()).scores().stream()
+                .map(CriterionScoreView::code)
+                .toList();
+
+        // then — criterion_weight 의 priority_rank 오름차순
+        final Map<String, Integer> ranks = criterionWeightRepository.findAll().stream()
+                .filter(w -> w.priorityRank() != null)
+                .collect(java.util.stream.Collectors.toMap(
+                        w -> w.criterionCode(), w -> w.priorityRank(), (a, b) -> a));
+        final List<String> ranked = codes.stream().filter(ranks::containsKey).toList();
+        assertThat(ranked).isSortedAccordingTo(
+                java.util.Comparator.comparingInt(ranks::get));
     }
 
     @Test

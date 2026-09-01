@@ -442,7 +442,10 @@ public class ScoringService {
         double weightedSum = 0.0;
         double totalWeight = 0.0;
         final List<CriterionScoreView> views = new ArrayList<>();
-        for (final PropertyScore s : persisted) {
+        final Comparator<String> order = byPriorityRank();
+        for (final PropertyScore s : persisted.stream()
+                .sorted(Comparator.comparing(PropertyScore::criterionCode, order))
+                .toList()) {
             final double weight = weightOf(s.criterionCode(), weights);
             if (s.effectiveScore() != null) {
                 weightedSum += s.effectiveScore().doubleValue() * weight;
@@ -477,7 +480,9 @@ public class ScoringService {
                                               Map<String, BigDecimal> weights) {
         final Map<String, Criterion> criteria = criterionRepository.findAll().stream()
                 .collect(Collectors.toMap(Criterion::code, c -> c));
+        final Comparator<String> order = byPriorityRank();
         final List<CriterionScoreView> views = result.criteria().stream()
+                .sorted(Comparator.comparing(CriterionScoreResult::code, order))
                 .map(c -> new CriterionScoreView(
                         c.code(),
                         criteria.containsKey(c.code()) ? criteria.get(c.code()).name() : c.code(),
@@ -706,6 +711,27 @@ public class ScoringService {
         return scorers.stream()
                 .sorted(Comparator.comparing(CriterionScorer::code))
                 .toList();
+    }
+
+    /**
+     * 채점 항목을 <b>가중치 순위대로</b> 늘어놓는다 (설계 I199).
+     *
+     * <p>같은 매물의 채점을 두 곳에서 만들고 있었습니다 — 읽을 때는 `buildFromPersisted`
+     * 가 <b>DB 가 준 순서</b>대로, 저장 뒤 재채점할 때는 `toResponse` 가 <b>채점기 등록
+     * 순서</b>대로. 그래서 <b>저장을 누르면 항목이 뒤섞였습니다.</b>
+     *
+     * <p>둘 다 이 비교자를 지나가게 해 순서를 하나로 맞춥니다. 그리고 그 순서는
+     * <b>가중치 순위</b>입니다 — 총점에 크게 물리는 것이 위에 옵니다. 순위가 없는 항목은
+     * 뒤로 보내되 코드순으로 묶어, 무게가 0인 것들끼리도 자리가 흔들리지 않게 합니다.
+     */
+    private Comparator<String> byPriorityRank() {
+        final Map<String, Integer> ranks = criterionWeightRepository.findAll().stream()
+                .filter(w -> w.priorityRank() != null)
+                .collect(Collectors.toMap(CriterionWeight::criterionCode, CriterionWeight::priorityRank,
+                        (a, b) -> a));
+        return Comparator
+                .comparingInt((String code) -> ranks.getOrDefault(code, Integer.MAX_VALUE))
+                .thenComparing(Comparator.naturalOrder());
     }
 
     private Map<String, BigDecimal> loadWeights() {

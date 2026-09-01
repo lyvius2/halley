@@ -1024,6 +1024,8 @@ tr.dragging { opacity: .5; background: var(--line2); }
     appearance: none;
     height: 6px;
     border-radius: 3px;
+    /* 지나온 쪽만 채운다 (설계 I200). 실제 그러데이션은 :style 로 들어온다 —
+       여기 값은 점수를 아직 못 읽었을 때의 바탕이다 */
     background: var(--line2);
     outline: none;
     cursor: pointer;

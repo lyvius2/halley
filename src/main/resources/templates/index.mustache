@@ -1774,9 +1774,12 @@
                     <!-- 이미 자동 채점된 AUTO 항목은 잠근다 (설계 I111). 열어 두면
                          추정값으로 채워진 칸이 그대로 저장돼 자동 채점이 수동으로 굳는다 -->
                     <div class="score-item-slider" x-show="!scoreLocked(s)">
+                        <!-- 지나온 쪽만 색을 채운다 (설계 I200). 손잡이 위치만으로는
+                             1점인지 5점인지 눈에 안 들어온다 -->
                         <input type="range" class="score-range"
                                :min="scoreMin(s)" :max="scoreMax(s)" :step="scoreStep(s)"
                                :value="scoreForm[s.code] ?? scoreMin(s)"
+                               :style="scoreRangeFill(s)"
                                @input="scoreForm[s.code] = $event.target.value"
                                :aria-label="s.name + ' 점수'"
                                :aria-valuetext="(scoreForm[s.code] ?? scoreMin(s)) + '점'">
