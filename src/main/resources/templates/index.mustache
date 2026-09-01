@@ -65,7 +65,7 @@
                 <div>
                     <div x-show="view==='list'">
                         <div class="sec-head sec-head-actions">
-                            <span class="sec-num">01</span><h2>매물</h2>
+                            <h2>매물</h2>
                             <span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
                             <div class="sec-actions">
                                 <button class="btn btn-sm" @click="openCompare()"
@@ -154,7 +154,7 @@
                     </div>
 
                     <div x-show="view==='weights'">
-                        <div class="sec-head"><span class="sec-num">03</span><h2>평가 기준·가중치</h2><span class="sec-sub" x-text="weights.length + '개'"></span></div>
+                        <div class="sec-head"><h2>평가 기준·가중치</h2><span class="sec-sub" x-text="weights.length + '개'"></span></div>
                         <div class="card table-wrap">
                             <table>
                                 <thead>
@@ -187,7 +187,7 @@
                     </div>
 
                     <div x-show="view==='itinerary'">
-                        <div class="sec-head"><span class="sec-num">05</span><h2>임장 플래너</h2><span class="sec-sub" x-text="itinProperties.length + '건 선택'"></span></div>
+                        <div class="sec-head"><h2>임장 플래너</h2><span class="sec-sub" x-text="itinProperties.length + '건 선택'"></span></div>
                         <div class="card itin-panel">
                             <div class="form-grid">
                                 <label class="span2">출발지 주소
@@ -262,7 +262,7 @@
                     </div>
 
                     <div x-show="view==='me'">
-                        <div class="sec-head"><span class="sec-num">06</span><h2>내 프로필</h2></div>
+                        <div class="sec-head"><h2>내 프로필</h2></div>
                         <template x-if="profile">
                             <div class="card profile-panel">
                                 <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
@@ -295,7 +295,10 @@
                                 <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
                             </div>
                         </template>
+                        <!-- Alpine 의 x-if 는 <b>자식이 하나여야 한다</b> (설계 I166).
+                             카드를 형제로 늘어놓으면 첫 번째만 렌더되고 나머지는 조용히 사라진다 -->
                         <template x-if="profile">
+                        <div>
                         <!-- D3-1b 기존 부채 (설계 I92) -->
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">기존 부채</h4>
@@ -457,6 +460,7 @@
                                 </button>
                             </div>
                         </div>
+                        </div>
                         </template>
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">비밀번호 변경</h4>
@@ -469,7 +473,7 @@
                     <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —
                          구성원·초대 코드까지 함께 보는 자리라 좁은 상자에 넣지 않는다 -->
                     <div x-show="view==='group'">
-                        <div class="sec-head"><span class="sec-num">07</span><h2>그룹 정보</h2></div>
+                        <div class="sec-head"><h2>그룹 정보</h2></div>
                         <div class="progress-strip" x-show="isLoading('groupDetail')" x-cloak>
                             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
                             <div class="progress-strip-bar"><i></i></div>
