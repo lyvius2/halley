@@ -22,7 +22,7 @@ class SlackWebhookAdapterTest {
         // given
         final AtomicReference<URI> target = new AtomicReference<>();
         final SlackWebhookAdapter adapter = new SlackWebhookAdapter(
-                (url, payload, contentType) -> {
+                (url, payload) -> {
                     target.set(url);
                     return "ok";
                 }, objectMapper);
@@ -39,7 +39,7 @@ class SlackWebhookAdapterTest {
     @DisplayName("Feign 폴백(응답 null)이면 실패로 본다")
     void sendFailureOnFallback() {
         final SlackWebhookAdapter adapter = new SlackWebhookAdapter(
-                (url, payload, contentType) -> null, objectMapper);
+                (url, payload) -> null, objectMapper);
 
         assertThat(adapter.send(WEBHOOK, "테스트")).isFalse();
     }
@@ -49,7 +49,7 @@ class SlackWebhookAdapterTest {
     void blankUrlSkips() {
         final AtomicReference<URI> target = new AtomicReference<>();
         final SlackWebhookAdapter adapter = new SlackWebhookAdapter(
-                (url, payload, contentType) -> {
+                (url, payload) -> {
                     target.set(url);
                     return "ok";
                 }, objectMapper);

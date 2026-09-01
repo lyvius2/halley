@@ -2,6 +2,7 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CreateRegulationProfileRequest;
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.NotificationSettingsResponse;
 import banghak.home.halley.adapter.inbound.web.dto.RegulatedAreaRequest;
 import banghak.home.halley.adapter.inbound.web.dto.RegulatedAreaResponse;
 import banghak.home.halley.adapter.inbound.web.dto.RegulationProfileResponse;
@@ -122,6 +123,12 @@ public class AdminSettingsController {
     @GetMapping("/notifications")
     public List<NotificationLogResponse> notifications() {
         return notificationService.recentNotifications();
+    }
+
+    /** 알림 스위치 상태 — 읽기 전용 (설계 I215). 배포로 정하는 값이라 여기서 못 바꿉니다. */
+    @GetMapping("/notification-settings")
+    public NotificationSettingsResponse notificationSettings() {
+        return notificationService.notificationSettings();
     }
 
     /**

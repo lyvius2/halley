@@ -1,6 +1,6 @@
 package banghak.home.halley.adapter.outbound.cache;
 
-import banghak.home.halley.application.port.out.cache.PropertyDetailCache;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.redis.core.Cursor;
@@ -14,55 +14,54 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * live용 (설계 I158 — TTL 24시간).
+ * live 용 (설계 I179).
  *
- * <p><b>Redis가 죽어도 조용히 건너뜁니다</b>(2.1.1). 캐시가 없으면 DB에서 읽으면 됩니다 —
+ * <p><b>Redis 가 죽어도 조용히 건너뜁니다</b>(2.1.1). 캐시가 없으면 원본에서 읽으면 됩니다 —
  * 캐시 계층 장애가 화면을 막을 이유가 없습니다.
  */
 @Slf4j
 @Component
 @Profile("live")
-public class RedisPropertyDetailCache implements PropertyDetailCache {
+public class RedisCachePort implements CachePort {
 
-    private static final Duration TTL = Duration.ofHours(24);
-    private static final String PREFIX = "detail:";
+    private static final String PREFIX = "cache:";
     /** 한 번에 훑을 키 수. KEYS 는 레디스를 멈추므로 쓰지 않는다. */
     private static final int SCAN_COUNT = 200;
 
     private final StringRedisTemplate redisTemplate;
 
-    public RedisPropertyDetailCache(StringRedisTemplate redisTemplate) {
+    public RedisCachePort(StringRedisTemplate redisTemplate) {
         this.redisTemplate = redisTemplate;
     }
 
     @Override
-    public Optional<String> get(String namespace, long propertyId) {
+    public Optional<String> get(String namespace, String key) {
         try {
-            return Optional.ofNullable(redisTemplate.opsForValue().get(key(namespace, propertyId)));
+            return Optional.ofNullable(redisTemplate.opsForValue().get(key(namespace, key)));
         } catch (RuntimeException e) {
-            log.warn("Redis detail cache read failed. namespace={}, propertyId={}, cause={}",
-                    namespace, propertyId, e.getMessage());
+            log.warn("Redis cache read failed. namespace={}, key={}, cause={}",
+                    namespace, key, e.getMessage());
             return Optional.empty();
         }
     }
 
     @Override
-    public void put(String namespace, long propertyId, String json) {
+    public void put(String namespace, String key, String json, Duration ttl) {
         try {
-            redisTemplate.opsForValue().set(key(namespace, propertyId), json, TTL);
+            redisTemplate.opsForValue().set(key(namespace, key), json, ttl);
         } catch (RuntimeException e) {
-            log.warn("Redis detail cache write failed. namespace={}, propertyId={}, cause={}",
-                    namespace, propertyId, e.getMessage());
+            log.warn("Redis cache write failed. namespace={}, key={}, cause={}",
+                    namespace, key, e.getMessage());
         }
     }
 
     @Override
-    public void evict(String namespace, long propertyId) {
+    public void evict(String namespace, String key) {
         try {
-            redisTemplate.delete(key(namespace, propertyId));
+            redisTemplate.delete(key(namespace, key));
         } catch (RuntimeException e) {
-            log.warn("Redis detail cache evict failed. namespace={}, propertyId={}, cause={}",
-                    namespace, propertyId, e.getMessage());
+            log.warn("Redis cache evict failed. namespace={}, key={}, cause={}",
+                    namespace, key, e.getMessage());
         }
     }
 
@@ -79,11 +78,11 @@ public class RedisPropertyDetailCache implements PropertyDetailCache {
                 redisTemplate.delete(keys);
             }
         } catch (RuntimeException e) {
-            log.warn("Redis detail cache evictAll failed. namespace={}, cause={}", namespace, e.getMessage());
+            log.warn("Redis cache evictAll failed. namespace={}, cause={}", namespace, e.getMessage());
         }
     }
 
-    private String key(String namespace, long propertyId) {
-        return PREFIX + namespace + ":" + propertyId;
+    private String key(String namespace, String key) {
+        return PREFIX + namespace + ":" + key;
     }
 }

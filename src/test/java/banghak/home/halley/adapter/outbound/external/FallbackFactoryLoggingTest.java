@@ -56,9 +56,9 @@ class FallbackFactoryLoggingTest {
         assertThat(new OdsayTransitFallbackFactory().create(cause)
                 .findTransit("key", 126.9, 37.5, 127.0, 37.4)).isNull();
         assertThat(new MinistryReferenceFallbackFactory().create(cause)
-                .fetchTrade("key", "11110", "202607")).isNull();
+                .fetchTrade("key", "11110", "202607", 1000)).isNull();
         assertThat(new SlackWebhookFallbackFactory().create(cause)
-                .post(java.net.URI.create("https://hooks.slack.com/x"), "{}", "application/json")).isNull();
+                .post(java.net.URI.create("https://hooks.slack.com/x"), "{}")).isNull();
     }
 
     private ListAppender<ILoggingEvent> attachAppender(Class<?> type) {

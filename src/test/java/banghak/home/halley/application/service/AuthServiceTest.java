@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -52,7 +53,7 @@ class AuthServiceTest {
         userService.create(new CreateUserRequest("auth", "auth-user", null, "password1!", UserRole.MEMBER, null, null, null, 0L, 60_000_000L, 0L));
 
         // when
-        final AuthResponse first = authService.login("auth", "password1!", new MockHttpServletRequest());
+        final AuthResponse first = authService.login("auth", "password1!", false, new MockHttpServletRequest(), new MockHttpServletResponse());
 
         // then
         assertThat(first.mustChangePassword()).isTrue();
@@ -63,7 +64,7 @@ class AuthServiceTest {
         assertThat(isMustChangePassword).isFalse();
 
         SecurityContextHolder.clearContext();
-        final AuthResponse second = authService.login("auth", "newpassword2!", new MockHttpServletRequest());
+        final AuthResponse second = authService.login("auth", "newpassword2!", false, new MockHttpServletRequest(), new MockHttpServletResponse());
         assertThat(second.mustChangePassword()).isFalse();
     }
 
@@ -76,7 +77,7 @@ class AuthServiceTest {
         // when
         final InvalidCredentialsException ex = assertThrows(
                 InvalidCredentialsException.class,
-                () -> authService.login("wrong", "bad-password", new MockHttpServletRequest()));
+                () -> authService.login("wrong", "bad-password", false, new MockHttpServletRequest(), new MockHttpServletResponse()));
 
         // then
         assertThat(ex).isNotNull();

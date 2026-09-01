@@ -1,7 +1,8 @@
 package banghak.home.halley.adapter.outbound.external.odsay;
 
-import banghak.home.halley.application.port.out.external.OdsayTransitPort;
+import banghak.home.halley.config.exception.TransitQuotaExceededException;
 import banghak.home.halley.config.exception.TransitSearchFailedException;
+import banghak.home.halley.domain.itinerary.RoutePath;
 import banghak.home.halley.domain.scoring.TransitResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -9,6 +10,9 @@ import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * ODsay 대중교통 경로.
@@ -20,7 +24,13 @@ import tools.jackson.databind.ObjectMapper;
  */
 @Slf4j
 @Component
-public class OdsayTransitAdapter implements OdsayTransitPort {
+/**
+ * <b>포트를 직접 구현하지 않습니다</b> (설계 I210).
+ *
+ * <p>`TransitWithLlmFallback` 이 이것을 감싸 포트가 됩니다. 둘 다 포트 빈이면
+ * 스프링이 <b>어느 쪽을 줄지 모릅니다</b> — 그리고 감싼 쪽을 골라야 폴백이 삽니다.
+ */
+public class OdsayTransitAdapter {
 
     private final OdsayTransitFeignClient client;
     private final String apiKey;
@@ -34,12 +44,10 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
         this.objectMapper = objectMapper;
     }
 
-    @Override
     public boolean isEnabled() {
         return apiKey != null && !apiKey.isBlank();
     }
 
-    @Override
     public TransitResult findTransit(double startX, double startY, double endX, double endY) {
         if (apiKey == null || apiKey.isBlank()) {
             return TransitResult.missing();
@@ -56,6 +64,11 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
             log.warn("ODsay rejected the request. code={}, msg={}, hint={}, start=({},{}), end=({},{})",
                     code, messageOf(error), hintFor(code),
                     startX, startY, endX, endY);
+            // 하루치를 다 쓴 것과 경로가 없는 것은 다르다 (설계 I210).
+            // 앞은 다른 길로 가면 되고, 뒤는 어디로 가도 답이 없다
+            if (isQuotaExhausted(code)) {
+                throw new TransitQuotaExceededException("ODsay 일일 호출 한도를 넘었습니다 (code=" + code + ")");
+            }
             return TransitResult.missing();
         }
         final TransitResult result = TransitResult.mapResult(root);
@@ -65,6 +78,16 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
                     startX, startY, endX, endY, root.path("result").path("path").size());
         }
         return result;
+    }
+
+    /**
+     * 하루치를 다 썼는가 (설계 I210).
+     *
+     * <p>ODsay 는 이걸 <b>두 가지 코드</b>로 알려 줍니다 — HTTP 스러운 `429` 와
+     * 자체 코드 `3`(일일 사용량 초과). 실제 로그에서 본 것은 `429` 입니다.
+     */
+    private static boolean isQuotaExhausted(String code) {
+        return "429".equals(code) || "3".equals(code);
     }
 
     /** ODsay는 {@code error}를 객체로도 배열로도 보냅니다 — 엔드포인트마다 다릅니다. */
@@ -112,6 +135,67 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
             case "-9" -> "좌표 형식 오류 (X=경도, Y=위도 순서 확인)";
             case "2" -> "인증키 오류 — 등록된 도메인·IP가 맞는지 확인";
             default -> "ODsay 오류 코드표 확인 필요";
+        };
+    }
+
+    /**
+     * 경로선을 <b>교통수단별로 끊어서</b> (설계 I177 · I195).
+     *
+     * <p>`lane[].section[].graphPos` 에 좌표가 들어 있습니다 — <b>`x` 가 경도, `y` 가 위도</b>입니다.
+     * 뒤집으면 지도에 아프리카 앞바다가 그려집니다.
+     *
+     * <p>`lane` 하나가 <b>타고 가는 것 하나</b>입니다. 7호선 한 덩어리, 5호선 한 덩어리,
+     * 마을버스 한 덩어리. `class` 가 2면 지하철, 1이면 버스이고 `type` 이 그 안의 갈래입니다
+     * (지하철은 호선 번호, 버스는 간선·지선 따위). 이어 붙이면 그 구분이 사라집니다.
+     *
+     * <p><b>도보는 `lane` 에 없습니다.</b> 환승 구간마다 좌표가 비고, 화면은 그 사이를
+     * 점선으로 잇습니다 — 서버가 없는 좌표를 지어내지 않습니다.
+     */
+    public RoutePath findLane(String mapObj) {
+        if (apiKey == null || apiKey.isBlank() || mapObj == null || mapObj.isBlank()) {
+            return RoutePath.empty();
+        }
+        final String json = client.loadLane(apiKey, "0:0@" + mapObj);
+        if (json == null) {
+            return RoutePath.empty();
+        }
+        final JsonNode root = parse(json);
+        if (errorNode(root) != null) {
+            // 경로선은 <b>없어도 됩니다</b> — 화면이 직선으로 되돌아갑니다 (설계 I210).
+            // 그래서 할당량 초과여도 예외를 던지지 않습니다. LLM 에게 좌표를 지어내게
+            // 하면 <b>있지도 않은 길</b>이 지도에 그려집니다
+            log.warn("ODsay rejected the lane request - falling back to straight lines. mapObj={}", mapObj);
+            return RoutePath.empty();
+        }
+        final List<RoutePath.Segment> segments = new ArrayList<>();
+        for (final JsonNode lane : root.path("result").path("lane")) {
+            final List<RoutePath.Point> points = new ArrayList<>();
+            for (final JsonNode section : lane.path("section")) {
+                for (final JsonNode pos : section.path("graphPos")) {
+                    points.add(new RoutePath.Point(pos.path("y").asDouble(), pos.path("x").asDouble()));
+                }
+            }
+            if (points.size() < 2) {
+                continue;
+            }
+            segments.add(new RoutePath.Segment(styleOf(lane), points));
+        }
+        return new RoutePath(segments);
+    }
+
+    /**
+     * 이 lane 이 무엇인가 (설계 I195).
+     *
+     * <p>색은 여기서 정하지 않습니다 — <b>무엇인지만</b> 말하고 색은 화면이 고릅니다.
+     * `class` 가 없으면 `TRANSIT` 로 두어, 모르는 것을 지하철인 척하지 않게 합니다.
+     */
+    private static String styleOf(JsonNode lane) {
+        final int laneClass = lane.path("class").asInt(-1);
+        final int type = lane.path("type").asInt(0);
+        return switch (laneClass) {
+            case 1 -> "BUS_" + type;
+            case 2 -> "SUBWAY_" + type;
+            default -> "TRANSIT";
         };
     }
 

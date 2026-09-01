@@ -19,14 +19,14 @@ public class MinistryReferenceFallbackFactory implements FallbackFactory<Ministr
         return new MinistryReferenceFeignClient() {
 
             @Override
-            public String fetchTrade(String serviceKey, String lawdCd, String dealYmd) {
+            public String fetchTrade(String serviceKey, String lawdCd, String dealYmd, int numOfRows) {
                 log.warn("Ministry trade lookup failed - returning empty. lawdCd={}, dealYmd={}, cause={}",
                         lawdCd, dealYmd, describe(cause));
                 return null;
             }
 
             @Override
-            public String fetchRent(String serviceKey, String lawdCd, String dealYmd) {
+            public String fetchRent(String serviceKey, String lawdCd, String dealYmd, int numOfRows) {
                 log.warn("Ministry rent lookup failed - returning empty. lawdCd={}, dealYmd={}, cause={}",
                         lawdCd, dealYmd, describe(cause));
                 return null;

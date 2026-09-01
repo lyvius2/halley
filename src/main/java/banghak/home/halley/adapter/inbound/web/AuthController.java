@@ -31,8 +31,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest request, HttpServletRequest httpRequest) {
-        return authService.login(request.loginId(), request.password(), httpRequest);
+    public AuthResponse login(@RequestBody LoginRequest request,
+                              HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
+        return authService.login(request.loginId(), request.password(), request.remember(),
+                httpRequest, httpResponse);
     }
 
     @PostMapping("/logout")

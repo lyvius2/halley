@@ -100,20 +100,20 @@ public class StressRateService {
                                 decision.stressRate().toPlainString(), existing.valueType(),
                                 existing.description(), null, Instant.now())),
                         () -> log.warn("Stress rate param not found in profile {} - skipped.", profile));
-        // 근거는 시스템 설정에 둔다. 규제 파라미터는 숫자만 담는 자리다
-        putConfig(SOURCE_KEY, decision.source());
-        putConfig(UPDATED_KEY, Instant.now().toString());
+        // 근거는 시스템 설정에 둔다. 규제 파라미터는 숫자만 담는 자리다.
+        // 두 키의 설명이 같으면 화면에 <b>같은 이름이 두 줄</b> 뜬다 (설계 I185)
+        putConfig(SOURCE_KEY, decision.source(), "스트레스 금리 산출 근거 (읽기 전용)");
+        putConfig(UPDATED_KEY, Instant.now().toString(), "스트레스 금리 산출 시각 (읽기 전용)");
     }
 
-    private void putConfig(String key, String value) {
+    private void putConfig(String key, String value, String description) {
         systemConfigRepository.findById(key).ifPresentOrElse(
                 existing -> systemConfigRepository.update(new SystemConfig(
                         existing.configKey(), value, existing.valueType(), existing.category(),
-                        existing.description(), existing.masked(), null, Instant.now())),
+                        description, existing.masked(), null, Instant.now())),
                 () -> systemConfigRepository.save(new SystemConfig(
                         key, value, ConfigValueType.STRING, ConfigCategory.LOAN,
-                        "한국은행 ECOS로 산출한 스트레스 금리의 근거 (설계 I116)",
-                        false, null, Instant.now())));
+                        description, false, null, Instant.now())));
     }
 
     private String activeProfile() {

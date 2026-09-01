@@ -4,7 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.outbound.persistence.LandUseRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
-import banghak.home.halley.application.port.out.cache.PropertyDetailCache;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.domain.landuse.LandUse;
 import banghak.home.halley.domain.landuse.LandUseConflict;
 import banghak.home.halley.domain.property.DealType;
@@ -35,7 +35,7 @@ class LandUseCacheTest {
     private LandUseRepository landUseRepository;
 
     @Autowired
-    private PropertyDetailCache detailCache;
+    private CachePort cache;
 
     @Autowired
     private PropertyService propertyService;
@@ -57,12 +57,12 @@ class LandUseCacheTest {
                 null, null, null, 5, null, null, null, null, 2018, null, null,
                 null, null, null, 3, null, null, null, null, null, null, null, null, null,
                 null, null, null)).id();
-        detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
+        cache.evict(CachePort.LAND_USE, String.valueOf(propertyId));
     }
 
     @AfterEach
     void tearDown() {
-        detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
+        cache.evict(CachePort.LAND_USE, String.valueOf(propertyId));
         GroupTestSupport.logout();
     }
 
@@ -73,7 +73,7 @@ class LandUseCacheTest {
                 "제3종일반주거지역", LandUseConflict.INCLUDED, "필지", Instant.now())));
 
         assertThat(landUseService.find(propertyId)).hasSize(1);
-        assertThat(detailCache.get(PropertyDetailCache.LAND_USE, propertyId)).isPresent();
+        assertThat(cache.get(CachePort.LAND_USE, String.valueOf(propertyId))).isPresent();
 
         // DB 에서 지워도 캐시가 살아 있으면 그대로 나온다 — 캐시가 받고 있다는 증거다
         landUseRepository.deleteByPropertyId(propertyId);
@@ -90,7 +90,7 @@ class LandUseCacheTest {
         landUseRepository.replaceAll(propertyId, List.of(new LandUse(null, propertyId, "UQA111",
                 "제3종일반주거지역", LandUseConflict.INCLUDED, "필지", Instant.now())));
         landUseService.find(propertyId);
-        assertThat(detailCache.get(PropertyDetailCache.LAND_USE, propertyId)).isPresent();
+        assertThat(cache.get(CachePort.LAND_USE, String.valueOf(propertyId))).isPresent();
 
         // 저장된 것이 바뀐 상황
         landUseRepository.deleteByPropertyId(propertyId);

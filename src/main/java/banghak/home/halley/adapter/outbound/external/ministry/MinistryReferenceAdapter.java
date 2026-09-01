@@ -18,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Objects;
 
@@ -49,6 +51,31 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         return URLDecoder.decode(key.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
+
+    /**
+     * 한 번에 받아 올 건수 (설계 I219).
+     *
+     * <p><b>안 주면 10건입니다.</b> 서울 한 구의 한 달 아파트 매매는 실측으로
+     * 200~700건이라, 10건만 보면 <b>찾는 단지가 거의 안 걸립니다.</b>
+     *
+     * <p>1000으로 뒀다가 <b>더 재 보고 올렸습니다.</b> 송파구 2025-03 이 952건이라
+     * 여유가 48건뿐이었습니다 — 거래가 몰리는 달에 조용히 잘릴 자리였습니다.
+     *
+     * <pre>
+     * 송파(11710) 2025-03  952      강남(11680) 2025-03  917
+     * 노원(11350) 2025-06  885      성북(11290) 2025-06  660
+     * </pre>
+     *
+     * <p>충분히 크게 잡아 <b>한 번에 다 받습니다.</b> 페이지를 넘기면 호출이
+     * 그만큼 늘고, 국토부는 초당 호출을 제한합니다(`RateGate`, [I140]).
+     * 100,000 을 줘도 실제로는 `totalCount` 만큼만 옵니다 — 실측 확인했습니다.
+     *
+     * <p>그래도 넘칠 수 있으므로 <b>넘쳤는지 확인합니다</b>(`warnIfTruncated`).
+     * 앞서 주석에 "어긋나면 알 수 있다"고 적어 두고 <b>비교하는 코드는
+     * 없었습니다</b> — 그래서 10건만 받던 것을 오래 몰랐습니다([I219]).
+     */
+    private static final int PAGE_SIZE = 100_000;
+
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
         // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다 (설계 I140)
@@ -56,11 +83,13 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             return null;
         }
         rateGate.acquire();
-        final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd);
+        final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
         if (xml == null) {
             return null;
         }
-        return parse(xml);
+        final List<ReferenceTrade> trades = parse(xml);
+        warnIfTruncated(xml, trades.size(), "trades", lawdCd, dealYmd);
+        return trades;
     }
 
     /**
@@ -75,12 +104,40 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             return null;
         }
         rateGate.acquire();
-        final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd);
+        final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
         if (xml == null) {
             return null;
         }
-        return parseRents(xml);
+        final List<ReferenceTrade> rents = parseRents(xml);
+        // 전세는 월세를 걸러 내므로 받은 수보다 적다 — 자른 것과 구분되지 않아 총량으로 본다
+        warnIfTruncated(xml, items(xml).size(), "rents", lawdCd, dealYmd);
+        return rents;
     }
+
+    /**
+     * 한 페이지에 다 못 담았는지 (설계 I229).
+     *
+     * <p>국토부는 <b>넘쳐도 아무 말 없이</b> 앞에서 잘라 줍니다. 그러면 뒤쪽 거래는
+     * 통째로 안 보이는데, 화면에는 "거래가 없다"로 나타납니다 —
+     * <b>없는 것과 못 받은 것을 구분할 수 없습니다.</b>
+     *
+     * <p>이걸 안 봐서 <b>10건만 받던 것을 반년 넘게 몰랐습니다</b>([I219]).
+     */
+    private void warnIfTruncated(String xml, int received, String what, String lawdCd, String dealYmd) {
+        final Matcher matcher = TOTAL_COUNT.matcher(xml);
+        if (!matcher.find()) {
+            return;
+        }
+        final int total = Integer.parseInt(matcher.group(1));
+        if (total > received) {
+            log.warn("Ministry {} were truncated - raise PAGE_SIZE. lawdCd={}, dealYmd={}, "
+                            + "totalCount={}, received={}, pageSize={}",
+                    what, lawdCd, dealYmd, total, received, PAGE_SIZE);
+        }
+    }
+
+    /** 응답 어디에나 한 번 나온다 — XML 을 다시 파싱하지 않고 뽑는다. */
+    private static final Pattern TOTAL_COUNT = Pattern.compile("<totalCount>(\\d+)</totalCount>");
 
     List<ReferenceTrade> parseRents(String xml) {
         final List<ReferenceTrade> rents = new ArrayList<>();

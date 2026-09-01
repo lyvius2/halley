@@ -4,8 +4,10 @@ import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceTransactionResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
+import banghak.home.halley.domain.property.ComplexName;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceDealType;
 import banghak.home.halley.domain.property.ReferenceSource;
@@ -17,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -56,6 +59,17 @@ public class ReferenceTransactionService {
      * 거의 늘 비어 있었습니다 — 한 단지의 한 달 거래는 원래 0건이 흔합니다.
      */
     private final int lookbackMonths;
+    /** 배경 조회를 다른 보정과 같은 줄에 세운다 (설계 I108). */
+    private final banghak.home.halley.config.VirtualThreadGate gate;
+    private final CachePort cache;
+
+    /**
+     * 헛걸음을 기억해 두는 시간 (설계 I219).
+     *
+     * <p>국토부 자료는 <b>달 단위로 들어옵니다.</b> 오늘 없던 거래가 오늘 오후에
+     * 생기지는 않습니다 — 하루면 충분하고, 새 달이 오면 어차피 만료됩니다.
+     */
+    private static final Duration MISS_TTL = Duration.ofHours(24);
 
     public ReferenceTransactionService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
@@ -63,18 +77,52 @@ public class ReferenceTransactionService {
                                        MinistryReferencePort ministryReferencePort,
                                        LegalDongCodeService legalDongCodeService,
                                        @Value("${ministry.reference.lookback-months:12}")
-                                       int lookbackMonths) {
+                                       int lookbackMonths,
+                                       banghak.home.halley.config.VirtualThreadGate gate,
+                                       CachePort cache) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.ministryReferencePort = ministryReferencePort;
         this.legalDongCodeService = legalDongCodeService;
         this.lookbackMonths = lookbackMonths;
+        this.gate = gate;
+        this.cache = cache;
     }
 
+    /**
+     * 매물 상세가 부른다 (설계 I184).
+     *
+     * <p><b>여기서 국토부를 부르지 않습니다.</b> 저장된 것이 없으면 12개월을 훑는데,
+     * 초당 제한(I140)까지 걸려 <b>3초 넘게 화면이 멈춥니다.</b> 그동안 상세 모달이
+     * 통째로 기다립니다 — 중개사·토지이용계획은 캐시에서 곧바로 오는데도 그렇습니다.
+     *
+     * <p>저장된 것만 돌려주고, 없으면 <b>배경에서 받아 둡니다.</b> 사용자가 달을 지정해
+     * 물었을 때(`dealMonth`)만 기다렸다 답합니다 — 그건 명시적으로 시킨 일입니다.
+     */
     public ReferenceCardResponse getReferences(Long propertyId, String legalDongCode, String dealMonth) {
         final Property property = propertyAccessGuard.require(propertyId);
-        return collect(property, legalDongCode, dealMonth);
+        if (dealMonth != null && !dealMonth.isBlank()) {
+            return collect(property, legalDongCode, dealMonth);
+        }
+        final List<ReferenceTransaction> stored = referenceTransactionRepository.findByPropertyId(propertyId);
+        if (!stored.isEmpty()) {
+            // 저장된 것을 돌려줄 때도 무엇으로 물었는지 함께 말한다 (설계 I227)
+            return toCard(property, stored, blankToNull(legalDongCode) != null
+                    ? legalDongCode
+                    : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null));
+        }
+        // 화면은 기다리지 않는다. 다음에 열면 채워져 있다
+        gate.runAll(List.of(() -> {
+            try {
+                collect(property, legalDongCode, null);
+            } catch (RuntimeException e) {
+                log.warn("Background reference fetch failed. propertyId={}, cause={}",
+                        propertyId, e.toString());
+            }
+            return null;
+        }));
+        return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, null);
     }
 
     /**
@@ -93,25 +141,40 @@ public class ReferenceTransactionService {
                                           String dealMonth) {
         final Long propertyId = property.id();
 
-        final List<ReferenceTransaction> cached = referenceTransactionRepository.findByPropertyId(propertyId);
-        if (!cached.isEmpty()) {
-            return toCard(property, cached);
-        }
-
-        // 법정동코드가 없으면 지번주소에서 역매핑, 계약년월이 없으면 현재 월 사용
+        // 무엇으로 물었는지는 <b>결과가 있든 없든</b> 알려 준다 (설계 I227) —
+        // "왜 비었는지"를 확인하려면 코드가 먼저 보여야 한다
         final String lawdCd = blankToNull(legalDongCode) != null
                 ? legalDongCode
                 : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null);
+
+        final List<ReferenceTransaction> cached = referenceTransactionRepository.findByPropertyId(propertyId);
+        if (!cached.isEmpty()) {
+            return toCard(property, cached, lawdCd);
+        }
+        // <b>못 찾은 것도 결과입니다 (설계 I219).</b> 저장할 거래가 없다고 아무것도
+        // 남기지 않으면, 상세를 열 때마다 12개월치를 다시 받아 옵니다 —
+        // 실제로 그러고 있었습니다. 사용자가 특정 달을 물을 때는 무시합니다
+        if (dealMonth == null && cache.get(CachePort.REFERENCE_MISS, String.valueOf(propertyId)).isPresent()) {
+            log.debug("Skipping ministry lookup - nothing matched recently. propertyId={}", propertyId);
+            return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
+        }
+
+        // 계약년월이 없으면 현재 월 사용
         final String month = blankToNull(dealMonth) != null
                 ? dealMonth
                 : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         if (lawdCd == null) {
             log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
                     propertyId, property.addressJibun());
-            return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths);
+            return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
         }
 
         final List<ReferenceTrade> trades = fetchMonths(lawdCd, month, dealMonth != null);
+        // 비었을 때 <b>어느 단계에서 걸렸는지</b> 말해 주려고 센다 (설계 I232)
+        final int nameMatched = (int) trades.stream()
+                .filter(trade -> !ComplexName.comparable(property.name(), trade.apartmentName())
+                        || ComplexName.same(property.name(), trade.apartmentName()))
+                .count();
         final List<ReferenceTransaction> saved = trades.stream()
                 .filter(trade -> matches(property, trade))
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -121,12 +184,32 @@ public class ReferenceTransactionService {
                         trade.dealAmount(), trade.areaM2(), trade.floorNo(),
                         ReferenceSource.MINISTRY_TRADE, Instant.now())))
                 .toList();
-        // 비었을 때 왜 비었는지 남긴다 — 받아온 게 없는 것과 걸러진 것은 다른 상황이다
-        if (saved.isEmpty()) {
-            log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}",
-                    propertyId, property.name(), property.areaExclusiveM2(), trades.size());
+        if (!saved.isEmpty()) {
+            return toCard(property, saved, lawdCd, trades.size(), nameMatched, false);
         }
-        return toCard(property, saved);
+
+        // 이름은 맞는데 <b>면적이 하나도 안 맞는</b> 경우 (설계 I232).
+        // 조용히 "없습니다" 하면 <b>단지가 실제로 거래되고 있다는 사실</b>이 가려집니다 —
+        // 상계주공7단지가 그랬습니다: 매물 전용면적에 <b>공급면적(71.02)</b>이 들어가
+        // 있었는데, 화면이 빈 채로만 있어 아무도 못 알아챘습니다.
+        // <b>저장하지는 않습니다</b> — 다른 평형이라 이 매물의 참고 시세가 아닙니다
+        final List<ReferenceTransaction> otherAreas = trades.stream()
+                .filter(trade -> ComplexName.same(property.name(), trade.apartmentName()))
+                .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(MAX_SAVED)
+                .map(trade -> new ReferenceTransaction(
+                        null, propertyId, ReferenceDealType.TRADE, trade.contractDate(),
+                        trade.dealAmount(), trade.areaM2(), trade.floorNo(),
+                        ReferenceSource.MINISTRY_TRADE, Instant.now()))
+                .toList();
+
+        // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
+        cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
+        log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}, "
+                        + "nameMatched={}, otherAreas={}",
+                propertyId, property.name(), property.areaExclusiveM2(), trades.size(),
+                nameMatched, otherAreas.size());
+        return toCard(property, otherAreas, lawdCd, trades.size(), nameMatched, !otherAreas.isEmpty());
     }
 
     /**
@@ -176,13 +259,12 @@ public class ReferenceTransactionService {
      * 참고 카드가 비는 것이 남의 단지 가격을 이 매물 것처럼 보여주는 것보다 낫습니다.
      */
     private boolean matches(Property property, ReferenceTrade trade) {
-        final String propertyName = normalizeComplexName(property.name());
-        final String tradeName = normalizeComplexName(trade.apartmentName());
-        final boolean nameKnown = propertyName != null && tradeName != null;
+        // 규칙은 `ComplexName` 하나다 (설계 I230) — 전망과 다르게 정규화하다 갈라졌다
+        final boolean nameKnown = ComplexName.comparable(property.name(), trade.apartmentName());
         final boolean areaKnown = property.areaExclusiveM2() != null && trade.areaM2() != null
                 && property.areaExclusiveM2().signum() > 0;
 
-        if (nameKnown && !sameComplex(propertyName, tradeName)) {
+        if (nameKnown && !ComplexName.same(property.name(), trade.apartmentName())) {
             return false;
         }
         if (!areaKnown) {
@@ -190,10 +272,6 @@ public class ReferenceTransactionService {
         }
         final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
         return diff / property.areaExclusiveM2().doubleValue() <= AREA_TOLERANCE;
-    }
-
-    private boolean sameComplex(String left, String right) {
-        return left.contains(right) || right.contains(left);
     }
 
     /** `은마아파트(테스트)` → `은마`. 표기 흔들림을 걷어낸다. */
@@ -209,18 +287,28 @@ public class ReferenceTransactionService {
         return normalized.length() < MIN_NAME_LENGTH ? null : normalized;
     }
 
-    private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions) {
+    private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
+                                         String lawdCd) {
+        return toCard(property, transactions, lawdCd, transactions.size(), transactions.size(), false);
+    }
+
+    private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
+                                         String lawdCd, int fetched, int nameMatched,
+                                         boolean areaMismatch) {
         final List<ReferenceTransactionResponse> list = transactions.stream()
                 .sorted(Comparator.comparing(ReferenceTransaction::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(t -> new ReferenceTransactionResponse(t.contractDate(), t.price(), t.floorNo()))
+                .map(t -> new ReferenceTransactionResponse(t.contractDate(), t.price(), t.floorNo(), t.areaM2()))
                 .toList();
         final Long asking = property.priceDeposit();
         if (isComputeGapRate(asking, list)) {
-            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths);
+            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd,
+                    fetched, nameMatched, areaMismatch);
         }
         final long latest = list.getFirst().price();
         final BigDecimal gap = BigDecimal.valueOf((asking - latest) * 100.0 / latest).setScale(1, RoundingMode.HALF_UP);
-        return new ReferenceCardResponse(list, asking, gap, null, lookbackMonths);
+        // 다른 평형과 견준 괴리는 뜻이 없다 (설계 I232)
+        return new ReferenceCardResponse(list, asking, areaMismatch ? null : gap, null,
+                lookbackMonths, lawdCd, fetched, nameMatched, areaMismatch);
     }
 
     private static boolean isComputeGapRate(Long asking, List<ReferenceTransactionResponse> list) {

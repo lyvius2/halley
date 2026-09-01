@@ -3,12 +3,12 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyImageRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.config.ImageStorage;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.ImageType;
 import banghak.home.halley.domain.property.PropertyImage;
 import net.coobird.thumbnailator.Thumbnails;
-import org.springframework.beans.factory.annotation.Value;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -32,16 +32,16 @@ public class PropertyImageService {
     private final PropertyRepository propertyRepository;
     private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyImageRepository propertyImageRepository;
-    private final String imagesDir;
+    private final ImageStorage imageStorage;
 
     public PropertyImageService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
                                 PropertyImageRepository propertyImageRepository,
-                                @Value("${app.images.dir:uploads}") String imagesDir) {
+                                ImageStorage imageStorage) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyImageRepository = propertyImageRepository;
-        this.imagesDir = imagesDir;
+        this.imageStorage = imageStorage;
     }
 
     /**
@@ -65,7 +65,7 @@ public class PropertyImageService {
             replaceExistingFloorPlan(propertyId);
         }
         final String id = UUID.randomUUID().toString().substring(0, 8);
-        final Path dir = Paths.get(imagesDir, String.valueOf(propertyId));
+        final Path dir = imageStorage.dirOf(propertyId);
         try {
             Files.createDirectories(dir);
             final String originalName = type + "_" + id + "_original.jpg";
@@ -131,7 +131,7 @@ public class PropertyImageService {
     private void deleteFiles(PropertyImage image) {
         try {
             final String fileName = Paths.get(image.storagePath()).getFileName().toString();
-            final Path dir = Paths.get(imagesDir, String.valueOf(image.propertyId()));
+            final Path dir = imageStorage.dirOf(image.propertyId());
             Files.deleteIfExists(dir.resolve(fileName));
             Files.deleteIfExists(dir.resolve(fileName.replace("_original.jpg", "_thumb.jpg")));
         } catch (IOException | RuntimeException e) {

@@ -12,10 +12,25 @@ public class KakaoDirectionsFallbackFactory implements FallbackFactory<KakaoDire
 
     @Override
     public KakaoDirectionsFeignClient create(Throwable cause) {
-        return (origin, destination, priority) -> {
-            log.warn("Kakao Directions failed - returning fallback (travel time unknown). origin={}, destination={}, cause={}",
-                    origin, destination, describe(cause));
-            return null;
+        return new KakaoDirectionsFeignClient() {
+
+            @Override
+            public String directions(String origin, String destination, String priority) {
+                return warn(origin, destination, "now");
+            }
+
+            @Override
+            public String futureDirections(String origin, String destination, String priority,
+                                           String departureTime) {
+                return warn(origin, destination, departureTime);
+            }
+
+            private String warn(String origin, String destination, String when) {
+                log.warn("Kakao Directions failed - returning fallback (travel time unknown). "
+                                + "origin={}, destination={}, departureTime={}, cause={}",
+                        origin, destination, when, describe(cause));
+                return null;
+            }
         };
     }
 }

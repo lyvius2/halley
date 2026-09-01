@@ -1,3 +1,26 @@
+/**
+ * 오늘 (설계 I207).
+ *
+ * <p><b>`toISOString()` 을 그냥 자르면 안 됩니다.</b> UTC 기준이라 한국에서는
+ * <b>오전 9시 전에 어제 날짜</b>가 나옵니다 — 오늘 오후 임장을 짜려는데 날짜 칸이
+ * 어제로 채워져 있고, `min` 에도 걸려 고를 수 없게 됩니다.
+ */
+/**
+ * 주소 밀기를 다루는 값들 (설계 I211).
+ *
+ * <p><b>컴포넌트 밖에 둡니다.</b> 안에 두면 Alpine 이 반응형으로 감싸는데,
+ * 주소를 계산하는 효과가 이것을 읽고 쓰므로 <b>스스로를 다시 부릅니다</b>.
+ */
+let routeApplying = false;
+let routeQueued = false;
+let routeTarget = null;
+
+function todayIso() {
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+}
+
 function emptyPropertyForm() {
     return {
         id: null,
@@ -77,10 +100,12 @@ function halley() {
         view: 'list',
         mobileTab: 'map',
         dealTypeFilter: 'ALL',
+        /** 목록 정렬 (설계 I221). 기본은 '아직 안 가 본 곳 · 추천점수 순' */
+        sortKey: 'default',
+        sortOpen: false,
         properties: [],
         scoreWatchTimer: null,
         visibleProperties: [],
-        showSoldOut: false,
         users: [],
         soldOutRecent: [],
         showSoldOutAlert: false,
@@ -100,12 +125,15 @@ function halley() {
         itinProperties: [],
         itinMode: 'DRIVING',
         itinStart: { address: '', lat: '', lng: '' },
+        itinDate: todayIso(),
         itinWindowStart: '09:00',
         itinStay: 25,
         itinResult: null,
-        itinPlan: null,
+        /** 가 본 매물 id 목록 (설계 I197). 계산 결과와 달리 DB에 남는다 */
+        itinVisited: [],
         _itinMarkers: {},
         _itinPolyline: null,
+        _itinPolylines: [],
         sessionExpiresAt: null,
         _sessionTimer: null,
         showSessionWarn: false,
@@ -113,6 +141,8 @@ function halley() {
         userForm: emptyUserForm(),
         editingUserId: null,
         tempPassword: null,
+        /** 알림 스위치 상태 (설계 I215). 읽기 전용 — 배포로 정하는 값이다 */
+        notifySettings: null,
         confirmState: null,
         profile: null,
         profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
@@ -154,6 +184,10 @@ function halley() {
         photoProperty: null,
         photoImages: [],
         photoViewerIndex: -1,
+        /** 뷰어가 걷는 목록 (설계 I203). 사진 모달의 것일 수도, 상세의 것일 수도 있다 */
+        viewerImages: [],
+        /** 매물 상세에 뿌릴 사진 (설계 I203). 사진 모달의 photoImages 와 별개다 */
+        detailImages: [],
         showAgentModal: false,
         agentProperty: null,
         agentLinks: [],
@@ -176,6 +210,14 @@ function halley() {
         pasteError: null,
         _pasteTimer: null,
         pasteDraftId: null,
+        /**
+         * 붙여넣기 화면에서 고른 사진 (설계 I204).
+         *
+         * <p><b>여기서는 아직 올릴 수 없습니다</b> — 매물이 없으니 붙일 곳이 없습니다.
+         * 브라우저가 들고 있다가 저장으로 매물이 생긴 뒤 올립니다.
+         */
+        pasteFloorPlan: null,
+        pastePhotos: [],
         pasteDraftName: null,
         showScoreModal: false,
         scoreProperty: null,
@@ -203,7 +245,8 @@ function halley() {
         roadviewProperty: null,
         roadviewState: 'loading',
         roadview: null,
-        loginForm: { loginId: '', password: '' },
+        // 둘 다 기본으로 켠다 (설계 I190). 매번 다시 켜는 쪽이 더 번거롭다는 판단이다
+        loginForm: { loginId: '', password: '', rememberId: true, rememberMe: true },
         signUpOpen: false,
         showSignUp: false,
         signUpForm: { loginId: '', nickname: '', password: '' },
@@ -267,6 +310,17 @@ function halley() {
 
         async init() {
             this.guardNumberInputs();
+            this.watchModalClose();
+            this.restoreLoginId();
+            // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
+            window.addEventListener('popstate', () => {
+                if (this.session.authenticated) {
+                    routeApplying = true;
+                    this.closeAllModals();
+                    routeApplying = false;
+                    this.applyRoute();
+                }
+            });
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
@@ -307,6 +361,7 @@ function halley() {
                 this.session = { authenticated: false, userId: null, nickname: null,
                     role: null, mustChangePassword: false };
                 this.showLogin = true;
+                this.focusLogin();
                 if (hadSession) {
                     this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
                 }
@@ -340,19 +395,248 @@ function halley() {
                 if (!setupPending) {
                     await this.loadMyGroup();
                     await this.loadDebts();
+                    // 임장 화면 것이 아니라 <b>목록 정렬</b>이 쓰는 값이다 (설계 I224).
+                    // 임장에 들어갈 때만 받으면, 그 화면을 한 번도 안 연 사람에게는
+                    // 기본 정렬이 <b>추천점수 순과 똑같아집니다</b>
+                    await this.loadVisited();
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
                     this.startScoreWatch();
+                    // 주소로 들어왔으면 그 화면을 연다 (설계 I188).
+                    // 목록을 받은 뒤여야 매물 상세를 열 수 있다
+                    this.applyRoute();
                 }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
                 this.showLogin = true;
+                this.focusLogin();
+            }
+        },
+
+        /**
+         * 화면마다 주소를 둔다 (설계 I188).
+         *
+         * <p>SPA 라도 <b>지금 보는 것을 링크로 건넬 수 있어야</b> 합니다 —
+         * Slack 알림에서 그 매물로 바로 가는 것이 그것 때문입니다(I189).
+         */
+        ROUTES: {
+            list: '/properties',
+            itinerary: '/itinerary',
+            me: '/me',
+            group: '/group',
+            weights: '/weights'
+        },
+
+        /**
+         * 모달에도 주소를 준다 (설계 I198).
+         *
+         * <p>화면에만 주소가 있었습니다. 그래서 <b>Slack 이 "누가 공간 쾌적함을 채점했다"</b>
+         * 고 알려도 링크는 매물 첫 화면으로만 갔습니다 — 거기서 다시 찾아 들어가야 했습니다.
+         *
+         * <p><b>순서가 곧 우선순위입니다.</b> 겹쳐 뜬 모달은 맨 위의 주소를 씁니다.
+         * 위에서부터 훑어 처음 열려 있는 것을 고릅니다.
+         *
+         * <p>`prop` 이 있으면 매물에 딸린 모달이라 `/properties/{id}/…` 가 되고,
+         * 없으면 전역 주소입니다. `open` 은 그 주소로 <b>들어왔을 때</b> 어떻게 여는가입니다.
+         *
+         * <p>강제 모달(로그인·비밀번호 변경·프로필 확인·세션 경고)과 잠깐 뜨는 것
+         * (메뉴·확인창·판매완료 알림)은 <b>일부러 뺐습니다.</b> 링크로 건넬 것이 아니고,
+         * 주소로 들어올 수 있으면 안 되는 것도 있습니다.
+         */
+        MODAL_ROUTES: [
+            { key: 'photo', flag: 'photoViewerIndex', prop: 'photoProperty',
+              suffix: i => `/photos/${i}`,
+              open(app, item, n) { return app.openPhotoModal(item).then(() => app.openPhotoViewer(Number(n))); } },
+            { key: 'photos', flag: 'showPhotoModal', prop: 'photoProperty', suffix: () => '/photos',
+              open: (app, item) => app.openPhotoModal(item) },
+            { key: 'score', flag: 'showScoreModal', prop: 'scoreProperty', suffix: () => '/score',
+              open: (app, item) => app.openScoreModal(item) },
+            { key: 'loan', flag: 'showLoanModal', prop: 'loanProperty', suffix: () => '/loan',
+              open: (app, item) => app.openLoanModal(item) },
+            { key: 'transactions', flag: 'showRefModal', prop: 'refProperty', suffix: () => '/transactions',
+              open: (app, item) => app.openRefModal(item) },
+            { key: 'comments', flag: 'showComments', prop: 'commentProperty', suffix: () => '/comments',
+              open: (app, item) => app.openComments(item) },
+            { key: 'forecast', flag: 'showForecast', prop: 'forecastProperty', suffix: () => '/forecast',
+              open: (app, item) => app.openForecast(item) },
+            { key: 'agents', flag: 'showAgentModal', prop: 'agentProperty', suffix: () => '/agents',
+              open: (app, item) => app.openAgentModal(item) },
+            { key: 'roadview', flag: 'showRoadview', prop: 'roadviewProperty', suffix: () => '/roadview',
+              open: (app, item) => app.openRoadview(item) },
+            { key: 'edit', flag: 'showPropertyForm', suffix: () => '/edit',
+              path: app => app.propertyForm.id ? `/properties/${app.propertyForm.id}/edit` : '/properties/new',
+              open: (app, item) => (item ? app.openEditProperty(item) : app.openAddProperty()) },
+            { key: 'paste', flag: 'showPasteModal', suffix: () => '/paste',
+              path: app => app.pasteDraftId ? `/properties/${app.pasteDraftId}/paste` : '/properties/paste',
+              open: (app, item) => app.openPasteModal(item) },
+            { key: 'compare', flag: 'showCompare', path: () => '/compare',
+              open: app => app.openCompare() },
+            { key: 'userForm', flag: 'showUserForm',
+              path: app => app.userForm.id ? `/users/${app.userForm.id}/edit` : '/users/new' },
+            { key: 'password', flag: 'showChangePw', path: () => '/password',
+              open: app => app.openChangePw() },
+            { key: 'signup', flag: 'showSignUp', path: () => '/signup' },
+            { key: 'users', flag: 'showUsers', path: () => '/users',
+              open: app => app.openUsers() },
+            { key: 'settings', flag: 'showSettings', path: () => '/settings',
+              open: app => app.openSettings() }
+        ],
+
+        /**
+         * 지금 열려 있는 것을 주소로 옮긴다 (설계 I198).
+         *
+         * <p><b>여는 함수마다 주소를 밀지 않습니다.</b> 모달이 스물 몇 개인데 각각에
+         * 넣으면 반드시 하나를 빠뜨리고, 닫는 쪽은 더 그렇습니다. 상태를 지켜보다가
+         * <b>바뀔 때마다 지금 상태에서 주소를 다시 계산</b>합니다 — 어느 경로로 열리고
+         * 닫혀도 맞습니다.
+         */
+        currentPath() {
+            // <b>먼저 전부 읽습니다.</b> 찾자마자 끊으면 뒤쪽 플래그를 안 읽게 되고,
+            // 그러면 `x-effect` 가 그것들을 추적하지 못해 <b>그 모달에서는 주소가
+            // 안 바뀝니다</b> (설계 I211)
+            let chosen = null;
+            for (const route of this.MODAL_ROUTES) {
+                // photoViewerIndex 는 0도 '열림'이다. null 은 닫힌 것인데
+                // `null >= 0` 이 true 라 그냥 비교하면 안 열린 뷰어가 열린 것으로 읽힌다
+                const open = route.flag === 'photoViewerIndex'
+                    ? Number.isInteger(this[route.flag]) && this[route.flag] >= 0
+                    : this[route.flag] === true;
+                if (open && chosen === null) {
+                    chosen = route;
+                }
+            }
+            const detail = this.detailItem;
+            const base = (this.showM2 && detail)
+                ? `/properties/${detail.property.id}`
+                : (this.ROUTES[this.view] || '/properties');
+            if (chosen === null) {
+                return base;
+            }
+            if (chosen.path) {
+                return chosen.path(this);
+            }
+            const id = this[chosen.prop]?.property?.id ?? this[chosen.prop]?.id;
+            // 어느 매물인지 모르면 주소를 지어내지 않는다 — 열 수 없는 링크가 된다
+            return id == null ? base : `/properties/${id}${chosen.suffix(this[chosen.flag])}`;
+        },
+
+        /**
+         * 지금 열린 것을 주소로 (설계 I198 · I211).
+         *
+         * <p><b>`currentPath()` 를 먼저, 동기로 부릅니다.</b> `x-effect` 는 <b>실행하는
+         * 동안 읽은 것</b>만 추적합니다 — 미뤄서 읽으면 아무것도 추적되지 않아
+         * 효과가 다시 돌지 않습니다.
+         *
+         * <p>미루는 것은 <b>주소를 미는 일뿐</b>입니다. 모달을 닫으면 플래그 두셋이
+         * 같이 꺼지는데, 그때마다 밀면 중간 상태가 기록에 남아 뒤로 가기가 이상해집니다.
+         */
+        syncRoute() {
+            const path = this.currentPath();
+            if (routeApplying) {
+                return;
+            }
+            routeTarget = path;
+            if (routeQueued) {
+                return;
+            }
+            routeQueued = true;
+            queueMicrotask(() => {
+                routeQueued = false;
+                if (!routeApplying) {
+                    this.pushRoute(routeTarget);
+                }
+            });
+        },
+
+        /** 주소만 바꾼다. 화면은 이미 바뀐 뒤다 — 뒤로 가기를 위해 기록만 남긴다. */
+        pushRoute(path) {
+            if (window.location.pathname !== path) {
+                window.history.pushState({}, '', path);
+            }
+        },
+
+        /**
+         * 주소를 읽어 화면을 맞춘다 (설계 I188).
+         *
+         * <p>주소창에 직접 넣거나, 링크로 들어오거나, 뒤로 가기를 눌렀을 때 부릅니다.
+         * <b>화면을 바꾸되 주소는 다시 밀지 않습니다</b> — 그러면 기록이 두 번 쌓입니다.
+         */
+        async applyRoute() {
+            const path = window.location.pathname;
+            // 여는 사이에 주소를 다시 밀면 기록이 겹친다 (설계 I198)
+            routeApplying = true;
+            try {
+                await this.openRoute(path);
+            } finally {
+                routeApplying = false;
+            }
+        },
+
+        async openRoute(path) {
+            // 매물에 딸린 모달: /properties/{id}/{key}[/{n}]
+            const scoped = path.match(/^\/properties\/(\d+)\/([a-z]+)(?:\/(\d+))?$/);
+            if (scoped) {
+                this.view = 'list';
+                const item = await this.findProperty(Number(scoped[1]));
+                const route = this.MODAL_ROUTES.find(r => r.key === scoped[2]);
+                if (item && route && route.open) {
+                    await route.open(this, item, scoped[3]);
+                    return;
+                }
+                // 없는 매물이거나 모르는 주소면 상세라도 연다 — 빈 화면보다 낫다
+                if (item) {
+                    this.openDetail(item);
+                }
+                return;
+            }
+            const detail = path.match(/^\/properties\/(\d+)$/);
+            if (detail) {
+                this.view = 'list';
+                await this.openDetailById(Number(detail[1]));
+                return;
+            }
+            const global = this.MODAL_ROUTES.find(
+                r => r.path && r.open && !r.prop && r.path(this) === path);
+            if (global) {
+                this.view = 'list';
+                await global.open(this);
+                return;
+            }
+            if (path === '/properties/new' || path === '/properties/paste') {
+                this.view = 'list';
+                (path.endsWith('new') ? this.openAddProperty() : this.openPasteModal(null));
+                return;
+            }
+            const entry = Object.entries(this.ROUTES).find(([, p]) => p === path);
+            this.setView(entry ? entry[0] : 'list');
+        },
+
+        /** 목록에서 매물을 찾는다. 아직 안 받았으면 받아 온 뒤 찾는다. */
+        async findProperty(id) {
+            if ((this.properties || []).length === 0) {
+                await this.loadProperties();
+            }
+            return this.properties.find(x => x.property.id === id) || null;
+        },
+
+        /** 링크로 들어온 매물 상세를 연다. 목록이 아직 없으면 받아 온 뒤 연다. */
+        async openDetailById(id) {
+            const item = await this.findProperty(id);
+            if (item) {
+                this.openDetail(item);
             }
         },
 
         setView(view) {
+            const leaving = this.view;
             this.view = view;
+            // 지도는 <b>화면마다 따로 있지 않습니다</b> — 하나를 나눠 씁니다 (설계 I206).
+            // 임장을 떠나면 그 경로선도 걷어냅니다. 안 그러면 매물 화면 지도 위에
+            // 어제 짠 동선이 계속 얹혀 있습니다
+            if (leaving === 'itinerary' && view !== 'itinerary') {
+                this.clearItinerary();
+            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -363,8 +647,13 @@ function halley() {
                 this.loadGroupDetail();
             }
             if (view === 'itinerary') {
+                // 기본값(오늘 09:00)이 이미 지났으면 밀어 준다 (설계 I207)
+                this.normalizeItinStart();
                 this.loadStartLocation();
-                this.renderItinerary();
+                // 담아 둔 결과를 다시 그린다 (설계 I206). 떠날 때 걷어냈으므로
+                // 돌아오면 다시 얹어야 한다 — 계산을 다시 시키지는 않는다
+                this.loadItineraryDraft();
+                this.loadVisited();
             }
         },
 
@@ -378,6 +667,7 @@ function halley() {
             this.regError = null;
             this.loadSettings();
             this.loadNotifications();
+            this.loadNotifySettings();
             this.loadRegulations();
         },
 
@@ -499,12 +789,39 @@ function halley() {
             this.askConfirm('비밀번호 리셋', `'${u.nickname}'의 임시 비밀번호를 발급할까요?`, async () => {
                 const { ok, body } = await this.request(`/api/users/${u.id}/reset-password`, { method: 'POST' });
                 if (ok) {
-                    this.tempPassword = body.temporaryPassword;
+                    // 서버는 이 값을 <b>이때 한 번만</b> 준다 — 저장은 해시라 다시 못 읽는다
+                    this.tempPassword = { loginId: u.loginId, nickname: u.nickname,
+                        password: body.temporaryPassword, copied: false };
+                } else {
+                    this.error = '비밀번호 초기화에 실패했습니다';
                 }
                 await this.loadUsers();
             });
         },
 
+
+        /**
+         * 임시 비밀번호를 지운다 (설계 I213).
+         *
+         * <p><b>닫으면 다시 볼 수 없습니다.</b> 저장된 것은 해시라 서버도 모릅니다 —
+         * 그래서 닫기 전에 옮겨 적으라고 말해 둡니다.
+         */
+        dismissTempPassword() {
+            this.tempPassword = null;
+        },
+
+        async copyTempPassword() {
+            if (!this.tempPassword) {
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(this.tempPassword.password);
+                this.tempPassword.copied = true;
+            } catch (e) {
+                // 클립보드를 못 쓰는 환경이 있다. 값은 화면에 그대로 보이므로 손으로 옮기면 된다
+                this.tempPassword.copied = false;
+            }
+        },
 
         // ── 그룹 (설계 I89) ──────────────────────────────
 
@@ -518,6 +835,7 @@ function halley() {
         openLogin() {
             this.showSignUp = false;
             this.showLogin = true;
+            this.focusLogin();
             this.error = null;
         },
 
@@ -539,7 +857,8 @@ function halley() {
                     this.error = (body && body.message) || '가입에 실패했습니다';
                     return;
                 }
-                this.loginForm = { loginId: this.signUpForm.loginId, password: this.signUpForm.password };
+                this.loginForm = Object.assign({}, this.loginForm,
+                        { loginId: this.signUpForm.loginId, password: this.signUpForm.password });
                 this.showSignUp = false;
                 this.signUpForm = { loginId: '', nickname: '', password: '' };
                 await this.login();
@@ -1329,6 +1648,7 @@ function halley() {
             this.detailRef = null;
             this.detailLlm = null;
             this.detailLandUse = [];
+            this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
             this.showM2 = true;
@@ -1337,15 +1657,17 @@ function halley() {
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
         async loadDetailExtras(propertyId) {
-            const [agents, ref, llm, landUse] = await Promise.all([
+            const [agents, ref, llm, landUse, images] = await Promise.all([
                 this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false })),
-                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false }))
+                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/images`).catch(() => ({ ok: false }))
             ]);
             if (this.detailItem && this.detailItem.property.id !== propertyId) {
                 return;
             }
+            this.detailImages = images.ok ? (images.body || []) : [];
             this.detailAgents = agents.ok ? (agents.body || []) : [];
             this.detailRef = ref.ok ? ref.body : null;
             // 아직 산출 전이면 204라 body가 없다
@@ -1463,8 +1785,74 @@ function halley() {
             // 남겨 두면 다음에 연 매물의 자리에 이전 매물 값이 잠깐 비친다 (설계 I112)
             this.detailLlm = null;
             this.detailLandUse = [];
+            this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
+        },
+
+        /**
+         * 사진 줄을 끌어서 넘긴다 (설계 I214).
+         *
+         * <p>가로로 넘치는 줄인데 <b>마우스로는 스크롤바를 잡아야</b> 했습니다.
+         * 손가락으로 미는 감각이 여기서도 자연스럽습니다.
+         *
+         * <p><b>클릭과 갈라야 합니다.</b> 조금이라도 끌었으면 그건 넘긴 것이지
+         * 사진을 누른 것이 아닙니다 — 안 그러면 넘길 때마다 확대창이 뜹니다.
+         * 문턱을 두어 손떨림은 클릭으로 남깁니다.
+         */
+        DRAG_THRESHOLD: 5,
+
+        startPhotoDrag(event) {
+            const strip = event.currentTarget;
+            const startX = event.clientX;
+            const startScroll = strip.scrollLeft;
+            let moved = 0;
+
+            const move = (e) => {
+                const dx = e.clientX - startX;
+                moved = Math.max(moved, Math.abs(dx));
+                if (moved > this.DRAG_THRESHOLD) {
+                    strip.classList.add('is-dragging');
+                }
+                strip.scrollLeft = startScroll - dx;
+                // 끄는 동안 사진이 선택되는 것을 막는다
+                e.preventDefault();
+            };
+            const up = () => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', up);
+                // 클래스는 <b>클릭이 지나간 뒤</b> 벗긴다. 바로 벗기면 방금 끝낸
+                // 드래그가 클릭으로 살아나 확대창이 뜬다
+                if (moved > this.DRAG_THRESHOLD) {
+                    setTimeout(() => strip.classList.remove('is-dragging'), 0);
+                } else {
+                    strip.classList.remove('is-dragging');
+                }
+            };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', up);
+        },
+
+        /**
+         * 아직 채점 전인가 (설계 I220).
+         *
+         * <p>등록 응답이 <b>보정을 기다리지 않고</b> 돌아오므로, 카드가 먼저 뜨고
+         * 점수는 몇 초 뒤에 채워집니다. 그 사이를 <b>0점으로 보여 주면 안 됩니다</b> —
+         * "나쁜 매물"과 "아직 안 잰 매물"은 다릅니다.
+         *
+         * <p>판 번호 감시(I85)가 3초마다 확인하다가 채워지면 목록을 다시 받습니다.
+         */
+        scoring(scored) {
+            return !!scored && (scored.scores || []).length === 0;
+        },
+
+        /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */
+        get detailFloorPlan() {
+            return this.detailImages.find(i => i.imageType === 'FLOOR_PLAN') || null;
+        },
+
+        get detailPhotos() {
+            return this.detailImages.filter(i => i.imageType === 'PHOTO');
         },
 
         async openPhotoModal(item) {
@@ -1492,7 +1880,15 @@ function halley() {
             return this.photoImages.filter(i => i.imageType === 'PHOTO');
         },
 
-        openPhotoViewer(index) {
+        /**
+         * 크게 본다 (설계 I203).
+         *
+         * <p>사진은 이제 <b>두 곳</b>에 뜹니다 — 사진 모달과 매물 상세. 뷰어가
+         * `photoImages` 만 보면 상세에서 연 사진이 <b>엉뚱한 장</b>을 띄웁니다.
+         * 어느 목록을 걷는지 열 때 함께 넘깁니다.
+         */
+        openPhotoViewer(index, images) {
+            this.viewerImages = images || this.photoImages;
             this.photoViewerIndex = index;
         },
 
@@ -1507,8 +1903,47 @@ function halley() {
         },
 
         photoNext() {
-            if (this.photoViewerIndex < this.photoImages.length - 1) {
+            if (this.photoViewerIndex < this.viewerImages.length - 1) {
                 this.photoViewerIndex++;
+            }
+        },
+
+        /**
+         * 좌우 방향키로 넘긴다 (설계 I203).
+         *
+         * <p>사진을 여러 장 볼 때 <b>화살표를 누르러 마우스를 옮기는 것</b>이 번거롭습니다.
+         * 뷰어가 떠 있을 때만 받습니다 — 아니면 목록에서 방향키를 눌러도 반응합니다.
+         */
+        onViewerKey(direction) {
+            if (!(this.photoViewerIndex >= 0)) {
+                return;
+            }
+            if (direction < 0) {
+                this.photoPrev();
+            } else {
+                this.photoNext();
+            }
+        },
+
+        /**
+         * 사진 모달에서 올리거나 지운 것을 <b>상세에도</b> 반영한다 (설계 I212).
+         *
+         * <p>사진 모달은 매물 상세 <b>위에 떠 있습니다.</b> 닫으면 아래에 상세가
+         * 그대로 있는데, 방금 올린 사진이 <b>거기엔 없습니다</b> — 상세는 열 때
+         * 한 번 받아 온 목록을 들고 있기 때문입니다.
+         *
+         * <p><b>같은 매물일 때만</b> 다시 받습니다. 다른 매물의 사진을 만지고 있다면
+         * 상세를 건드릴 이유가 없습니다.
+         */
+        async refreshDetailImages() {
+            const id = this.detailItem?.property?.id;
+            if (!id || id !== this.photoProperty?.property?.id) {
+                return;
+            }
+            const { ok, body } = await this.request(`/api/properties/${id}/images`)
+                .catch(() => ({ ok: false }));
+            if (ok) {
+                this.detailImages = body || [];
             }
         },
 
@@ -1548,6 +1983,7 @@ function halley() {
                     }
                 }
                 await this.loadPhotoImages();
+                await this.refreshDetailImages();
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
@@ -1571,6 +2007,8 @@ function halley() {
                 if (ok) {
                     this.photoViewerIndex = -1;
                     await this.loadPhotoImages();
+                    // 지운 것도 상세에서 같이 사라져야 한다 (설계 I212)
+                    await this.refreshDetailImages();
                 } else {
                     this.error = '삭제에 실패했습니다';
                 }
@@ -1695,6 +2133,60 @@ function halley() {
             this._dragIndex = null;
         },
 
+        /**
+         * ID 저장 (설계 I190).
+         *
+         * <p><b>브라우저에 남깁니다.</b> 서버에 둘 값이 아닙니다 — 로그인하기 <b>전에</b>
+         * 필요한 것이라 그때는 누구인지도 모릅니다.
+         *
+         * <p>비밀번호는 <b>절대 저장하지 않습니다.</b> ID 만입니다.
+         */
+        rememberLoginId() {
+            try {
+                if (this.loginForm.rememberId) {
+                    localStorage.setItem('halley.loginId', this.loginForm.loginId || '');
+                } else {
+                    localStorage.removeItem('halley.loginId');
+                }
+            } catch (e) {
+                // 사생활 보호 모드면 localStorage 가 막힌다. 저장이 안 될 뿐 로그인은 된다
+            }
+        },
+
+        /**
+         * 로그인 화면을 열면 바로 칠 수 있게 (설계 I209).
+         *
+         * <p>`x-effect` 로 걸어 뒀는데 <b>커서가 가지 않았습니다.</b> 모달은
+         * `x-show` 라 요소가 처음부터 있고, 그래서 효과가 <b>`showLogin` 이 아직
+         * 거짓일 때 한 번 돌고 맙니다</b>. 이 저장소에 이미 되는 방식이 있어
+         * 그쪽에 맞춥니다(`openPasteModal`).
+         *
+         * <p><b>ID 가 이미 채워져 있으면 비밀번호로 갑니다.</b> ID 저장(I190)을 켠
+         * 사람에게 채워진 칸을 다시 가리키는 것은 한 번 더 누르게 하는 일입니다.
+         */
+        focusLogin() {
+            setTimeout(() => {
+                const id = document.getElementById('loginId');
+                const pw = document.getElementById('loginPassword');
+                const target = (this.loginForm.loginId || '').trim() ? (pw || id) : id;
+                if (target) {
+                    target.focus();
+                    target.select?.();
+                }
+            }, 60);
+        },
+
+        restoreLoginId() {
+            try {
+                const saved = localStorage.getItem('halley.loginId');
+                if (saved) {
+                    this.loginForm.loginId = saved;
+                }
+            } catch (e) {
+                // 위와 같다
+            }
+        },
+
         async login() {
             this.loading = true;
             this.error = null;
@@ -1709,7 +2201,13 @@ function halley() {
                     this.sessionExpiresAt = body.expiresInSeconds != null
                         ? Date.now() + body.expiresInSeconds * 1000 : null;
                     this.startSessionTimer();
-                    this.loginForm = { loginId: '', password: '' };
+                    this.rememberLoginId();
+                    this.loginForm = {
+                        loginId: this.loginForm.rememberId ? this.loginForm.loginId : '',
+                        password: '',
+                        rememberId: this.loginForm.rememberId,
+                        rememberMe: this.loginForm.rememberMe
+                    };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
                     if (this.session.role === 'ADMIN' && !this.showPassword) {
@@ -1770,10 +2268,40 @@ function halley() {
             this.view = 'list';
             this.dealTypeFilter = 'ALL';
             this.soldOutAlertShown = false;
+            // 열려 있던 것을 전부 닫는다 (설계 I182). 예전에는 로그아웃해도 남아,
+            // 다시 로그인하면 앞사람이 보던 모달이 그대로 떠 있었다
+            this.closeAllModals();
             this.showLogin = true;
-            this.showPassword = false;
-            this.showSessionWarn = false;
+            this.focusLogin();
+            // 지도 오버레이만이 아니라 <b>작업 중이던 것</b>도 지운다 (설계 I179).
+            // 예전에는 로그아웃해도 남아, 다른 계정으로 들어오면 앞 사람의 동선이 보였다
+            this.resetItineraryState();
+        },
+
+        /**
+         * 계산한 것을 지운다 (설계 I206).
+         *
+         * <p>고른 매물·출발지는 <b>남깁니다.</b> 지우는 것은 "계산 결과"이지
+         * "내가 고른 것"이 아닙니다 — 매물 열둘을 다시 고르게 하면 벌입니다.
+         *
+         * <p>담아 둔 것(draft)도 같이 비웁니다. 화면만 지우면 <b>새로고침하는 순간
+         * 되살아납니다.</b>
+         */
+        clearItineraryResult() {
+            this.itinResult = null;
             this.clearItinerary();
+            this.error = null;
+            this.saveItineraryDraft();
+            // 매물 마커는 매물 화면의 것이라 그대로 둔다
+        },
+
+        /** 임장 플래너의 화면 상태를 처음으로 되돌린다 (설계 I179). */
+        resetItineraryState() {
+            this.clearItinerary();
+            this.itinProperties = [];
+            this.itinResult = null;
+            this.itinStart = { address: '', lat: '', lng: '' };
+            this.itinMode = 'DRIVING';
         },
 
         startSessionTimer() {
@@ -1876,16 +2404,81 @@ function halley() {
             }
         },
 
+        /**
+         * 보이는 목록을 다시 짠다 (설계 I221).
+         *
+         * <p>판매완료 숨김을 <b>없앴습니다.</b> 생존 확인 배치를 걷어낸 뒤([I157])
+         * 그 값을 갱신하는 것이 아무것도 없어, "판매완료"는 <b>누군가 손으로 바꾼
+         * 것</b>일 뿐입니다. 자동으로 붙지 않는 표시로 목록을 가리면
+         * <b>매물이 사라진 것처럼</b> 보입니다.
+         */
         applySoldOutFilter() {
-            this.visibleProperties = this.showSoldOut
-                ? this.properties
-                : this.properties.filter(r => r.property.listingStatus !== 'SOLD_OUT');
+            this.visibleProperties = this.sortProperties(this.properties);
         },
 
-        toggleSoldOut() {
-            this.showSoldOut = !this.showSoldOut;
+        /**
+         * 무엇으로 줄 세울까 (설계 I221).
+         *
+         * <p><b>화면에서 정합니다.</b> 목록에 필요한 값은 이미 전부 실려 있고
+         * (총점·가격·면적·항목별 점수), <b>임장 여부는 서버가 목록에 담지 않습니다</b> —
+         * 사람마다 다른 값이라 담으면 캐시가 사람마다 갈립니다. 화면이 들고 있는
+         * `itinVisited`(I197)와 맞춰 세우는 편이 맞습니다.
+         */
+        SORTS: [
+            { key: 'default', label: '기본 (임장 전 · 추천점수)' },
+            { key: 'price', label: '매매가 낮은 순' },
+            { key: 'area', label: '전용면적 넓은 순' },
+            { key: 'score', label: '추천점수 높은 순' },
+            { key: 'commute', label: '직주근접 좋은 순' }
+        ],
+
+        sortLabel() {
+            const found = this.SORTS.find(s => s.key === this.sortKey);
+            return found ? found.label : this.SORTS[0].label;
+        },
+
+        setSort(key) {
+            this.sortKey = key;
+            this.sortOpen = false;
             this.applySoldOutFilter();
             this.renderMap();
+        },
+
+        /**
+         * 아직 안 잰 것은 <b>맨 뒤</b>로 (설계 I221).
+         *
+         * <p>등록 직후에는 점수도 직주근접도 없습니다([I220]). 그걸 0으로 보면
+         * <b>"나쁜 매물"로 줄 세워집니다</b> — 아직 모르는 것과 나쁜 것은 다릅니다.
+         */
+        sortProperties(rows) {
+            const list = [...rows];
+            const num = (v) => (v == null || v === '' ? null : Number(v));
+            const desc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : b - a);
+            const asc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : a - b);
+            const byName = (x, y) => String(x.property.name || '')
+                .localeCompare(String(y.property.name || ''), 'ko');
+
+            const compare = {
+                // 아직 안 가 본 곳이 먼저, 그 안에서 추천점수가 높은 순
+                default: (x, y) => {
+                    const gone = (this.isVisited(x.property.id) ? 1 : 0) - (this.isVisited(y.property.id) ? 1 : 0);
+                    return gone !== 0 ? gone : desc(num(x.totalScore), num(y.totalScore));
+                },
+                price: (x, y) => asc(num(x.property.priceDeposit), num(y.property.priceDeposit)),
+                area: (x, y) => desc(num(x.property.areaExclusiveM2), num(y.property.areaExclusiveM2)),
+                score: (x, y) => desc(num(x.totalScore), num(y.totalScore)),
+                commute: (x, y) => desc(this.criterionScore(x, 'COMMUTE'), this.criterionScore(y, 'COMMUTE'))
+            }[this.sortKey] || (() => 0);
+
+            // 같은 값이면 이름순 — 새로고침마다 순서가 흔들리면 눈이 못 따라간다
+            list.sort((x, y) => compare(x, y) || byName(x, y));
+            return list;
+        },
+
+        /** 항목 하나의 점수. 아직 없으면 null — 0이 아니다 (설계 I221). */
+        criterionScore(scored, code) {
+            const found = (scored.scores || []).find(s => s.code === code);
+            return found && found.effectiveScore != null ? Number(found.effectiveScore) : null;
         },
 
         async setDealTypeFilter(filter) {
@@ -2024,6 +2617,36 @@ function halley() {
             }
         },
 
+        /**
+         * 왜 비었는가 (설계 I232).
+         *
+         * <p>"실거래 내역이 없습니다"만 뜨니, <b>코드가 틀렸는지 · 단지명이 안 맞는지 ·
+         * 면적이 안 맞는지</b> 알 길이 없었습니다. 실제로 그것 때문에 원인을 짚는 데
+         * 오래 걸렸습니다 — 화면이 아는 것을 말하지 않았습니다.
+         */
+        refEmptyReason() {
+            const card = this.refCard;
+            if (!card) {
+                return '';
+            }
+            if (!card.lawdCd) {
+                return '지번주소에서 법정동코드를 찾지 못해 조회하지 못했습니다. 코드를 직접 넣어 보세요.';
+            }
+            if (card.fetched === 0) {
+                return `${card.lawdCd} 지역의 그 기간에 국토부 신고 자료가 없습니다.`
+                    + ' 계약년월이 미래이거나 아직 신고 전일 수 있습니다.';
+            }
+            const name = this.refProperty?.property?.name || '이 매물';
+            if (card.nameMatched === 0) {
+                return `${card.fetched}건을 받았지만 '${name}'과 이름이 맞는 거래가 없습니다.`
+                    + ' 국토부 표기가 다를 수 있습니다 (예: 상계주공7단지 ↔ 상계주공7(고층)).';
+            }
+            const area = this.refProperty?.property?.areaExclusiveM2;
+            return `${card.fetched}건 중 이름이 맞는 거래는 ${card.nameMatched}건이지만,`
+                + ` 전용면적 ${area ? area + '㎡' : '(미상)'} 과 맞는 것이 없습니다.`
+                + ' 같은 단지라도 평형이 다르면 제외됩니다.';
+        },
+
         openRefModal(item) {
             this.refProperty = item;
             this.refForm = { legalDongCode: '', dealMonth: '' };
@@ -2073,10 +2696,72 @@ function halley() {
                 this.itinProperties.push(id);
             }
             this.itinResult = null;
-            this.itinPlan = null;
+            this.saveItineraryDraft();
+        },
+
+        /** 화면에서도 쓴다 (`:min`). 위의 함수를 그대로 부른다 — 계산이 두 벌이면 갈린다 */
+        todayIso() {
+            return todayIso();
+        },
+
+        /**
+         * 고른 날에 고를 수 있는 가장 이른 시각 (설계 I207).
+         *
+         * <p>오늘이면 <b>지금</b>부터, 다른 날이면 하루 종일입니다.
+         */
+        minItinTime() {
+            if (this.itinDate !== this.todayIso()) {
+                return '00:00';
+            }
+            const now = new Date();
+            return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        },
+
+        /**
+         * 지나간 시각인가 (설계 I207).
+         *
+         * <p>`min` 만으로는 부족합니다 — 브라우저가 <b>손으로 친 값은 막지 않고</b>,
+         * 날짜를 고른 뒤 시각을 바꾸면 조합이 과거가 될 수 있습니다.
+         */
+        itinDepartsInPast() {
+            if (!this.itinDate) {
+                return false;
+            }
+            const departAt = new Date(`${this.itinDate}T${this.itinWindowStart || '09:00'}`);
+            return !Number.isNaN(departAt.getTime()) && departAt.getTime() < Date.now();
+        },
+
+        /**
+         * 기본값이 낡았으면 밀어 준다 (설계 I207).
+         *
+         * <p>날짜는 오늘, 시각은 09:00 이 기본입니다. 그래서 <b>오후에 플래너를 열면
+         * 곧바로 "이미 지났습니다"</b>가 뜹니다 — 아무것도 안 했는데 혼나는 셈입니다.
+         *
+         * <p><b>사용자가 고친 값은 안 건드립니다.</b> 화면에 들어올 때와 날짜를 바꿀 때만
+         * 부릅니다 — 그때 화면에 있는 것은 기본값이지 사용자의 뜻이 아닙니다.
+         *
+         * <p>다음 15분 단위로 밉니다. 23:58 이면 <b>날짜도 같이</b> 내일로 넘어갑니다 —
+         * `setMinutes` 가 시·일 넘김을 알아서 합니다.
+         */
+        normalizeItinStart() {
+            if (!this.itinDepartsInPast()) {
+                return;
+            }
+            const next = new Date();
+            next.setSeconds(0, 0);
+            next.setMinutes(next.getMinutes() + (15 - (next.getMinutes() % 15)));
+            const local = new Date(next.getTime() - next.getTimezoneOffset() * 60000).toISOString();
+            this.itinDate = local.slice(0, 10);
+            this.itinWindowStart = local.slice(11, 16);
         },
 
         async optimizeItinerary() {
+            // 지나간 시각의 교통을 물을 수는 없다 (설계 I207).
+            // 카카오는 과거 시각도 받아 주지만, 그 답으로 세우는 계획이 뜻이 없다
+            if (this.itinDepartsInPast()) {
+                this.error = '임장 날짜와 시작시간이 이미 지났습니다. 앞으로의 시각으로 골라 주세요';
+                return;
+            }
             this.loading = true;
             this.error = null;
             try {
@@ -2087,12 +2772,16 @@ function halley() {
                         propertyIds: this.itinProperties,
                         travelMode: this.itinMode,
                         startLat: toNum(this.itinStart.lat),
-                        startLng: toNum(this.itinStart.lng)
+                        startLng: toNum(this.itinStart.lng),
+                        // 날짜가 있어야 그 요일의 길을 받는다 — 화요일 14시와 일요일 14시는 다르다 (설계 I196)
+                        visitDate: this.itinDate || null,
+                        windowStart: this.itinWindowStart || null,
+                        stayMinutes: toNum(this.itinStay)
                     })
                 });
                 if (ok) {
                     this.itinResult = body;
-                    this.itinPlan = null;
+                    this.saveItineraryDraft();
                     this.renderItinerary();
                 } else {
                     this.error = (body && body.message) || '경로 계산에 실패했습니다';
@@ -2104,62 +2793,86 @@ function halley() {
             }
         },
 
-        async savePlan() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/itinerary/plans', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        propertyIds: this.itinProperties,
-                        travelMode: this.itinMode,
-                        startLat: toNum(this.itinStart.lat),
-                        startLng: toNum(this.itinStart.lng),
-                        startAddress: this.itinStart.address || null,
-                        windowStart: this.itinWindowStart || null,
-                        stayMinutesDefault: toNum(this.itinStay)
-                    })
-                });
-                if (ok) {
-                    this.itinPlan = body;
-                    this.renderItinerary();
-                } else {
-                    this.error = (body && body.message) || '계획 저장에 실패했습니다';
+        /**
+         * 방문완료 (설계 I197).
+         *
+         * <p>계획을 저장하지 않으므로 <b>이것만 DB에 남습니다.</b> 계산 결과는
+         * draft 캐시로 충분하지만, 어디를 가 봤는지는 그렇지 않습니다.
+         *
+         * <p><b>화면을 먼저 바꾸고 서버에 보냅니다.</b> 현장에서 누르는 것이라
+         * 왕복을 기다리게 하지 않습니다. 실패하면 되돌립니다 — 눌렀는데 안 눌린 것으로
+         * 남아 있으면 다음에 또 갑니다.
+         */
+        async toggleVisited(propertyId) {
+            const visited = !this.itinVisited.includes(propertyId);
+            this.setVisited(propertyId, visited);
+            const { ok } = await this.request(`/api/itinerary/visits/${propertyId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ visited })
+            }).catch(() => ({ ok: false }));
+            if (!ok) {
+                this.setVisited(propertyId, !visited);
+                this.error = '방문 기록을 저장하지 못했습니다';
+            }
+        },
+
+        setVisited(propertyId, visited) {
+            this.itinVisited = visited
+                ? [...this.itinVisited.filter(id => id !== propertyId), propertyId]
+                : this.itinVisited.filter(id => id !== propertyId);
+            // 기본 정렬은 임장 여부로 가른다 (설계 I221) — 체크가 바뀌면 순서도 바뀐다
+            this.applySoldOutFilter();
+        },
+
+        /**
+         * 이 매물에 다녀왔는가 (설계 I226).
+         *
+         * <p><b>쾌적함이 첫째 근거입니다.</b> 직접 가 보지 않으면 매길 수 없는
+         * 항목이라, 점수가 있다는 것은 다녀왔다는 뜻입니다([I121]). 따로 칸을 두면
+         * 사람이 또 눌러야 한다는 것이 그때의 결론이었는데, [I197]에서 제가
+         * <b>정확히 그 칸을 만들었습니다.</b>
+         *
+         * <p>두 신호를 <b>합칩니다.</b> 이미 눌러 둔 체크를 버릴 이유가 없고,
+         * 경로에서 바로 체크하는 것도 편합니다 — 다만 <b>안 눌러도 됩니다.</b>
+         *
+         * <p><b>내 점수로 봅니다</b>(`myScore`). 그룹 평균으로 보면 남이 다녀온 곳이
+         * 내 목록에서 뒤로 밀립니다 — 정작 나는 안 가 봤는데요([I118]과 같은 가름).
+         */
+        isVisited(propertyId) {
+            if (this.itinVisited.includes(propertyId)) {
+                return true;
+            }
+            const scored = this.properties.find(x => x.property.id === propertyId);
+            return this.scoredComfort(scored);
+        },
+
+        /** 내가 쾌적함을 매겼는가 — 그룹 평균이 아니라 내 점수다 (설계 I118). */
+        scoredComfort(scored) {
+            return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
+        },
+
+        /**
+         * 쾌적함 때문에 켜진 것인가 (설계 I228).
+         *
+         * <p>그렇다면 <b>체크를 끌 수 없어야</b> 합니다. 근거가 채점이라 끄려면
+         * 그 점수를 지워야 하는데, 그건 채점 화면의 일입니다 — 여기서 눌러도
+         * 아무 일이 안 일어나면 <b>고장으로 보입니다.</b>
+         */
+        visitedByComfort(propertyId) {
+            return this.scoredComfort(this.properties.find(x => x.property.id === propertyId));
+        },
+
+        /** 가 본 곳을 서버에서 받아 온다 — 새로고침해도, 다른 기기에서도 남는다. */
+        async loadVisited() {
+            const { ok, body } = await this.request('/api/itinerary/visits')
+                .catch(() => ({ ok: false }));
+            if (ok && Array.isArray(body)) {
+                this.itinVisited = body;
+                // 목록이 이미 그려져 있으면 순서를 다시 잡는다 (설계 I224)
+                if (this.properties.length > 0) {
+                    this.applySoldOutFilter();
                 }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async toggleItineraryStop(stopId, visited) {
-            if (!this.itinPlan) {
-                return;
-            }
-            const { ok, body } = await this.request(
-                `/api/itinerary/plans/${this.itinPlan.id}/stops/${stopId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ visited })
-                });
-            if (ok) {
-                this.itinPlan = body;
-            }
-        },
-
-        async recomputePlan() {
-            if (!this.itinPlan) {
-                return;
-            }
-            this.loading = true;
-            const { ok, body } = await this.request(
-                `/api/itinerary/plans/${this.itinPlan.id}/recompute`, { method: 'POST' });
-            this.loading = false;
-            if (ok) {
-                this.itinPlan = body;
-                this.renderItinerary();
             }
         },
 
@@ -2168,14 +2881,41 @@ function halley() {
             return item ? item.property.name : '#' + id;
         },
 
+        /**
+         * 내 임장 작업 상태를 불러온다 (설계 I179).
+         *
+         * <p><b>계정마다 다릅니다.</b> 서버가 사용자별로 담아 두므로 새로고침해도 남고,
+         * 다른 계정으로 들어오면 <b>그 사람 것</b>이 뜹니다.
+         */
+        async loadItineraryDraft() {
+            const { ok, body } = await this.request('/api/itinerary/draft').catch(() => ({ ok: false }));
+            if (ok && body) {
+                this.itinProperties = body.propertyIds || [];
+                this.itinMode = body.travelMode || 'DRIVING';
+                this.itinResult = body.result || null;
+            }
+            this.renderItinerary();
+        },
+
+        /** 고른 매물·이동수단·결과가 바뀌면 담아 둔다. 실패해도 화면은 그대로 쓴다. */
+        saveItineraryDraft() {
+            this.request('/api/itinerary/draft', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    propertyIds: this.itinProperties,
+                    travelMode: this.itinMode,
+                    result: this.itinResult
+                })
+            }).catch(() => {});
+        },
+
         renderItinerary() {
             if (typeof kakao === 'undefined' || !kakao.maps || !this.map) {
                 return;
             }
             this.clearItinerary();
-            const ids = this.itinPlan
-                ? this.itinPlan.stops.map(s => s.propertyId)
-                : (this.itinResult ? this.itinResult.orderedPropertyIds : []);
+            const ids = this.itinResult ? this.itinResult.orderedPropertyIds : [];
             if (ids.length === 0) {
                 return;
             }
@@ -2201,22 +2941,287 @@ function halley() {
                 this._itinMarkers[id] = overlay;
                 points.push(position);
             });
-            if (points.length >= 2) {
-                this._itinPolyline = new kakao.maps.Polyline({
-                    path: points,
-                    strokeWeight: 4,
-                    strokeColor: '#2d8ba8',
-                    strokeOpacity: 0.85,
-                    strokeStyle: 'solid'
+            this.drawItineraryPath(points);
+        },
+
+        /**
+         * 실제 이동 동선을 그린다 (설계 I177).
+         *
+         * <p>여태 매물 사이를 <b>직선</b>으로 이었다. 실제로 그렇게 갈 수는 없으므로
+         * 거리감이 왜곡된다 — 강 건너편이 가까워 보인다.
+         *
+         * <p>서버가 구간마다 경로선을 준다. <b>못 받은 구간만</b> 직선으로 잇는다 —
+         * 하나가 비었다고 전체를 직선으로 되돌리면 받은 것까지 버리는 셈이다.
+         */
+        /**
+         * 서울 지하철 호선 색 (설계 I195).
+         *
+         * <p>ODsay 의 `type` 이 호선 번호입니다. <b>운영사가 쓰는 실제 색</b>을 씁니다 —
+         * 2호선이 초록이 아니면 지도에서 어느 선인지 못 알아봅니다.
+         */
+        SUBWAY_COLORS: {
+            1: '#0052A4', 2: '#00A84D', 3: '#EF7C1C', 4: '#00A5DE', 5: '#996CAC',
+            6: '#CD7C2F', 7: '#747F00', 8: '#E6186C', 9: '#BDB092',
+            21: '#7CA8D5', 22: '#ED8B00',
+            101: '#0090D2', 104: '#77C4A3', 107: '#6FB245', 108: '#0C8E72',
+            109: '#D31145', 110: '#FDA600', 111: '#003DA5', 112: '#B7C452',
+            113: '#8FC63F', 114: '#A17E46', 115: '#FABE00', 116: '#6789CA',
+            117: '#9A6292'
+        },
+
+        /**
+         * 정체 상태 색 (설계 I195).
+         *
+         * <p>카카오 `traffic_state`: 1 정체 · 2 지체 · 3 서행 · 4 원활 · 0 정보없음.
+         * <b>막히는 곳이 빨강</b>입니다 — 숫자가 클수록 잘 흐릅니다.
+         */
+        TRAFFIC_COLORS: { 1: '#d64545', 2: '#e08b2f', 3: '#e0c22f', 4: '#3f9e56', 0: '#8a8378' },
+
+        /**
+         * 구간 하나를 무슨 색으로 그릴까 (설계 I195).
+         *
+         * <p>서버는 <b>무엇인지</b>만 말합니다(`SUBWAY_2` · `BUS_3` · `TRAFFIC_1`).
+         * 색을 고르는 것은 화면의 몫입니다 — 색을 바꾸려고 서버를 고치지 않습니다.
+         *
+         * <p>모르는 값은 <b>회색</b>입니다. 그럴듯한 색을 지어내면 없는 노선이 있는
+         * 것처럼 보입니다.
+         */
+        segmentStyle(style) {
+            const [kind, raw] = String(style || '').split('_');
+            const code = Number(raw);
+            if (kind === 'SUBWAY') {
+                return { color: this.SUBWAY_COLORS[code] || '#5a6b7a', weight: 6, dash: 'solid' };
+            }
+            if (kind === 'BUS') {
+                // 서울 버스: 간선 파랑, 지선·마을 초록, 광역 빨강 — type 이 그 갈래다
+                const bus = { 1: '#3d5bab', 2: '#3d5bab', 3: '#53b332', 4: '#e0332a',
+                              5: '#53b332', 6: '#aa9872', 11: '#3d5bab', 12: '#53b332',
+                              13: '#53b332', 14: '#e0332a', 15: '#f99d1c' };
+                return { color: bus[code] || '#53b332', weight: 6, dash: 'solid' };
+            }
+            if (kind === 'TRAFFIC') {
+                return { color: this.TRAFFIC_COLORS[code] || '#8a8378', weight: 7, dash: 'solid' };
+            }
+            return { color: '#5a6b7a', weight: 5, dash: 'solid' };
+        },
+
+        /**
+         * 지도에 경로를 그린다 — <b>구간마다 다른 색으로</b> (설계 I177 · I195).
+         *
+         * <p>한 색으로 이어 그리면 어디서 갈아타는지, 어디가 막히는지가 지도에서
+         * 사라집니다. 서버가 색이 갈리는 자리마다 끊어 주므로 구간 하나에
+         * 선 하나를 긋습니다.
+         *
+         * <p>구간 사이가 벌어지면 <b>회색 점선</b>으로 잇습니다. 대중교통에서 그 틈은
+         * 도보입니다 — ODsay 가 도보 좌표를 주지 않으니 없는 것을 지어내지 않고,
+         * 대신 이어진 길이 아님이 보이게 그립니다.
+         */
+        drawItineraryPath(fallbackPoints) {
+            const legs = (this.itinResult && this.itinResult.legs) || [];
+            const bounds = new kakao.maps.LatLngBounds();
+            this._itinPolylines = [];
+
+            /**
+             * 선 하나를 <b>두 번</b> 긋는다 (설계 I206).
+             *
+             * <p>지도 자체가 색이 많아 얇은 색선은 도로와 섞여 안 보입니다.
+             * <b>굵은 검정 선을 깔고 그 위에</b> 색선을 얹으면 어떤 색이든 떠오릅니다.
+             *
+             * <p>`zIndex` 를 나눠야 합니다 — 안 그러면 나중에 그은 테두리가
+             * 앞 구간의 색선을 덮습니다.
+             */
+            const add = (path, color, weight, dash) => {
+                path.forEach(pt => bounds.extend(pt));
+                const outline = new kakao.maps.Polyline({
+                    path,
+                    strokeWeight: weight + 4,
+                    strokeColor: '#1c1c1c',
+                    strokeOpacity: 0.55,
+                    strokeStyle: dash,
+                    zIndex: 1
                 });
-                this._itinPolyline.setMap(this.map);
-                const bounds = new kakao.maps.LatLngBounds();
-                points.forEach(p => bounds.extend(p));
+                outline.setMap(this.map);
+                this._itinPolylines.push(outline);
+                const line = new kakao.maps.Polyline({
+                    path,
+                    strokeWeight: weight,
+                    strokeColor: color,
+                    strokeOpacity: 1,
+                    strokeStyle: dash,
+                    zIndex: 2
+                });
+                line.setMap(this.map);
+                this._itinPolylines.push(line);
+            };
+
+            const drawn = legs.filter(l => (l.path || []).some(seg => (seg.points || []).length >= 2));
+            drawn.forEach(leg => {
+                let previousEnd = null;
+                (leg.path || []).forEach(seg => {
+                    const points = (seg.points || []);
+                    if (points.length < 2) {
+                        return;
+                    }
+                    const path = points.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+                    if (previousEnd) {
+                        add([previousEnd, path[0]], '#8a8378', 3, 'shortdash');
+                    }
+                    const style = this.segmentStyle(seg.style);
+                    add(path, style.color, style.weight, style.dash);
+                    previousEnd = path[path.length - 1];
+                });
+            });
+
+            // 경로선을 못 받은 구간은 점선 직선으로 — 받은 것과 눈으로 구분된다
+            if (drawn.length < legs.length || legs.length === 0) {
+                if (fallbackPoints.length >= 2) {
+                    add(fallbackPoints, '#8a8378', 3, 'shortdash');
+                }
+            }
+            if (this._itinPolylines.length > 0) {
                 this.map.setBounds(bounds);
             }
         },
 
+        /**
+         * ODsay `type` → 노선 이름 (설계 I195).
+         *
+         * <p>1~9 는 호선 번호 그대로지만 <b>100번대는 이름이 따로</b> 있습니다.
+         * 109를 "109호선"이라 쓰면 없는 노선이 됩니다.
+         */
+        SUBWAY_NAMES: {
+            21: '인천1호선', 22: '인천2호선',
+            101: '공항철도', 104: '경의중앙선', 107: '에버라인', 108: '경춘선',
+            109: '신분당선', 110: '의정부경전철', 111: '경강선', 112: '우이신설선',
+            113: '서해선', 114: '김포골드라인', 115: '수인분당선', 116: '신림선',
+            117: 'GTX-A'
+        },
+
+        /**
+         * 범례에 <b>실제 노선 이름</b>을 (설계 I195 · I206).
+         *
+         * <p>처음에는 색깔 코드(`BUS_3`)에서 이름을 지었더니 <b>전부 "버스"</b>였습니다 —
+         * 몇 번 버스인지가 알림의 핵심인데 빠졌습니다. `type` 은 노선 번호가 아니라
+         * 간선·지선 같은 <b>갈래</b>입니다.
+         *
+         * <p>번호는 구간 안내(`steps`)에 이미 있습니다. 경로선 구간과 안내는 <b>같은
+         * 순서</b>라 짝지을 수 있습니다 — 다만 <b>수가 어긋나면 짝을 짓지 않습니다.</b>
+         * 좌표가 모자란 lane 은 건너뛰므로 어긋날 수 있는데, 그때 억지로 짝지으면
+         * <b>7호선 색에 다른 노선 이름</b>이 붙습니다. 틀린 이름보다 덜 친절한 이름이 낫습니다.
+         *
+         * <p>이번 경로에 <b>실제로 나온 것</b>만 답니다. 스무 개 호선을 다 늘어놓으면
+         * 범례가 경로보다 깁니다.
+         */
+        transitLegend() {
+            const seen = {};
+            ((this.itinResult && this.itinResult.legs) || []).forEach(leg => {
+                const rides = (leg.path || []).filter(seg => /^(SUBWAY|BUS)_/.test(seg.style || ''));
+                const named = (leg.steps || []).filter(s => s.kind === 'SUBWAY' || s.kind === 'BUS');
+                const aligned = rides.length === named.length;
+                rides.forEach((seg, i) => {
+                    const color = this.segmentStyle(seg.style).color;
+                    seen[color] = aligned ? this.rideName(named[i]) : this.styleName(seg.style);
+                });
+            });
+            seen['#8a8378'] = '도보·직선';
+            return Object.keys(seen).map(color => ({ color, name: seen[color] }));
+        },
+
+        /** 구간 안내에서 읽은 이름 — "7호선" · "146번 버스". */
+        rideName(step) {
+            if (!step || !step.lineName) {
+                return step && step.kind === 'BUS' ? '버스' : '지하철';
+            }
+            return step.kind === 'BUS' ? `${step.lineName}번 버스` : step.lineName;
+        },
+
+        /**
+         * 짝을 못 지었을 때의 이름 (설계 I206).
+         *
+         * <p>지하철은 `type` 이 호선 번호라 이름을 알 수 있습니다.
+         * <b>버스는 모릅니다</b> — `type` 이 갈래일 뿐이라 "버스"까지만 말합니다.
+         */
+        styleName(style) {
+            const [kind, raw] = String(style || '').split('_');
+            const code = Number(raw);
+            return kind === 'SUBWAY'
+                ? (this.SUBWAY_NAMES[code] || `${code}호선`)
+                : '버스';
+        },
+
+        stepIcon(step) {
+            switch (step.kind) {
+                case 'SUBWAY': return '🚇';
+                case 'BUS': return '🚌';
+                case 'ROAD': return '🚗';
+                default: return '🚶';
+            }
+        },
+
+        /**
+         * 구간 한 줄 (설계 I176 · I193).
+         *
+         * <p>자가용은 <b>어느 길로 얼마나</b>다 — `stationCount` 자리에 미터가 온다.
+         */
+        legStepText(step) {
+            if (step.kind === 'WALK') {
+                return `도보 ${step.minutes}분`;
+            }
+            if (step.kind === 'ROAD') {
+                const km = (step.stationCount || 0) / 1000;
+                return `${step.lineName} ${km.toFixed(1)}km`;
+            }
+            const name = step.lineName || (step.kind === 'BUS' ? '버스' : '지하철');
+            const suffix = step.kind === 'BUS' ? '번 버스' : '';
+            const stations = step.stationCount ? ` · ${step.stationCount}정거장` : '';
+            return `${name}${suffix} ${step.from} → ${step.to} ${step.minutes}분${stations}`;
+        },
+
+        /**
+         * 그 매물에 몇 시에 닿는가 (설계 I194).
+         *
+         * <p><b>계획을 저장하기 전에도</b> 보여 줍니다. 서버가 계획을 만들 때 쓰는 식과
+         * 같습니다(`buildStops`) — 도착 = 출발시각 + 이동시간 누계 + 체류시간 누계.
+         *
+         * <p>화면에서 계산하는 이유는 <b>출발시각·체류시간을 바꾸면 바로 보여야</b>
+         * 하기 때문입니다. 서버에 다시 물으면 그때마다 왕복입니다.
+         */
+        arrivalAt(index) {
+            const start = String(this.itinWindowStart || '09:00').split(':');
+            const stay = Number(this.itinStay) || 0;
+            let minutes = Number(start[0]) * 60 + Number(start[1]);
+            for (let i = 0; i <= index; i++) {
+                const leg = this.legFor(i);
+                minutes += leg ? leg.minutes : 0;
+                if (i < index) {
+                    minutes += stay;
+                }
+            }
+            // 자정을 넘기면 그렇다고 말한다 — 09:20 만 보이면 오전으로 읽힌다
+            const days = Math.floor(minutes / 1440);
+            const h = Math.floor(minutes / 60) % 24;
+            const m = minutes % 60;
+            const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            return days > 0 ? `${clock} (+${days}일)` : clock;
+        },
+
+        /** 몇 번째 매물로 가는 구간인가 (설계 I192). 순서와 구간은 같은 자리다. */
+        legFor(index) {
+            return (this.itinResult && this.itinResult.legs && this.itinResult.legs[index]) || null;
+        },
+
+        legTitle(leg) {
+            const to = this.properties.find(x => x.property.id === leg.toPropertyId);
+            const from = leg.fromPropertyId
+                ? this.properties.find(x => x.property.id === leg.fromPropertyId)
+                : null;
+            const fromName = from ? from.property.name : '출발지';
+            return `${fromName} → ${to ? to.property.name : ''}`;
+        },
+
         clearItinerary() {
+            (this._itinPolylines || []).forEach(l => l.setMap(null));
+            this._itinPolylines = [];
             if (this._itinPolyline) {
                 this._itinPolyline.setMap(null);
                 this._itinPolyline = null;
@@ -2257,6 +3262,8 @@ function halley() {
             this.pastePreview = null;
             this.pasteForm = {};
             this.pasteError = null;
+            this.pasteFloorPlan = null;
+            this.pastePhotos = [];
             setTimeout(() => {
                 const el = document.getElementById('pasteText');
                 if (el) {
@@ -2273,6 +3280,8 @@ function halley() {
             this.pasteError = null;
             this.pasteDraftId = null;
             this.pasteDraftName = null;
+            this.pasteFloorPlan = null;
+            this.pastePhotos = [];
             clearTimeout(this._pasteTimer);
         },
 
@@ -2319,13 +3328,24 @@ function halley() {
                     body: JSON.stringify(this.buildPasteRequest())
                 });
                 if (ok) {
+                    // 매물이 생긴 뒤라야 사진을 붙일 수 있다 (설계 I204).
+                    // 사진이 실패해도 매물은 이미 저장됐다 — 되돌리지 않고 말만 한다
+                    // 등록·수정 모두 ScoredPropertyResponse 를 돌려준다 — id 는 그 안에 있다.
+                    // body.id 로 읽으면 늘 undefined 라 사진이 조용히 안 올라간다
+                    const failed = await this.uploadPastedImages(body?.property?.id);
                     this.showPasteModal = false;
                     this.pasteText = '';
                     this.pastePreview = null;
                     this.pasteForm = {};
                     this.pasteDraftId = null;
                     this.pasteDraftName = null;
+                    this.pasteFloorPlan = null;
+                    this.pastePhotos = [];
                     await this.loadProperties();
+                    if (failed.length > 0) {
+                        this.error = `매물은 저장했지만 사진 ${failed.length}장을 올리지 못했습니다`
+                            + ' — 매물 상세에서 다시 올려 주세요';
+                    }
                 } else {
                     this.pasteError = (body && body.message) || '등록에 실패했습니다';
                 }
@@ -2334,6 +3354,54 @@ function halley() {
             } finally {
                 this.pasteParsing = false;
             }
+        },
+
+        /** 붙여넣기 화면에서 고른 사진 목록 — 화면에 이름을 보여 주려고 따로 둔다. */
+        pastePickedCount() {
+            return (this.pasteFloorPlan ? 1 : 0) + this.pastePhotos.length;
+        },
+
+        pickPasteImages(event, imageType) {
+            const files = Array.from(event.target.files || []);
+            if (imageType === 'FLOOR_PLAN') {
+                // 평면도는 매물당 한 장이다 (설계 I63) — 마지막에 고른 것만 남긴다
+                this.pasteFloorPlan = files[0] || null;
+            } else {
+                this.pastePhotos = [...this.pastePhotos, ...files];
+            }
+            event.target.value = '';
+        },
+
+        dropPastedImage(file) {
+            if (this.pasteFloorPlan === file) {
+                this.pasteFloorPlan = null;
+                return;
+            }
+            this.pastePhotos = this.pastePhotos.filter(f => f !== file);
+        },
+
+        /** @returns 올리지 못한 파일들. 비어 있으면 전부 올라갔다 */
+        async uploadPastedImages(propertyId) {
+            const id = propertyId || this.pasteDraftId;
+            const queued = [
+                ...(this.pasteFloorPlan ? [[this.pasteFloorPlan, 'FLOOR_PLAN']] : []),
+                ...this.pastePhotos.map(f => [f, 'PHOTO'])
+            ];
+            if (!id || queued.length === 0) {
+                return [];
+            }
+            const failed = [];
+            for (const [file, imageType] of queued) {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('imageType', imageType);
+                const res = await fetch(`/api/properties/${id}/images`, { method: 'POST', body: form })
+                    .catch(() => ({ ok: false }));
+                if (!res.ok) {
+                    failed.push(file);
+                }
+            }
+            return failed;
         },
 
         buildPasteRequest() {
@@ -2611,6 +3679,58 @@ function halley() {
             if (fresh.ok && fresh.body) {
                 this.applyScoreForm(fresh.body);
             }
+        },
+
+        /**
+         * 열려 있는 모달을 전부 닫는다 (설계 I182).
+         *
+         * <p><b>이름으로 찾습니다.</b> `show`로 시작하는 불리언을 훑어 끄면,
+         * 나중에 모달이 늘어도 <b>여기를 고칠 일이 없습니다</b> — 목록을 손으로 관리하면
+         * 하나 빠뜨렸을 때 그것만 남아 뜹니다.
+         */
+        closeAllModals() {
+            Object.keys(this).forEach(key => {
+                if (key.startsWith('show') && this[key] === true) {
+                    this[key] = false;
+                }
+            });
+            this.confirmState = null;
+            // 닫힘은 -1 이다 (초기값·closePhotoViewer 와 같게). null 을 넣으면
+            // `null >= 0` 이 true 라 열린 것으로 읽힌다
+            this.photoViewerIndex = -1;
+            this.resetModalScroll();
+        },
+
+        /** 모달 안쪽 스크롤을 맨 위로 (설계 I183). */
+        resetModalScroll() {
+            document.querySelectorAll('.modal-card').forEach(card => {
+                card.scrollTop = 0;
+            });
+        },
+
+        /**
+         * 모달이 닫힐 때 그 안의 스크롤을 되돌린다 (설계 I183).
+         *
+         * <p>모달은 `x-show`로 <b>숨겨질 뿐 사라지지 않습니다</b> — 스크롤 위치가 그대로
+         * 남아, 다음에 열면 <b>중간부터 보입니다.</b>
+         *
+         * <p>닫는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
+         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 닫혀도</b> 걸립니다.
+         */
+        watchModalClose() {
+            const observer = new MutationObserver(records => {
+                records.forEach(r => {
+                    const modal = r.target;
+                    if (modal.style.display === 'none') {
+                        modal.querySelectorAll('.modal-card').forEach(card => {
+                            card.scrollTop = 0;
+                        });
+                    }
+                });
+            });
+            document.querySelectorAll('.modal').forEach(modal => {
+                observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+            });
         },
 
         /**
@@ -2917,6 +4037,20 @@ function halley() {
         },
 
         /**
+         * 배지가 <b>누구의</b> 방문인지 (설계 I226).
+         *
+         * <p>배지는 그룹 기준입니다 — 구성원 중 누구든 매기면 뜹니다([I121]).
+         * 그런데 정렬은 <b>내</b> 기준이라, 둘이 어긋나 보일 수 있습니다:
+         * 남이 다녀온 매물은 <b>배지는 있지만 내 목록에서는 앞에</b> 남습니다.
+         * 그게 맞습니다 — 내가 안 가 봤으니까요. 말로 적어 둡니다.
+         */
+        visitedTitle(scored) {
+            return this.scoredComfort(scored)
+                ? '내가 공간의 쾌적함을 매겼습니다 — 다녀온 곳입니다'
+                : '구성원 중 누군가 공간의 쾌적함을 매겼습니다';
+        },
+
+        /**
          * 미산출 항목을 다시 계산한다 (설계 I119).
          *
          * 미산출은 대개 그때 외부 조회가 실패한 것이고, 실패는 저장하지 않으므로
@@ -2935,6 +4069,29 @@ function halley() {
             } else {
                 this.error = '재산출에 실패했습니다';
             }
+        },
+
+        /**
+         * 슬라이더의 <b>지나온 쪽</b>만 색을 채운다 (설계 I200).
+         *
+         * <p>기본 `input[type=range]` 는 막대 전체가 한 색이라 손잡이 위치만으로
+         * 점수를 읽어야 합니다. 잠긴 항목의 읽기용 막대(`gauge-fill`)는 이미 채워진
+         * 모양인데 열린 항목만 비어 있어, 나란히 두면 <b>다른 것처럼 보였습니다.</b>
+         *
+         * <p>가상 요소(`::-webkit-slider-runnable-track`)에는 값을 넘길 수 없어
+         * 배경 그러데이션으로 그립니다. 브라우저를 가리지 않는 방법이기도 합니다.
+         */
+        scoreRangeFill(s) {
+            const min = Number(this.scoreMin(s));
+            const max = Number(this.scoreMax(s));
+            const raw = this.scoreForm[s.code];
+            const span = max - min;
+            // 아직 안 매긴 항목은 <b>비워 둡니다</b> — 0점을 매긴 것과 다릅니다
+            const pct = (raw === '' || raw == null || span <= 0)
+                ? 0
+                : Math.min(100, Math.max(0, ((Number(raw) - min) / span) * 100));
+            return `background: linear-gradient(to right,`
+                + ` var(--ocean) 0 ${pct}%, var(--line2) ${pct}% 100%)`;
         },
 
         /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */
@@ -2970,6 +4127,25 @@ function halley() {
          */
         scoreLocked(s) {
             return s.scoringType === 'AUTO' && s.autoScore != null;
+        },
+
+        /**
+         * 슬라이더의 눈금 (설계 I172).
+         *
+         * <p>쾌적함만 <b>1~5 척도</b>다 (설계 I118) — 사람이 매기는 유일한 항목이고,
+         * 100점 척도로 물으면 73점과 74점의 차이를 <b>아무도 설명할 수 없다.</b>
+         */
+        scoreMin(s) {
+            return s.code === 'COMFORT' ? 1 : 0;
+        },
+
+        scoreMax(s) {
+            return s.code === 'COMFORT' ? 5 : 100;
+        },
+
+        /** 100점 척도는 5점 단위로 끊는다 — 1점 단위는 끌어서 맞출 수 없다. */
+        scoreStep(s) {
+            return s.code === 'COMFORT' ? 1 : 5;
         },
 
         closeScoreModal() {
@@ -3111,6 +4287,13 @@ function halley() {
             }
         },
 
+        /** 알림이 왜 안 오는지 보이게 (설계 I215). */
+        async loadNotifySettings() {
+            const { ok, body } = await this.request('/api/admin/notification-settings')
+                .catch(() => ({ ok: false }));
+            this.notifySettings = ok ? body : null;
+        },
+
         async loadNotifications() {
             const { ok, body } = await this.request('/api/admin/notifications');
             if (ok) {
@@ -3127,6 +4310,16 @@ function halley() {
 
         settingsByCategory(category) {
             return this.settings.filter(s => s.category === category);
+        },
+
+        /**
+         * 사람이 고칠 값인가 (설계 I185).
+         *
+         * <p>스트레스 금리의 <b>산출 근거·시각</b>은 배치가 쓰는 값입니다. 고쳐도
+         * 다음 배치가 덮어쓰므로 <b>입력칸을 열어 두면 거짓말</b>이 됩니다.
+         */
+        settingEditable(s) {
+            return !String(s.configKey || '').startsWith('loan.stressRate.');
         },
 
         configCategoryLabel(category) {
@@ -3165,6 +4358,19 @@ function halley() {
             });
         },
 
+        /**
+         * 지도의 매물 표시 (설계 I222).
+         *
+         * <p>기본 마커는 <b>어느 것이 어느 매물인지</b> 알려 주지 않아, 지도에서
+         * 보다가 결국 목록으로 눈을 옮겨야 했습니다. 값을 마커에 얹습니다 —
+         * 전용면적과 가격, 둘이면 충분합니다.
+         *
+         * <p><b>전세는 초록입니다.</b> 매매와 전세는 숫자의 뜻이 달라서
+         * (5.6억을 내는 것과 맡기는 것) 색으로 갈라 두지 않으면 잘못 읽습니다.
+         *
+         * <p>`CustomOverlay` 를 씁니다 — `Marker` 는 그림만 바꿀 수 있고 글자를
+         * 얹을 수 없습니다. 임장 순번 마커(I177)와 같은 방식입니다.
+         */
         renderMarkers() {
             if (!this.map) {
                 return;
@@ -3175,9 +4381,19 @@ function halley() {
             coords.forEach(r => {
                 const p = r.property;
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
-                const marker = new kakao.maps.Marker({ position, map: this.map });
-                kakao.maps.event.addListener(marker, 'click', () => this.selectMarker(p.id));
-                this.markers[p.id] = marker;
+                const overlay = new kakao.maps.CustomOverlay({
+                    position,
+                    content: this.markerContent(r),
+                    yAnchor: 1,
+                    clickable: true
+                });
+                overlay.setMap(this.map);
+                // CustomOverlay 에는 이벤트를 못 건다 — 안쪽 요소에 직접 건다
+                const el = overlay.getContent();
+                if (el instanceof HTMLElement) {
+                    el.addEventListener('click', () => this.selectMarker(p.id));
+                }
+                this.markers[p.id] = overlay;
             });
             if (coords.length > 0) {
                 const bounds = new kakao.maps.LatLngBounds();
@@ -3187,6 +4403,37 @@ function halley() {
                 });
                 this.map.setBounds(bounds);
             }
+        },
+
+        /**
+         * 마커 안에 무엇을 적을까 (설계 I222).
+         *
+         * <p>문자열이 아니라 <b>요소</b>를 돌려줍니다 — 클릭을 걸어야 하고,
+         * 단지명이 그대로 들어가므로 <b>HTML 로 조립하면 안 됩니다.</b>
+         */
+        markerContent(scored) {
+            const p = scored.property;
+            const jeonse = p.dealType === 'JEONSE';
+
+            const box = document.createElement('div');
+            box.className = 'map-pin' + (jeonse ? ' is-jeonse' : '');
+            if (this.isVisited(p.id)) {
+                box.classList.add('is-visited');
+            }
+
+            const area = document.createElement('b');
+            area.textContent = p.areaExclusiveM2 ? `${Math.round(Number(p.areaExclusiveM2))}㎡` : p.name || '';
+            box.appendChild(area);
+
+            const price = document.createElement('span');
+            // 한 글자면 충분하다 (설계 I223) — 색이 이미 매매·전세를 가른다
+            price.textContent = `${jeonse ? '전' : '매'} ${this.fmtWonShort(p.priceDeposit)}`;
+            box.appendChild(price);
+
+            const tail = document.createElement('i');
+            box.appendChild(tail);
+            box.title = p.name || '';
+            return box;
         },
 
         focusProperty(item) {
@@ -3367,6 +4614,35 @@ function halley() {
         moneyHint(value) {
             const n = toNum(value);
             return n == null || n === 0 ? '' : this.fmtWon(n);
+        },
+
+        /**
+         * 지도 핀에 들어갈 짧은 가격 (설계 I223).
+         *
+         * <p>`7억 5,000만원` 은 핀을 <b>가로로 늘립니다.</b> 핀이 몇 개만 겹쳐도
+         * 서로를 가립니다 — 지도에서는 <b>자릿수보다 폭</b>이 문제입니다.
+         *
+         * <pre>
+         * 750,000,000 → 7.5억      645,000,000 → 6.45억
+         * 700,000,000 → 7억        50,000,000  → 5,000만
+         * </pre>
+         *
+         * <p><b>1억 미만은 만원으로</b> 둡니다. `0.5억` 은 읽는 데 한 번 더
+         * 생각하게 만듭니다.
+         *
+         * <p>소수 둘째 자리에서 <b>버립니다</b> — 반올림하면 6.999억이 7억이 되어
+         * <b>실제보다 싸 보입니다.</b> 목록·상세에는 정확한 값이 그대로 있습니다.
+         */
+        fmtWonShort(won) {
+            if (won == null || won === 0) {
+                return '0원';
+            }
+            const n = Number(won);
+            if (n < 100000000) {
+                return Math.floor(n / 10000).toLocaleString('ko-KR') + '만';
+            }
+            const eok = Math.floor(n / 1000000) / 100;
+            return `${eok.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억`;
         },
 
         fmtWon(won) {

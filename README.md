@@ -1,5 +1,7 @@
 # Halley
 
+<img src="src/main/resources/static/image/logo-240.png" alt="Halley" width="180">
+
 ![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.x-6DB33F?logo=springboot&logoColor=white)
 ![jOOQ](https://img.shields.io/badge/jOOQ-3.21-FF6D00?logo=databricks&logoColor=white)
@@ -278,6 +280,21 @@ REDIS_HOST=... \
 |---|---|
 | `DB_URL` · `DB_USERNAME` · `DB_PASSWORD` | PostgreSQL 접속 정보 |
 | `REDIS_HOST` · `REDIS_PORT` | Redis 접속 정보 |
+| `APP_BASE_URL` | Slack 알림에 붙는 링크의 앞부분. 비우면 링크를 안 답니다 |
+| `APP_IMAGES_DIR` | 올린 사진이 쌓이는 **절대 경로**. 아래 설명을 보십시오 |
+
+> **`APP_IMAGES_DIR`을 반드시 절대 경로로 주십시오.** 기본값 `uploads`는 상대
+> 경로라 **JVM을 띄운 디렉터리** 기준으로 풀립니다 — jar가 놓인 자리가 아닙니다.
+> 다른 디렉터리에서 다시 띄우면 **DB 기록은 남고 파일만 사라진 것처럼** 보입니다
+> (깨진 이미지). 서버가 `/home/ec2-user/halley`라면:
+>
+> ```bash
+> APP_IMAGES_DIR=/home/ec2-user/halley/uploads
+> ```
+>
+> 실제로 어디를 쓰는지는 **기동 로그**에 찍힙니다:
+> `Serving uploaded images from /home/ec2-user/halley/uploads (exists=true, writable=true)`.
+> 사진이 안 보이면 여기부터 보십시오.
 
 ### 외부 연동 키
 
@@ -311,6 +328,7 @@ REDIS_HOST=... \
 | `ECOS_STAT_CODE` | `121Y006` | 예금은행 대출금리 |
 | `ECOS_HOUSEHOLD_ITEM` | `BECBLA03` | 가계대출 항목 코드 |
 | `LLM_ENABLED` · `LLM_PROVIDER` · `LLM_CLAUDE_MODEL` | `true` · `claude` · `claude-opus-5` | |
+| `TRANSIT_FALLBACK_MODEL` | (`LLM_CLAUDE_MODEL`) | ODsay 하루치가 끝났을 때 대신 답할 모델 (설계 I210) |
 | `SLACK_ENABLED` | **`false`** | 알림 전체 스위치. **켜야 아무것도 나갑니다** |
 | `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림만 따로 |
 
@@ -324,11 +342,17 @@ REDIS_HOST=... \
 
 #### 1. Slack에서 웹훅 만들기
 
-1. <https://api.slack.com/apps> → **Create New App** → *From scratch*
-2. 이름과 워크스페이스를 고릅니다
-3. 왼쪽 **Incoming Webhooks** → 스위치를 **On**
-4. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
-5. 만들어진 URL을 복사합니다
+1. <https://api.slack.com/apps> → **Create New App**
+2. **Or start your own way** 아래의 **Blank app** → *Continue*
+   *(위쪽 `AI agent`·`Starter app`은 템플릿입니다 — 웹훅만 쓸 것이라 필요 없습니다)*
+3. 앱 이름과 워크스페이스를 고릅니다
+4. 왼쪽 메뉴 **Incoming Webhooks** → 스위치를 **On**
+5. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
+6. 만들어진 URL을 복사합니다
+
+> **Slack 화면은 종종 바뀝니다.** 이 문서는 2026-09-02 기준입니다 —
+> 예전에는 2번이 `From scratch`였습니다. 이름이 달라 보이면
+> <b>"빈 앱으로 시작"에 해당하는 것</b>을 고르면 됩니다.
 
 생김새는 이렇습니다 (실제 값이 아니라 **모양만** 적습니다 — 진짜를 문서에 두면
 GitHub 비밀 검사가 푸시를 막습니다):
@@ -540,6 +564,7 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | [`docs/DDL.sql`](./docs/DDL.sql) | PostgreSQL 스키마 (초기 생성 + 마이그레이션 이력) |
 | [`docs/DDL-repair.sql`](./docs/DDL-repair.sql) | 멱등 복구 스크립트 — 운영 DB가 뒤처졌을 때 |
 | [`docs/ADJUST_CACHE.md`](./docs/ADJUST_CACHE.md) | 캐시·성능 검토 (실측 기반) |
+| [`docs/SCORING.md`](./docs/SCORING.md) | 추천 점수 — 항목별 가중치 · 산출 재료 · 다시 채점하는 계기 |
 | [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 설계 — 지표 산식 · 코드/LLM 역할 분담 · 안전장치 |
 | [`docs/MORTGAGE_ENGINE.md`](./docs/MORTGAGE_ENGINE.md) | 대출 계산 엔진 — LTV · 스트레스 DSR · 담보가치 |
 | [`docs/DDL-forecast-reset.sql`](./docs/DDL-forecast-reset.sql) | 전망 재시작용 정리 (429·400 시절 값 걷어내기) |

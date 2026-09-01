@@ -33,8 +33,10 @@ public class PropertyInsightListener {
     private void notify(PropertyInsightChanged event) {
         try {
             switch (event.kind()) {
-                case COMMENT -> notificationService.sendCommentCreated(event.propertyId(), event.actorNickname());
-                case COMFORT_SCORE -> notificationService.sendComfortScored(event.propertyId(), event.actorNickname());
+                case COMMENT -> notificationService.sendCommentCreated(
+                        event.propertyId(), event.actorNickname(), event.detail());
+                case COMFORT_SCORE -> notificationService.sendComfortScored(
+                        event.propertyId(), event.actorNickname(), scoreOf(event.detail()));
                 // 수정은 알리지 않는다 (설계 I113). 재질의만 걸면 된다
                 case EDIT -> { }
             }
@@ -42,6 +44,15 @@ public class PropertyInsightListener {
             // 알림이 실패해도 재질의는 계속돼야 한다
             log.warn("Notification failed. propertyId={}, kind={}, cause={}",
                     event.propertyId(), event.kind(), e.toString());
+        }
+    }
+
+    /** 점수를 못 읽으면 null — 없는 점수를 지어내느니 "평가했습니다"까지만 말한다. */
+    private static Integer scoreOf(String detail) {
+        try {
+            return detail == null ? null : Integer.valueOf(detail.strip());
+        } catch (NumberFormatException e) {
+            return null;
         }
     }
 

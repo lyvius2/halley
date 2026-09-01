@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Halley — 부동산 매물 비교</title>
+    <!-- 파비콘 (설계 I174). 32px 는 탭, 180px 는 iOS 홈 화면 -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32.png">
+    <link rel="apple-touch-icon" href="/image/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
@@ -16,12 +19,21 @@
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()">
+<!-- 주소는 x-effect 가 맞춘다 (설계 I211). $watch 로 플래그를 열거하려 했으나
+     Alpine 안에서 Object.keys(this) 가 빈 배열이라 <b>하나도 안 걸렸다</b> -->
+<body x-data="halley()" x-init="init()" x-effect="syncRoute()"
+      @keydown.escape.window="closeTopModal()"
+      @keydown.arrow-left.window="onViewerKey(-1)" @keydown.arrow-right.window="onViewerKey(1)">
 
 <div class="shell">
     <div class="topbar">
         <div class="topbar-in">
-            <a class="wordmark" href="/">Halley</a>
+            <a class="wordmark" href="/">
+                <!-- 64px 원본을 24px 로 줄여 쓴다 — 고해상도 화면에서 흐려지지 않는다.
+                     원본(1254px · 940KB)을 그대로 걸면 헤더 하나에 1MB 를 쓴다 (설계 I174) -->
+                <img class="wordmark-logo" src="/image/logo-64.png" alt="" width="24" height="24">
+                <span>Halley</span>
+            </a>
             <template x-if="session.authenticated">
                 <nav class="nav">
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
@@ -39,8 +51,11 @@
                     </button>
                     <button class="nav-btn nav-mine nav-mine-tail" type="button"
                             :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
+                        <!-- 닉네임이 이미 '관리자'면 ' · 관리자'를 붙이지 않는다 (설계 I186).
+                             기본 관리자 계정의 닉네임이 그것이라 '관리자 · 관리자'가 됐다 -->
                         <span x-text="session.nickname"></span><span
-                                x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span>
+                                x-text="session.role==='ADMIN' && session.nickname !== '관리자'
+                                        ? ' · 관리자' : ''"></span>
                     </button>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -79,7 +94,20 @@
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
                             <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
                             <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
-                            <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
+                            <!-- 판매완료 숨김을 없앴다 (설계 I221). 생존 확인 배치를
+                                 걷어낸 뒤(I157) 그 값을 갱신하는 것이 아무것도 없다 -->
+                            <div class="sort-picker" @click.outside="sortOpen = false">
+                                <button class="sort-trigger" @click="sortOpen = !sortOpen">
+                                    <span x-text="sortLabel()"></span>
+                                    <i class="sort-caret" :class="{open: sortOpen}">▾</i>
+                                </button>
+                                <div class="sort-menu" x-show="sortOpen" x-cloak>
+                                    <template x-for="s in SORTS" :key="s.key">
+                                        <button :class="{on: sortKey === s.key}" @click="setSort(s.key)"
+                                                x-text="s.label"></button>
+                                    </template>
+                                </div>
+                            </div>
                         </div>
                         <div class="property-list">
                             <!-- 목록이 오기 전에는 '없습니다'가 아니라 기다리는 중임을 말한다 (설계 I122) -->
@@ -119,7 +147,8 @@
                                               x-text="r.property.groupName"></span>
                                         <!-- 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121) -->
                                         <span class="badge b-visited" x-show="hasVisited(r)"
-                                              title="공간의 쾌적함이 채점되어 있습니다">🚩 임장완료</span>
+                                              :class="{mine: scoredComfort(r)}"
+                                              :title="visitedTitle(r)">🚩 임장완료</span>
                                         <!-- 전망이 없는 매물은 매매가를 눌러 분석시킨다 (설계 I142).
                                              이미 낸 적이 있으면 누를 수 없다 — UNCERTAIN 이라도 그건 답이다 -->
                                         <span class="property-card-price"
@@ -136,7 +165,13 @@
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
                                         <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
-                                        <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
+                                        <!-- 등록 직후에는 점수가 없다 (설계 I220). 배경에서
+                                             채워지는 중임을 말해 준다 — 몇 초 뒤 저절로 바뀐다 -->
+                                        <span class="score-pill is-pending" x-show="scoring(r)">
+                                            <i class="dot-spin"></i><i>분석 중</i>
+                                        </span>
+                                        <span class="score-pill" x-show="!scoring(r)"
+                                              :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
                                     </div>
@@ -210,8 +245,13 @@
                                         <option value="TRANSIT">대중교통</option>
                                     </select>
                                 </label>
+                                <!-- 지나간 시각으로는 못 짠다 (설계 I207) -->
+                                <label>임장 날짜
+                                    <input type="date" x-model="itinDate" :min="todayIso()"
+                                           @change="normalizeItinStart()">
+                                </label>
                                 <label>시작시간
-                                    <input type="time" x-model="itinWindowStart">
+                                    <input type="time" x-model="itinWindowStart" :min="minItinTime()">
                                 </label>
                                 <label>체류(분)
                                     <input type="number" min="5" x-model="itinStay">
@@ -219,48 +259,101 @@
                             </div>
                             <div class="itin-props">
                                 <template x-for="r in visibleProperties" :key="r.property.id">
-                                    <label class="itin-check">
+                                    <!-- 이미 다녀온 곳은 흐리게 (설계 I225).
+                                         고를 수는 있다 — 다시 갈 이유는 사람이 안다 -->
+                                    <label class="itin-check" :class="{done: isVisited(r.property.id)}"
+                                           :title="isVisited(r.property.id) ? '이미 다녀온 곳입니다' : ''">
                                         <input type="checkbox" :checked="itinProperties.includes(r.property.id)"
                                                @change="toggleItineraryProperty(r.property.id)">
                                         <span x-text="r.property.name"></span>
+                                        <small x-show="isVisited(r.property.id)" class="itin-check-done">다녀옴</small>
                                         <small x-text="fmtWon(r.property.priceDeposit)"></small>
                                     </label>
                                 </template>
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
-                            <div class="paste-actions">
-                                <button class="btn" @click="optimizeItinerary()" :disabled="loading">경로 계산</button>
-                                <button class="btn btn-primary" @click="savePlan()" :disabled="loading" x-show="itinResult && !itinPlan">계획 저장</button>
-                                <button class="btn" @click="recomputePlan()" :disabled="loading" x-show="itinPlan">재계산</button>
+                            <!-- 계획 저장을 없앴다 (설계 I197). 계산이 곧 저장이었고,
+                                 저장이 더 주던 것은 방문 체크 하나였다 — 결과 층으로 옮겼다.
+                                 초기화는 반대쪽 끝에 둔다 (설계 I206) — 계산 옆에 붙여 두면
+                                 눌러야 할 것 옆에 지우는 것이 있게 된다 -->
+                            <div class="itin-actions">
+                                <button class="btn btn-ghost" @click="clearItineraryResult()"
+                                        x-show="itinResult" :disabled="loading">경로 초기화</button>
+                                <button class="btn btn-primary" @click="optimizeItinerary()" :disabled="loading">경로 계산</button>
                             </div>
                         </div>
 
-                        <template x-if="itinResult && !itinPlan">
+                        <template x-if="itinResult">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
-                                <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
-                                    <div class="itin-stop">
-                                        <span class="itin-num" x-text="i + 1"></span>
-                                        <span x-text="propertyName(id)"></span>
-                                    </div>
-                                </template>
+
+                                <!-- 지도 색이 무엇을 뜻하는지 (설계 I195).
+                                     범례가 없으면 빨간 선이 정체인지 다른 노선인지 알 수 없다 -->
+                                <div class="itin-legend" x-show="itinMode === 'DRIVING'">
+                                    <span class="lg"><i style="background:#d64545"></i>정체</span>
+                                    <span class="lg"><i style="background:#e08b2f"></i>지체</span>
+                                    <span class="lg"><i style="background:#e0c22f"></i>서행</span>
+                                    <span class="lg"><i style="background:#3f9e56"></i>원활</span>
+                                    <span class="lg"><i style="background:#8a8378"></i>정보없음</span>
+                                </div>
+                                <div class="itin-legend" x-show="itinMode === 'TRANSIT'">
+                                    <template x-for="lg in transitLegend()" :key="lg.color">
+                                        <span class="lg"><i :style="'background:' + lg.color"></i><span x-text="lg.name"></span></span>
+                                    </template>
+                                </div>
+
+                                <!-- 순서와 가는 길을 <b>한 묶음으로</b> 엮는다 (설계 I192).
+                                     따로 두면 "2번 집에 어떻게 가지"를 눈으로 맞춰 봐야 한다 -->
+                                <ol class="itin-route">
+                                    <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
+                                        <li class="itin-route-item">
+                                            <div class="itin-stop" :class="{done: isVisited(id)}">
+                                                <span class="itin-num" x-text="i + 1"></span>
+                                                <span x-text="propertyName(id)"></span>
+                                                <!-- 몇 시에 닿는지 (설계 I194) -->
+                                                <span class="itin-time" x-show="legFor(i)"
+                                                      x-text="arrivalAt(i) + ' 도착'"></span>
+                                                <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
+                                                <!-- 쾌적함으로 켜진 것은 못 끈다 (설계 I228).
+                                                     근거가 채점이므로 끄려면 그 점수를 지워야 하는데,
+                                                     그건 채점 화면의 일이다 -->
+                                                <label class="itin-visit"
+                                                       :class="{locked: visitedByComfort(id)}"
+                                                       :title="visitedByComfort(id)
+                                                           ? '공간의 쾌적함을 매겨 다녀온 곳으로 봅니다 (설계 I121)'
+                                                           : ''">
+                                                    <input type="checkbox" :checked="isVisited(id)"
+                                                           :disabled="visitedByComfort(id)"
+                                                           @change="toggleVisited(id)">
+                                                    <span x-text="visitedByComfort(id) ? '방문완료 (채점됨)' : '방문완료'"></span>
+                                                </label>
+                                            </div>
+                                            <template x-if="legFor(i)">
+                                                <div class="itin-route-legs">
+                                                    <div class="itin-leg-head">
+                                                        <span x-text="legTitle(legFor(i))"></span>
+                                                        <b x-text="legFor(i).minutes + '분'"></b>
+                                                    </div>
+                                                    <template x-for="(step, j) in (legFor(i).steps || [])" :key="j">
+                                                        <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">
+                                                            <span class="itin-step-ic" x-text="stepIcon(step)"></span>
+                                                            <span x-text="legStepText(step)"></span>
+                                                        </div>
+                                                    </template>
+                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도 -->
+                                                    <div class="itin-step is-road"
+                                                         x-show="!(legFor(i).steps || []).length">
+                                                        <span class="itin-step-ic">🚗</span>
+                                                        <span x-text="'약 ' + legFor(i).minutes + '분'"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ol>
                             </div>
                         </template>
 
-                        <template x-if="itinPlan">
-                            <div class="itin-result card">
-                                <p class="itin-total">총 이동 <b x-text="(itinPlan?.totalMinutes ?? 0) + '분'"></b> · <b x-text="(itinPlan?.stops?.length ?? 0) + '곳'"></b></p>
-                                <template x-for="s in (itinPlan?.stops || [])" :key="s.id">
-                                    <label class="itin-stop" :class="{done: s.visited}">
-                                        <span class="itin-num" x-text="s.stopOrder + 1"></span>
-                                        <span class="itin-time" x-text="s.estimatedArrival"></span>
-                                        <span x-text="propertyName(s.propertyId)"></span>
-                                        <small x-text="s.travelMinutesFromPrev ? '이동 ' + s.travelMinutesFromPrev + '분' : '출발'"></small>
-                                        <input type="checkbox" :checked="s.visited" @change="toggleItineraryStop(s.id, !s.visited)">
-                                    </label>
-                                </template>
-                            </div>
-                        </template>
                     </div>
 
                     <div x-show="view==='me'">
@@ -546,17 +639,34 @@
     <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
-            <h3>Halley</h3>
+            <h3 class="modal-title-logo">
+                <img src="/image/logo-64.png" alt="" width="28" height="28">
+                <span>Halley</span>
+            </h3>
             <p>계정 정보를 입력해 들어오세요.</p>
         </div>
         <form class="form" @submit.prevent="login()">
             <label>ID
-                <input type="text" x-model="loginForm.loginId" autocomplete="username" placeholder="admin" required
-                       x-ref="loginId" x-effect="if (showLogin) $nextTick(() => $refs.loginId.focus())">
+                <!-- 커서는 focusLogin() 이 옮긴다 (설계 I209).
+                     x-effect 는 x-show 모달에서 showLogin 이 거짓일 때 한 번 돌고 말았다 -->
+                <input id="loginId" type="text" x-model="loginForm.loginId" autocomplete="username"
+                       placeholder="admin" required>
             </label>
             <label>Password
-                <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
+                <input id="loginPassword" type="password" x-model="loginForm.password"
+                       autocomplete="current-password" placeholder="••••••••" required>
             </label>
+            <!-- ID 저장은 브라우저에, 로그인 유지는 서버 세션에 (설계 I190) -->
+            <div class="login-options">
+                <label class="check">
+                    <input type="checkbox" x-model="loginForm.rememberId">
+                    <span>ID 저장</span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" x-model="loginForm.rememberMe">
+                    <span>로그인 상태 유지</span>
+                </label>
+            </div>
             <p class="form-error" x-show="error" x-text="error"></p>
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '로그인 중…' : '로그인'"></span>
@@ -767,6 +877,38 @@
                         <span class="paste-note">붙여넣기 텍스트에는 주소가 없어 파싱되지 않습니다.
                             넣어 두면 <b>판매완료를 자동으로 감지</b>합니다.</span>
                     </label>
+                </div>
+                <!-- 사진도 여기서 고른다 (설계 I204). 매물이 아직 없어 지금은 못 올리므로
+                     브라우저가 들고 있다가 '매물 등록' 뒤에 올린다 -->
+                <div class="paste-extra paste-images">
+                    <span class="paste-field-head"><b>사진</b>
+                        <span class="badge b-mem">등록 후 함께 올라갑니다</span></span>
+                    <div class="paste-pick">
+                        <label class="img-drop img-drop-sm">
+                            <input type="file" accept="image/*" @change="pickPasteImages($event, 'FLOOR_PLAN')">
+                            <span x-text="pasteFloorPlan ? '평면도 바꾸기' : '평면도 고르기'"></span>
+                        </label>
+                        <label class="img-drop img-drop-sm">
+                            <input type="file" accept="image/*" multiple @change="pickPasteImages($event, 'PHOTO')">
+                            <span>매물사진 고르기 (여러 장)</span>
+                        </label>
+                    </div>
+                    <ul class="paste-picked" x-show="pastePickedCount() > 0">
+                        <template x-if="pasteFloorPlan">
+                            <li>
+                                <span class="badge b-jeonse">평면도</span>
+                                <span x-text="pasteFloorPlan.name"></span>
+                                <button type="button" @click="dropPastedImage(pasteFloorPlan)" title="빼기">×</button>
+                            </li>
+                        </template>
+                        <template x-for="(f, i) in pastePhotos" :key="i">
+                            <li>
+                                <span class="badge b-mem">사진</span>
+                                <span x-text="f.name"></span>
+                                <button type="button" @click="dropPastedImage(f)" title="빼기">×</button>
+                            </li>
+                        </template>
+                    </ul>
                 </div>
                 <p class="form-error" x-show="pasteError" x-text="pasteError"></p>
                 <div class="paste-actions">
@@ -1019,7 +1161,7 @@
             </div>
             <template x-if="floorPlan">
                 <div class="img-single">
-                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan))">
+                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan), photoImages)">
                         <img :src="floorPlan.storagePath" alt="평면도">
                     </button>
                     <button class="btn btn-xs btn-danger" @click="removeImage(floorPlan)" :disabled="loading">삭제</button>
@@ -1040,7 +1182,7 @@
             <div class="photo-grid" x-show="photos.length > 0">
                 <template x-for="img in photos" :key="img.id">
                     <div class="photo-cell">
-                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img))">
+                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img), photoImages)">
                             <img :src="img.storagePath" alt="매물사진">
                         </button>
                         <button class="photo-del" @click="removeImage(img)" :disabled="loading" title="삭제">×</button>
@@ -1063,8 +1205,11 @@
 <div class="lightbox" x-show="photoViewerIndex >= 0" x-cloak @click.self="closePhotoViewer()">
     <button class="lightbox-close" @click="closePhotoViewer()">×</button>
     <button class="lightbox-nav prev" @click="photoPrev()" x-show="photoViewerIndex > 0">‹</button>
-    <img :src="photoViewerIndex >= 0 && photoImages[photoViewerIndex] ? photoImages[photoViewerIndex].storagePath : ''" alt="">
-    <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < photoImages.length - 1">›</button>
+    <img :src="photoViewerIndex >= 0 && viewerImages[photoViewerIndex] ? viewerImages[photoViewerIndex].storagePath : ''" alt="">
+    <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < viewerImages.length - 1">›</button>
+    <!-- 몇 번째 장인지 (설계 I203). 방향키로 넘길 수 있다는 표시이기도 하다 -->
+    <span class="lightbox-count" x-show="viewerImages.length > 1"
+          x-text="(photoViewerIndex + 1) + ' / ' + viewerImages.length"></span>
 </div>
 
 <!-- D17 확인 모달 -->
@@ -1093,6 +1238,27 @@
             <h3>계정 <span x-text="users.length"></span>명</h3>
             <p>가입 절차가 없는 폐쇄형 서비스입니다. 계정은 관리자가 이곳에서 만들고 관리합니다.</p>
         </div>
+
+        <!-- 발급한 임시 비밀번호 (설계 I213). 서버는 이때 한 번만 알려 준다 —
+             저장된 것은 해시라 닫으면 아무도 다시 못 읽는다 -->
+        <template x-if="tempPassword">
+            <div class="temp-pw">
+                <div class="temp-pw-head">
+                    <b><span x-text="tempPassword.nickname"></span>님의 임시 비밀번호</b>
+                    <button class="btn btn-xs" @click="dismissTempPassword()">닫기</button>
+                </div>
+                <div class="temp-pw-body">
+                    <code x-text="tempPassword.password"></code>
+                    <button class="btn btn-xs" @click="copyTempPassword()"
+                            x-text="tempPassword.copied ? '복사됨' : '복사'"></button>
+                </div>
+                <p class="temp-pw-note">
+                    <b x-text="tempPassword.loginId"></b> 계정으로 이 비밀번호를 전달하십시오.
+                    <b>닫으면 다시 볼 수 없습니다</b> — 저장된 값은 해시라 서버도 모릅니다.
+                    첫 로그인 때 본인이 새 비밀번호를 정하게 됩니다.
+                </p>
+            </div>
+        </template>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
         <div class="progress-strip" x-show="isLoading('users')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
@@ -1152,7 +1318,14 @@
                         <template x-for="s in settingsByCategory(cat)" :key="s.configKey">
                             <tr>
                                 <td class="strong" x-text="s.description"></td>
-                                <td><input class="settings-input" type="text" x-model="settingsForm[s.configKey]"></td>
+                                <!-- 배치가 쓰는 값은 고칠 수 없다 (설계 I185).
+                                     입력칸을 열어 두면 고칠 수 있는 것처럼 보이는데 다음 배치가 덮어쓴다 -->
+                                <td>
+                                    <input class="settings-input" type="text" x-show="settingEditable(s)"
+                                           x-model="settingsForm[s.configKey]">
+                                    <span class="settings-readonly" x-show="!settingEditable(s)"
+                                          x-text="s.configValue"></span>
+                                </td>
                             </tr>
                         </template>
                         </tbody>
@@ -1275,6 +1448,26 @@
 
         <div class="settings-section">
             <h4>알림 이력</h4>
+            <!-- 스위치가 환경변수에만 있어, 켜 두고도 등록 알림만 안 오는 이유를
+                 화면에서 알 길이 없었다 (설계 I215). 읽기 전용이다 -->
+            <template x-if="notifySettings">
+                <div class="notify-state">
+                    <span class="badge" :class="notifySettings.enabled ? 'b-on' : 'b-off'">
+                        <span x-text="'알림 전체 ' + (notifySettings.enabled ? '켜짐' : '꺼짐')"></span>
+                    </span>
+                    <span class="badge" :class="notifySettings.notifyPropertyCreated ? 'b-on' : 'b-off'">
+                        <span x-text="'매물 등록 알림 ' + (notifySettings.notifyPropertyCreated ? '켜짐' : '꺼짐')"></span>
+                    </span>
+                    <span class="badge" :class="notifySettings.baseUrlConfigured ? 'b-on' : 'b-off'">
+                        <span x-text="notifySettings.baseUrlConfigured ? '링크 붙음' : '링크 없음'"></span>
+                    </span>
+                    <small>
+                        환경변수로 정합니다 —
+                        <code>SLACK_ENABLED</code> · <code>SLACK_NOTIFY_PROPERTY_CREATED</code> ·
+                        <code>APP_BASE_URL</code>. 여기서는 <b>보기만</b> 합니다.
+                    </small>
+                </div>
+            </template>
             <div class="card table-wrap">
                 <table>
                     <thead><tr><th>이벤트</th><th>매물</th><th>상태</th><th>오류</th><th>시간</th></tr></thead>
@@ -1326,6 +1519,12 @@
                 </span>
                 <span class="group-badge" x-show="detailItem.property.groupName"
                       x-text="detailItem.property.groupName"></span>
+            </div>
+
+            <!-- 등록 직후에는 학교·규제·채점이 아직이다 (설계 I220) -->
+            <div class="progress-strip" x-show="scoring(detailItem)" x-cloak>
+                <span class="progress-strip-label">등록한 매물을 분석하고 있습니다… 잠시 뒤 저절로 채워집니다</span>
+                <div class="progress-strip-bar"><i></i></div>
             </div>
 
             <div class="m2-grid">
@@ -1395,6 +1594,34 @@
                         </div>
                     </template>
                 </section>
+
+                <!-- 순서는 읽는 순서다 (설계 I208): 기본 → 비용 → 입지 → 중개사 → 평면도 → 사진.
+                     사진이 없으면 <b>칸 자체를 안 그린다</b> — "없습니다" 한 줄이 격자에
+                     빈자리를 만들어 뒤 칸을 밀어낸다 -->
+                <template x-if="detailFloorPlan">
+                    <section class="m2-sec">
+                        <h4>평면도</h4>
+                        <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(detailFloorPlan), detailImages)"
+                                title="크게 보기">
+                            <img :src="detailFloorPlan.storagePath" alt="평면도">
+                        </button>
+                    </section>
+                </template>
+
+                <template x-if="detailPhotos.length > 0">
+                    <section class="m2-sec m2-sec-wide">
+                        <h4>사진 <span class="m2-count" x-text="detailPhotos.length + '장'"></span></h4>
+                        <!-- 끌어서 넘긴다 (설계 I214). 조금이라도 끌었으면 클릭이 아니다 -->
+                        <div class="m2-photos" @pointerdown.prevent="startPhotoDrag($event)">
+                            <template x-for="img in detailPhotos" :key="img.id">
+                                <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
+                                        title="크게 보기 (좌우 방향키로 넘김)">
+                                    <img :src="img.storagePath" alt="매물사진">
+                                </button>
+                            </template>
+                        </div>
+                    </section>
+                </template>
 
                 <section class="m2-sec m2-sec-wide">
                     <h4>토지이용계획</h4>
@@ -1680,6 +1907,11 @@
             </div>
         </div>
 
+        <!-- 등록 직후에는 채점이 아직이다 (설계 I220) -->
+        <div class="progress-strip" x-show="scoring(scoreProperty)" x-cloak>
+            <span class="progress-strip-label">채점하고 있습니다… 학교·규제·직주근접을 확인하는 중입니다</span>
+            <div class="progress-strip-bar"><i></i></div>
+        </div>
         <div class="score-list">
             <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
                 <div class="score-item" :class="{'is-fallback': s.scoreSource==='FALLBACK'}">
@@ -1689,7 +1921,9 @@
                         <span class="badge b-jeonse" x-show="s.scoringType==='HYBRID' && s.scoreSource==='AUTO'">추정</span>
                     </div>
 
-                    <div class="score-item-gauge">
+                    <!-- 잠긴 항목은 <b>읽기용 막대</b>, 열린 항목은 <b>끌어서 매기는 슬라이더</b>
+                         (설계 I172). 같은 자리에 같은 모양으로 두어 눈이 옮겨 다니지 않는다 -->
+                    <div class="score-item-gauge" x-show="scoreLocked(s)">
                         <div class="gauge-track">
                             <div class="gauge-fill" :class="s.scoreSource==='MANUAL' ? 'is-manual' : ''"
                                  :style="'width:' + (s.effectiveScore == null ? 0 : s.effectiveScore) + '%'"></div>
@@ -1699,14 +1933,18 @@
 
                     <!-- 이미 자동 채점된 AUTO 항목은 잠근다 (설계 I111). 열어 두면
                          추정값으로 채워진 칸이 그대로 저장돼 자동 채점이 수동으로 굳는다 -->
-                    <div class="score-item-input" x-show="!scoreLocked(s)">
-                        <input type="number" x-model="scoreForm[s.code]"
-                               :min="s.code === 'COMFORT' ? 1 : 0"
-                               :max="s.code === 'COMFORT' ? 5 : 100"
-                               :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
-                               :aria-label="s.name + ' 점수 입력'">
+                    <div class="score-item-slider" x-show="!scoreLocked(s)">
+                        <!-- 지나온 쪽만 색을 채운다 (설계 I200). 손잡이 위치만으로는
+                             1점인지 5점인지 눈에 안 들어온다 -->
+                        <input type="range" class="score-range"
+                               :min="scoreMin(s)" :max="scoreMax(s)" :step="scoreStep(s)"
+                               :value="scoreForm[s.code] ?? scoreMin(s)"
+                               :style="scoreRangeFill(s)"
+                               @input="scoreForm[s.code] = $event.target.value"
+                               :aria-label="s.name + ' 점수'"
+                               :aria-valuetext="(scoreForm[s.code] ?? scoreMin(s)) + '점'">
+                        <span class="gauge-value" x-text="scoreForm[s.code] ?? '–'"></span>
                     </div>
-                    <p class="score-item-locked" x-show="scoreLocked(s)">자동으로 채점된 항목입니다.</p>
 
                     <p class="score-item-reason" x-show="s.fallbackReason">
                         <span x-text="s.fallbackReason"></span>
@@ -1755,8 +1993,21 @@
             <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
         </div>
         <div class="form-grid">
+            <!-- 빈 칸이면 지번주소에서 뽑아 씁니다. 무엇으로 물었는지 아래에 적습니다 (설계 I227) -->
             <label>법정동코드 (5자리)
-                <input type="text" x-model="refForm.legalDongCode" placeholder="11010" maxlength="5">
+                <input type="text" x-model="refForm.legalDongCode"
+                       :placeholder="refCard?.lawdCd || '주소에서 자동'" maxlength="5">
+                <span class="paste-note" x-show="refCard">
+                    <template x-if="refCard?.lawdCd">
+                        <span>이번 조회에 쓴 코드: <b x-text="refCard.lawdCd"></b>
+                            — 국토부는 <b>시군구 5자리</b>를 받습니다
+                            (법정동 10자리 <code>1135010500</code> 의 앞 다섯 자리)</span>
+                    </template>
+                    <template x-if="!refCard?.lawdCd">
+                        <span class="ref-nocode">지번주소에서 법정동코드를 못 찾았습니다 —
+                            <b>그래서 조회 자체가 안 됩니다.</b> 직접 넣어 보십시오</span>
+                    </template>
+                </span>
             </label>
             <label>계약년월 (YYYYMM)
                 <input type="text" x-model="refForm.dealMonth" placeholder="202607" maxlength="6">
@@ -1768,13 +2019,23 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <template x-if="refCard">
             <div class="ref-card">
+                <!-- 비었으면 <b>어느 단계에서 걸렸는지</b> 말한다 (설계 I232).
+                     "없습니다" 한 줄로는 코드 문제인지 이름 문제인지 면적 문제인지 알 수 없었다 -->
                 <template x-if="refCard.transactions.length === 0">
-                    <p class="ref-empty">실거래 내역이 없습니다. 법정동코드·계약년월을 확인하세요.</p>
+                    <p class="ref-empty" x-text="refEmptyReason()"></p>
                 </template>
-                <template x-for="t in refCard.transactions" :key="t.contractDate + '-' + t.floorNo">
+                <!-- 면적을 함께 보여 준다 (설계 I232). 없으면 "우리 집과 같은 평형인지"
+                     알 수 없다 — 실제로 전용면적에 공급면적이 들어간 것을 못 알아챘다 -->
+                <p class="ref-other-area" x-show="refCard.areaMismatch">
+                    전용 <b x-text="fmtArea(refProperty?.property?.areaExclusiveM2)"></b> 와 맞는 거래가 없어
+                    <b>같은 단지의 다른 평형</b>을 보여 줍니다. 호가 대비 괴리는 내지 않습니다 —
+                    평형이 다르면 견줄 수 없습니다.
+                </p>
+                <template x-for="t in refCard.transactions" :key="t.contractDate + '-' + t.floorNo + '-' + t.areaM2">
                     <div class="ref-row">
                         <span x-text="t.contractDate"></span>
                         <b x-text="fmtWon(t.price)"></b>
+                        <span x-text="t.areaM2 ? fmtArea(t.areaM2) : ''"></span>
                         <span x-text="t.floorNo ? t.floorNo + '층' : ''"></span>
                     </div>
                 </template>

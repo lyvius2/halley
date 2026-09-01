@@ -17,6 +17,7 @@ import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationReposit
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.domain.llm.ComparativeAnalysis;
 import banghak.home.halley.domain.llm.LlmRecommendation;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
@@ -88,6 +89,7 @@ public class ScoringService {
     private final SystemConfigRepository systemConfigRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ScoringLock scoringLock;
+    private final CachePort cache;
     private final PropertyAccessGuard propertyAccessGuard;
     private final UserGroupRepository userGroupRepository;
     private final ScoringEngine scoringEngine;
@@ -95,6 +97,7 @@ public class ScoringService {
 
     public ScoringService(ApplicationEventPublisher eventPublisher,
                           ScoringLock scoringLock,
+                          CachePort cache,
                           PropertyAccessGuard propertyAccessGuard,
                           UserGroupRepository userGroupRepository,
                           PropertyRepository propertyRepository,
@@ -114,6 +117,7 @@ public class ScoringService {
                           List<CriterionScorer> scorers) {
         this.eventPublisher = eventPublisher;
         this.scoringLock = scoringLock;
+        this.cache = cache;
         this.propertyAccessGuard = propertyAccessGuard;
         this.userGroupRepository = userGroupRepository;
         this.propertyRepository = propertyRepository;
@@ -258,7 +262,7 @@ public class ScoringService {
                     propertyId, currentUserId(), COMFORT_CODE, v));
             // 쾌적함은 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
             eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(
-                    propertyId, nicknameOf(currentUserId())));
+                    propertyId, nicknameOf(currentUserId()), v));
         } else {
             if (value.compareTo(BigDecimal.ZERO) < 0 || value.compareTo(BigDecimal.valueOf(100)) > 0) {
                 throw new InvalidScoreException("채점 점수는 0~100 사이여야 합니다");
@@ -269,10 +273,27 @@ public class ScoringService {
 
     private ScoredPropertyResponse ensureScored(Property property, Map<String, BigDecimal> weights) {
         final List<PropertyScore> persisted = propertyScoreRepository.findByPropertyId(property.id());
+        if (persisted.isEmpty() && enriching(property.id())) {
+            return notYetScored(property.id());
+        }
         if (persisted.isEmpty() || isStale(property, persisted)) {
             return rescore(property);
         }
         return buildFromPersisted(property, persisted, criteriaByCode(), weights, null);
+    }
+
+    /**
+     * 지금 배경에서 보정 중인가 (설계 I220).
+     *
+     * <p>등록 응답을 기다리지 않고 돌려주므로, 목록·상세가 <b>아직 점수가 없는 매물</b>을
+     * 만납니다. 그때 그 자리에서 채점하면 <b>기다림이 옮겨 갔을 뿐</b>입니다 —
+     * 목록 한 번이 수십 초가 됩니다.
+     *
+     * <p><b>표시가 있을 때만</b> 비켜섭니다. 없으면 평소대로 계산합니다 —
+     * 옛 매물이 어떤 이유로 점수를 잃었을 때 스스로 낫는 길(I84)을 막지 않습니다.
+     */
+    private boolean enriching(Long propertyId) {
+        return cache.get(CachePort.ENRICHING, String.valueOf(propertyId)).isPresent();
     }
 
     /**
@@ -310,6 +331,10 @@ public class ScoringService {
 
     private ScoredPropertyResponse ensureScored(Property property, ListBatch batch) {
         final List<PropertyScore> persisted = batch.scores().getOrDefault(property.id(), List.of());
+        // 보정 중이면 비켜선다 (설계 I220) — 목록에서 채점하면 목록이 그만큼 멈춘다
+        if (persisted.isEmpty() && enriching(property.id())) {
+            return notYetScored(property.id());
+        }
         if (persisted.isEmpty() || isStale(persisted, batch.hasLlm().contains(property.id()))) {
             // 낡았으면 그 매물만 다시 계산한다. 흔한 길이 아니다
             return rescore(property);
@@ -442,7 +467,10 @@ public class ScoringService {
         double weightedSum = 0.0;
         double totalWeight = 0.0;
         final List<CriterionScoreView> views = new ArrayList<>();
-        for (final PropertyScore s : persisted) {
+        final Comparator<String> order = byPriorityRank();
+        for (final PropertyScore s : persisted.stream()
+                .sorted(Comparator.comparing(PropertyScore::criterionCode, order))
+                .toList()) {
             final double weight = weightOf(s.criterionCode(), weights);
             if (s.effectiveScore() != null) {
                 weightedSum += s.effectiveScore().doubleValue() * weight;
@@ -477,7 +505,9 @@ public class ScoringService {
                                               Map<String, BigDecimal> weights) {
         final Map<String, Criterion> criteria = criterionRepository.findAll().stream()
                 .collect(Collectors.toMap(Criterion::code, c -> c));
+        final Comparator<String> order = byPriorityRank();
         final List<CriterionScoreView> views = result.criteria().stream()
+                .sorted(Comparator.comparing(CriterionScoreResult::code, order))
                 .map(c -> new CriterionScoreView(
                         c.code(),
                         criteria.containsKey(c.code()) ? criteria.get(c.code()).name() : c.code(),
@@ -706,6 +736,27 @@ public class ScoringService {
         return scorers.stream()
                 .sorted(Comparator.comparing(CriterionScorer::code))
                 .toList();
+    }
+
+    /**
+     * 채점 항목을 <b>가중치 순위대로</b> 늘어놓는다 (설계 I199).
+     *
+     * <p>같은 매물의 채점을 두 곳에서 만들고 있었습니다 — 읽을 때는 `buildFromPersisted`
+     * 가 <b>DB 가 준 순서</b>대로, 저장 뒤 재채점할 때는 `toResponse` 가 <b>채점기 등록
+     * 순서</b>대로. 그래서 <b>저장을 누르면 항목이 뒤섞였습니다.</b>
+     *
+     * <p>둘 다 이 비교자를 지나가게 해 순서를 하나로 맞춥니다. 그리고 그 순서는
+     * <b>가중치 순위</b>입니다 — 총점에 크게 물리는 것이 위에 옵니다. 순위가 없는 항목은
+     * 뒤로 보내되 코드순으로 묶어, 무게가 0인 것들끼리도 자리가 흔들리지 않게 합니다.
+     */
+    private Comparator<String> byPriorityRank() {
+        final Map<String, Integer> ranks = criterionWeightRepository.findAll().stream()
+                .filter(w -> w.priorityRank() != null)
+                .collect(Collectors.toMap(CriterionWeight::criterionCode, CriterionWeight::priorityRank,
+                        (a, b) -> a));
+        return Comparator
+                .comparingInt((String code) -> ranks.getOrDefault(code, Integer.MAX_VALUE))
+                .thenComparing(Comparator.naturalOrder());
     }
 
     private Map<String, BigDecimal> loadWeights() {

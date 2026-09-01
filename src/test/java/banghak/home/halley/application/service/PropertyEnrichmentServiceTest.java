@@ -55,7 +55,7 @@ class PropertyEnrichmentServiceTest {
     private final PropertyEnrichmentService service = new PropertyEnrichmentService(
             propertyRepository, kakaoLocalPort, housingPricePort, geoService,
             referenceTransactionService, llmRecommendationService, landUseService, scoringService,
-            gate, event -> { });
+            gate, event -> { }, new banghak.home.halley.adapter.outbound.cache.InMemoryCachePort());
 
     @Test
     @DisplayName("초등학교가 비어 있으면 카카오 최근접 초등학교로 채우고 출처를 KAKAO로 남긴다")

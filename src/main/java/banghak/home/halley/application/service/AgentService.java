@@ -9,7 +9,7 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyAgentRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.Agent;
-import banghak.home.halley.application.port.out.cache.PropertyDetailCache;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.domain.property.PropertyAgent;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,24 +25,27 @@ import java.util.Optional;
 @Service
 public class AgentService {
 
+    /** 중개사·토지이용계획은 거의 안 바뀐다 (설계 I158). */
+    private static final java.time.Duration DETAIL_TTL = java.time.Duration.ofHours(24);
+
     private final AgentRepository agentRepository;
     private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyAgentRepository propertyAgentRepository;
     private final PropertyRepository propertyRepository;
-    private final PropertyDetailCache detailCache;
+    private final CachePort cache;
     private final ObjectMapper objectMapper;
 
     public AgentService(PropertyAccessGuard propertyAccessGuard,
                         AgentRepository agentRepository,
                         PropertyAgentRepository propertyAgentRepository,
                         PropertyRepository propertyRepository,
-                        PropertyDetailCache detailCache,
+                        CachePort cache,
                         ObjectMapper objectMapper) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.agentRepository = agentRepository;
         this.propertyAgentRepository = propertyAgentRepository;
         this.propertyRepository = propertyRepository;
-        this.detailCache = detailCache;
+        this.cache = cache;
         this.objectMapper = objectMapper;
     }
 
@@ -68,7 +71,7 @@ public class AgentService {
      */
     public AgentResponse update(Long id, AgentRequest request) {
         final Agent existing = agentRepository.findById(id).orElseThrow(NotFoundListingsException::new);
-        detailCache.evictAll(PropertyDetailCache.AGENTS);
+        cache.evictAll(CachePort.AGENTS);
         return toResponse(agentRepository.update(new Agent(
                 existing.id(), request.officeName(), request.agentName(), request.phone(), request.mobile(),
                 request.registrationNo(), request.address(), request.lat(), request.lng())));
@@ -76,14 +79,14 @@ public class AgentService {
 
     public void delete(Long id) {
         agentRepository.findById(id).orElseThrow(NotFoundListingsException::new);
-        detailCache.evictAll(PropertyDetailCache.AGENTS);
+        cache.evictAll(CachePort.AGENTS);
         agentRepository.delete(id);
     }
 
     @Transactional
     public List<PropertyAgentResponse> linkAgents(Long propertyId, List<PropertyAgentLink> links) {
         propertyAccessGuard.require(propertyId);
-        detailCache.evict(PropertyDetailCache.AGENTS, propertyId);
+        cache.evict(CachePort.AGENTS, String.valueOf(propertyId));
         propertyAgentRepository.deleteByPropertyId(propertyId);
         if (links != null) {
             for (final PropertyAgentLink link : links) {
@@ -112,7 +115,7 @@ public class AgentService {
             propertyAgentRepository.save(new PropertyAgent(propertyId, agent.id(), true));
         }
         // 붙여넣기로 중개사가 바뀌었을 수 있다 — 매물 것만 버리면 안 되고 전부 버린다
-        detailCache.evictAll(PropertyDetailCache.AGENTS);
+        cache.evictAll(CachePort.AGENTS);
     }
 
     private boolean isEmpty(AgentRequest r) {
@@ -138,7 +141,7 @@ public class AgentService {
      */
     public List<PropertyAgentResponse> propertyAgents(Long propertyId) {
         propertyAccessGuard.require(propertyId);
-        final Optional<String> cached = detailCache.get(PropertyDetailCache.AGENTS, propertyId);
+        final Optional<String> cached = cache.get(CachePort.AGENTS, String.valueOf(propertyId));
         if (cached.isPresent()) {
             try {
                 return objectMapper.readValue(cached.get(),
@@ -147,7 +150,7 @@ public class AgentService {
             } catch (RuntimeException e) {
                 log.warn("Agent cache unreadable - falling back to DB. propertyId={}, cause={}",
                         propertyId, e.getMessage());
-                detailCache.evict(PropertyDetailCache.AGENTS, propertyId);
+                cache.evict(CachePort.AGENTS, String.valueOf(propertyId));
             }
         }
         final List<PropertyAgentResponse> fresh = propertyAgentRepository.findByPropertyId(propertyId).stream()
@@ -155,7 +158,7 @@ public class AgentService {
                         .thenComparing(PropertyAgent::agentId))
                 .map(this::toPropertyAgentResponse)
                 .toList();
-        detailCache.put(PropertyDetailCache.AGENTS, propertyId, objectMapper.writeValueAsString(fresh));
+        cache.put(CachePort.AGENTS, String.valueOf(propertyId), objectMapper.writeValueAsString(fresh), DETAIL_TTL);
         return fresh;
     }
 
