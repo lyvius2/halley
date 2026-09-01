@@ -1533,10 +1533,69 @@ function halley() {
             this.commentEditingId = null;
             this.error = null;
             this.showComments = true;
+            // 쓰다 만 글이 있으면 되살린다 (설계 I236)
+            this.restoreCommentDraft();
             this.withLoading('comments', () => this.loadComments());
         },
 
+        /**
+         * 쓰던 코멘트를 브라우저에 담아 둔다 (설계 I236).
+         *
+         * <p><b>아이패드에서 애플펜슬로 쓰는 것</b>을 염두에 둔 장치입니다.
+         * `<textarea>` 라 Scribble 은 그대로 되지만, <b>획이 필드 밖으로 조금
+         * 삐져나가면</b> 배경 클릭으로 읽혀 모달이 닫힙니다([I122]에서 배경 닫기를
+         * 되살렸습니다). 손으로 한참 쓴 글이 <b>한 번에 사라집니다.</b>
+         *
+         * <p>서버에 두지 않습니다 — 아직 남기지 않은 글은 <b>남의 눈에 보이면
+         * 안 됩니다.</b> 브라우저에만 담고, 남기면 지웁니다.
+         */
+        commentDraftKey() {
+            const id = this.commentProperty?.property?.id;
+            return id ? `halley.commentDraft.${id}` : null;
+        },
+
+        saveCommentDraft() {
+            const key = this.commentDraftKey();
+            if (!key) {
+                return;
+            }
+            try {
+                if (this.commentNewText.trim()) {
+                    localStorage.setItem(key, this.commentNewText);
+                } else {
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {
+                // 사파리 비공개 모드에서는 못 쓴다. 담아 두지 못할 뿐 쓰는 데 지장은 없다
+            }
+        },
+
+        restoreCommentDraft() {
+            const key = this.commentDraftKey();
+            if (!key) {
+                return;
+            }
+            try {
+                this.commentNewText = localStorage.getItem(key) || '';
+            } catch (e) {
+                this.commentNewText = '';
+            }
+        },
+
+        clearCommentDraft() {
+            const key = this.commentDraftKey();
+            try {
+                if (key) {
+                    localStorage.removeItem(key);
+                }
+            } catch (e) {
+                // 지우지 못해도 다음에 덮어쓴다
+            }
+        },
+
         closeComments() {
+            // 닫기 전에 담아 둔다 — 실수로 닫아도 다시 열면 그대로 있다 (설계 I236)
+            this.saveCommentDraft();
             this.showComments = false;
             this.commentProperty = null;
             this.comments = [];
@@ -1571,6 +1630,8 @@ function halley() {
                     });
                 if (ok) {
                     this.commentNewText = '';
+                    // 남겼으니 담아 둔 것도 지운다 (설계 I236)
+                    this.clearCommentDraft();
                     await this.loadComments();
                 } else {
                     this.error = (body && body.message) || '코멘트 등록에 실패했습니다';

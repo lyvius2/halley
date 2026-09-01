@@ -584,6 +584,7 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 |---|---|
 | [`docs/DESIGN.md`](./docs/DESIGN.md) | 전체 설계서 — 아키텍처 · ERD · 화면 정의 · API 명세 · 채점 산식 · **확정된 의사결정 이력(I1~)** |
 | [`docs/INTERFACE_MANUAL.md`](./docs/INTERFACE_MANUAL.md) | 외부 API 매뉴얼 — 키 발급처 · 호출 규격 · 응답 구조 · 실측으로 드러난 함정 |
+| [`docs/SCHEMA.md`](./docs/SCHEMA.md) | DB 스키마 — 관계도(mermaid) · 표별 요약 · 조심할 것 |
 | [`docs/DDL.sql`](./docs/DDL.sql) | PostgreSQL 스키마 (초기 생성 + 마이그레이션 이력) |
 | [`docs/DDL-repair.sql`](./docs/DDL-repair.sql) | 멱등 복구 스크립트 — 운영 DB가 뒤처졌을 때 |
 | [`docs/ADJUST_CACHE.md`](./docs/ADJUST_CACHE.md) | 캐시·성능 검토 (실측 기반) |
@@ -591,6 +592,7 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 설계 — 지표 산식 · 코드/LLM 역할 분담 · 안전장치 |
 | [`docs/MORTGAGE_ENGINE.md`](./docs/MORTGAGE_ENGINE.md) | 대출 계산 엔진 — LTV · 스트레스 DSR · 담보가치 |
 | [`docs/DDL-forecast-reset.sql`](./docs/DDL-forecast-reset.sql) | 전망 재시작용 정리 (429·400 시절 값 걷어내기) |
+| [`docs/COMPLEX_NAME_MATCHING.md`](./docs/COMPLEX_NAME_MATCHING.md) | 단지명 매칭 검토 — 브랜드가 바뀐 단지를 어떻게 찾을 것인가 **(미구현)** |
 | [`AGENTS.md`](./AGENTS.md) | AI 코딩 에이전트용 작업 지침 |
 
 > **설계 결정은 번호로 관리합니다.** 코드 주석의 `(설계 I117)` 같은 표기는

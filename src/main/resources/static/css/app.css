@@ -1889,7 +1889,27 @@ tr.dragging { opacity: .5; background: var(--line2); }
 
 .group-members { color: var(--ink3); font-weight: 400; font-size: 11.5px; }
 .group-name-row { display: flex; gap: 6px; align-items: center; }
-.group-name-row input { flex: 1; min-width: 0; }
+/* 칸 모양은 <b>이 줄이 직접</b> 정한다 (설계 I237).
+   전에는 `.form`/`.form-grid` 안에 있을 때만 스타일이 걸렸는데, 회원 탈퇴의
+   비밀번호 칸만 그 밖에 있어 <b>브라우저 기본 모양</b>으로 떴다.
+   놓인 자리에 따라 생김새가 달라지면, 옮길 때마다 다시 깨진다 */
+.group-name-row input:not([type=checkbox]):not([type=radio]) {
+    flex: 1;
+    min-width: 0;
+    font-family: inherit;
+    font-size: 13px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--paper);
+    color: var(--ink);
+    transition: .15s;
+}
+.group-name-row input:not([type=checkbox]):not([type=radio]):focus {
+    outline: none;
+    border-color: var(--ocean);
+    background: #fff;
+}
 
 /* 초대 코드는 사람이 옮겨 적는 값이라 크고 고정폭으로 (설계 I89) */
 .invite-box {
@@ -2293,3 +2313,15 @@ tr.dragging { opacity: .5; background: var(--line2); }
     padding: 8px 10px; margin-bottom: 8px;
     background: rgba(161, 61, 32, .07); border-radius: 6px;
 }
+
+/* 애플펜슬로 쓸 자리 (설계 I236).
+   Scribble 은 표준 textarea 에서 그대로 되지만 <b>글씨는 타자보다 큽니다</b> —
+   네 줄짜리 칸에 손글씨를 넣으면 한 줄 쓰고 스크롤됩니다.
+   손가락·펜 기기에서만 키운다 — 마우스 쓰는 화면까지 넓힐 이유는 없다 */
+@media (pointer: coarse) {
+    .comment-input { min-height: 180px; line-height: 2; font-size: 15px; }
+    /* 획이 칸 가장자리에 닿아도 인식되도록 안쪽 여백을 준다 */
+    .comment-input { padding: 12px 14px; }
+}
+/* 필기 중 획이 조금 삐져나가도 글자가 잘려 보이지 않게 */
+.comment-input { resize: vertical; }

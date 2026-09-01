@@ -2453,7 +2453,14 @@
         <!-- 아직 안 남겼을 때만 입력칸을 연다 -->
         <div class="comment-new" x-show="!myComment" x-cloak>
             <label for="commentNew">내 코멘트</label>
-            <textarea id="commentNew" rows="4" x-model="commentNewText" maxlength="2000"
+            <!-- 애플펜슬(Scribble)로 쓰는 것을 염두에 둔다 (설계 I236).
+                 별도 구현은 필요 없다 — 표준 textarea 면 iPadOS 가 알아서 받는다.
+                 대신 <b>손으로 쓸 자리</b>가 있어야 하고(.comment-input),
+                 쓰다 만 글은 담아 둔다(@input) -->
+            <textarea id="commentNew" class="comment-input" rows="4"
+                      x-model="commentNewText" maxlength="2000"
+                      @input.debounce.500ms="saveCommentDraft()"
+                      autocapitalize="sentences" enterkeyhint="enter" spellcheck="false"
                       placeholder="직접 보고 느낀 점, 걸리는 점을 남겨 주세요"></textarea>
             <div class="comment-edit-actions">
                 <span class="comment-count" x-text="commentNewText.length + ' / 2000'"></span>
