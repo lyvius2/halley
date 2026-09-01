@@ -29,16 +29,18 @@
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
-                    <!-- 그룹명을 눌러 그룹 정보 화면으로 (설계 I123) -->
-                    <button class="group-chip" x-show="myGroup" :class="{on: view==='group'}"
-                            @click="setView('group')"
+                    <!-- 「{그룹명}의 {닉네임}」 (설계 I170).
+                         한 문장으로 읽히지만 <b>가는 곳이 둘</b>이라 버튼도 둘이다 —
+                         앞은 그룹 정보(I123), 뒤는 내 프로필(I153). 사이의 구분선만 지운다 -->
+                    <button class="nav-btn nav-mine" type="button" x-show="myGroup"
+                            :class="{on: view==='group'}" @click="setView('group')"
                             :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
-                        <span x-text="myGroup ? myGroup.name : ''"></span>
+                        <span x-text="(myGroup ? myGroup.name : '') + '의'"></span>
                     </button>
-                    <!-- 닉네임이 곧 '내 프로필' 손잡이다 (설계 I153). 그룹명(group-chip)과 같은 방식 -->
-                    <button class="who" type="button" :class="{on: view==='me'}"
-                            @click="setView('me')" title="내 프로필">
-                        <b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span>
+                    <button class="nav-btn nav-mine nav-mine-tail" type="button"
+                            :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
+                        <span x-text="session.nickname"></span><span
+                                x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span>
                     </button>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
