@@ -34,6 +34,9 @@ public class NotificationService {
     private final ScoringService scoringService;
     private final NotificationLogRepository notificationLogRepository;
     private final ObjectMapper objectMapper;
+    /** Slack 에 실을 코멘트 길이 (설계 I201). 넘으면 자른다 — 채널이 덮인다 */
+    private static final int COMMENT_PREVIEW_CHARS = 300;
+
     /** 알림에 붙일 매물 주소의 앞부분 (설계 I189). 비우면 링크를 안 단다 */
     private final String baseUrl;
 
@@ -85,16 +88,47 @@ public class NotificationService {
                 ":wastebasket: 매물이 삭제되었습니다 — " + text(propertyName));
     }
 
-    public void sendCommentCreated(Long propertyId, String nickname) {
-        sendForProperty(NotificationEventType.COMMENT_CREATED, propertyId,
-                property -> ":speech_balloon: " + text(nickname) + "님이 "
-                        + text(property.name()) + "에 의견을 남겼습니다");
+    /**
+     * 누가 뭐라고 썼는지까지 (설계 I201).
+     *
+     * <p>전에는 "의견을 남겼습니다"까지만 갔습니다. <b>무슨 의견인지 보려면 들어가야</b>
+     * 했는데, 대개 그 한 줄이 알림의 전부입니다.
+     *
+     * @param content 남기거나 고친 글. <b>null 이면 지운 것</b>이라 실을 내용이 없다
+     */
+    public void sendCommentCreated(Long propertyId, String nickname, String content) {
+        sendForProperty(NotificationEventType.COMMENT_CREATED, propertyId, property -> {
+            final String head = ":speech_balloon: " + text(nickname) + "님이 "
+                    + text(property.name()) + "에 의견을";
+            return content == null || content.isBlank()
+                    ? head + " 지웠습니다"
+                    : head + " 남겼습니다\n\n" + quote(content);
+        });
     }
 
-    public void sendComfortScored(Long propertyId, String nickname) {
+    /** @param score 1~5. 점수를 빼면 "평가했다"만 남아 좋다는 건지 나쁘다는 건지 모른다 */
+    public void sendComfortScored(Long propertyId, String nickname, Integer score) {
         sendForProperty(NotificationEventType.COMFORT_SCORED, propertyId,
                 property -> ":sparkles: " + text(nickname) + "님이 "
-                        + text(property.name()) + "의 공간 쾌적함을 평가했습니다");
+                        + text(property.name()) + "의 공간 쾌적함을 "
+                        + (score == null ? "평가했습니다" : score + "점으로 평가했습니다 (5점 만점)"));
+    }
+
+    /**
+     * 남의 글을 Slack 인용으로 (설계 I201).
+     *
+     * <p><b>줄마다 `>` 를 붙입니다.</b> 첫 줄에만 붙이면 두 번째 줄부터 인용이 풀려
+     * 우리가 쓴 문장인지 사용자가 쓴 문장인지 구분이 사라집니다.
+     *
+     * <p><b>자릅니다.</b> 코멘트는 2,000자까지 들어가는데 그대로 실으면 채널이 덮입니다.
+     */
+    private String quote(String content) {
+        final String trimmed = content.strip();
+        final String shown = trimmed.length() > COMMENT_PREVIEW_CHARS
+                ? trimmed.substring(0, COMMENT_PREVIEW_CHARS) + "…"
+                : trimmed;
+        return escape(shown).lines().map(line -> "> " + line)
+                .collect(java.util.stream.Collectors.joining("\n"));
     }
 
     /** 매물을 찾아 그 그룹으로 보낸다. 매물이 없으면 보낼 곳도 없다. */
@@ -119,7 +153,18 @@ public class NotificationService {
     }
 
     private String text(String value) {
-        return value == null || value.isBlank() ? "(이름 없음)" : value;
+        return value == null || value.isBlank() ? "(이름 없음)" : escape(value);
+    }
+
+    /**
+     * Slack 이 태그로 읽는 세 글자를 막는다 (설계 I201).
+     *
+     * <p>우리가 `<!channel>` 을 쓰므로 <b>사람이 쓴 글에 `<...>` 가 있으면</b>
+     * Slack 이 그것도 태그로 읽습니다. 단지명이나 코멘트에서 온 값만 지납니다 —
+     * 메시지 전체에 걸면 우리가 쓴 `<!channel>` 까지 깨집니다.
+     */
+    private String escape(String value) {
+        return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
     /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 그룹 설정 화면에서 부른다. */
@@ -226,17 +271,19 @@ public class NotificationService {
      * 매물이 올라온 것을 <b>그날 알아야</b> 의미가 있습니다.
      * 테스트 메시지는 예외입니다 — 연결을 확인하려고 채널 전체를 부를 이유가 없습니다.
      *
-     * <p><b>매물 링크를 줄 바꿔 붙입니다.</b> 알림을 보고 <b>바로 그 매물로</b> 갈 수
-     * 있어야 합니다. 화면마다 주소가 생겨(I188) 가능해졌습니다.
+     * <p><b>볼 곳까지 짚어 줍니다 (설계 I201).</b> 쾌적함 알림은 채점 화면으로,
+     * 코멘트 알림은 코멘트 화면으로 갑니다 — 어디로 갈지는 알림 종류가 압니다
+     * (`NotificationEventType.linkSuffix`). 전에는 전부 매물 첫 화면이라
+     * 거기서 <b>다시 찾아 들어가야</b> 했습니다.
      *
      * <p>삭제 알림에는 링크를 안 답니다 — <b>이미 없는 매물</b>입니다.
      */
     String decorate(NotificationEventType eventType, Long propertyId, String text) {
         final StringBuilder sb = new StringBuilder("<!channel> ").append(text);
-        if (propertyId != null && eventType != NotificationEventType.PROPERTY_DELETED
-                && baseUrl != null && !baseUrl.isBlank()) {
+        final String suffix = eventType == null ? null : eventType.linkSuffix();
+        if (propertyId != null && suffix != null && baseUrl != null && !baseUrl.isBlank()) {
             sb.append('\n').append(baseUrl.replaceAll("/+$", ""))
-                    .append("/properties/").append(propertyId);
+                    .append("/properties/").append(propertyId).append(suffix);
         }
         return sb.toString();
     }

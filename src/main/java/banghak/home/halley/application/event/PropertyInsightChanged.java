@@ -10,19 +10,25 @@ package banghak.home.halley.application.event;
  * 하는지 알기 어려웠고, 누르지 않으면 옛 판단이 그대로 남았습니다.
  *
  * @param kind   무엇이 바뀌었는지. 재질의 트리거이자 <b>어떤 알림을 보낼지</b> 가르는 값이다
+ * @param detail <b>무엇으로</b> 바뀌었는지 — 쾌적함이면 점수, 코멘트면 그 글 (설계 I201).
+ *               알림에 그대로 실립니다. 지운 경우처럼 실을 것이 없으면 null
  * @param reason 로그에서 원인을 되짚기 위한 문구
  */
-public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNickname, String reason) {
+public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNickname,
+                                     String detail, String reason) {
 
     public enum Kind { COMFORT_SCORE, COMMENT, EDIT }
 
 
-    public static PropertyInsightChanged comfortScore(Long propertyId, String actorNickname) {
-        return new PropertyInsightChanged(propertyId, Kind.COMFORT_SCORE, actorNickname, "쾌적함 점수 변경");
+    public static PropertyInsightChanged comfortScore(Long propertyId, String actorNickname, int score) {
+        return new PropertyInsightChanged(propertyId, Kind.COMFORT_SCORE, actorNickname,
+                String.valueOf(score), "쾌적함 점수 변경");
     }
 
-    public static PropertyInsightChanged comment(Long propertyId, String actorNickname) {
-        return new PropertyInsightChanged(propertyId, Kind.COMMENT, actorNickname, "코멘트 변경");
+    /** @param content 남기거나 고친 글. <b>지운 경우에는 null</b> — 실을 내용이 없다 */
+    public static PropertyInsightChanged comment(Long propertyId, String actorNickname, String content) {
+        return new PropertyInsightChanged(propertyId, Kind.COMMENT, actorNickname,
+                content, "코멘트 변경");
     }
 
     /**
@@ -35,6 +41,6 @@ public record PropertyInsightChanged(Long propertyId, Kind kind, String actorNic
      * 아니라고 봤습니다(I96에 수정 알림이 없는 것과 같은 이유).
      */
     public static PropertyInsightChanged edited(Long propertyId, String actorNickname) {
-        return new PropertyInsightChanged(propertyId, Kind.EDIT, actorNickname, "매물 정보 수정");
+        return new PropertyInsightChanged(propertyId, Kind.EDIT, actorNickname, null, "매물 정보 수정");
     }
 }

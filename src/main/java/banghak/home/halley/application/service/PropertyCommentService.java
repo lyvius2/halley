@@ -75,7 +75,7 @@ public class PropertyCommentService {
         final PropertyComment saved = commentRepository.save(new PropertyComment(
                 null, propertyId, me, validated(request), Instant.now(), null));
         // 코멘트는 AI 추천의 입력이다. 바뀌면 다시 묻는다 (설계 I78)
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname(), saved.content()));
         return toResponse(saved, nicknames(), me);
     }
 
@@ -85,7 +85,7 @@ public class PropertyCommentService {
         final PropertyComment updated = commentRepository.update(new PropertyComment(
                 existing.id(), existing.propertyId(), existing.userId(),
                 validated(request), existing.createdAt(), Instant.now()));
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname(), updated.content()));
         return toResponse(updated, nicknames(), existing.userId());
     }
 
@@ -93,7 +93,8 @@ public class PropertyCommentService {
     public void delete(Long propertyId, Long commentId) {
         requireOwnComment(propertyId, commentId);
         commentRepository.delete(commentId);
-        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname()));
+        // 지운 것에는 실을 내용이 없다 — null 이 그 뜻이다 (설계 I201)
+        eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname(), null));
     }
 
     /** 알림에 들어갈 이름. 탈퇴 스냅샷과 같은 이유로 조회 시점의 값을 쓴다 (설계 I88). */

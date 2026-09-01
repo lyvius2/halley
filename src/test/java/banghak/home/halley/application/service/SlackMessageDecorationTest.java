@@ -11,12 +11,12 @@ import org.springframework.test.context.TestPropertySource;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * Slack 메시지에 붙는 것 (설계 I189 · I191).
+ * Slack 메시지에 붙는 것 (설계 I189 · I191 · I201).
  */
 @SpringBootTest
 @ActiveProfiles("local")
 @TestPropertySource(properties = "app.base-url=https://halley.example.com/")
-@DisplayName("Slack 메시지 꾸미기 (설계 I189·I191)")
+@DisplayName("Slack 메시지 꾸미기 (설계 I189·I191·I201)")
 class SlackMessageDecorationTest {
 
     @Autowired
@@ -58,5 +58,32 @@ class SlackMessageDecorationTest {
     void noLinkWithoutProperty() {
         assertThat(notificationService.decorate(NotificationEventType.PROPERTY_CREATED, null, "x"))
                 .doesNotContain("/properties/");
+    }
+
+    /**
+     * 알림을 누르면 <b>그 화면</b>이 열려야 한다 (설계 I201).
+     *
+     * <p>전에는 전부 매물 첫 화면으로 갔습니다 — "쾌적함을 평가했다"는 알림을 눌러도
+     * 채점 화면까지 다시 찾아 들어가야 했습니다.
+     */
+    @Test
+    @DisplayName("쾌적함 알림은 채점 화면으로 간다")
+    void comfortLinksToScoreModal() {
+        assertThat(notificationService.decorate(NotificationEventType.COMFORT_SCORED, 7L, "x"))
+                .contains("https://halley.example.com/properties/7/score");
+    }
+
+    @Test
+    @DisplayName("코멘트 알림은 코멘트 화면으로 간다")
+    void commentLinksToCommentModal() {
+        assertThat(notificationService.decorate(NotificationEventType.COMMENT_CREATED, 7L, "x"))
+                .contains("https://halley.example.com/properties/7/comments");
+    }
+
+    @Test
+    @DisplayName("등록 알림은 매물 첫 화면으로 간다 — 특별히 열 모달이 없다")
+    void createdLinksToDetail() {
+        assertThat(notificationService.decorate(NotificationEventType.PROPERTY_CREATED, 7L, "x"))
+                .endsWith("https://halley.example.com/properties/7");
     }
 }
