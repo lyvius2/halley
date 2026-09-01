@@ -204,7 +204,8 @@ function halley() {
         roadviewProperty: null,
         roadviewState: 'loading',
         roadview: null,
-        loginForm: { loginId: '', password: '', rememberId: false, rememberMe: false },
+        // 둘 다 기본으로 켠다 (설계 I190). 매번 다시 켜는 쪽이 더 번거롭다는 판단이다
+        loginForm: { loginId: '', password: '', rememberId: true, rememberMe: true },
         signUpOpen: false,
         showSignUp: false,
         signUpForm: { loginId: '', nickname: '', password: '' },
@@ -623,7 +624,8 @@ function halley() {
                     this.error = (body && body.message) || '가입에 실패했습니다';
                     return;
                 }
-                this.loginForm = { loginId: this.signUpForm.loginId, password: this.signUpForm.password };
+                this.loginForm = Object.assign({}, this.loginForm,
+                        { loginId: this.signUpForm.loginId, password: this.signUpForm.password });
                 this.showSignUp = false;
                 this.signUpForm = { loginId: '', nickname: '', password: '' };
                 await this.login();
@@ -1808,7 +1810,6 @@ function halley() {
                 const saved = localStorage.getItem('halley.loginId');
                 if (saved) {
                     this.loginForm.loginId = saved;
-                    this.loginForm.rememberId = true;
                 }
             } catch (e) {
                 // 위와 같다

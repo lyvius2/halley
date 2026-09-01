@@ -2034,14 +2034,25 @@ tr.dragging { opacity: .5; background: var(--line2); }
     word-break: break-all;
 }
 
-/* 로그인 화면의 체크박스 둘 (설계 I190) */
-.login-options { display: flex; gap: 16px; flex-wrap: wrap; margin: -2px 0 2px; }
+/* 로그인 화면의 체크박스 둘 (설계 I190).
+   `.form label` 이 flex-direction: column 이라 그대로 두면 <b>글자가 아래로 내려갑니다</b> —
+   row 를 다시 못 박습니다. 어두운 배경이라 색도 따로 줍니다 */
+.login-options { display: flex; gap: 18px; flex-wrap: wrap; margin: -2px 0 2px; }
 .login-options .check {
     display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
-    color: var(--ink2);
+    gap: 7px;
+    font-size: 12px;
+    color: rgba(244, 241, 234, .82);
+    cursor: pointer;
+    user-select: none;
+}
+.login-options .check:hover { color: #f4f1ea; }
+.login-options .check input {
+    margin: 0;
+    width: 15px;
+    height: 15px;
+    flex: 0 0 auto;
     cursor: pointer;
 }
-.login-options .check input { margin: 0; }
