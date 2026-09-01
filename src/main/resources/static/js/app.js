@@ -395,6 +395,10 @@ function halley() {
                 if (!setupPending) {
                     await this.loadMyGroup();
                     await this.loadDebts();
+                    // 임장 화면 것이 아니라 <b>목록 정렬</b>이 쓰는 값이다 (설계 I224).
+                    // 임장에 들어갈 때만 받으면, 그 화면을 한 번도 안 연 사람에게는
+                    // 기본 정렬이 <b>추천점수 순과 똑같아집니다</b>
+                    await this.loadVisited();
                     await this.loadProperties();
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
@@ -2787,6 +2791,8 @@ function halley() {
             this.itinVisited = visited
                 ? [...this.itinVisited.filter(id => id !== propertyId), propertyId]
                 : this.itinVisited.filter(id => id !== propertyId);
+            // 기본 정렬은 임장 여부로 가른다 (설계 I221) — 체크가 바뀌면 순서도 바뀐다
+            this.applySoldOutFilter();
         },
 
         isVisited(propertyId) {
@@ -2799,6 +2805,10 @@ function halley() {
                 .catch(() => ({ ok: false }));
             if (ok && Array.isArray(body)) {
                 this.itinVisited = body;
+                // 목록이 이미 그려져 있으면 순서를 다시 잡는다 (설계 I224)
+                if (this.properties.length > 0) {
+                    this.applySoldOutFilter();
+                }
             }
         },
 
