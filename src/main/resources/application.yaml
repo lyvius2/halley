@@ -13,6 +13,11 @@ server:
     session:
       timeout: 30m
 
+# 알림에 붙일 매물 주소의 앞부분 (설계 I189). 비우면 링크를 안 단다 —
+# 서버는 자기 주소를 모르므로 알려 줘야 한다
+app:
+  base-url: ${APP_BASE_URL:}
+
 kakao:
   js-key: ${KAKAO_JS_KEY:}
   rest-key: ${KAKAO_REST_KEY:}

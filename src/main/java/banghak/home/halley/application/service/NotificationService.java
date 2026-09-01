@@ -34,6 +34,8 @@ public class NotificationService {
     private final ScoringService scoringService;
     private final NotificationLogRepository notificationLogRepository;
     private final ObjectMapper objectMapper;
+    /** 알림에 붙일 매물 주소의 앞부분 (설계 I189). 비우면 링크를 안 단다 */
+    private final String baseUrl;
 
     public NotificationService(SlackPort slackPort,
                                UserGroupRepository userGroupRepository,
@@ -42,7 +44,9 @@ public class NotificationService {
                                UserRepository userRepository,
                                ScoringService scoringService,
                                NotificationLogRepository notificationLogRepository,
-                               ObjectMapper objectMapper) {
+                               ObjectMapper objectMapper,
+                               @org.springframework.beans.factory.annotation.Value("${app.base-url:}")
+                               String baseUrl) {
         this.slackPort = slackPort;
         this.userGroupRepository = userGroupRepository;
         this.slackProperties = slackProperties;
@@ -51,6 +55,7 @@ public class NotificationService {
         this.scoringService = scoringService;
         this.notificationLogRepository = notificationLogRepository;
         this.objectMapper = objectMapper;
+        this.baseUrl = baseUrl;
     }
 
     public void sendPropertyCreated(Long propertyId) {
@@ -206,12 +211,34 @@ public class NotificationService {
                 null, eventType, propertyId, "slack",
                 NotificationStatus.RETRYING, 0, null, payload(propertyId), null, null));
 
-        final boolean sent = slackPort.send(webhookUrl, text);
+        final boolean sent = slackPort.send(webhookUrl, decorate(eventType, propertyId, text));
         if (sent) {
             notificationLogRepository.updateStatus(log.id(), NotificationStatus.SENT, null, Instant.now());
         } else {
             notificationLogRepository.markRetry(log.id(), log.retryCount(), "Slack 전송 실패");
         }
+    }
+
+    /**
+     * 사람을 부르고, 볼 곳을 알려 준다 (설계 I191 · I189).
+     *
+     * <p><b>`@channel` 을 붙입니다.</b> 알림이 그냥 흘러가면 아무도 안 봅니다 —
+     * 매물이 올라온 것을 <b>그날 알아야</b> 의미가 있습니다.
+     * 테스트 메시지는 예외입니다 — 연결을 확인하려고 채널 전체를 부를 이유가 없습니다.
+     *
+     * <p><b>매물 링크를 줄 바꿔 붙입니다.</b> 알림을 보고 <b>바로 그 매물로</b> 갈 수
+     * 있어야 합니다. 화면마다 주소가 생겨(I188) 가능해졌습니다.
+     *
+     * <p>삭제 알림에는 링크를 안 답니다 — <b>이미 없는 매물</b>입니다.
+     */
+    String decorate(NotificationEventType eventType, Long propertyId, String text) {
+        final StringBuilder sb = new StringBuilder("<!channel> ").append(text);
+        if (propertyId != null && eventType != NotificationEventType.PROPERTY_DELETED
+                && baseUrl != null && !baseUrl.isBlank()) {
+            sb.append('\n').append(baseUrl.replaceAll("/+$", ""))
+                    .append("/properties/").append(propertyId);
+        }
+        return sb.toString();
     }
 
     /**

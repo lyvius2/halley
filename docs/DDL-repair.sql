@@ -824,3 +824,11 @@ SELECT c.code,
 --
 -- 다만 '미산출'로 남은 항목(직주근접 등)을 채우려면 재채점이 따로 필요하다:
 --   POST /api/properties/{id}/rescore   (매물마다)
+
+-- ---------------------------------------------------------------------------
+-- 생존 확인 배치를 걷어냈다 (설계 I157). 코드는 지웠지만 system_config 행은 남는다
+--   → 관리자 설정 화면에 "생존 확인 배치 cron" 같은 항목이 계속 보인다
+-- ---------------------------------------------------------------------------
+SELECT config_key FROM system_config WHERE config_key LIKE 'batch.listingCheck.%';
+
+DELETE FROM system_config WHERE config_key LIKE 'batch.listingCheck.%';

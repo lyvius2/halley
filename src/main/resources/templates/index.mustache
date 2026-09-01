@@ -47,8 +47,11 @@
                     </button>
                     <button class="nav-btn nav-mine nav-mine-tail" type="button"
                             :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
+                        <!-- 닉네임이 이미 '관리자'면 ' · 관리자'를 붙이지 않는다 (설계 I186).
+                             기본 관리자 계정의 닉네임이 그것이라 '관리자 · 관리자'가 됐다 -->
                         <span x-text="session.nickname"></span><span
-                                x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span>
+                                x-text="session.role==='ADMIN' && session.nickname !== '관리자'
+                                        ? ' · 관리자' : ''"></span>
                     </button>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
@@ -246,34 +249,42 @@
                         <template x-if="itinResult && !itinPlan">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
-                                <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
-                                    <div class="itin-stop">
-                                        <span class="itin-num" x-text="i + 1"></span>
-                                        <span x-text="propertyName(id)"></span>
-                                    </div>
-                                </template>
 
-                                <!-- 구간별 이동 안내 (설계 I176). 임장 당일 실제로 쓰는 정보다 -->
-                                <template x-if="(itinResult.legs || []).some(l => (l.steps || []).length)">
-                                    <div class="itin-legs">
-                                        <h4 class="card-title">이동 경로</h4>
-                                        <template x-for="(leg, i) in (itinResult.legs || [])" :key="i">
-                                            <div class="itin-leg" x-show="(leg.steps || []).length">
-                                                <div class="itin-leg-head">
-                                                    <span x-text="legTitle(leg)"></span>
-                                                    <b x-text="leg.minutes + '분'"></b>
-                                                </div>
-                                                <template x-for="(step, j) in (leg.steps || [])" :key="j">
-                                                    <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">
-                                                        <span class="itin-step-ic"
-                                                              x-text="step.kind === 'SUBWAY' ? '🚇' : (step.kind === 'BUS' ? '🚌' : '🚶')"></span>
-                                                        <span x-text="legStepText(step)"></span>
-                                                    </div>
-                                                </template>
+                                <!-- 순서와 가는 길을 <b>한 묶음으로</b> 엮는다 (설계 I192).
+                                     따로 두면 "2번 집에 어떻게 가지"를 눈으로 맞춰 봐야 한다 -->
+                                <ol class="itin-route">
+                                    <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
+                                        <li class="itin-route-item">
+                                            <div class="itin-stop">
+                                                <span class="itin-num" x-text="i + 1"></span>
+                                                <span x-text="propertyName(id)"></span>
+                                                <!-- 몇 시에 닿는지 (설계 I194) -->
+                                                <span class="itin-time" x-show="legFor(i)"
+                                                      x-text="arrivalAt(i) + ' 도착'"></span>
                                             </div>
-                                        </template>
-                                    </div>
-                                </template>
+                                            <template x-if="legFor(i)">
+                                                <div class="itin-route-legs">
+                                                    <div class="itin-leg-head">
+                                                        <span x-text="legTitle(legFor(i))"></span>
+                                                        <b x-text="legFor(i).minutes + '분'"></b>
+                                                    </div>
+                                                    <template x-for="(step, j) in (legFor(i).steps || [])" :key="j">
+                                                        <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">
+                                                            <span class="itin-step-ic" x-text="stepIcon(step)"></span>
+                                                            <span x-text="legStepText(step)"></span>
+                                                        </div>
+                                                    </template>
+                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도 -->
+                                                    <div class="itin-step is-road"
+                                                         x-show="!(legFor(i).steps || []).length">
+                                                        <span class="itin-step-ic">🚗</span>
+                                                        <span x-text="'약 ' + legFor(i).minutes + '분'"></span>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </li>
+                                    </template>
+                                </ol>
                             </div>
                         </template>
 
@@ -590,6 +601,17 @@
             <label>Password
                 <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
             </label>
+            <!-- ID 저장은 브라우저에, 로그인 유지는 서버 세션에 (설계 I190) -->
+            <div class="login-options">
+                <label class="check">
+                    <input type="checkbox" x-model="loginForm.rememberId">
+                    <span>ID 저장</span>
+                </label>
+                <label class="check">
+                    <input type="checkbox" x-model="loginForm.rememberMe">
+                    <span>로그인 상태 유지</span>
+                </label>
+            </div>
             <p class="form-error" x-show="error" x-text="error"></p>
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '로그인 중…' : '로그인'"></span>
@@ -1185,7 +1207,14 @@
                         <template x-for="s in settingsByCategory(cat)" :key="s.configKey">
                             <tr>
                                 <td class="strong" x-text="s.description"></td>
-                                <td><input class="settings-input" type="text" x-model="settingsForm[s.configKey]"></td>
+                                <!-- 배치가 쓰는 값은 고칠 수 없다 (설계 I185).
+                                     입력칸을 열어 두면 고칠 수 있는 것처럼 보이는데 다음 배치가 덮어쓴다 -->
+                                <td>
+                                    <input class="settings-input" type="text" x-show="settingEditable(s)"
+                                           x-model="settingsForm[s.configKey]">
+                                    <span class="settings-readonly" x-show="!settingEditable(s)"
+                                          x-text="s.configValue"></span>
+                                </td>
                             </tr>
                         </template>
                         </tbody>

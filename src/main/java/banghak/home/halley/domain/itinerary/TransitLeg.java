@@ -23,7 +23,19 @@ public record TransitLeg(
 ) {
 
     public enum Kind {
-        SUBWAY, BUS, WALK
+        SUBWAY, BUS, WALK,
+        /** 자가용 — 도로 이름과 거리를 담는다 (설계 I193). */
+        ROAD
+    }
+
+    /**
+     * 자가용 한 구간 (설계 I193).
+     *
+     * <p>"동부간선도로 2.2km" 처럼 <b>어느 길로 얼마나</b>를 말합니다.
+     * `stationCount` 자리에 <b>미터</b>를 담습니다 — 화면이 그것을 km 로 바꿔 씁니다.
+     */
+    public static TransitLeg road(String name, Integer minutes, Integer distanceM) {
+        return new TransitLeg(Kind.ROAD, name, null, null, minutes, distanceM);
     }
 
     /**

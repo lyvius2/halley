@@ -204,7 +204,7 @@ function halley() {
         roadviewProperty: null,
         roadviewState: 'loading',
         roadview: null,
-        loginForm: { loginId: '', password: '' },
+        loginForm: { loginId: '', password: '', rememberId: false, rememberMe: false },
         signUpOpen: false,
         showSignUp: false,
         signUpForm: { loginId: '', nickname: '', password: '' },
@@ -269,6 +269,14 @@ function halley() {
         async init() {
             this.guardNumberInputs();
             this.watchModalClose();
+            this.restoreLoginId();
+            // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
+            window.addEventListener('popstate', () => {
+                if (this.session.authenticated) {
+                    this.closeAllModals();
+                    this.applyRoute();
+                }
+            });
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
@@ -346,6 +354,9 @@ function halley() {
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
                     this.startScoreWatch();
+                    // 주소로 들어왔으면 그 화면을 연다 (설계 I188).
+                    // 목록을 받은 뒤여야 매물 상세를 열 수 있다
+                    this.applyRoute();
                 }
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
@@ -353,8 +364,71 @@ function halley() {
             }
         },
 
-        setView(view) {
+        /**
+         * 화면마다 주소를 둔다 (설계 I188).
+         *
+         * <p>SPA 라도 <b>지금 보는 것을 링크로 건넬 수 있어야</b> 합니다 —
+         * Slack 알림에서 그 매물로 바로 가는 것이 그것 때문입니다(I189).
+         */
+        ROUTES: {
+            list: '/properties',
+            itinerary: '/itinerary',
+            me: '/me',
+            group: '/group',
+            weights: '/weights'
+        },
+
+        /** 주소만 바꾼다. 화면은 이미 바뀐 뒤다 — 뒤로 가기를 위해 기록만 남긴다. */
+        pushRoute(path) {
+            if (window.location.pathname !== path) {
+                window.history.pushState({}, '', path);
+            }
+        },
+
+        /**
+         * 주소를 읽어 화면을 맞춘다 (설계 I188).
+         *
+         * <p>주소창에 직접 넣거나, 링크로 들어오거나, 뒤로 가기를 눌렀을 때 부릅니다.
+         * <b>화면을 바꾸되 주소는 다시 밀지 않습니다</b> — 그러면 기록이 두 번 쌓입니다.
+         */
+        applyRoute() {
+            const path = window.location.pathname;
+            const detail = path.match(/^\/properties\/(\d+)$/);
+            if (detail) {
+                this.view = 'list';
+                this.openDetailById(Number(detail[1]));
+                return;
+            }
+            if (path === '/users') {
+                this.view = 'list';
+                this.openUsers(false);
+                return;
+            }
+            if (path === '/settings') {
+                this.view = 'list';
+                this.openSettings(false);
+                return;
+            }
+            const entry = Object.entries(this.ROUTES).find(([, p]) => p === path);
+            this.setView(entry ? entry[0] : 'list', false);
+        },
+
+        /** 링크로 들어온 매물 상세를 연다. 목록이 아직 없으면 받아 온 뒤 연다. */
+        async openDetailById(id) {
+            if ((this.properties || []).length === 0) {
+                await this.loadProperties();
+            }
+            const item = this.properties.find(x => x.property.id === id);
+            if (item) {
+                this.openDetail(item, false);
+            }
+        },
+
+        setView(view, push = true) {
             this.view = view;
+            if (push && this.ROUTES[view]) {
+                this.pushRoute(this.ROUTES[view]);
+            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -371,9 +445,12 @@ function halley() {
         },
 
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */
-        openSettings() {
+        openSettings(push = true) {
             if (this.session.role !== 'ADMIN') {
                 return;
+            }
+            if (push) {
+                this.pushRoute('/settings');
             }
             this.showSettings = true;
             this.error = null;
@@ -386,12 +463,16 @@ function halley() {
         closeSettings() {
             this.showSettings = false;
             this.error = null;
+            this.pushRoute(this.ROUTES[this.view] || '/properties');
         },
 
         /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
-        openUsers() {
+        openUsers(push = true) {
             if (this.session.role !== 'ADMIN') {
                 return;
+            }
+            if (push) {
+                this.pushRoute('/users');
             }
             this.showUsers = true;
             this.error = null;
@@ -402,6 +483,7 @@ function halley() {
             this.showUsers = false;
             this.users = [];
             this.error = null;
+            this.pushRoute(this.ROUTES[this.view] || '/properties');
         },
 
         async loadUsers() {
@@ -1325,7 +1407,10 @@ function halley() {
             }
         },
 
-        openDetail(item) {
+        openDetail(item, push = true) {
+            if (push) {
+                this.pushRoute(`/properties/${item.property.id}`);
+            }
             this.detailItem = item;
             this.detailAgents = [];
             this.detailRef = null;
@@ -1458,6 +1543,7 @@ function halley() {
         },
 
         closeDetail() {
+            this.pushRoute(this.ROUTES[this.view] || '/properties');
             this.showM2 = false;
             this.detailItem = null;
             this.detailAgents = [];
@@ -1697,6 +1783,38 @@ function halley() {
             this._dragIndex = null;
         },
 
+        /**
+         * ID 저장 (설계 I190).
+         *
+         * <p><b>브라우저에 남깁니다.</b> 서버에 둘 값이 아닙니다 — 로그인하기 <b>전에</b>
+         * 필요한 것이라 그때는 누구인지도 모릅니다.
+         *
+         * <p>비밀번호는 <b>절대 저장하지 않습니다.</b> ID 만입니다.
+         */
+        rememberLoginId() {
+            try {
+                if (this.loginForm.rememberId) {
+                    localStorage.setItem('halley.loginId', this.loginForm.loginId || '');
+                } else {
+                    localStorage.removeItem('halley.loginId');
+                }
+            } catch (e) {
+                // 사생활 보호 모드면 localStorage 가 막힌다. 저장이 안 될 뿐 로그인은 된다
+            }
+        },
+
+        restoreLoginId() {
+            try {
+                const saved = localStorage.getItem('halley.loginId');
+                if (saved) {
+                    this.loginForm.loginId = saved;
+                    this.loginForm.rememberId = true;
+                }
+            } catch (e) {
+                // 위와 같다
+            }
+        },
+
         async login() {
             this.loading = true;
             this.error = null;
@@ -1711,7 +1829,13 @@ function halley() {
                     this.sessionExpiresAt = body.expiresInSeconds != null
                         ? Date.now() + body.expiresInSeconds * 1000 : null;
                     this.startSessionTimer();
-                    this.loginForm = { loginId: '', password: '' };
+                    this.rememberLoginId();
+                    this.loginForm = {
+                        loginId: this.loginForm.rememberId ? this.loginForm.loginId : '',
+                        password: '',
+                        rememberId: this.loginForm.rememberId,
+                        rememberMe: this.loginForm.rememberMe
+                    };
                     this.showLogin = false;
                     this.showPassword = body.mustChangePassword === true;
                     if (this.session.role === 'ADMIN' && !this.showPassword) {
@@ -2300,15 +2424,63 @@ function halley() {
             }
         },
 
-        /** "2호선 신림 → 강남 17분 (8정거장)" 한 줄로 (설계 I176). */
+        stepIcon(step) {
+            switch (step.kind) {
+                case 'SUBWAY': return '🚇';
+                case 'BUS': return '🚌';
+                case 'ROAD': return '🚗';
+                default: return '🚶';
+            }
+        },
+
+        /**
+         * 구간 한 줄 (설계 I176 · I193).
+         *
+         * <p>자가용은 <b>어느 길로 얼마나</b>다 — `stationCount` 자리에 미터가 온다.
+         */
         legStepText(step) {
             if (step.kind === 'WALK') {
                 return `도보 ${step.minutes}분`;
+            }
+            if (step.kind === 'ROAD') {
+                const km = (step.stationCount || 0) / 1000;
+                return `${step.lineName} ${km.toFixed(1)}km`;
             }
             const name = step.lineName || (step.kind === 'BUS' ? '버스' : '지하철');
             const suffix = step.kind === 'BUS' ? '번 버스' : '';
             const stations = step.stationCount ? ` · ${step.stationCount}정거장` : '';
             return `${name}${suffix} ${step.from} → ${step.to} ${step.minutes}분${stations}`;
+        },
+
+        /**
+         * 그 매물에 몇 시에 닿는가 (설계 I194).
+         *
+         * <p><b>계획을 저장하기 전에도</b> 보여 줍니다. 서버가 계획을 만들 때 쓰는 식과
+         * 같습니다(`buildStops`) — 도착 = 출발시각 + 이동시간 누계 + 체류시간 누계.
+         *
+         * <p>화면에서 계산하는 이유는 <b>출발시각·체류시간을 바꾸면 바로 보여야</b>
+         * 하기 때문입니다. 서버에 다시 물으면 그때마다 왕복입니다.
+         */
+        arrivalAt(index) {
+            const start = String(this.itinWindowStart || '09:00').split(':');
+            const stay = Number(this.itinStay) || 0;
+            let minutes = Number(start[0]) * 60 + Number(start[1]);
+            for (let i = 0; i <= index; i++) {
+                const leg = this.legFor(i);
+                minutes += leg ? leg.minutes : 0;
+                if (i < index) {
+                    minutes += stay;
+                }
+            }
+            // 자정을 넘겨도 시각만 보여 준다 — 하루 임장이라 날짜는 뜻이 없다
+            const h = Math.floor(minutes / 60) % 24;
+            const m = minutes % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        },
+
+        /** 몇 번째 매물로 가는 구간인가 (설계 I192). 순서와 구간은 같은 자리다. */
+        legFor(index) {
+            return (this.itinResult && this.itinResult.legs && this.itinResult.legs[index]) || null;
         },
 
         legTitle(leg) {
@@ -3302,6 +3474,16 @@ function halley() {
 
         settingsByCategory(category) {
             return this.settings.filter(s => s.category === category);
+        },
+
+        /**
+         * 사람이 고칠 값인가 (설계 I185).
+         *
+         * <p>스트레스 금리의 <b>산출 근거·시각</b>은 배치가 쓰는 값입니다. 고쳐도
+         * 다음 배치가 덮어쓰므로 <b>입력칸을 열어 두면 거짓말</b>이 됩니다.
+         */
+        settingEditable(s) {
+            return !String(s.configKey || '').startsWith('loan.stressRate.');
         },
 
         configCategoryLabel(category) {

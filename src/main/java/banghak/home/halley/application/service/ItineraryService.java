@@ -180,7 +180,7 @@ public class ItineraryService {
             final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat);
             return ItineraryLegResponse.of(fromId, to.id(),
                     route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES,
-                    List.of(), route.path());
+                    route.roads(), route.path());
         }
         final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
         final TransitResult transit = remembered != null

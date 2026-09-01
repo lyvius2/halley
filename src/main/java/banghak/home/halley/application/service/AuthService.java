@@ -12,6 +12,9 @@ import banghak.home.halley.domain.user.User;
 import banghak.home.halley.domain.user.UserRole;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -22,10 +25,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Objects;
 
 @Service
 public class AuthService {
+
+    /** 로그인 상태 유지 기간 (설계 I190). 30일 — 그 뒤에는 다시 물어본다 */
+    private static final Duration REMEMBER_DURATION = Duration.ofDays(30);
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -39,17 +46,51 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public AuthResponse login(String loginId, String password, HttpServletRequest request) {
+    /**
+     * @param rememberMe 켜면 <b>로그아웃할 때까지</b> 유지한다 (설계 I190)
+     */
+    public AuthResponse login(String loginId, String password, boolean rememberMe,
+                              HttpServletRequest request, HttpServletResponse response) {
         try {
             final Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginId, password));
             SecurityContextHolder.getContext().setAuthentication(auth);
+            if (rememberMe) {
+                rememberSession(request, response);
+            }
             return toAuthResponse((HalleyUserDetails) Objects.requireNonNull(auth.getPrincipal()), request);
         } catch (DisabledException e) {
             throw new AccountDisabledException();
         } catch (AuthenticationException e) {
             throw new InvalidCredentialsException();
         }
+    }
+
+    /**
+     * 로그인 상태를 오래 끈다 (설계 I190).
+     *
+     * <p>두 가지를 같이 해야 합니다 — <b>하나만 하면 안 됩니다.</b>
+     *
+     * <ol>
+     *   <li>서버 쪽 수명(`maxInactiveInterval`)을 늘린다 — 안 늘리면 30분 뒤 세션이 사라진다</li>
+     *   <li>쿠키에 만료를 준다 — 안 주면 <b>브라우저를 닫는 순간</b> 쿠키가 날아간다</li>
+     * </ol>
+     *
+     * <p><b>세션은 메모리에 있습니다.</b> 서버를 다시 띄우면 유지 여부와 상관없이
+     * 전부 로그아웃됩니다 — 배포할 때마다 그렇습니다.
+     */
+    private void rememberSession(HttpServletRequest request, HttpServletResponse response) {
+        final HttpSession session = request.getSession(true);
+        session.setMaxInactiveInterval((int) REMEMBER_DURATION.toSeconds());
+        // 스킴을 그대로 따른다 — 로컬(http)에서 secure 를 켜면 쿠키가 아예 안 실린다
+        final ResponseCookie cookie = ResponseCookie.from("JSESSIONID", session.getId())
+                .path("/")
+                .httpOnly(true)
+                .secure(request.isSecure())
+                .sameSite("Lax")
+                .maxAge(REMEMBER_DURATION)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     public AuthResponse session(HttpServletRequest request) {
