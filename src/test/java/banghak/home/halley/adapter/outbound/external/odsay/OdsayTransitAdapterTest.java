@@ -7,14 +7,18 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import banghak.home.halley.config.exception.TransitQuotaExceededException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.slf4j.LoggerFactory;
 import tools.jackson.databind.ObjectMapper;
 
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OdsayTransitAdapterTest {
 
@@ -158,18 +162,47 @@ class OdsayTransitAdapterTest {
         // ODsay 가 오류와 함께 빈 result 를 실어 보내도 미산출이어야 한다
         final OdsayTransitAdapter adapter = new OdsayTransitAdapter(
                 stubClient("""
-                        {"error":{"code":"3","msg":"LIMIT EXCEEDED"},"result":{"path":[]}}
+                        {"error":{"code":"500","msg":"Not Found Route"},"result":{"path":[]}}
                         """), "key", objectMapper);
 
         assertThat(adapter.findTransit(126.9, 37.5, 127.0, 37.5).isComputed()).isFalse();
 
         // 경로가 비었다는 로그가 아니라 오류 로그가 나와야 한다 — 원인이 다르다
         assertThat(warnings()).singleElement().satisfies(line -> assertThat(line)
-                .contains("code=3")
-                .contains("LIMIT EXCEEDED")
-                // 코드만 남기면 결국 문서를 다시 뒤진다. 무엇을 해야 하는지가 같이 있어야 한다
-                .contains("일일 사용량 초과")
+                .contains("code=500")
+                .contains("Not Found Route")
                 .doesNotContain("no usable path"));
+    }
+
+    /**
+     * 하루치를 다 쓴 것은 <b>다른 종류의 실패</b>다 (설계 I210).
+     *
+     * <p>전에는 "경로 없음"과 똑같이 미산출로 돌려줬습니다. 그러면 부르는 쪽이
+     * <b>다른 길로 가야 할 때인지 모릅니다</b> — 물어도 소용없는 것과, 물을 곳을
+     * 바꾸면 되는 것은 다릅니다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"429", "3"})
+    @DisplayName("할당량 초과는 미산출이 아니라 신호로 던진다 (설계 I210)")
+    void quotaExhaustionThrows(String code) {
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(
+                stubClient("{\"error\":{\"code\":\"" + code + "\",\"msg\":\"Daily quota exceeded\"}}"),
+                "key", objectMapper);
+
+        assertThatThrownBy(() -> adapter.findTransit(126.9, 37.5, 127.0, 37.5))
+                .isInstanceOf(TransitQuotaExceededException.class)
+                .hasMessageContaining(code);
+    }
+
+    /** 경로선은 없어도 화면이 직선으로 그린다 — 그래서 던지지 않는다 (설계 I210). */
+    @Test
+    @DisplayName("할당량이 끝나도 경로선은 조용히 빈 값이다 — 직선으로 되돌아간다")
+    void laneStaysQuietOnQuota() {
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(
+                stubClient("{\"error\":{\"code\":\"429\",\"msg\":\"Daily quota exceeded\"}}"),
+                "key", objectMapper);
+
+        assertThat(adapter.findLane("2:2:230:222").isEmpty()).isTrue();
     }
 
     @Test

@@ -328,6 +328,7 @@ REDIS_HOST=... \
 | `ECOS_STAT_CODE` | `121Y006` | 예금은행 대출금리 |
 | `ECOS_HOUSEHOLD_ITEM` | `BECBLA03` | 가계대출 항목 코드 |
 | `LLM_ENABLED` · `LLM_PROVIDER` · `LLM_CLAUDE_MODEL` | `true` · `claude` · `claude-opus-5` | |
+| `TRANSIT_FALLBACK_MODEL` | (`LLM_CLAUDE_MODEL`) | ODsay 하루치가 끝났을 때 대신 답할 모델 (설계 I210) |
 | `SLACK_ENABLED` | **`false`** | 알림 전체 스위치. **켜야 아무것도 나갑니다** |
 | `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림만 따로 |
 

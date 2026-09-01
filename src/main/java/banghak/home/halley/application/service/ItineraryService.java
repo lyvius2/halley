@@ -32,6 +32,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -128,6 +129,9 @@ public class ItineraryService {
             return OptimizeItineraryResponse.empty();
         }
         final LocalDateTime departAt = departAt(request.visitDate(), request.windowStart());
+        if (mode == TravelMode.TRANSIT) {
+            prewarmTransit(properties, request.startLat(), request.startLng());
+        }
         final TravelCostMatrix matrix =
                 buildMatrix(properties, request.startLat(), request.startLng(), mode, departAt);
         final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
@@ -286,6 +290,51 @@ public class ItineraryService {
             travelTimeCache.put(mode, fromLng, fromLat, toLng, toLat, minutes);
         }
         return minutes;
+    }
+
+    /**
+     * 행렬에 필요한 대중교통 구간을 <b>한꺼번에</b> 받아 둔다 (설계 I210).
+     *
+     * <p>ODsay 라면 쌍마다 불러도 괜찮지만(50ms), 하루치를 다 써 LLM 으로 넘어가면
+     * 쌍마다 부르는 것은 <b>못 씁니다</b> — 매물 8개면 64쌍이라 한 번 계산에 수십 분입니다.
+     *
+     * <p><b>Held-Karp 가 실제로 보는 쌍만</b> 담습니다. 출발지로 <b>돌아오는</b> 구간은
+     * 쓰지 않습니다 — 임장은 편도라 돌아오는 시간을 세지 않습니다.
+     *
+     * <p>이미 캐시에 있는 쌍은 뺍니다. 못 받은 쌍은 그냥 둡니다 — `travelTime` 이
+     * 평소대로 하나씩 물어보고, 그래도 없으면 999분입니다.
+     */
+    private void prewarmTransit(List<Property> properties, BigDecimal startLat, BigDecimal startLng) {
+        final List<double[]> points = new ArrayList<>();
+        points.add(new double[]{startLng.doubleValue(), startLat.doubleValue()});
+        properties.forEach(p -> points.add(new double[]{p.lng().doubleValue(), p.lat().doubleValue()}));
+
+        final Map<String, double[]> pending = new LinkedHashMap<>();
+        for (int i = 0; i < points.size(); i++) {
+            // 도착이 출발지(0)인 구간은 안 쓴다 — 편도다
+            for (int j = 1; j < points.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+                final double[] a = points.get(i);
+                final double[] b = points.get(j);
+                if (travelTimeCache.get(TravelMode.TRANSIT, a[0], a[1], b[0], b[1]) != null) {
+                    continue;
+                }
+                pending.put(legKey(a[0], a[1], b[0], b[1]), new double[]{a[0], a[1], b[0], b[1]});
+            }
+        }
+        if (pending.isEmpty()) {
+            return;
+        }
+        odsayTransitPort.findTransitBatch(pending).forEach((key, transit) -> {
+            // 구간 안내에서 다시 부르지 않도록 기억해 둔다 (설계 I176)
+            transitMemo.get().put(key, transit);
+            if (transit.isComputed()) {
+                final double[] c = pending.get(key);
+                travelTimeCache.put(TravelMode.TRANSIT, c[0], c[1], c[2], c[3], transit.totalMinutes());
+            }
+        });
     }
 
     /** 좌표 넷을 하나의 열쇠로. 소수점 여섯 자리면 1m 안쪽이라 같은 지점으로 봐도 된다. */

@@ -33,6 +33,12 @@ kakao:
 
 odsay:
   api-key: ${ODSAY_API_KEY:}
+
+# ODsay 가 하루치를 다 썼을 때 LLM 이 대신 답한다 (설계 I210).
+# 비우면 llm.claude.model 을 쓴다 — 추정이라 무거운 모델을 쓸 이유가 적다
+transit:
+  fallback:
+    model: ${TRANSIT_FALLBACK_MODEL:}
   base-url: https://api.odsay.com
   transit-path: /v1/api/searchPubTransPathT
   # 경로선 (설계 I177). 지도에 실제 동선을 그릴 때만 부른다

@@ -32,4 +32,22 @@ public interface OdsayTransitPort {
     default RoutePath findLane(String mapObj) {
         return RoutePath.empty();
     }
+
+    /**
+     * 여러 구간을 한꺼번에 (설계 I210).
+     *
+     * <p>임장 행렬은 매물 8개면 <b>72쌍</b>입니다. ODsay 라면 쌍마다 불러도 괜찮지만
+     * (50ms), 할당량이 끝나 LLM 으로 넘어가면 쌍마다 부르는 것은 <b>못 씁니다</b> —
+     * 한 번 계산에 수십 분입니다.
+     *
+     * <p>기본 구현은 그냥 돕니다. 묶어서 이득을 보는 구현만 이것을 덮습니다.
+     *
+     * @param legs 열쇠 → {@code {startX, startY, endX, endY}}
+     * @return 답을 낸 것만. <b>못 낸 열쇠는 빠집니다</b> — 빈 자리를 0이나 999로 채우지 않습니다
+     */
+    default java.util.Map<String, TransitResult> findTransitBatch(java.util.Map<String, double[]> legs) {
+        final java.util.Map<String, TransitResult> found = new java.util.LinkedHashMap<>();
+        legs.forEach((key, c) -> found.put(key, findTransit(c[0], c[1], c[2], c[3])));
+        return found;
+    }
 }
