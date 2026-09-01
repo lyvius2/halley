@@ -2972,6 +2972,25 @@ function halley() {
             return s.scoringType === 'AUTO' && s.autoScore != null;
         },
 
+        /**
+         * 슬라이더의 눈금 (설계 I172).
+         *
+         * <p>쾌적함만 <b>1~5 척도</b>다 (설계 I118) — 사람이 매기는 유일한 항목이고,
+         * 100점 척도로 물으면 73점과 74점의 차이를 <b>아무도 설명할 수 없다.</b>
+         */
+        scoreMin(s) {
+            return s.code === 'COMFORT' ? 1 : 0;
+        },
+
+        scoreMax(s) {
+            return s.code === 'COMFORT' ? 5 : 100;
+        },
+
+        /** 100점 척도는 5점 단위로 끊는다 — 1점 단위는 끌어서 맞출 수 없다. */
+        scoreStep(s) {
+            return s.code === 'COMFORT' ? 1 : 5;
+        },
+
         closeScoreModal() {
             this.showScoreModal = false;
             this.scoreProperty = null;

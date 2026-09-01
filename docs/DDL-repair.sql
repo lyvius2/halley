@@ -819,5 +819,8 @@ SELECT c.code,
   LEFT JOIN criterion_weight w ON w.criterion_code = c.code
  WHERE w.criterion_code IS NULL;
 
--- 가중치가 생겼어도 저장된 총점은 옛것이다. 전량 재채점이 필요하다:
+-- 총점은 저장되지 않는다 — 목록·상세를 읽을 때마다 그때의 가중치로 다시 계산한다.
+-- 그래서 이 SQL 만 돌리면 다음 조회부터 바로 반영된다. 재채점은 필요 없다.
+--
+-- 다만 '미산출'로 남은 항목(직주근접 등)을 채우려면 재채점이 따로 필요하다:
 --   POST /api/properties/{id}/rescore   (매물마다)

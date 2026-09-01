@@ -1689,7 +1689,9 @@
                         <span class="badge b-jeonse" x-show="s.scoringType==='HYBRID' && s.scoreSource==='AUTO'">추정</span>
                     </div>
 
-                    <div class="score-item-gauge">
+                    <!-- 잠긴 항목은 <b>읽기용 막대</b>, 열린 항목은 <b>끌어서 매기는 슬라이더</b>
+                         (설계 I172). 같은 자리에 같은 모양으로 두어 눈이 옮겨 다니지 않는다 -->
+                    <div class="score-item-gauge" x-show="scoreLocked(s)">
                         <div class="gauge-track">
                             <div class="gauge-fill" :class="s.scoreSource==='MANUAL' ? 'is-manual' : ''"
                                  :style="'width:' + (s.effectiveScore == null ? 0 : s.effectiveScore) + '%'"></div>
@@ -1699,14 +1701,15 @@
 
                     <!-- 이미 자동 채점된 AUTO 항목은 잠근다 (설계 I111). 열어 두면
                          추정값으로 채워진 칸이 그대로 저장돼 자동 채점이 수동으로 굳는다 -->
-                    <div class="score-item-input" x-show="!scoreLocked(s)">
-                        <input type="number" x-model="scoreForm[s.code]"
-                               :min="s.code === 'COMFORT' ? 1 : 0"
-                               :max="s.code === 'COMFORT' ? 5 : 100"
-                               :placeholder="s.code === 'COMFORT' ? '1~5' : '0~100'"
-                               :aria-label="s.name + ' 점수 입력'">
+                    <div class="score-item-slider" x-show="!scoreLocked(s)">
+                        <input type="range" class="score-range"
+                               :min="scoreMin(s)" :max="scoreMax(s)" :step="scoreStep(s)"
+                               :value="scoreForm[s.code] ?? scoreMin(s)"
+                               @input="scoreForm[s.code] = $event.target.value"
+                               :aria-label="s.name + ' 점수'"
+                               :aria-valuetext="(scoreForm[s.code] ?? scoreMin(s)) + '점'">
+                        <span class="gauge-value" x-text="scoreForm[s.code] ?? '–'"></span>
                     </div>
-                    <p class="score-item-locked" x-show="scoreLocked(s)">자동으로 채점된 항목입니다.</p>
 
                     <p class="score-item-reason" x-show="s.fallbackReason">
                         <span x-text="s.fallbackReason"></span>
