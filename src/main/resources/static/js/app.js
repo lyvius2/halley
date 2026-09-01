@@ -4338,7 +4338,7 @@ function halley() {
             box.appendChild(area);
 
             const price = document.createElement('span');
-            price.textContent = `${jeonse ? '전세' : '매매'} ${this.fmtWon(p.priceDeposit)}`;
+            price.textContent = `${jeonse ? '전세' : '매매'} ${this.fmtWonShort(p.priceDeposit)}`;
             box.appendChild(price);
 
             const tail = document.createElement('i');
@@ -4525,6 +4525,35 @@ function halley() {
         moneyHint(value) {
             const n = toNum(value);
             return n == null || n === 0 ? '' : this.fmtWon(n);
+        },
+
+        /**
+         * 지도 핀에 들어갈 짧은 가격 (설계 I223).
+         *
+         * <p>`7억 5,000만원` 은 핀을 <b>가로로 늘립니다.</b> 핀이 몇 개만 겹쳐도
+         * 서로를 가립니다 — 지도에서는 <b>자릿수보다 폭</b>이 문제입니다.
+         *
+         * <pre>
+         * 750,000,000 → 7.5억      645,000,000 → 6.45억
+         * 700,000,000 → 7억        50,000,000  → 5,000만
+         * </pre>
+         *
+         * <p><b>1억 미만은 만원으로</b> 둡니다. `0.5억` 은 읽는 데 한 번 더
+         * 생각하게 만듭니다.
+         *
+         * <p>소수 둘째 자리에서 <b>버립니다</b> — 반올림하면 6.999억이 7억이 되어
+         * <b>실제보다 싸 보입니다.</b> 목록·상세에는 정확한 값이 그대로 있습니다.
+         */
+        fmtWonShort(won) {
+            if (won == null || won === 0) {
+                return '0원';
+            }
+            const n = Number(won);
+            if (n < 100000000) {
+                return Math.floor(n / 10000).toLocaleString('ko-KR') + '만';
+            }
+            const eok = Math.floor(n / 1000000) / 100;
+            return `${eok.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}억`;
         },
 
         fmtWon(won) {
