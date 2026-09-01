@@ -97,23 +97,17 @@ body {
     height: 2px;
     background: var(--sand);
 }
-/* 닉네임이 '내 프로필' 손잡이다 (설계 I153). 버튼이지만 헤더 텍스트처럼 보인다 —
-   테두리를 주면 옆의 group-chip 과 무게가 같아져 둘 다 안 읽힌다 */
-.who {
-    font-size: 11.5px;
-    color: #b9b2a4;
-    margin-left: 18px;
-    background: none;
-    border: 0;
-    padding: 3px 2px;
-    cursor: pointer;
-    font-family: inherit;
-    border-bottom: 1px solid transparent;
-}
-.who:hover { color: #e8e2d6; border-bottom-color: rgba(232, 201, 138, .5); }
-.who.on { border-bottom-color: #e8c98a; }
-.nav .btn-ghost { margin-left: 12px; }
-.who b { color: #e8c98a; font-weight: 500; margin-right: 2px; }
+/* 「{그룹명}의 {닉네임}」 (설계 I170).
+   다른 메뉴와 <b>같은 모양</b>이되 색으로만 구분한다 — 이건 화면 이름이 아니라
+   '나'라서, 모양까지 다르면 메뉴 줄이 두 갈래로 읽힌다.
+   금색은 이 앱의 강조색(--sand)이고 헤더에서 유일하게 따뜻한 색이다 */
+.nav-btn.nav-mine { color: #d0ab63; }
+.nav-btn.nav-mine:hover { color: #f0d493; background: rgba(201, 169, 97, .10); }
+.nav-btn.nav-mine.on { color: #f5dda6; background: rgba(201, 169, 97, .16); }
+/* 둘이 한 문장으로 읽혀야 하므로 사이의 구분선과 여백을 지운다 */
+.nav-btn.nav-mine { padding-right: 6px; }
+.nav-btn.nav-mine-tail { padding-left: 6px; }
+.nav-btn.nav-mine-tail::before { display: none; }
 
 /* ── 본문 (좌 지도 / 우 리스트) ───────────────────── */
 .main-grid {
@@ -1024,24 +1018,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
     align-self: center;
     white-space: nowrap;
 }
-/* 헤더의 그룹 배지 — 누르면 그룹 정보 화면으로 (설계 I123) */
-.group-chip {
-    border: 1px solid var(--line);
-    background: var(--paper);
-    color: var(--ink2);
-    border-radius: 999px;
-    padding: 3px 11px;
-    font-size: 11.5px;
-    font-weight: 600;
-    cursor: pointer;
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.group-chip:hover { border-color: var(--ocean); color: var(--ocean); }
-.group-chip.on { border-color: var(--ocean); color: var(--ocean); background: rgba(38, 92, 140, .08); }
-
 /* 그룹 합계 — 모아서 사는 앱이라 이 값이 먼저 보인다 */
 .group-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .group-stat {
