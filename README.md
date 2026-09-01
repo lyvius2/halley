@@ -324,11 +324,17 @@ REDIS_HOST=... \
 
 #### 1. Slack에서 웹훅 만들기
 
-1. <https://api.slack.com/apps> → **Create New App** → *From scratch*
-2. 이름과 워크스페이스를 고릅니다
-3. 왼쪽 **Incoming Webhooks** → 스위치를 **On**
-4. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
-5. 만들어진 URL을 복사합니다
+1. <https://api.slack.com/apps> → **Create New App**
+2. **Or start your own way** 아래의 **Blank app** → *Continue*
+   *(위쪽 `AI agent`·`Starter app`은 템플릿입니다 — 웹훅만 쓸 것이라 필요 없습니다)*
+3. 앱 이름과 워크스페이스를 고릅니다
+4. 왼쪽 메뉴 **Incoming Webhooks** → 스위치를 **On**
+5. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
+6. 만들어진 URL을 복사합니다
+
+> **Slack 화면은 종종 바뀝니다.** 이 문서는 2026-09-02 기준입니다 —
+> 예전에는 2번이 `From scratch`였습니다. 이름이 달라 보이면
+> <b>"빈 앱으로 시작"에 해당하는 것</b>을 고르면 됩니다.
 
 생김새는 이렇습니다 (실제 값이 아니라 **모양만** 적습니다 — 진짜를 문서에 두면
 GitHub 비밀 검사가 푸시를 막습니다):
