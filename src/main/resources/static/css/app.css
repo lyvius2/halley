@@ -2277,3 +2277,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 골라 둔 것은 흐리지 않는다 — 지금 담긴 것이 안 보이면 안 된다 */
 .itin-check.done:has(input:checked) { opacity: 1; }
 .itin-check.done:has(input:checked) span { text-decoration: none; }
+
+/* 내가 다녀온 곳은 배지도 또렷하게 (설계 I226) — 남이 다녀온 것과 구분된다 */
+.badge.b-visited.mine { font-weight: 700; }

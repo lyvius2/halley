@@ -2795,8 +2795,31 @@ function halley() {
             this.applySoldOutFilter();
         },
 
+        /**
+         * 이 매물에 다녀왔는가 (설계 I226).
+         *
+         * <p><b>쾌적함이 첫째 근거입니다.</b> 직접 가 보지 않으면 매길 수 없는
+         * 항목이라, 점수가 있다는 것은 다녀왔다는 뜻입니다([I121]). 따로 칸을 두면
+         * 사람이 또 눌러야 한다는 것이 그때의 결론이었는데, [I197]에서 제가
+         * <b>정확히 그 칸을 만들었습니다.</b>
+         *
+         * <p>두 신호를 <b>합칩니다.</b> 이미 눌러 둔 체크를 버릴 이유가 없고,
+         * 경로에서 바로 체크하는 것도 편합니다 — 다만 <b>안 눌러도 됩니다.</b>
+         *
+         * <p><b>내 점수로 봅니다</b>(`myScore`). 그룹 평균으로 보면 남이 다녀온 곳이
+         * 내 목록에서 뒤로 밀립니다 — 정작 나는 안 가 봤는데요([I118]과 같은 가름).
+         */
         isVisited(propertyId) {
-            return this.itinVisited.includes(propertyId);
+            if (this.itinVisited.includes(propertyId)) {
+                return true;
+            }
+            const scored = this.properties.find(x => x.property.id === propertyId);
+            return this.scoredComfort(scored);
+        },
+
+        /** 내가 쾌적함을 매겼는가 — 그룹 평균이 아니라 내 점수다 (설계 I118). */
+        scoredComfort(scored) {
+            return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
         },
 
         /** 가 본 곳을 서버에서 받아 온다 — 새로고침해도, 다른 기기에서도 남는다. */
@@ -3970,6 +3993,20 @@ function halley() {
         hasVisited(scored) {
             return (scored?.scores || []).some(
                 s => s.code === 'COMFORT' && s.effectiveScore != null);
+        },
+
+        /**
+         * 배지가 <b>누구의</b> 방문인지 (설계 I226).
+         *
+         * <p>배지는 그룹 기준입니다 — 구성원 중 누구든 매기면 뜹니다([I121]).
+         * 그런데 정렬은 <b>내</b> 기준이라, 둘이 어긋나 보일 수 있습니다:
+         * 남이 다녀온 매물은 <b>배지는 있지만 내 목록에서는 앞에</b> 남습니다.
+         * 그게 맞습니다 — 내가 안 가 봤으니까요. 말로 적어 둡니다.
+         */
+        visitedTitle(scored) {
+            return this.scoredComfort(scored)
+                ? '내가 공간의 쾌적함을 매겼습니다 — 다녀온 곳입니다'
+                : '구성원 중 누군가 공간의 쾌적함을 매겼습니다';
         },
 
         /**
