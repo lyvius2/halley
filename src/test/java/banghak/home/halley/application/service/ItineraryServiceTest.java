@@ -34,6 +34,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -48,10 +49,17 @@ class ItineraryServiceTest {
 
         final java.util.concurrent.atomic.AtomicInteger transitCalls = new java.util.concurrent.atomic.AtomicInteger();
 
+        /** 자가용 길찾기에 실린 출발 시각. 순서대로 쌓인다 (설계 I196). */
+        final java.util.List<java.time.LocalDateTime> departures =
+                java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
         @Bean
         @Primary
         KakaoDirectionsPort kakaoDirectionsPort() {
-            return (fromLng, fromLat, toLng, toLat) -> new DriveRoute(10, 1000);
+            return (fromLng, fromLat, toLng, toLat, departAt) -> {
+                departures.add(departAt);
+                return new DriveRoute(10, 1000);
+            };
         }
 
         @Bean
@@ -132,12 +140,70 @@ class ItineraryServiceTest {
 
         // when
         final OptimizeItineraryResponse result = itineraryService.optimize(new OptimizeItineraryRequest(
-                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9")));
+                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9"), null, null, null));
 
         // then — 3개 매물 + 출발지 → 이동 3회 × 10분
         assertThat(result.orderedPropertyIds()).hasSize(3);
         assertThat(result.orderedPropertyIds()).containsAll(ids);
         assertThat(result.totalMinutes()).isEqualTo(30);
+    }
+
+    @Test
+    @DisplayName("임장 날짜·시각을 카카오에 실어 보낸다 — 시각만으로는 요일을 모른다 (설계 I196)")
+    void sendsDepartureDateTime() {
+        // given
+        final List<Long> ids = List.of(propertyService.create(request("날짜A")).id());
+        stubConfig.departures.clear();
+
+        // when — 일요일 14시
+        itineraryService.optimize(new OptimizeItineraryRequest(
+                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9"),
+                LocalDate.of(2026, 9, 6), LocalTime.of(14, 0), 25));
+
+        // then
+        assertThat(stubConfig.departures).isNotEmpty();
+        assertThat(stubConfig.departures).allMatch(d -> d != null
+                && d.toLocalDate().equals(LocalDate.of(2026, 9, 6)));
+    }
+
+    @Test
+    @DisplayName("날짜가 없으면 null을 넘긴다 — 오늘로 채우면 다음 주말 계획에 오늘 길이 섞인다")
+    void noDateMeansNow() {
+        // given
+        final List<Long> ids = List.of(propertyService.create(request("날짜B")).id());
+        stubConfig.departures.clear();
+
+        // when
+        itineraryService.optimize(new OptimizeItineraryRequest(
+                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9"),
+                null, LocalTime.of(14, 0), 25));
+
+        // then
+        assertThat(stubConfig.departures).isNotEmpty();
+        assertThat(stubConfig.departures).containsOnlyNulls();
+    }
+
+    @Test
+    @DisplayName("뒤 구간은 그만큼 늦게 출발한다 — 세 번째 매물의 길은 09시가 아니다 (설계 I196)")
+    void laterLegsDepartLater() {
+        // given — 매물 셋, 이동 10분 + 체류 30분
+        final List<Long> ids = List.of(
+                propertyService.create(request("누적A")).id(),
+                propertyService.create(request("누적B")).id(),
+                propertyService.create(request("누적C")).id());
+
+        // when
+        itineraryService.optimize(new OptimizeItineraryRequest(
+                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9"),
+                LocalDate.of(2026, 9, 6), LocalTime.of(9, 0), 30));
+
+        // then — 구간 안내는 행렬 계산 뒤에 온다. 마지막 셋이 구간 셋이다
+        final List<LocalDateTime> legDepartures =
+                stubConfig.departures.subList(stubConfig.departures.size() - 3, stubConfig.departures.size());
+        assertThat(legDepartures).containsExactly(
+                LocalDateTime.of(2026, 9, 6, 9, 0),
+                LocalDateTime.of(2026, 9, 6, 9, 40),
+                LocalDateTime.of(2026, 9, 6, 10, 20));
     }
 
     @Test
@@ -150,7 +216,7 @@ class ItineraryServiceTest {
 
         // when
         final OptimizeItineraryResponse result = itineraryService.optimize(new OptimizeItineraryRequest(
-                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
+                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9"), null, null, null));
 
         // then — 2개 매물 → 이동 2회 × 15분
         assertThat(result.orderedPropertyIds()).hasSize(2);
@@ -209,14 +275,14 @@ class ItineraryServiceTest {
 
         // when — 첫 계산은 캐시 미스 → 행렬 + 구간 안내
         itineraryService.optimize(new OptimizeItineraryRequest(
-                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
+                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9"), null, null, null));
         final int firstCalls = stubConfig.transitCalls.get();
         assertThat(firstCalls).isGreaterThan(0);
 
         // 같은 요청 재계산
         stubConfig.transitCalls.set(0);
         itineraryService.optimize(new OptimizeItineraryRequest(
-                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9")));
+                ids, TravelMode.TRANSIT, new BigDecimal("37.5"), new BigDecimal("126.9"), null, null, null));
 
         // then — 매물 2개면 구간은 2개다. 행렬(6칸)을 다시 받지 않는다
         assertThat(stubConfig.transitCalls.get()).isEqualTo(ids.size());

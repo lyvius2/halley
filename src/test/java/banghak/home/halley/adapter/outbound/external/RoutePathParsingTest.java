@@ -26,20 +26,49 @@ class RoutePathParsingTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /** 7호선 한 덩어리, 마을버스 한 덩어리 — 색이 갈리는 자리다. */
+    private static final String SUBWAY_THEN_BUS = """
+            {"result":{"lane":[
+              {"class":2,"type":7,"section":[{"graphPos":[
+                {"x":126.929695,"y":37.484228},
+                {"x":127.027618,"y":37.497949}]}]},
+              {"class":1,"type":3,"section":[{"graphPos":[
+                {"x":127.030000,"y":37.500000},
+                {"x":127.031000,"y":37.501000}]}]}]}}
+            """;
+
     @Test
     @DisplayName("ODsay graphPos는 x가 경도, y가 위도다")
     void readsOdsayGraphPos() {
-        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(stub("""
-                {"result":{"lane":[{"section":[{"graphPos":[
-                  {"x":126.929695,"y":37.484228},
-                  {"x":127.027618,"y":37.497949}]}]}]}}
-                """), "key", objectMapper);
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(stub(SUBWAY_THEN_BUS), "key", objectMapper);
 
         final RoutePath path = adapter.findLane("2:2:230:222");
 
-        assertThat(path.points()).hasSize(2);
-        assertThat(path.points().getFirst().lat()).isEqualTo(37.484228);
-        assertThat(path.points().getFirst().lng()).isEqualTo(126.929695);
+        final RoutePath.Point first = path.segments().getFirst().points().getFirst();
+        assertThat(first.lat()).isEqualTo(37.484228);
+        assertThat(first.lng()).isEqualTo(126.929695);
+    }
+
+    @Test
+    @DisplayName("lane 하나가 구간 하나 — 지하철과 버스가 섞이지 않는다")
+    void splitsSegmentsPerLane() {
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(stub(SUBWAY_THEN_BUS), "key", objectMapper);
+
+        assertThat(adapter.findLane("2:2:230:222").segments())
+                .extracting(RoutePath.Segment::style)
+                .containsExactly("SUBWAY_7", "BUS_3");
+    }
+
+    @Test
+    @DisplayName("class를 모르면 지하철인 척하지 않는다")
+    void unknownClassStaysUnknown() {
+        final OdsayTransitAdapter adapter = new OdsayTransitAdapter(stub("""
+                {"result":{"lane":[{"type":7,"section":[{"graphPos":[
+                  {"x":126.9,"y":37.4},{"x":127.0,"y":37.5}]}]}]}}
+                """), "key", objectMapper);
+
+        assertThat(adapter.findLane("2:2:230:222").segments().getFirst().style())
+                .isEqualTo("TRANSIT");
     }
 
     @Test

@@ -221,6 +221,9 @@
                                         <option value="TRANSIT">대중교통</option>
                                     </select>
                                 </label>
+                                <label>임장 날짜
+                                    <input type="date" x-model="itinDate">
+                                </label>
                                 <label>시작시간
                                     <input type="time" x-model="itinWindowStart">
                                 </label>
@@ -249,6 +252,21 @@
                         <template x-if="itinResult && !itinPlan">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
+
+                                <!-- 지도 색이 무엇을 뜻하는지 (설계 I195).
+                                     범례가 없으면 빨간 선이 정체인지 다른 노선인지 알 수 없다 -->
+                                <div class="itin-legend" x-show="itinMode === 'DRIVING'">
+                                    <span class="lg"><i style="background:#d64545"></i>정체</span>
+                                    <span class="lg"><i style="background:#e08b2f"></i>지체</span>
+                                    <span class="lg"><i style="background:#e0c22f"></i>서행</span>
+                                    <span class="lg"><i style="background:#3f9e56"></i>원활</span>
+                                    <span class="lg"><i style="background:#8a8378"></i>정보없음</span>
+                                </div>
+                                <div class="itin-legend" x-show="itinMode === 'TRANSIT'">
+                                    <template x-for="lg in transitLegend()" :key="lg.color">
+                                        <span class="lg"><i :style="'background:' + lg.color"></i><span x-text="lg.name"></span></span>
+                                    </template>
+                                </div>
 
                                 <!-- 순서와 가는 길을 <b>한 묶음으로</b> 엮는다 (설계 I192).
                                      따로 두면 "2번 집에 어떻게 가지"를 눈으로 맞춰 봐야 한다 -->

@@ -49,7 +49,7 @@ class KakaoDirectionsAdapterTest {
         final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "  ", objectMapper);
 
         // when
-        final DriveRoute route = adapter.findRoute(126.9, 37.5, 127.0, 37.5);
+        final DriveRoute route = adapter.findRoute(126.9, 37.5, 127.0, 37.5, null);
 
         // then
         assertThat(route.isComputed()).isFalse();

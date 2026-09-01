@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -137,10 +138,26 @@ public class ItineraryService {
         if (properties.isEmpty()) {
             return OptimizeItineraryResponse.empty();
         }
-        final TravelCostMatrix matrix = buildMatrix(properties, request.startLat(), request.startLng(), mode);
+        final LocalDateTime departAt = departAt(request.visitDate(), request.windowStart());
+        final TravelCostMatrix matrix =
+                buildMatrix(properties, request.startLat(), request.startLng(), mode, departAt);
         final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
         return new OptimizeItineraryResponse(order, totalMinutes(order, matrix),
-                legsOf(order, properties, request.startLat(), request.startLng(), mode));
+                legsOf(order, properties, request.startLat(), request.startLng(), mode,
+                        departAt, request.stayMinutes() == null ? 25 : request.stayMinutes()));
+    }
+
+    /**
+     * 언제 출발하는가 (설계 I196).
+     *
+     * <p><b>날짜가 없으면 null 을 돌려줍니다.</b> 오늘로 채워 넣으면 다음 주말 계획에
+     * 오늘의 길이 섞이는데, 그 어긋남은 화면에 드러나지 않습니다. 모르면 모르는 채로
+     * 두어 "지금 기준"임이 분명하게 합니다.
+     */
+    private static LocalDateTime departAt(LocalDate visitDate, LocalTime windowStart) {
+        return visitDate == null
+                ? null
+                : visitDate.atTime(windowStart == null ? LocalTime.of(9, 0) : windowStart);
     }
 
     /**
@@ -152,7 +169,8 @@ public class ItineraryService {
      * <p>한 구간이 실패해도 나머지는 채웁니다 — 경로선이 없으면 화면이 직선을 그립니다.
      */
     private List<ItineraryLegResponse> legsOf(List<Long> order, List<Property> properties,
-                                              BigDecimal startLat, BigDecimal startLng, TravelMode mode) {
+                                              BigDecimal startLat, BigDecimal startLng, TravelMode mode,
+                                              LocalDateTime departAt, int stayMinutes) {
         final Map<Long, Property> byId = properties.stream()
                 .collect(Collectors.toMap(Property::id, Function.identity()));
         final List<ItineraryLegResponse> legs = new ArrayList<>();
@@ -164,7 +182,12 @@ public class ItineraryService {
             if (to == null) {
                 continue;
             }
-            legs.add(legOf(fromId, to, fromLng, fromLat, mode));
+            final ItineraryLegResponse leg = legOf(fromId, to, fromLng, fromLat, mode, departAt);
+            legs.add(leg);
+            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다
+            if (departAt != null) {
+                departAt = departAt.plusMinutes((long) leg.minutes() + stayMinutes);
+            }
             fromId = toId;
             fromLat = to.lat().doubleValue();
             fromLng = to.lng().doubleValue();
@@ -173,11 +196,11 @@ public class ItineraryService {
     }
 
     private ItineraryLegResponse legOf(Long fromId, Property to, double fromLng, double fromLat,
-                                       TravelMode mode) {
+                                       TravelMode mode, LocalDateTime departAt) {
         final double toLng = to.lng().doubleValue();
         final double toLat = to.lat().doubleValue();
         if (mode == TravelMode.DRIVING) {
-            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat);
+            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt);
             return ItineraryLegResponse.of(fromId, to.id(),
                     route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES,
                     route.roads(), route.path());
@@ -198,7 +221,8 @@ public class ItineraryService {
         if (properties.isEmpty()) {
             throw new InvalidPlanRequestException("좌표가 있는 매물을 선택해 주세요");
         }
-        final TravelCostMatrix matrix = buildMatrix(properties, request.startLat(), request.startLng(), mode);
+        final TravelCostMatrix matrix = buildMatrix(properties, request.startLat(), request.startLng(), mode,
+                departAt(request.visitDate(), request.windowStart()));
         final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
 
         final PropertyVisitPlan plan = propertyVisitPlanRepository.save(new PropertyVisitPlan(
@@ -246,7 +270,8 @@ public class ItineraryService {
                 .map(VisitPlanStop::propertyId)
                 .toList();
         final List<Property> properties = loadWithCoords(propertyIds);
-        final TravelCostMatrix matrix = buildMatrix(properties, plan.startLat(), plan.startLng(), plan.travelMode());
+        final TravelCostMatrix matrix = buildMatrix(properties, plan.startLat(), plan.startLng(), plan.travelMode(),
+                departAt(plan.visitDate(), plan.windowStart()));
         final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
 
         visitPlanStopRepository.deleteByPlanId(planId);
@@ -267,7 +292,7 @@ public class ItineraryService {
     }
 
     private TravelCostMatrix buildMatrix(List<Property> properties, BigDecimal startLat, BigDecimal startLng,
-                                         TravelMode mode) {
+                                         TravelMode mode, LocalDateTime departAt) {
         final Map<Long, Property> byId = properties.stream()
                 .collect(Collectors.toMap(Property::id, Function.identity()));
         return (fromId, toId) -> {
@@ -278,10 +303,10 @@ public class ItineraryService {
             }
             if (from == null) {
                 return travelTime(startLng.doubleValue(), startLat.doubleValue(),
-                        to.lng().doubleValue(), to.lat().doubleValue(), mode);
+                        to.lng().doubleValue(), to.lat().doubleValue(), mode, departAt);
             }
             return travelTime(from.lng().doubleValue(), from.lat().doubleValue(),
-                    to.lng().doubleValue(), to.lat().doubleValue(), mode);
+                    to.lng().doubleValue(), to.lat().doubleValue(), mode, departAt);
         };
     }
 
@@ -314,9 +339,10 @@ public class ItineraryService {
         return total;
     }
 
-    private int travelTime(double fromLng, double fromLat, double toLng, double toLat, TravelMode mode) {
+    private int travelTime(double fromLng, double fromLat, double toLng, double toLat, TravelMode mode,
+                           LocalDateTime departAt) {
         if (mode == TravelMode.DRIVING) {
-            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat);
+            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt);
             return route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES;
         }
         final Integer cached = travelTimeCache.get(mode, fromLng, fromLat, toLng, toLat);

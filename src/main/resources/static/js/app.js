@@ -100,6 +100,7 @@ function halley() {
         itinProperties: [],
         itinMode: 'DRIVING',
         itinStart: { address: '', lat: '', lng: '' },
+        itinDate: new Date().toISOString().slice(0, 10),
         itinWindowStart: '09:00',
         itinStay: 25,
         itinResult: null,
@@ -2228,7 +2229,11 @@ function halley() {
                         propertyIds: this.itinProperties,
                         travelMode: this.itinMode,
                         startLat: toNum(this.itinStart.lat),
-                        startLng: toNum(this.itinStart.lng)
+                        startLng: toNum(this.itinStart.lng),
+                        // 날짜가 있어야 그 요일의 길을 받는다 — 화요일 14시와 일요일 14시는 다르다 (설계 I196)
+                        visitDate: this.itinDate || null,
+                        windowStart: this.itinWindowStart || null,
+                        stayMinutes: toNum(this.itinStay)
                     })
                 });
                 if (ok) {
@@ -2259,6 +2264,7 @@ function halley() {
                         startLat: toNum(this.itinStart.lat),
                         startLng: toNum(this.itinStart.lng),
                         startAddress: this.itinStart.address || null,
+                        visitDate: this.itinDate || null,
                         windowStart: this.itinWindowStart || null,
                         stayMinutesDefault: toNum(this.itinStay)
                     })
@@ -2384,45 +2390,153 @@ function halley() {
          * <p>서버가 구간마다 경로선을 준다. <b>못 받은 구간만</b> 직선으로 잇는다 —
          * 하나가 비었다고 전체를 직선으로 되돌리면 받은 것까지 버리는 셈이다.
          */
+        /**
+         * 서울 지하철 호선 색 (설계 I195).
+         *
+         * <p>ODsay 의 `type` 이 호선 번호입니다. <b>운영사가 쓰는 실제 색</b>을 씁니다 —
+         * 2호선이 초록이 아니면 지도에서 어느 선인지 못 알아봅니다.
+         */
+        SUBWAY_COLORS: {
+            1: '#0052A4', 2: '#00A84D', 3: '#EF7C1C', 4: '#00A5DE', 5: '#996CAC',
+            6: '#CD7C2F', 7: '#747F00', 8: '#E6186C', 9: '#BDB092',
+            21: '#7CA8D5', 22: '#ED8B00',
+            101: '#0090D2', 104: '#77C4A3', 107: '#6FB245', 108: '#0C8E72',
+            109: '#D31145', 110: '#FDA600', 111: '#003DA5', 112: '#B7C452',
+            113: '#8FC63F', 114: '#A17E46', 115: '#FABE00', 116: '#6789CA',
+            117: '#9A6292'
+        },
+
+        /**
+         * 정체 상태 색 (설계 I195).
+         *
+         * <p>카카오 `traffic_state`: 1 정체 · 2 지체 · 3 서행 · 4 원활 · 0 정보없음.
+         * <b>막히는 곳이 빨강</b>입니다 — 숫자가 클수록 잘 흐릅니다.
+         */
+        TRAFFIC_COLORS: { 1: '#d64545', 2: '#e08b2f', 3: '#e0c22f', 4: '#3f9e56', 0: '#8a8378' },
+
+        /**
+         * 구간 하나를 무슨 색으로 그릴까 (설계 I195).
+         *
+         * <p>서버는 <b>무엇인지</b>만 말합니다(`SUBWAY_2` · `BUS_3` · `TRAFFIC_1`).
+         * 색을 고르는 것은 화면의 몫입니다 — 색을 바꾸려고 서버를 고치지 않습니다.
+         *
+         * <p>모르는 값은 <b>회색</b>입니다. 그럴듯한 색을 지어내면 없는 노선이 있는
+         * 것처럼 보입니다.
+         */
+        segmentStyle(style) {
+            const [kind, raw] = String(style || '').split('_');
+            const code = Number(raw);
+            if (kind === 'SUBWAY') {
+                return { color: this.SUBWAY_COLORS[code] || '#5a6b7a', weight: 6, dash: 'solid' };
+            }
+            if (kind === 'BUS') {
+                // 서울 버스: 간선 파랑, 지선·마을 초록, 광역 빨강 — type 이 그 갈래다
+                const bus = { 1: '#3d5bab', 2: '#3d5bab', 3: '#53b332', 4: '#e0332a',
+                              5: '#53b332', 6: '#aa9872', 11: '#3d5bab', 12: '#53b332',
+                              13: '#53b332', 14: '#e0332a', 15: '#f99d1c' };
+                return { color: bus[code] || '#53b332', weight: 6, dash: 'solid' };
+            }
+            if (kind === 'TRAFFIC') {
+                return { color: this.TRAFFIC_COLORS[code] || '#8a8378', weight: 7, dash: 'solid' };
+            }
+            return { color: '#5a6b7a', weight: 5, dash: 'solid' };
+        },
+
+        /**
+         * 지도에 경로를 그린다 — <b>구간마다 다른 색으로</b> (설계 I177 · I195).
+         *
+         * <p>한 색으로 이어 그리면 어디서 갈아타는지, 어디가 막히는지가 지도에서
+         * 사라집니다. 서버가 색이 갈리는 자리마다 끊어 주므로 구간 하나에
+         * 선 하나를 긋습니다.
+         *
+         * <p>구간 사이가 벌어지면 <b>회색 점선</b>으로 잇습니다. 대중교통에서 그 틈은
+         * 도보입니다 — ODsay 가 도보 좌표를 주지 않으니 없는 것을 지어내지 않고,
+         * 대신 이어진 길이 아님이 보이게 그립니다.
+         */
         drawItineraryPath(fallbackPoints) {
             const legs = (this.itinResult && this.itinResult.legs) || [];
             const bounds = new kakao.maps.LatLngBounds();
             this._itinPolylines = [];
 
-            const drawn = legs.filter(l => (l.path || []).length >= 2);
-            if (drawn.length > 0) {
-                drawn.forEach(leg => {
-                    const path = leg.path.map(p => new kakao.maps.LatLng(p.lat, p.lng));
-                    path.forEach(pt => bounds.extend(pt));
-                    const line = new kakao.maps.Polyline({
-                        path,
-                        strokeWeight: 5,
-                        strokeColor: '#2d8ba8',
-                        strokeOpacity: 0.9,
-                        strokeStyle: 'solid'
-                    });
-                    line.setMap(this.map);
-                    this._itinPolylines.push(line);
+            const add = (path, color, weight, dash) => {
+                path.forEach(pt => bounds.extend(pt));
+                const line = new kakao.maps.Polyline({
+                    path,
+                    strokeWeight: weight,
+                    strokeColor: color,
+                    strokeOpacity: 0.9,
+                    strokeStyle: dash
                 });
-            }
+                line.setMap(this.map);
+                this._itinPolylines.push(line);
+            };
+
+            const drawn = legs.filter(l => (l.path || []).some(seg => (seg.points || []).length >= 2));
+            drawn.forEach(leg => {
+                let previousEnd = null;
+                (leg.path || []).forEach(seg => {
+                    const points = (seg.points || []);
+                    if (points.length < 2) {
+                        return;
+                    }
+                    const path = points.map(p => new kakao.maps.LatLng(p.lat, p.lng));
+                    if (previousEnd) {
+                        add([previousEnd, path[0]], '#8a8378', 3, 'shortdash');
+                    }
+                    const style = this.segmentStyle(seg.style);
+                    add(path, style.color, style.weight, style.dash);
+                    previousEnd = path[path.length - 1];
+                });
+            });
+
             // 경로선을 못 받은 구간은 점선 직선으로 — 받은 것과 눈으로 구분된다
             if (drawn.length < legs.length || legs.length === 0) {
                 if (fallbackPoints.length >= 2) {
-                    fallbackPoints.forEach(pt => bounds.extend(pt));
-                    const line = new kakao.maps.Polyline({
-                        path: fallbackPoints,
-                        strokeWeight: 3,
-                        strokeColor: '#8a8378',
-                        strokeOpacity: 0.7,
-                        strokeStyle: 'shortdash'
-                    });
-                    line.setMap(this.map);
-                    this._itinPolylines.push(line);
+                    add(fallbackPoints, '#8a8378', 3, 'shortdash');
                 }
             }
             if (this._itinPolylines.length > 0) {
                 this.map.setBounds(bounds);
             }
+        },
+
+        /**
+         * ODsay `type` → 노선 이름 (설계 I195).
+         *
+         * <p>1~9 는 호선 번호 그대로지만 <b>100번대는 이름이 따로</b> 있습니다.
+         * 109를 "109호선"이라 쓰면 없는 노선이 됩니다.
+         */
+        SUBWAY_NAMES: {
+            21: '인천1호선', 22: '인천2호선',
+            101: '공항철도', 104: '경의중앙선', 107: '에버라인', 108: '경춘선',
+            109: '신분당선', 110: '의정부경전철', 111: '경강선', 112: '우이신설선',
+            113: '서해선', 114: '김포골드라인', 115: '수인분당선', 116: '신림선',
+            117: 'GTX-A'
+        },
+
+        /**
+         * 이번 경로에 <b>실제로 나온</b> 노선만 범례에 (설계 I195).
+         *
+         * <p>지하철 스무 개 호선을 다 늘어놓으면 범례가 경로보다 깁니다.
+         * 오늘 타는 것만 보여 줍니다.
+         */
+        transitLegend() {
+            const seen = {};
+            ((this.itinResult && this.itinResult.legs) || []).forEach(leg => {
+                (leg.path || []).forEach(seg => {
+                    const [kind, raw] = String(seg.style || '').split('_');
+                    if (kind !== 'SUBWAY' && kind !== 'BUS') {
+                        return;
+                    }
+                    const code = Number(raw);
+                    const color = this.segmentStyle(seg.style).color;
+                    seen[color] = kind === 'SUBWAY'
+                        ? (this.SUBWAY_NAMES[code] || `${code}호선`)
+                        : '버스';
+                });
+            });
+            seen['#8a8378'] = '도보·직선';
+            return Object.keys(seen).map(color => ({ color, name: seen[color] }));
         },
 
         stepIcon(step) {
@@ -2473,10 +2587,12 @@ function halley() {
                     minutes += stay;
                 }
             }
-            // 자정을 넘겨도 시각만 보여 준다 — 하루 임장이라 날짜는 뜻이 없다
+            // 자정을 넘기면 그렇다고 말한다 — 09:20 만 보이면 오전으로 읽힌다
+            const days = Math.floor(minutes / 1440);
             const h = Math.floor(minutes / 60) % 24;
             const m = minutes % 60;
-            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+            return days > 0 ? `${clock} (+${days}일)` : clock;
         },
 
         /** 몇 번째 매물로 가는 구간인가 (설계 I192). 순서와 구간은 같은 자리다. */

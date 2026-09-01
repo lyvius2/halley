@@ -120,10 +120,17 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
     }
 
     /**
-     * 경로선 (설계 I177).
+     * 경로선을 <b>교통수단별로 끊어서</b> (설계 I177 · I195).
      *
      * <p>`lane[].section[].graphPos` 에 좌표가 들어 있습니다 — <b>`x` 가 경도, `y` 가 위도</b>입니다.
      * 뒤집으면 지도에 아프리카 앞바다가 그려집니다.
+     *
+     * <p>`lane` 하나가 <b>타고 가는 것 하나</b>입니다. 7호선 한 덩어리, 5호선 한 덩어리,
+     * 마을버스 한 덩어리. `class` 가 2면 지하철, 1이면 버스이고 `type` 이 그 안의 갈래입니다
+     * (지하철은 호선 번호, 버스는 간선·지선 따위). 이어 붙이면 그 구분이 사라집니다.
+     *
+     * <p><b>도보는 `lane` 에 없습니다.</b> 환승 구간마다 좌표가 비고, 화면은 그 사이를
+     * 점선으로 잇습니다 — 서버가 없는 좌표를 지어내지 않습니다.
      */
     @Override
     public RoutePath findLane(String mapObj) {
@@ -139,15 +146,36 @@ public class OdsayTransitAdapter implements OdsayTransitPort {
             log.warn("ODsay rejected the lane request. mapObj={}", mapObj);
             return RoutePath.empty();
         }
-        final List<RoutePath.Point> points = new ArrayList<>();
+        final List<RoutePath.Segment> segments = new ArrayList<>();
         for (final JsonNode lane : root.path("result").path("lane")) {
+            final List<RoutePath.Point> points = new ArrayList<>();
             for (final JsonNode section : lane.path("section")) {
                 for (final JsonNode pos : section.path("graphPos")) {
                     points.add(new RoutePath.Point(pos.path("y").asDouble(), pos.path("x").asDouble()));
                 }
             }
+            if (points.size() < 2) {
+                continue;
+            }
+            segments.add(new RoutePath.Segment(styleOf(lane), points));
         }
-        return new RoutePath(points);
+        return new RoutePath(segments);
+    }
+
+    /**
+     * 이 lane 이 무엇인가 (설계 I195).
+     *
+     * <p>색은 여기서 정하지 않습니다 — <b>무엇인지만</b> 말하고 색은 화면이 고릅니다.
+     * `class` 가 없으면 `TRANSIT` 로 두어, 모르는 것을 지하철인 척하지 않게 합니다.
+     */
+    private static String styleOf(JsonNode lane) {
+        final int laneClass = lane.path("class").asInt(-1);
+        final int type = lane.path("type").asInt(0);
+        return switch (laneClass) {
+            case 1 -> "BUS_" + type;
+            case 2 -> "SUBWAY_" + type;
+            default -> "TRANSIT";
+        };
     }
 
     private JsonNode parse(String json) {

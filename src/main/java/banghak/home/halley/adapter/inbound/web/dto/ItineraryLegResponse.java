@@ -12,14 +12,15 @@ import java.util.List;
  * @param toPropertyId   도착 매물
  * @param minutes        이 구간 소요 시간
  * @param steps          대중교통 상세. 자가용은 비어 있다
- * @param path           지도에 그릴 실제 선. <b>비어 있으면 화면이 직선을 그린다</b>
+ * @param path           지도에 그릴 실제 선, <b>색이 갈리는 자리마다 끊어서</b> (설계 I195).
+ *                       <b>비어 있으면 화면이 직선을 그린다</b>
  */
 public record ItineraryLegResponse(
         Long fromPropertyId,
         Long toPropertyId,
         int minutes,
         List<Step> steps,
-        List<Point> path
+        List<Segment> path
 ) {
 
     /** "2호선 신림 → 강남 17분 (8정거장)" 을 만들 재료. */
@@ -32,6 +33,14 @@ public record ItineraryLegResponse(
         }
     }
 
+    /**
+     * 한 가지 색으로 그릴 구간.
+     *
+     * @param style `SUBWAY_2` · `BUS_3` · `TRAFFIC_1` — 색은 화면이 고른다
+     */
+    public record Segment(String style, List<Point> points) {
+    }
+
     public record Point(double lat, double lng) {
     }
 
@@ -42,6 +51,9 @@ public record ItineraryLegResponse(
                 legs == null ? List.of() : legs.stream().map(Step::from).toList(),
                 path == null || path.isEmpty()
                         ? List.of()
-                        : path.points().stream().map(p -> new Point(p.lat(), p.lng())).toList());
+                        : path.segments().stream()
+                        .map(seg -> new Segment(seg.style(), seg.points().stream()
+                                .map(p -> new Point(p.lat(), p.lng())).toList()))
+                        .toList());
     }
 }

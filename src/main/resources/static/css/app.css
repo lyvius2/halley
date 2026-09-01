@@ -2056,3 +2056,25 @@ tr.dragging { opacity: .5; background: var(--line2); }
     flex: 0 0 auto;
     cursor: pointer;
 }
+
+/* 지도 색 범례 (설계 I195) — 색만 있고 뜻이 없으면 못 읽는다 */
+.itin-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem .9rem;
+    margin: -.2rem 0 .6rem;
+    font-size: .78rem;
+    color: rgba(244, 241, 234, .72);
+}
+
+.itin-legend .lg {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.itin-legend .lg i {
+    width: .9rem;
+    height: .28rem;
+    border-radius: .14rem;
+}
