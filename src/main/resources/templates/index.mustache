@@ -19,7 +19,10 @@
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()"
+<!-- 주소는 x-effect 가 맞춘다 (설계 I211). $watch 로 플래그를 열거하려 했으나
+     Alpine 안에서 Object.keys(this) 가 빈 배열이라 <b>하나도 안 걸렸다</b> -->
+<body x-data="halley()" x-init="init()" x-effect="syncRoute()"
+      @keydown.escape.window="closeTopModal()"
       @keydown.arrow-left.window="onViewerKey(-1)" @keydown.arrow-right.window="onViewerKey(1)">
 
 <div class="shell">
@@ -1203,6 +1206,27 @@
             <h3>계정 <span x-text="users.length"></span>명</h3>
             <p>가입 절차가 없는 폐쇄형 서비스입니다. 계정은 관리자가 이곳에서 만들고 관리합니다.</p>
         </div>
+
+        <!-- 발급한 임시 비밀번호 (설계 I213). 서버는 이때 한 번만 알려 준다 —
+             저장된 것은 해시라 닫으면 아무도 다시 못 읽는다 -->
+        <template x-if="tempPassword">
+            <div class="temp-pw">
+                <div class="temp-pw-head">
+                    <b><span x-text="tempPassword.nickname"></span>님의 임시 비밀번호</b>
+                    <button class="btn btn-xs" @click="dismissTempPassword()">닫기</button>
+                </div>
+                <div class="temp-pw-body">
+                    <code x-text="tempPassword.password"></code>
+                    <button class="btn btn-xs" @click="copyTempPassword()"
+                            x-text="tempPassword.copied ? '복사됨' : '복사'"></button>
+                </div>
+                <p class="temp-pw-note">
+                    <b x-text="tempPassword.loginId"></b> 계정으로 이 비밀번호를 전달하십시오.
+                    <b>닫으면 다시 볼 수 없습니다</b> — 저장된 값은 해시라 서버도 모릅니다.
+                    첫 로그인 때 본인이 새 비밀번호를 정하게 됩니다.
+                </p>
+            </div>
+        </template>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
         <div class="progress-strip" x-show="isLoading('users')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
@@ -1392,6 +1416,26 @@
 
         <div class="settings-section">
             <h4>알림 이력</h4>
+            <!-- 스위치가 환경변수에만 있어, 켜 두고도 등록 알림만 안 오는 이유를
+                 화면에서 알 길이 없었다 (설계 I215). 읽기 전용이다 -->
+            <template x-if="notifySettings">
+                <div class="notify-state">
+                    <span class="badge" :class="notifySettings.enabled ? 'b-on' : 'b-off'">
+                        <span x-text="'알림 전체 ' + (notifySettings.enabled ? '켜짐' : '꺼짐')"></span>
+                    </span>
+                    <span class="badge" :class="notifySettings.notifyPropertyCreated ? 'b-on' : 'b-off'">
+                        <span x-text="'매물 등록 알림 ' + (notifySettings.notifyPropertyCreated ? '켜짐' : '꺼짐')"></span>
+                    </span>
+                    <span class="badge" :class="notifySettings.baseUrlConfigured ? 'b-on' : 'b-off'">
+                        <span x-text="notifySettings.baseUrlConfigured ? '링크 붙음' : '링크 없음'"></span>
+                    </span>
+                    <small>
+                        환경변수로 정합니다 —
+                        <code>SLACK_ENABLED</code> · <code>SLACK_NOTIFY_PROPERTY_CREATED</code> ·
+                        <code>APP_BASE_URL</code>. 여기서는 <b>보기만</b> 합니다.
+                    </small>
+                </div>
+            </template>
             <div class="card table-wrap">
                 <table>
                     <thead><tr><th>이벤트</th><th>매물</th><th>상태</th><th>오류</th><th>시간</th></tr></thead>
@@ -1529,7 +1573,8 @@
                 <template x-if="detailPhotos.length > 0">
                     <section class="m2-sec m2-sec-wide">
                         <h4>사진 <span class="m2-count" x-text="detailPhotos.length + '장'"></span></h4>
-                        <div class="m2-photos">
+                        <!-- 끌어서 넘긴다 (설계 I214). 조금이라도 끌었으면 클릭이 아니다 -->
+                        <div class="m2-photos" @pointerdown.prevent="startPhotoDrag($event)">
                             <template x-for="img in detailPhotos" :key="img.id">
                                 <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
                                         title="크게 보기 (좌우 방향키로 넘김)">

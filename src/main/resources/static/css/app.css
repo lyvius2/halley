@@ -2154,3 +2154,36 @@ tr.dragging { opacity: .5; background: var(--line2); }
     font-size: 15px; line-height: 1; cursor: pointer;
 }
 .paste-picked li button:hover { color: var(--lava); }
+
+/* 발급한 임시 비밀번호 (설계 I213) — 닫으면 다시 못 보므로 눈에 띄어야 한다 */
+.temp-pw {
+    border: 1px solid var(--sand);
+    background: #fdfaf2;
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 14px;
+}
+.temp-pw-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.temp-pw-head b { font-size: 12.5px; }
+.temp-pw-body { display: flex; align-items: center; gap: 10px; margin: 8px 0 6px; }
+.temp-pw-body code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 16px; letter-spacing: .06em;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 12px;
+    user-select: all;
+}
+.temp-pw-note { font-size: 11.5px; color: var(--ink2); line-height: 1.7; }
+
+/* 상세의 사진 줄은 끌어서 넘긴다 (설계 I214) */
+.m2-photos { cursor: grab; scroll-behavior: auto; }
+.m2-photos.is-dragging { cursor: grabbing; scroll-snap-type: none; }
+/* 끄는 동안에는 사진을 클릭으로 오해하지 않는다 */
+.m2-photos.is-dragging .m2-figure { pointer-events: none; }
+.m2-photos::-webkit-scrollbar { height: 6px; }
+.m2-photos::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+
+/* 알림 스위치 상태 (설계 I215) — 왜 안 오는지 한눈에 */
+.notify-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
+.notify-state small { flex: 1 1 100%; font-size: 11px; color: var(--ink3); line-height: 1.7; }
+.notify-state code { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--ink2); }

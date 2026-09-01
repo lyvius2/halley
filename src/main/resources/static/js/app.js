@@ -5,6 +5,16 @@
  * <b>오전 9시 전에 어제 날짜</b>가 나옵니다 — 오늘 오후 임장을 짜려는데 날짜 칸이
  * 어제로 채워져 있고, `min` 에도 걸려 고를 수 없게 됩니다.
  */
+/**
+ * 주소 밀기를 다루는 값들 (설계 I211).
+ *
+ * <p><b>컴포넌트 밖에 둡니다.</b> 안에 두면 Alpine 이 반응형으로 감싸는데,
+ * 주소를 계산하는 효과가 이것을 읽고 쓰므로 <b>스스로를 다시 부릅니다</b>.
+ */
+let routeApplying = false;
+let routeQueued = false;
+let routeTarget = null;
+
 function todayIso() {
     const now = new Date();
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
@@ -129,6 +139,8 @@ function halley() {
         userForm: emptyUserForm(),
         editingUserId: null,
         tempPassword: null,
+        /** 알림 스위치 상태 (설계 I215). 읽기 전용 — 배포로 정하는 값이다 */
+        notifySettings: null,
         confirmState: null,
         profile: null,
         profileForm: { nickname: '', workplaceName: '', workplaceLat: '', workplaceLng: '',
@@ -297,14 +309,13 @@ function halley() {
         async init() {
             this.guardNumberInputs();
             this.watchModalClose();
-            this.watchModalRoutes();
             this.restoreLoginId();
             // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
             window.addEventListener('popstate', () => {
                 if (this.session.authenticated) {
-                    this._applyingRoute = true;
+                    routeApplying = true;
                     this.closeAllModals();
-                    this._applyingRoute = false;
+                    routeApplying = false;
                     this.applyRoute();
                 }
             });
@@ -475,55 +486,61 @@ function halley() {
          * 닫혀도 맞습니다.
          */
         currentPath() {
-            const base = (this.showM2 && this.detailItem)
-                ? `/properties/${this.detailItem.property.id}`
-                : (this.ROUTES[this.view] || '/properties');
+            // <b>먼저 전부 읽습니다.</b> 찾자마자 끊으면 뒤쪽 플래그를 안 읽게 되고,
+            // 그러면 `x-effect` 가 그것들을 추적하지 못해 <b>그 모달에서는 주소가
+            // 안 바뀝니다</b> (설계 I211)
+            let chosen = null;
             for (const route of this.MODAL_ROUTES) {
                 // photoViewerIndex 는 0도 '열림'이다. null 은 닫힌 것인데
                 // `null >= 0` 이 true 라 그냥 비교하면 안 열린 뷰어가 열린 것으로 읽힌다
                 const open = route.flag === 'photoViewerIndex'
                     ? Number.isInteger(this[route.flag]) && this[route.flag] >= 0
                     : this[route.flag] === true;
-                if (!open) {
-                    continue;
+                if (open && chosen === null) {
+                    chosen = route;
                 }
-                if (route.path) {
-                    return route.path(this);
-                }
-                const id = this[route.prop]?.property?.id ?? this[route.prop]?.id;
-                if (id == null) {
-                    // 어느 매물인지 모르면 주소를 지어내지 않는다 — 열 수 없는 링크가 된다
-                    return base;
-                }
-                return `/properties/${id}${route.suffix(this[route.flag])}`;
             }
-            return base;
+            const detail = this.detailItem;
+            const base = (this.showM2 && detail)
+                ? `/properties/${detail.property.id}`
+                : (this.ROUTES[this.view] || '/properties');
+            if (chosen === null) {
+                return base;
+            }
+            if (chosen.path) {
+                return chosen.path(this);
+            }
+            const id = this[chosen.prop]?.property?.id ?? this[chosen.prop]?.id;
+            // 어느 매물인지 모르면 주소를 지어내지 않는다 — 열 수 없는 링크가 된다
+            return id == null ? base : `/properties/${id}${chosen.suffix(this[chosen.flag])}`;
         },
 
+        /**
+         * 지금 열린 것을 주소로 (설계 I198 · I211).
+         *
+         * <p><b>`currentPath()` 를 먼저, 동기로 부릅니다.</b> `x-effect` 는 <b>실행하는
+         * 동안 읽은 것</b>만 추적합니다 — 미뤄서 읽으면 아무것도 추적되지 않아
+         * 효과가 다시 돌지 않습니다.
+         *
+         * <p>미루는 것은 <b>주소를 미는 일뿐</b>입니다. 모달을 닫으면 플래그 두셋이
+         * 같이 꺼지는데, 그때마다 밀면 중간 상태가 기록에 남아 뒤로 가기가 이상해집니다.
+         */
         syncRoute() {
-            // 주소를 읽어 여는 중에는 밀지 않는다 — 여는 동작이 다시 주소를 밀면 기록이 겹친다
-            if (this._applyingRoute || this._routeQueued) {
+            const path = this.currentPath();
+            if (routeApplying) {
                 return;
             }
-            // 한 번에 여러 상태가 바뀐다 — 모달을 닫으면 플래그 두셋이 같이 꺼진다.
-            // 그때마다 밀면 <b>중간 상태가 기록에 남아</b> 뒤로 가기가 이상해진다.
-            // 한 박자 미뤄 마지막 상태 하나만 민다
-            this._routeQueued = true;
+            routeTarget = path;
+            if (routeQueued) {
+                return;
+            }
+            routeQueued = true;
             queueMicrotask(() => {
-                this._routeQueued = false;
-                if (!this._applyingRoute) {
-                    this.pushRoute(this.currentPath());
+                routeQueued = false;
+                if (!routeApplying) {
+                    this.pushRoute(routeTarget);
                 }
             });
-        },
-
-        /** 모달이 열리고 닫히는 것을 지켜본다. 새 모달이 늘어도 여기를 고칠 일이 없다 (설계 I198). */
-        watchModalRoutes() {
-            Object.keys(this)
-                .filter(key => key.startsWith('show') && typeof this[key] === 'boolean')
-                .forEach(key => this.$watch(key, () => this.syncRoute()));
-            this.$watch('photoViewerIndex', () => this.syncRoute());
-            this.$watch('view', () => this.syncRoute());
         },
 
         /** 주소만 바꾼다. 화면은 이미 바뀐 뒤다 — 뒤로 가기를 위해 기록만 남긴다. */
@@ -542,11 +559,11 @@ function halley() {
         async applyRoute() {
             const path = window.location.pathname;
             // 여는 사이에 주소를 다시 밀면 기록이 겹친다 (설계 I198)
-            this._applyingRoute = true;
+            routeApplying = true;
             try {
                 await this.openRoute(path);
             } finally {
-                this._applyingRoute = false;
+                routeApplying = false;
             }
         },
 
@@ -644,6 +661,7 @@ function halley() {
             this.regError = null;
             this.loadSettings();
             this.loadNotifications();
+            this.loadNotifySettings();
             this.loadRegulations();
         },
 
@@ -765,12 +783,39 @@ function halley() {
             this.askConfirm('비밀번호 리셋', `'${u.nickname}'의 임시 비밀번호를 발급할까요?`, async () => {
                 const { ok, body } = await this.request(`/api/users/${u.id}/reset-password`, { method: 'POST' });
                 if (ok) {
-                    this.tempPassword = body.temporaryPassword;
+                    // 서버는 이 값을 <b>이때 한 번만</b> 준다 — 저장은 해시라 다시 못 읽는다
+                    this.tempPassword = { loginId: u.loginId, nickname: u.nickname,
+                        password: body.temporaryPassword, copied: false };
+                } else {
+                    this.error = '비밀번호 초기화에 실패했습니다';
                 }
                 await this.loadUsers();
             });
         },
 
+
+        /**
+         * 임시 비밀번호를 지운다 (설계 I213).
+         *
+         * <p><b>닫으면 다시 볼 수 없습니다.</b> 저장된 것은 해시라 서버도 모릅니다 —
+         * 그래서 닫기 전에 옮겨 적으라고 말해 둡니다.
+         */
+        dismissTempPassword() {
+            this.tempPassword = null;
+        },
+
+        async copyTempPassword() {
+            if (!this.tempPassword) {
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(this.tempPassword.password);
+                this.tempPassword.copied = true;
+            } catch (e) {
+                // 클립보드를 못 쓰는 환경이 있다. 값은 화면에 그대로 보이므로 손으로 옮기면 된다
+                this.tempPassword.copied = false;
+            }
+        },
 
         // ── 그룹 (설계 I89) ──────────────────────────────
 
@@ -1739,6 +1784,49 @@ function halley() {
             this.stopLlmPolling();
         },
 
+        /**
+         * 사진 줄을 끌어서 넘긴다 (설계 I214).
+         *
+         * <p>가로로 넘치는 줄인데 <b>마우스로는 스크롤바를 잡아야</b> 했습니다.
+         * 손가락으로 미는 감각이 여기서도 자연스럽습니다.
+         *
+         * <p><b>클릭과 갈라야 합니다.</b> 조금이라도 끌었으면 그건 넘긴 것이지
+         * 사진을 누른 것이 아닙니다 — 안 그러면 넘길 때마다 확대창이 뜹니다.
+         * 문턱을 두어 손떨림은 클릭으로 남깁니다.
+         */
+        DRAG_THRESHOLD: 5,
+
+        startPhotoDrag(event) {
+            const strip = event.currentTarget;
+            const startX = event.clientX;
+            const startScroll = strip.scrollLeft;
+            let moved = 0;
+
+            const move = (e) => {
+                const dx = e.clientX - startX;
+                moved = Math.max(moved, Math.abs(dx));
+                if (moved > this.DRAG_THRESHOLD) {
+                    strip.classList.add('is-dragging');
+                }
+                strip.scrollLeft = startScroll - dx;
+                // 끄는 동안 사진이 선택되는 것을 막는다
+                e.preventDefault();
+            };
+            const up = () => {
+                window.removeEventListener('pointermove', move);
+                window.removeEventListener('pointerup', up);
+                // 클래스는 <b>클릭이 지나간 뒤</b> 벗긴다. 바로 벗기면 방금 끝낸
+                // 드래그가 클릭으로 살아나 확대창이 뜬다
+                if (moved > this.DRAG_THRESHOLD) {
+                    setTimeout(() => strip.classList.remove('is-dragging'), 0);
+                } else {
+                    strip.classList.remove('is-dragging');
+                }
+            };
+            window.addEventListener('pointermove', move);
+            window.addEventListener('pointerup', up);
+        },
+
         /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */
         get detailFloorPlan() {
             return this.detailImages.find(i => i.imageType === 'FLOOR_PLAN') || null;
@@ -1818,6 +1906,28 @@ function halley() {
             }
         },
 
+        /**
+         * 사진 모달에서 올리거나 지운 것을 <b>상세에도</b> 반영한다 (설계 I212).
+         *
+         * <p>사진 모달은 매물 상세 <b>위에 떠 있습니다.</b> 닫으면 아래에 상세가
+         * 그대로 있는데, 방금 올린 사진이 <b>거기엔 없습니다</b> — 상세는 열 때
+         * 한 번 받아 온 목록을 들고 있기 때문입니다.
+         *
+         * <p><b>같은 매물일 때만</b> 다시 받습니다. 다른 매물의 사진을 만지고 있다면
+         * 상세를 건드릴 이유가 없습니다.
+         */
+        async refreshDetailImages() {
+            const id = this.detailItem?.property?.id;
+            if (!id || id !== this.photoProperty?.property?.id) {
+                return;
+            }
+            const { ok, body } = await this.request(`/api/properties/${id}/images`)
+                .catch(() => ({ ok: false }));
+            if (ok) {
+                this.detailImages = body || [];
+            }
+        },
+
         async loadPhotoImages() {
             if (!this.photoProperty) {
                 return;
@@ -1854,6 +1964,7 @@ function halley() {
                     }
                 }
                 await this.loadPhotoImages();
+                await this.refreshDetailImages();
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
@@ -1877,6 +1988,8 @@ function halley() {
                 if (ok) {
                     this.photoViewerIndex = -1;
                     await this.loadPhotoImages();
+                    // 지운 것도 상세에서 같이 사라져야 한다 (설계 I212)
+                    await this.refreshDetailImages();
                 } else {
                     this.error = '삭제에 실패했습니다';
                 }
@@ -4004,6 +4117,13 @@ function halley() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        /** 알림이 왜 안 오는지 보이게 (설계 I215). */
+        async loadNotifySettings() {
+            const { ok, body } = await this.request('/api/admin/notification-settings')
+                .catch(() => ({ ok: false }));
+            this.notifySettings = ok ? body : null;
         },
 
         async loadNotifications() {

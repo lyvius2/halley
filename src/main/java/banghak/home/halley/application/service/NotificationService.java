@@ -1,6 +1,7 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.NotificationSettingsResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.NotificationLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
@@ -170,6 +171,20 @@ public class NotificationService {
     /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 그룹 설정 화면에서 부른다. */
     public boolean testSend(String webhookUrl) {
         return slackPort.send(webhookUrl, ":tada: Halley에서 테스트 메시지를 보냅니다.");
+    }
+
+    /**
+     * 지금 알림이 어떤 상태인지 (설계 I215).
+     *
+     * <p>스위치가 환경변수에만 있어, 켜 두고도 <b>매물 등록 알림만 안 오는</b> 이유를
+     * 화면에서 알 길이 없었습니다. 값을 바꾸는 것이 아니라 <b>보여 주기만</b> 합니다 —
+     * 배포로 정하는 값을 화면에서 고칠 수 있는 척하면 그것도 거짓말입니다.
+     */
+    public NotificationSettingsResponse notificationSettings() {
+        return new NotificationSettingsResponse(
+                slackProperties.isEnabled(),
+                slackProperties.isNotifyPropertyCreated(),
+                baseUrl != null && !baseUrl.isBlank());
     }
 
     public List<NotificationLogResponse> recentNotifications() {
