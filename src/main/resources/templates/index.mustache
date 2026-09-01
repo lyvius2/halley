@@ -263,43 +263,60 @@
 
                     <div x-show="view==='me'">
                         <div class="sec-head"><h2>내 프로필</h2></div>
-                        <template x-if="profile">
-                            <div class="card profile-panel">
-                                <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
-                                <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
-                                <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
-                                <!-- 행을 늘 보여 준다 (설계 I102). 숨기면 admin이라 없는 것인지
-                                     조회가 실패한 것인지 화면에서 구분되지 않는다 -->
-                                <div class="profile-row">
-                                    <span>그룹</span>
-                                    <b>
-                                        <template x-if="myGroup">
-                                            <span>
-                                                <span x-text="myGroup.name"></span>
-                                                <span class="group-members"
-                                                      x-text="'· ' + myGroup.memberCount + '명'"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="!myGroup">
-                                            <span class="group-members"
-                                                  x-text="profile.role === 'ADMIN'
-                                                      ? '없음 (관리자는 그룹에 속하지 않습니다)'
-                                                      : '불러오지 못했습니다'"></span>
-                                        </template>
-                                    </b>
-                                </div>
-                                <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
-                                <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
-                                <div class="profile-row"><span>기존 대출액</span><b x-text="fmtWon(profile.existingLoan)"></b></div>
-                                <div class="profile-row"><span>직장</span><b x-text="profile.workplaceName || '미설정'"></b></div>
-                                <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
-                            </div>
-                        </template>
-                        <!-- Alpine 의 x-if 는 <b>자식이 하나여야 한다</b> (설계 I166).
-                             카드를 형제로 늘어놓으면 첫 번째만 렌더되고 나머지는 조용히 사라진다 -->
+                        <!-- 순서는 쓰는 빈도다 (설계 I168): 수정 → 부채 → 비밀번호 → 그룹 → 탈퇴.
+                             읽기 전용 요약 카드는 뺐다 — 바로 아래 수정 폼에 같은 값이 있다 -->
                         <template x-if="profile">
                         <div>
-                        <!-- D3-1b 기존 부채 (설계 I92) -->
+                        <div class="card profile-panel">
+                            <h4 class="profile-title">프로필 수정</h4>
+                            <div class="form-grid">
+                                <label>닉네임
+                                    <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
+                                </label>
+                                <label class="span2">직장 주소
+                                    <div class="workplace-search">
+                                        <input type="text" x-model="profileForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
+                                        <button class="btn" type="button" @click="searchPostcodeFor('profile')">주소 검색</button>
+                                    </div>
+                                </label>
+                                <label>위도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
+                                </label>
+                                <label>경도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
+                                </label>
+                                <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
+                                              x-text="moneyHint(profileForm.availableBudget)"></span>
+                                    </span>
+                                    <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
+                                </label>
+                                <label>연소득 (원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
+                                              x-text="moneyHint(profileForm.annualIncome)"></span>
+                                    </span>
+                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+                                </label>
+                                <label>기존 대출액 (원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
+                                              x-text="moneyHint(profileForm.existingLoan)"></span>
+                                    </span>
+                                    <span class="settings-note">없으면 0. 있으면 그만큼 DSR 여력에서 빠집니다.</span>
+                                </label>
+                            </div>
+                            <p class="form-error" x-show="error" x-text="error"></p>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" @click="saveProfile()" :disabled="loading">
+                                    <span x-text="loading ? '저장 중…' : '프로필 저장'"></span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">기존 부채</h4>
                             <p class="settings-note">
@@ -339,8 +356,12 @@
                                 </div>
                             </template>
                         </div>
-
-                        <!-- D3-2 그룹 (설계 I89) -->
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">비밀번호 변경</h4>
+                            <div class="panel-actions">
+                                <button class="btn" @click="openChangePw()">비밀번호 변경</button>
+                            </div>
+                        </div>
                         <template x-if="myGroup">
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">그룹</h4>
@@ -393,8 +414,6 @@
                             </div>
                         </div>
                         </template>
-
-                        <!-- D3-3 회원 탈퇴 (설계 I89 · 규칙 15·16) -->
                         <div class="card profile-panel profile-danger" style="margin-top:14px;"
                              x-show="profile && profile.role !== 'ADMIN'">
                             <h4 class="profile-title">회원 탈퇴</h4>
@@ -409,65 +428,8 @@
                                         :disabled="loading || !withdrawForm.password">탈퇴</button>
                             </div>
                         </div>
-
-                        <div class="card profile-panel" style="margin-top:14px;">
-                            <h4 class="profile-title">프로필 수정</h4>
-                            <div class="form-grid">
-                                <label>닉네임
-                                    <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
-                                </label>
-                                <label class="span2">직장 주소
-                                    <div class="workplace-search">
-                                        <input type="text" x-model="profileForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
-                                        <button class="btn" type="button" @click="searchPostcodeFor('profile')">주소 검색</button>
-                                    </div>
-                                </label>
-                                <label>위도
-                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
-                                </label>
-                                <label>경도
-                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
-                                </label>
-                                <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
-                                              x-text="moneyHint(profileForm.availableBudget)"></span>
-                                    </span>
-                                    <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
-                                </label>
-                                <label>연소득 (원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
-                                              x-text="moneyHint(profileForm.annualIncome)"></span>
-                                    </span>
-                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
-                                </label>
-                                <label>기존 대출액 (원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
-                                              x-text="moneyHint(profileForm.existingLoan)"></span>
-                                    </span>
-                                    <span class="settings-note">없으면 0. 있으면 그만큼 DSR 여력에서 빠집니다.</span>
-                                </label>
-                            </div>
-                            <p class="form-error" x-show="error" x-text="error"></p>
-                            <div class="panel-actions">
-                                <button class="btn btn-primary" @click="saveProfile()" :disabled="loading">
-                                    <span x-text="loading ? '저장 중…' : '프로필 저장'"></span>
-                                </button>
-                            </div>
-                        </div>
                         </div>
                         </template>
-                        <div class="card profile-panel" style="margin-top:14px;">
-                            <h4 class="profile-title">비밀번호 변경</h4>
-                            <div class="panel-actions">
-                                <button class="btn" @click="openChangePw()">비밀번호 변경</button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —

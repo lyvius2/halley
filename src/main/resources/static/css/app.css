@@ -790,21 +790,28 @@ input[type=checkbox], input[type=radio] {
 }
 .card-title span { font-size: 11.5px; color: var(--ink3); font-weight: 400; margin-left: 4px; }
 
-/* 표는 카드 가장자리까지 붙인다 — 다른 화면의 표와 같은 모양이 된다 */
-.group-table { margin: 0 -18px; }
-
-/* 구성원 표의 칸 폭 (설계 I165).
-   직장 주소가 길어 남은 칸을 다 먹으면 '닉네임'이 '닉네 / 임'으로, '활성'이
-   '활 / 성'으로 접힌다. 두 글자짜리 칸이 접히는 건 폭이 모자라서가 아니라
-   긴 칸이 안 양보해서다 — 짧은 칸을 못 박고 주소가 나머지를 쓰게 한다. */
-.group-table table { table-layout: fixed; }
-.group-table th, .group-table td { padding-left: 12px; padding-right: 12px; }
-.group-table :is(th, td):nth-child(1) { width: 4.5em; white-space: nowrap; }   /* 닉네임 */
-.group-table :is(th, td):nth-child(3) { width: 8.5em; }                        /* 보유 현금 — '12억 3,456만원'까지 든다 */
-.group-table :is(th, td):nth-child(4) { width: 3.8em; white-space: nowrap; }   /* 상태 */
-/* 주소는 나머지를 쓰고, 넘치면 줄바꿈한다 — 단어 중간에서 끊지 않는다 */
-.group-table td:nth-child(2) { word-break: keep-all; overflow-wrap: anywhere; }
-/* 배지가 스스로 접히지 않게 한다 */
+/* 표는 카드 가장자리까지 붙인다 — 다른 화면의 표와 같은 모양이 된다.
+   구성원 표의 칸 폭 (설계 I165 · I168).
+   처음엔 em 고정폭을 줬는데 <b>가로 스크롤이 생겼습니다</b> — 고정폭 합이 좁은
+   패널보다 커지면 .table-wrap 의 overflow-x 가 스크롤을 만듭니다.
+   비율(%)로 나누면 폭이 어떻든 합이 100%라 넘칠 일이 없습니다. */
+.group-table { margin: 0 -18px; overflow-x: hidden; }
+.group-table table { table-layout: fixed; width: 100%; }
+.group-table :is(th, td) { padding-left: 12px; padding-right: 12px; }
+.group-table :is(th, td):nth-child(1) { width: 17%; }   /* 닉네임 */
+.group-table :is(th, td):nth-child(3) { width: 25%; }   /* 보유 현금 */
+.group-table :is(th, td):nth-child(4) { width: 15%; }   /* 상태 */
+/* 주소는 남은 폭(43%)을 쓰고 <b>두 줄이 되더라도 접힙니다</b> — 스크롤보다 낫습니다.
+   한국어는 단어 중간에서 끊으면 읽기 어려우므로 어절 단위로 끊되,
+   끊을 곳이 없는 긴 토큰(URL 등)은 어디서든 끊습니다 */
+.group-table td:nth-child(2) {
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+/* 금액도 접히게 둔다. nowrap 이면 좁을 때 칸을 넘어 옆 칸을 밀어낸다 */
+.group-table td.num { white-space: normal; }
 .group-table .badge { white-space: nowrap; }
 .group-panel .settings-note { display: block; margin-top: 10px; }
 
