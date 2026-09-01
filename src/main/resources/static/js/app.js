@@ -268,6 +268,7 @@ function halley() {
 
         async init() {
             this.guardNumberInputs();
+            this.watchModalClose();
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
@@ -1771,9 +1772,10 @@ function halley() {
             this.view = 'list';
             this.dealTypeFilter = 'ALL';
             this.soldOutAlertShown = false;
+            // 열려 있던 것을 전부 닫는다 (설계 I182). 예전에는 로그아웃해도 남아,
+            // 다시 로그인하면 앞사람이 보던 모달이 그대로 떠 있었다
+            this.closeAllModals();
             this.showLogin = true;
-            this.showPassword = false;
-            this.showSessionWarn = false;
             // 지도 오버레이만이 아니라 <b>작업 중이던 것</b>도 지운다 (설계 I179).
             // 예전에는 로그아웃해도 남아, 다른 계정으로 들어오면 앞 사람의 동선이 보였다
             this.resetItineraryState();
@@ -2715,6 +2717,56 @@ function halley() {
             if (fresh.ok && fresh.body) {
                 this.applyScoreForm(fresh.body);
             }
+        },
+
+        /**
+         * 열려 있는 모달을 전부 닫는다 (설계 I182).
+         *
+         * <p><b>이름으로 찾습니다.</b> `show`로 시작하는 불리언을 훑어 끄면,
+         * 나중에 모달이 늘어도 <b>여기를 고칠 일이 없습니다</b> — 목록을 손으로 관리하면
+         * 하나 빠뜨렸을 때 그것만 남아 뜹니다.
+         */
+        closeAllModals() {
+            Object.keys(this).forEach(key => {
+                if (key.startsWith('show') && this[key] === true) {
+                    this[key] = false;
+                }
+            });
+            this.confirmState = null;
+            this.photoViewerIndex = null;
+            this.resetModalScroll();
+        },
+
+        /** 모달 안쪽 스크롤을 맨 위로 (설계 I183). */
+        resetModalScroll() {
+            document.querySelectorAll('.modal-card').forEach(card => {
+                card.scrollTop = 0;
+            });
+        },
+
+        /**
+         * 모달이 닫힐 때 그 안의 스크롤을 되돌린다 (설계 I183).
+         *
+         * <p>모달은 `x-show`로 <b>숨겨질 뿐 사라지지 않습니다</b> — 스크롤 위치가 그대로
+         * 남아, 다음에 열면 <b>중간부터 보입니다.</b>
+         *
+         * <p>닫는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
+         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 닫혀도</b> 걸립니다.
+         */
+        watchModalClose() {
+            const observer = new MutationObserver(records => {
+                records.forEach(r => {
+                    const modal = r.target;
+                    if (modal.style.display === 'none') {
+                        modal.querySelectorAll('.modal-card').forEach(card => {
+                            card.scrollTop = 0;
+                        });
+                    }
+                });
+            });
+            document.querySelectorAll('.modal').forEach(modal => {
+                observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+            });
         },
 
         /**

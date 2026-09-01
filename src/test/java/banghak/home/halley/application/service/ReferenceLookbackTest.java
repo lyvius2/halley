@@ -72,7 +72,8 @@ class ReferenceLookbackTest {
     private void callFetchMonths(MinistryReferencePort port, String baseMonth, boolean exact)
             throws Exception {
         final ReferenceTransactionService service = new ReferenceTransactionService(
-                null, null, null, port, null, 24);
+                null, null, null, port, null, 24,
+                new banghak.home.halley.config.VirtualThreadGate("test", 4));
         final Method method = ReferenceTransactionService.class
                 .getDeclaredMethod("fetchMonths", String.class, String.class, boolean.class);
         method.setAccessible(true);

@@ -1,0 +1,2 @@
+2026-09-01 17:03:10.935 INFO  [main] banghak.home.halley.HalleyApplication - Starting HalleyApplication using Java 25.0.2 with PID 41574 (/Users/furaiki/Project/Halley/build/classes/java/main started by furaiki in /Users/furaiki/Project/Halley)
+2026-09-01 17:03:10.937 INFO  [main] banghak.home.halley.HalleyApplication - The following 1 profile is active: "live"

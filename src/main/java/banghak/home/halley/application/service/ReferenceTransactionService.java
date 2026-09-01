@@ -56,6 +56,8 @@ public class ReferenceTransactionService {
      * 거의 늘 비어 있었습니다 — 한 단지의 한 달 거래는 원래 0건이 흔합니다.
      */
     private final int lookbackMonths;
+    /** 배경 조회를 다른 보정과 같은 줄에 세운다 (설계 I108). */
+    private final banghak.home.halley.config.VirtualThreadGate gate;
 
     public ReferenceTransactionService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
@@ -63,18 +65,47 @@ public class ReferenceTransactionService {
                                        MinistryReferencePort ministryReferencePort,
                                        LegalDongCodeService legalDongCodeService,
                                        @Value("${ministry.reference.lookback-months:12}")
-                                       int lookbackMonths) {
+                                       int lookbackMonths,
+                                       banghak.home.halley.config.VirtualThreadGate gate) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
         this.ministryReferencePort = ministryReferencePort;
         this.legalDongCodeService = legalDongCodeService;
         this.lookbackMonths = lookbackMonths;
+        this.gate = gate;
     }
 
+    /**
+     * 매물 상세가 부른다 (설계 I184).
+     *
+     * <p><b>여기서 국토부를 부르지 않습니다.</b> 저장된 것이 없으면 12개월을 훑는데,
+     * 초당 제한(I140)까지 걸려 <b>3초 넘게 화면이 멈춥니다.</b> 그동안 상세 모달이
+     * 통째로 기다립니다 — 중개사·토지이용계획은 캐시에서 곧바로 오는데도 그렇습니다.
+     *
+     * <p>저장된 것만 돌려주고, 없으면 <b>배경에서 받아 둡니다.</b> 사용자가 달을 지정해
+     * 물었을 때(`dealMonth`)만 기다렸다 답합니다 — 그건 명시적으로 시킨 일입니다.
+     */
     public ReferenceCardResponse getReferences(Long propertyId, String legalDongCode, String dealMonth) {
         final Property property = propertyAccessGuard.require(propertyId);
-        return collect(property, legalDongCode, dealMonth);
+        if (dealMonth != null && !dealMonth.isBlank()) {
+            return collect(property, legalDongCode, dealMonth);
+        }
+        final List<ReferenceTransaction> stored = referenceTransactionRepository.findByPropertyId(propertyId);
+        if (!stored.isEmpty()) {
+            return toCard(property, stored);
+        }
+        // 화면은 기다리지 않는다. 다음에 열면 채워져 있다
+        gate.runAll(List.of(() -> {
+            try {
+                collect(property, legalDongCode, null);
+            } catch (RuntimeException e) {
+                log.warn("Background reference fetch failed. propertyId={}, cause={}",
+                        propertyId, e.toString());
+            }
+            return null;
+        }));
+        return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths);
     }
 
     /**

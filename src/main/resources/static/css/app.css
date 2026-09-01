@@ -64,6 +64,9 @@ body {
 }
 /* 로고는 배경이 투명하고 어두운 헤더 위에 놓인다 (설계 I174) */
 .wordmark-logo { display: block; width: 24px; height: 24px; }
+/* 로그인 화면의 제목 — 헤더와 같은 로고를 조금 크게 (설계 I181) */
+.modal-title-logo { display: flex; align-items: center; gap: 10px; }
+.modal-title-logo img { display: block; }
 .wordmark em { font-style: normal; color: #e8c98a; font-weight: 300; }
 /* 상단 메뉴는 건반처럼 — 각진 사각형이 맞붙고, 선택된 키만 눌린 듯 밝아진다 */
 .nav { display: flex; align-items: center; gap: 0; }
