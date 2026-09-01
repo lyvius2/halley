@@ -1,3 +1,16 @@
+/**
+ * 오늘 (설계 I207).
+ *
+ * <p><b>`toISOString()` 을 그냥 자르면 안 됩니다.</b> UTC 기준이라 한국에서는
+ * <b>오전 9시 전에 어제 날짜</b>가 나옵니다 — 오늘 오후 임장을 짜려는데 날짜 칸이
+ * 어제로 채워져 있고, `min` 에도 걸려 고를 수 없게 됩니다.
+ */
+function todayIso() {
+    const now = new Date();
+    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+    return local.toISOString().slice(0, 10);
+}
+
 function emptyPropertyForm() {
     return {
         id: null,
@@ -100,7 +113,7 @@ function halley() {
         itinProperties: [],
         itinMode: 'DRIVING',
         itinStart: { address: '', lat: '', lng: '' },
-        itinDate: new Date().toISOString().slice(0, 10),
+        itinDate: todayIso(),
         itinWindowStart: '09:00',
         itinStay: 25,
         itinResult: null,
@@ -591,7 +604,14 @@ function halley() {
         },
 
         setView(view) {
+            const leaving = this.view;
             this.view = view;
+            // 지도는 <b>화면마다 따로 있지 않습니다</b> — 하나를 나눠 씁니다 (설계 I206).
+            // 임장을 떠나면 그 경로선도 걷어냅니다. 안 그러면 매물 화면 지도 위에
+            // 어제 짠 동선이 계속 얹혀 있습니다
+            if (leaving === 'itinerary' && view !== 'itinerary') {
+                this.clearItinerary();
+            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -602,7 +622,11 @@ function halley() {
                 this.loadGroupDetail();
             }
             if (view === 'itinerary') {
+                // 기본값(오늘 09:00)이 이미 지났으면 밀어 준다 (설계 I207)
+                this.normalizeItinStart();
                 this.loadStartLocation();
+                // 담아 둔 결과를 다시 그린다 (설계 I206). 떠날 때 걷어냈으므로
+                // 돌아오면 다시 얹어야 한다 — 계산을 다시 시키지는 않는다
                 this.loadItineraryDraft();
                 this.loadVisited();
             }
@@ -2095,6 +2119,23 @@ function halley() {
             this.resetItineraryState();
         },
 
+        /**
+         * 계산한 것을 지운다 (설계 I206).
+         *
+         * <p>고른 매물·출발지는 <b>남깁니다.</b> 지우는 것은 "계산 결과"이지
+         * "내가 고른 것"이 아닙니다 — 매물 열둘을 다시 고르게 하면 벌입니다.
+         *
+         * <p>담아 둔 것(draft)도 같이 비웁니다. 화면만 지우면 <b>새로고침하는 순간
+         * 되살아납니다.</b>
+         */
+        clearItineraryResult() {
+            this.itinResult = null;
+            this.clearItinerary();
+            this.error = null;
+            this.saveItineraryDraft();
+            // 매물 마커는 매물 화면의 것이라 그대로 둔다
+        },
+
         /** 임장 플래너의 화면 상태를 처음으로 되돌린다 (설계 I179). */
         resetItineraryState() {
             this.clearItinerary();
@@ -2404,7 +2445,69 @@ function halley() {
             this.saveItineraryDraft();
         },
 
+        /** 화면에서도 쓴다 (`:min`). 위의 함수를 그대로 부른다 — 계산이 두 벌이면 갈린다 */
+        todayIso() {
+            return todayIso();
+        },
+
+        /**
+         * 고른 날에 고를 수 있는 가장 이른 시각 (설계 I207).
+         *
+         * <p>오늘이면 <b>지금</b>부터, 다른 날이면 하루 종일입니다.
+         */
+        minItinTime() {
+            if (this.itinDate !== this.todayIso()) {
+                return '00:00';
+            }
+            const now = new Date();
+            return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+        },
+
+        /**
+         * 지나간 시각인가 (설계 I207).
+         *
+         * <p>`min` 만으로는 부족합니다 — 브라우저가 <b>손으로 친 값은 막지 않고</b>,
+         * 날짜를 고른 뒤 시각을 바꾸면 조합이 과거가 될 수 있습니다.
+         */
+        itinDepartsInPast() {
+            if (!this.itinDate) {
+                return false;
+            }
+            const departAt = new Date(`${this.itinDate}T${this.itinWindowStart || '09:00'}`);
+            return !Number.isNaN(departAt.getTime()) && departAt.getTime() < Date.now();
+        },
+
+        /**
+         * 기본값이 낡았으면 밀어 준다 (설계 I207).
+         *
+         * <p>날짜는 오늘, 시각은 09:00 이 기본입니다. 그래서 <b>오후에 플래너를 열면
+         * 곧바로 "이미 지났습니다"</b>가 뜹니다 — 아무것도 안 했는데 혼나는 셈입니다.
+         *
+         * <p><b>사용자가 고친 값은 안 건드립니다.</b> 화면에 들어올 때와 날짜를 바꿀 때만
+         * 부릅니다 — 그때 화면에 있는 것은 기본값이지 사용자의 뜻이 아닙니다.
+         *
+         * <p>다음 15분 단위로 밉니다. 23:58 이면 <b>날짜도 같이</b> 내일로 넘어갑니다 —
+         * `setMinutes` 가 시·일 넘김을 알아서 합니다.
+         */
+        normalizeItinStart() {
+            if (!this.itinDepartsInPast()) {
+                return;
+            }
+            const next = new Date();
+            next.setSeconds(0, 0);
+            next.setMinutes(next.getMinutes() + (15 - (next.getMinutes() % 15)));
+            const local = new Date(next.getTime() - next.getTimezoneOffset() * 60000).toISOString();
+            this.itinDate = local.slice(0, 10);
+            this.itinWindowStart = local.slice(11, 16);
+        },
+
         async optimizeItinerary() {
+            // 지나간 시각의 교통을 물을 수는 없다 (설계 I207).
+            // 카카오는 과거 시각도 받아 주지만, 그 답으로 세우는 계획이 뜻이 없다
+            if (this.itinDepartsInPast()) {
+                this.error = '임장 날짜와 시작시간이 이미 지났습니다. 앞으로의 시각으로 골라 주세요';
+                return;
+            }
             this.loading = true;
             this.error = null;
             try {
@@ -2624,14 +2727,34 @@ function halley() {
             const bounds = new kakao.maps.LatLngBounds();
             this._itinPolylines = [];
 
+            /**
+             * 선 하나를 <b>두 번</b> 긋는다 (설계 I206).
+             *
+             * <p>지도 자체가 색이 많아 얇은 색선은 도로와 섞여 안 보입니다.
+             * <b>굵은 검정 선을 깔고 그 위에</b> 색선을 얹으면 어떤 색이든 떠오릅니다.
+             *
+             * <p>`zIndex` 를 나눠야 합니다 — 안 그러면 나중에 그은 테두리가
+             * 앞 구간의 색선을 덮습니다.
+             */
             const add = (path, color, weight, dash) => {
                 path.forEach(pt => bounds.extend(pt));
+                const outline = new kakao.maps.Polyline({
+                    path,
+                    strokeWeight: weight + 4,
+                    strokeColor: '#1c1c1c',
+                    strokeOpacity: 0.55,
+                    strokeStyle: dash,
+                    zIndex: 1
+                });
+                outline.setMap(this.map);
+                this._itinPolylines.push(outline);
                 const line = new kakao.maps.Polyline({
                     path,
                     strokeWeight: weight,
                     strokeColor: color,
-                    strokeOpacity: 0.9,
-                    strokeStyle: dash
+                    strokeOpacity: 1,
+                    strokeStyle: dash,
+                    zIndex: 2
                 });
                 line.setMap(this.map);
                 this._itinPolylines.push(line);
@@ -2681,28 +2804,55 @@ function halley() {
         },
 
         /**
-         * 이번 경로에 <b>실제로 나온</b> 노선만 범례에 (설계 I195).
+         * 범례에 <b>실제 노선 이름</b>을 (설계 I195 · I206).
          *
-         * <p>지하철 스무 개 호선을 다 늘어놓으면 범례가 경로보다 깁니다.
-         * 오늘 타는 것만 보여 줍니다.
+         * <p>처음에는 색깔 코드(`BUS_3`)에서 이름을 지었더니 <b>전부 "버스"</b>였습니다 —
+         * 몇 번 버스인지가 알림의 핵심인데 빠졌습니다. `type` 은 노선 번호가 아니라
+         * 간선·지선 같은 <b>갈래</b>입니다.
+         *
+         * <p>번호는 구간 안내(`steps`)에 이미 있습니다. 경로선 구간과 안내는 <b>같은
+         * 순서</b>라 짝지을 수 있습니다 — 다만 <b>수가 어긋나면 짝을 짓지 않습니다.</b>
+         * 좌표가 모자란 lane 은 건너뛰므로 어긋날 수 있는데, 그때 억지로 짝지으면
+         * <b>7호선 색에 다른 노선 이름</b>이 붙습니다. 틀린 이름보다 덜 친절한 이름이 낫습니다.
+         *
+         * <p>이번 경로에 <b>실제로 나온 것</b>만 답니다. 스무 개 호선을 다 늘어놓으면
+         * 범례가 경로보다 깁니다.
          */
         transitLegend() {
             const seen = {};
             ((this.itinResult && this.itinResult.legs) || []).forEach(leg => {
-                (leg.path || []).forEach(seg => {
-                    const [kind, raw] = String(seg.style || '').split('_');
-                    if (kind !== 'SUBWAY' && kind !== 'BUS') {
-                        return;
-                    }
-                    const code = Number(raw);
+                const rides = (leg.path || []).filter(seg => /^(SUBWAY|BUS)_/.test(seg.style || ''));
+                const named = (leg.steps || []).filter(s => s.kind === 'SUBWAY' || s.kind === 'BUS');
+                const aligned = rides.length === named.length;
+                rides.forEach((seg, i) => {
                     const color = this.segmentStyle(seg.style).color;
-                    seen[color] = kind === 'SUBWAY'
-                        ? (this.SUBWAY_NAMES[code] || `${code}호선`)
-                        : '버스';
+                    seen[color] = aligned ? this.rideName(named[i]) : this.styleName(seg.style);
                 });
             });
             seen['#8a8378'] = '도보·직선';
             return Object.keys(seen).map(color => ({ color, name: seen[color] }));
+        },
+
+        /** 구간 안내에서 읽은 이름 — "7호선" · "146번 버스". */
+        rideName(step) {
+            if (!step || !step.lineName) {
+                return step && step.kind === 'BUS' ? '버스' : '지하철';
+            }
+            return step.kind === 'BUS' ? `${step.lineName}번 버스` : step.lineName;
+        },
+
+        /**
+         * 짝을 못 지었을 때의 이름 (설계 I206).
+         *
+         * <p>지하철은 `type` 이 호선 번호라 이름을 알 수 있습니다.
+         * <b>버스는 모릅니다</b> — `type` 이 갈래일 뿐이라 "버스"까지만 말합니다.
+         */
+        styleName(style) {
+            const [kind, raw] = String(style || '').split('_');
+            const code = Number(raw);
+            return kind === 'SUBWAY'
+                ? (this.SUBWAY_NAMES[code] || `${code}호선`)
+                : '버스';
         },
 
         stepIcon(step) {

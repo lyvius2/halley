@@ -222,11 +222,13 @@
                                         <option value="TRANSIT">대중교통</option>
                                     </select>
                                 </label>
+                                <!-- 지나간 시각으로는 못 짠다 (설계 I207) -->
                                 <label>임장 날짜
-                                    <input type="date" x-model="itinDate">
+                                    <input type="date" x-model="itinDate" :min="todayIso()"
+                                           @change="normalizeItinStart()">
                                 </label>
                                 <label>시작시간
-                                    <input type="time" x-model="itinWindowStart">
+                                    <input type="time" x-model="itinWindowStart" :min="minItinTime()">
                                 </label>
                                 <label>체류(분)
                                     <input type="number" min="5" x-model="itinStay">
@@ -243,9 +245,13 @@
                                 </template>
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
-                            <div class="paste-actions">
-                                <!-- 계획 저장을 없앴다 (설계 I197). 계산이 곧 저장이었고,
-                                     저장이 더 주던 것은 방문 체크 하나였다 — 결과 층으로 옮겼다 -->
+                            <!-- 계획 저장을 없앴다 (설계 I197). 계산이 곧 저장이었고,
+                                 저장이 더 주던 것은 방문 체크 하나였다 — 결과 층으로 옮겼다.
+                                 초기화는 반대쪽 끝에 둔다 (설계 I206) — 계산 옆에 붙여 두면
+                                 눌러야 할 것 옆에 지우는 것이 있게 된다 -->
+                            <div class="itin-actions">
+                                <button class="btn btn-ghost" @click="clearItineraryResult()"
+                                        x-show="itinResult" :disabled="loading">경로 초기화</button>
                                 <button class="btn btn-primary" @click="optimizeItinerary()" :disabled="loading">경로 계산</button>
                             </div>
                         </div>
