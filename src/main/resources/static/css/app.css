@@ -2187,3 +2187,13 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .notify-state { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
 .notify-state small { flex: 1 1 100%; font-size: 11px; color: var(--ink3); line-height: 1.7; }
 .notify-state code { font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: var(--ink2); }
+
+/* 아직 채점 전 (설계 I220) — 0점과 구분되어야 한다 */
+.score-pill.is-pending { background: var(--line2); color: var(--ink3); }
+.score-pill.is-pending i { font-style: normal; }
+.dot-spin {
+    width: 8px; height: 8px; border-radius: 50%;
+    border: 2px solid var(--ink3); border-top-color: transparent;
+    display: inline-block; animation: dot-spin .8s linear infinite;
+}
+@keyframes dot-spin { to { transform: rotate(360deg); } }

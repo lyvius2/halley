@@ -17,6 +17,7 @@ import banghak.home.halley.adapter.outbound.persistence.LlmRecommendationReposit
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.domain.llm.ComparativeAnalysis;
 import banghak.home.halley.domain.llm.LlmRecommendation;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.InvalidScoreException;
@@ -88,6 +89,7 @@ public class ScoringService {
     private final SystemConfigRepository systemConfigRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final ScoringLock scoringLock;
+    private final CachePort cache;
     private final PropertyAccessGuard propertyAccessGuard;
     private final UserGroupRepository userGroupRepository;
     private final ScoringEngine scoringEngine;
@@ -95,6 +97,7 @@ public class ScoringService {
 
     public ScoringService(ApplicationEventPublisher eventPublisher,
                           ScoringLock scoringLock,
+                          CachePort cache,
                           PropertyAccessGuard propertyAccessGuard,
                           UserGroupRepository userGroupRepository,
                           PropertyRepository propertyRepository,
@@ -114,6 +117,7 @@ public class ScoringService {
                           List<CriterionScorer> scorers) {
         this.eventPublisher = eventPublisher;
         this.scoringLock = scoringLock;
+        this.cache = cache;
         this.propertyAccessGuard = propertyAccessGuard;
         this.userGroupRepository = userGroupRepository;
         this.propertyRepository = propertyRepository;
@@ -269,10 +273,27 @@ public class ScoringService {
 
     private ScoredPropertyResponse ensureScored(Property property, Map<String, BigDecimal> weights) {
         final List<PropertyScore> persisted = propertyScoreRepository.findByPropertyId(property.id());
+        if (persisted.isEmpty() && enriching(property.id())) {
+            return notYetScored(property.id());
+        }
         if (persisted.isEmpty() || isStale(property, persisted)) {
             return rescore(property);
         }
         return buildFromPersisted(property, persisted, criteriaByCode(), weights, null);
+    }
+
+    /**
+     * 지금 배경에서 보정 중인가 (설계 I220).
+     *
+     * <p>등록 응답을 기다리지 않고 돌려주므로, 목록·상세가 <b>아직 점수가 없는 매물</b>을
+     * 만납니다. 그때 그 자리에서 채점하면 <b>기다림이 옮겨 갔을 뿐</b>입니다 —
+     * 목록 한 번이 수십 초가 됩니다.
+     *
+     * <p><b>표시가 있을 때만</b> 비켜섭니다. 없으면 평소대로 계산합니다 —
+     * 옛 매물이 어떤 이유로 점수를 잃었을 때 스스로 낫는 길(I84)을 막지 않습니다.
+     */
+    private boolean enriching(Long propertyId) {
+        return cache.get(CachePort.ENRICHING, String.valueOf(propertyId)).isPresent();
     }
 
     /**
@@ -310,6 +331,10 @@ public class ScoringService {
 
     private ScoredPropertyResponse ensureScored(Property property, ListBatch batch) {
         final List<PropertyScore> persisted = batch.scores().getOrDefault(property.id(), List.of());
+        // 보정 중이면 비켜선다 (설계 I220) — 목록에서 채점하면 목록이 그만큼 멈춘다
+        if (persisted.isEmpty() && enriching(property.id())) {
+            return notYetScored(property.id());
+        }
         if (persisted.isEmpty() || isStale(persisted, batch.hasLlm().contains(property.id()))) {
             // 낡았으면 그 매물만 다시 계산한다. 흔한 길이 아니다
             return rescore(property);

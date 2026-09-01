@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.application.event.PropertyEnrichedEvent;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.HousingPricePort;
 import banghak.home.halley.application.port.out.external.KakaoLocalPort;
 import banghak.home.halley.config.VirtualThreadGate;
@@ -51,6 +52,7 @@ public class PropertyEnrichmentService {
     private final ScoringService scoringService;
     private final VirtualThreadGate gate;
     private final ApplicationEventPublisher eventPublisher;
+    private final CachePort cache;
 
     public PropertyEnrichmentService(PropertyRepository propertyRepository,
                                      KakaoLocalPort kakaoLocalPort,
@@ -61,7 +63,8 @@ public class PropertyEnrichmentService {
                                      LandUseService landUseService,
                                      ScoringService scoringService,
                                      VirtualThreadGate gate,
-                                     ApplicationEventPublisher eventPublisher) {
+                                     ApplicationEventPublisher eventPublisher,
+                                     CachePort cache) {
         this.propertyRepository = propertyRepository;
         this.kakaoLocalPort = kakaoLocalPort;
         this.housingPricePort = housingPricePort;
@@ -72,6 +75,7 @@ public class PropertyEnrichmentService {
         this.scoringService = scoringService;
         this.gate = gate;
         this.eventPublisher = eventPublisher;
+        this.cache = cache;
     }
 
     /**
@@ -88,6 +92,14 @@ public class PropertyEnrichmentService {
      * 되돌아갑니다 — 외부 연동 실패가 본 기능을 막지 않는다는 원칙(12.2)에 어긋납니다.
      * 등록은 이미 커밋된 뒤이고, 여기서 실패해도 값이 비는 것 외에 부작용이 없습니다.
      */
+    /**
+     * 보정 표시가 남아 있을 최대 시간 (설계 I220).
+     *
+     * <p>보정 중에 서버가 죽으면 표시만 남습니다. TTL 이 없으면 그 매물은
+     * <b>영영 채점되지 않습니다</b> — 목록이 계속 "곧 채워진다"고만 답합니다.
+     */
+    private static final java.time.Duration ENRICHING_TTL = java.time.Duration.ofMinutes(5);
+
     public void enrichCore(Long propertyId) {
         final Optional<Property> found = propertyRepository.findById(propertyId);
         if (found.isEmpty()) {
@@ -159,6 +171,35 @@ public class PropertyEnrichmentService {
      * <p>뒤 단계를 이벤트로 띄우지 않는 이유: 커밋 직후에 띄우면 앞 단계와 <b>겹쳐 돌 수</b>
      * 있고, 그러면 AI가 채점 전 상태를 보게 됩니다.
      */
+    /**
+     * 등록 응답을 붙잡지 않고 배경에서 보정한다 (설계 I220).
+     *
+     * <p>[I110]은 초등학교·토지이용계획·채점까지 <b>기다렸다가</b> 돌려줬습니다.
+     * 그때 배경으로 돌리기를 거부한 이유는 "<b>소리 없이 바뀌어</b> 무엇이 도는지
+     * 알 수 없다"였습니다 — 이제 화면이 <b>진행 표시를 띄우고</b> 판 번호로
+     * 알아채므로(I85) 그 이유가 없어졌습니다.
+     *
+     * <p>기다리는 쪽이 문제가 된 것은 <b>직주근접</b> 때문입니다. ODsay 가 막히면
+     * LLM 이 대신 답하는데(I210) 사람당 4~5초입니다 — 등록 한 번이 수십 초가 됩니다.
+     *
+     * <p><b>표시를 먼저 남깁니다.</b> 배경 스레드가 뜨기 전에 목록을 받으면
+     * 표시가 없어 그 자리에서 채점해 버립니다.
+     */
+    public void enrichAsync(Long propertyId) {
+        cache.put(CachePort.ENRICHING, String.valueOf(propertyId), "1", ENRICHING_TTL);
+        Thread.ofVirtual().name("enrich-" + propertyId).start(() -> {
+            try {
+                enrich(propertyId);
+            } catch (RuntimeException e) {
+                log.error("Enrichment failed. propertyId={}, cause={}", propertyId, e.toString(), e);
+            } finally {
+                // 앞 단계가 끝나면 점수가 있다. 뒤 단계(실거래·공시가격·AI)는
+                // 없어도 화면이 성립하므로 여기서 표시를 걷는다 (설계 I110)
+                cache.evict(CachePort.ENRICHING, String.valueOf(propertyId));
+            }
+        });
+    }
+
     public void enrich(Long propertyId) {
         enrichCore(propertyId);
         Thread.ofVirtual().name("enrich-rest-" + propertyId).start(() -> {

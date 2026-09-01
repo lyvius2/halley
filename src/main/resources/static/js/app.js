@@ -1827,6 +1827,19 @@ function halley() {
             window.addEventListener('pointerup', up);
         },
 
+        /**
+         * 아직 채점 전인가 (설계 I220).
+         *
+         * <p>등록 응답이 <b>보정을 기다리지 않고</b> 돌아오므로, 카드가 먼저 뜨고
+         * 점수는 몇 초 뒤에 채워집니다. 그 사이를 <b>0점으로 보여 주면 안 됩니다</b> —
+         * "나쁜 매물"과 "아직 안 잰 매물"은 다릅니다.
+         *
+         * <p>판 번호 감시(I85)가 3초마다 확인하다가 채워지면 목록을 다시 받습니다.
+         */
+        scoring(scored) {
+            return !!scored && (scored.scores || []).length === 0;
+        },
+
         /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */
         get detailFloorPlan() {
             return this.detailImages.find(i => i.imageType === 'FLOOR_PLAN') || null;

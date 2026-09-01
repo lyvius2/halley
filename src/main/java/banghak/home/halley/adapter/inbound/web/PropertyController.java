@@ -248,10 +248,11 @@ public class PropertyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
-        // 초등학교·토지이용계획·채점까지 기다렸다가 돌려준다 (설계 I110). 화면은 그동안
-        // 진행 표시를 띄운다. 공시가격·실거래가·AI 추천도는 배경으로 넘어간다
-        propertyEnrichmentService.enrich(created.id());
-        return scoringService.getScored(created.id());
+        // <b>기다리지 않고 돌려준다 (설계 I220).</b> [I110]은 초등학교·토지이용계획·채점을
+        // 기다렸는데, ODsay 가 막혀 직주근접이 LLM 으로 넘어가면(I210) 사람당 4~5초라
+        // 등록 한 번이 수십 초가 됐다. 화면은 카드를 먼저 보여 주고 진행 표시를 띄운다
+        propertyEnrichmentService.enrichAsync(created.id());
+        return scoringService.notYetScored(created.id());
     }
 
     @PutMapping("/{id}")

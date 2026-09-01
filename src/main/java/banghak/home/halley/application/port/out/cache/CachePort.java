@@ -37,6 +37,18 @@ public interface CachePort {
      */
     String REFERENCE_MISS = "refmiss";
 
+    /**
+     * "이 매물은 지금 보정 중이다" (설계 I220).
+     *
+     * <p>등록 응답을 <b>기다리지 않고</b> 돌려주므로, 목록·상세가 <b>아직 점수가 없는
+     * 매물</b>을 만납니다. 그때 그 자리에서 채점해 버리면 <b>기다림이 옮겨 갔을 뿐</b>
+     * 입니다 — 표시가 있으면 "곧 채워진다"고 답하고 넘어갑니다.
+     *
+     * <p>TTL 을 둡니다. 보정 중에 서버가 죽으면 표시만 남는데, 그러면 그 매물은
+     * <b>영영 채점되지 않습니다.</b>
+     */
+    String ENRICHING = "enriching";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);

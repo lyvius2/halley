@@ -151,7 +151,13 @@
                                         <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
                                         <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
-                                        <span class="score-pill" :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
+                                        <!-- 등록 직후에는 점수가 없다 (설계 I220). 배경에서
+                                             채워지는 중임을 말해 준다 — 몇 초 뒤 저절로 바뀐다 -->
+                                        <span class="score-pill is-pending" x-show="scoring(r)">
+                                            <i class="dot-spin"></i><i>분석 중</i>
+                                        </span>
+                                        <span class="score-pill" x-show="!scoring(r)"
+                                              :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
                                     </div>
@@ -1489,6 +1495,12 @@
                       x-text="detailItem.property.groupName"></span>
             </div>
 
+            <!-- 등록 직후에는 학교·규제·채점이 아직이다 (설계 I220) -->
+            <div class="progress-strip" x-show="scoring(detailItem)" x-cloak>
+                <span class="progress-strip-label">등록한 매물을 분석하고 있습니다… 잠시 뒤 저절로 채워집니다</span>
+                <div class="progress-strip-bar"><i></i></div>
+            </div>
+
             <div class="m2-grid">
                 <section class="m2-sec">
                     <h4>기본</h4>
@@ -1869,6 +1881,11 @@
             </div>
         </div>
 
+        <!-- 등록 직후에는 채점이 아직이다 (설계 I220) -->
+        <div class="progress-strip" x-show="scoring(scoreProperty)" x-cloak>
+            <span class="progress-strip-label">채점하고 있습니다… 학교·규제·직주근접을 확인하는 중입니다</span>
+            <div class="progress-strip-bar"><i></i></div>
+        </div>
         <div class="score-list">
             <template x-for="s in (scoreProperty?.scores || [])" :key="s.code">
                 <div class="score-item" :class="{'is-fallback': s.scoreSource==='FALLBACK'}">
