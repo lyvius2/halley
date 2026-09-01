@@ -1,7 +1,9 @@
 # 캐시 검토 — PostgreSQL이 느린 이유와 Redis로 옮길 것들
 
-> **검토만 한 문서입니다. 소스는 고치지 않았습니다.**
-> 대상: `feature/2026.08.31_koreaBank` 기준 `ScoringService` · `PropertyController` 조회 경로.
+> **최종 갱신**: 2026-09-01 · 실측 기반. §2.1은 아직 적용하지 않았습니다.
+
+> **N+1 제거(§1)는 적용했습니다**(I124 — 3건 28회 → 8회).
+> **캐시(§2)는 아직입니다** — 중개사·토지이용계획만 24시간 캐시로 옮겼습니다(I158).
 
 ---
 
@@ -78,8 +80,35 @@
 
 ## 2. 캐시로 옮길 만한 것
 
-이미 `CachePort` 계열이 7개 있고 Redis 구현도 모두 있습니다(`RedisPoiCache` 등).
-**같은 방식으로** 더할 것들을 성격별로 나눕니다.
+### 먼저 — 이 문장은 틀렸습니다
+
+> ~~이미 `CachePort` 계열이 7개 있고 Redis 구현도 모두 있습니다.~~
+
+**`CachePort`라는 클래스는 없습니다.** `DESIGN.md`(2026-08-24)에는 캐시를
+<b>하나의 `CachePort`</b>로 추상화한다고 적혀 있는데, 구현할 때 **타입마다 쪼개져
+7개(지금 8개)가 됐습니다.** 이 문장은 그 어긋남을 <b>"계열"이라 부르며 정당화</b>했습니다.
+
+지금 있는 것들은 키 규칙이 제각각이라(`PoiCache`는 매물ID+스키마버전,
+`TravelTimeCache`는 좌표 4개, `LlmJobCache`는 작업 상태) **아래 §2.1을 담을 그릇이
+없습니다** — TTL도 1시간·10분·24시간으로 다릅니다.
+
+**설계대로 되돌리는 것이 먼저입니다.**
+
+```java
+public interface CachePort {
+    Optional<String> get(String namespace, String key);
+    void put(String namespace, String key, String json, Duration ttl);
+    void evict(String namespace, String key);
+    void evictAll(String namespace);
+}
+```
+
+기존 7개를 한꺼번에 걷어낼 필요는 없습니다(`ScoringLock`은 캐시도 아닙니다).
+**새로 캐시할 것은 이 위에 얹고**, 기존 것은 손댈 이유가 생길 때 옮깁니다.
+
+---
+
+아래는 더할 것들을 성격별로 나눈 것입니다.
 
 ### 2.1 강하게 권함 — 거의 안 바뀌는 기준 정보
 

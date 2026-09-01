@@ -4,7 +4,6 @@ import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
 import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LandUseResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LlmRecommendationResponse;
@@ -223,11 +222,6 @@ public class PropertyController {
         return parsePreviewService.preview(request.text());
     }
 
-    @PostMapping("/draft")
-    @ResponseStatus(HttpStatus.CREATED)
-    public PropertyResponse createDraft(@RequestBody CreateDraftRequest request) {
-        return propertyService.createDraft(request);
-    }
 
     @GetMapping
     public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {

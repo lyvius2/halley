@@ -1,6 +1,5 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
@@ -154,27 +153,6 @@ public class PropertyService {
         agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         editVersionStore.bump(versionKey(saved.id()));
-        return toResponse(saved);
-    }
-
-    @Transactional
-    public PropertyResponse createDraft(CreateDraftRequest request) {
-        if (request.sourceUrl() == null || request.sourceUrl().isBlank()) {
-            throw new InvalidPropertyRequestException("원본 URL은 필수입니다");
-        }
-        final String name = request.memo() == null || request.memo().isBlank()
-                ? "작성 중" : request.memo().trim();
-        final Property saved = propertyRepository.save(new Property(
-                null, name, null, null, null, null,
-                null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null,
-                null, null, null, null, null,
-                null, null, null, null, null, null, null, null,
-                null, null, null,
-                SourceType.PASTE, listingUrl(request.sourceUrl()), null, null, null, null,
-                true, ListingStatus.ACTIVE, true,
-                null, 0, null,
-                requireOwnerGroupId(), currentNickname(), currentUserId(), Instant.now()));
         return toResponse(saved);
     }
 
