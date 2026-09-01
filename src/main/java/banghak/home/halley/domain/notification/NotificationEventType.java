@@ -17,5 +17,6 @@ public enum NotificationEventType {
     /** 누가 공간의 쾌적함을 매겼다 — 총점이 달라진다. */
     COMFORT_SCORED,
     /** 생존 확인 배치가 판매완료를 감지했다. */
+    /** 생존 확인 배치가 쓰던 값 (설계 I157에서 폐지). 지난 기록에 남아 있어 enum 은 유지한다 */
     LISTING_SOLD_OUT
 }

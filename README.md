@@ -292,6 +292,7 @@ REDIS_HOST=... \
 | `FSS_API_KEY` | 금융감독원 금융상품통합비교공시 |
 | `ECOS_KEY` | 한국은행 경제통계시스템 |
 | `ANTHROPIC_API_KEY` | Anthropic Console |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 개발자센터 — 검색 API |
 
 > **Slack Webhook URL은 환경변수가 아닙니다.** 그룹마다 다르므로 DB
 > (`user_group.slack_webhook_url`)에 저장하고 **그룹 정보 화면**에서 관리합니다.
@@ -310,10 +311,78 @@ REDIS_HOST=... \
 | `ECOS_STAT_CODE` | `121Y006` | 예금은행 대출금리 |
 | `ECOS_HOUSEHOLD_ITEM` | `BECBLA03` | 가계대출 항목 코드 |
 | `LLM_ENABLED` · `LLM_PROVIDER` · `LLM_CLAUDE_MODEL` | `true` · `claude` · `claude-opus-5` | |
-| `SLACK_ENABLED` | `true` | |
+| `SLACK_ENABLED` | **`false`** | 알림 전체 스위치. **켜야 아무것도 나갑니다** |
+| `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림만 따로 |
 
 > 카카오 개발자 콘솔에 로컬(`http://localhost:8080`)과 운영 도메인을 **모두** 등록해야
 > 지도가 렌더됩니다.
+
+### Slack 알림 붙이기
+
+**웹훅 URL은 환경변수가 아니라 그룹마다 DB에 있습니다**(`user_group.slack_webhook_url`).
+그룹이 각자 다른 채널을 쓰기 때문입니다 — 한 곳에 몰면 **우리 매물이 남의 채널에 뜹니다.**
+
+#### 1. Slack에서 웹훅 만들기
+
+1. <https://api.slack.com/apps> → **Create New App** → *From scratch*
+2. 이름과 워크스페이스를 고릅니다
+3. 왼쪽 **Incoming Webhooks** → 스위치를 **On**
+4. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
+5. 만들어진 URL을 복사합니다
+
+생김새는 이렇습니다 (실제 값이 아니라 **모양만** 적습니다 — 진짜를 문서에 두면
+GitHub 비밀 검사가 푸시를 막습니다):
+
+```
+https://hooks.slack.com/services/<팀ID>/<채널ID>/<토큰>
+```
+
+> **이 URL 자체가 인증입니다.** 아는 사람은 누구나 그 채널에 글을 쓸 수 있습니다 —
+> 공개 저장소·이슈·스크린샷에 올리지 마십시오. 새면 Slack 앱 화면에서 지우고 다시 만듭니다.
+
+#### 2. 앱에 넣기
+
+**헤더의 `{그룹명}의` → 그룹 정보 → Slack Webhook URL** 칸에 붙여넣고 **저장**.
+바로 옆 **테스트** 버튼으로 실제로 닿는지 확인합니다 — 채널에 한 줄이 뜨면 된 것입니다.
+
+#### 3. 서버 스위치 켜기
+
+```bash
+SLACK_ENABLED=true                    # ← 이게 false 면 아무것도 안 나갑니다 (기본값)
+SLACK_NOTIFY_PROPERTY_CREATED=true    # 매물 등록 알림도 받으려면
+```
+
+> **`SLACK_ENABLED`의 기본값은 `false`입니다.** 웹훅을 넣고 저장해도 이걸 안 켜면
+> 조용합니다. **테스트 버튼은 이 스위치와 무관하게** 보내므로, "테스트는 되는데
+> 실제 알림이 안 온다"면 여기부터 보십시오.
+
+#### 무엇이 언제 가나
+
+| 사건 | 스위치 | 보내는 곳 |
+|---|---|---|
+| 매물 등록 | `SLACK_NOTIFY_PROPERTY_CREATED` | `PropertyCreatedListener` |
+| 매물 삭제 | 없음 (항상) | `PropertyCreatedListener` |
+| 코멘트 등록 | 없음 (항상) | `PropertyInsightListener` |
+| 공간의 쾌적함 평가 | 없음 (항상) | `PropertyInsightListener` |
+
+메시지는 **평문 한 줄**입니다(`{"text": "..."}`). 블록 킷을 쓰지 않습니다 —
+읽는 사람이 몇 명뿐이라 꾸밈보다 **한눈에 읽히는 것**이 낫습니다.
+
+```
+:house: 새 매물이 등록되었습니다 — 상계주공7단지 714동
+:speech_balloon: 월터님이 상계주공7단지 714동에 의견을 남겼습니다
+```
+
+#### 안 오면 볼 것
+
+| 증상 | 원인 |
+|---|---|
+| 테스트도 안 됨 | URL 오타 · Slack 앱에서 웹훅을 지웠음 |
+| 테스트는 되는데 알림이 없음 | **`SLACK_ENABLED=false`** |
+| 등록만 안 옴 | `SLACK_NOTIFY_PROPERTY_CREATED=false` |
+| 가끔 빠짐 | 전송 실패는 `notification_log`에 남고 **5분마다 재시도**합니다(`NotificationRetryJob`). 관리자 → 설정 → 알림 이력에서 상태를 봅니다 |
+
+> **알림 실패가 본 기능을 막지 않습니다.** 매물 등록·코멘트는 Slack이 죽어도 그대로 됩니다.
 
 ---
 

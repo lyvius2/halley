@@ -108,6 +108,8 @@ body {
 .nav-btn.nav-mine { padding-right: 6px; }
 .nav-btn.nav-mine-tail { padding-left: 6px; }
 .nav-btn.nav-mine-tail::before { display: none; }
+/* 로그아웃은 메뉴가 아니라 <b>나가는 문</b>이다. 붙여 두면 닉네임을 누르려다 눌린다 */
+.nav .btn-ghost { margin-left: 28px; }
 
 /* ── 본문 (좌 지도 / 우 리스트) ───────────────────── */
 .main-grid {

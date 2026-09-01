@@ -117,41 +117,6 @@ public class NotificationService {
         return value == null || value.isBlank() ? "(이름 없음)" : value;
     }
 
-    public void sendListingsSoldOut(List<Property> soldOut) {
-        if (!shouldSend() || !slackProperties.isNotifySoldOut()) {
-            return;
-        }
-        // 그룹별로 나눠 보낸다 (설계 I96). 한 메시지에 담으면 우리 매물이 남의 채널에 뜬다
-        soldOut.stream()
-                .filter(p -> p.groupId() != null)
-                .collect(java.util.stream.Collectors.groupingBy(Property::groupId))
-                .forEach(this::sendSoldOutForGroup);
-    }
-
-    private void sendSoldOutForGroup(Long groupId, List<Property> soldOut) {
-        final String webhook = webhookOfGroup(groupId);
-        if (webhook == null) {
-            return;
-        }
-        final List<ScoredPropertyResponse> scored = soldOut.stream()
-                .map(p -> scoringService.getScored(p.id()))
-                .sorted(Comparator.comparing((ScoredPropertyResponse r) ->
-                        r.totalScore() == null ? BigDecimal.valueOf(-1) : r.totalScore()).reversed())
-                .toList();
-        final StringBuilder sb = new StringBuilder(":house: 판매완료 감지\n\n");
-        for (int i = 0; i < scored.size(); i++) {
-            final ScoredPropertyResponse item = scored.get(i);
-            sb.append("• ").append(item.property().name())
-                    .append("  ").append(item.property().priceDeposit() == null ? "" : fmtWon(item.property().priceDeposit()))
-                    .append("  (총점 ").append(fmtScore(item.totalScore())).append(" · ").append(i + 1).append("위)");
-            if (i < 3) {
-                sb.append("  ← @channel");
-            }
-            sb.append('\n');
-        }
-        sendEvent(NotificationEventType.LISTING_SOLD_OUT, null, sb.toString(), webhook);
-    }
-
     /** 웹훅이 실제로 닿는지 확인한다 (설계 I96). 그룹 설정 화면에서 부른다. */
     public boolean testSend(String webhookUrl) {
         return slackPort.send(webhookUrl, ":tada: Halley에서 테스트 메시지를 보냅니다.");
