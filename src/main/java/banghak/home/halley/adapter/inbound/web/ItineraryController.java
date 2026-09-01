@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CreatePlanRequest;
+import banghak.home.halley.adapter.inbound.web.dto.ItineraryDraft;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryRequest;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateStopVisitedRequest;
@@ -10,6 +11,7 @@ import banghak.home.halley.domain.itinerary.StartLocation;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -35,6 +37,25 @@ public class ItineraryController {
     @PutMapping("/start-location")
     public StartLocation rememberStartLocation(@RequestBody StartLocation request) {
         return itineraryService.rememberStartLocation(request);
+    }
+
+    /**
+     * 작업 중인 것 (설계 I179). <b>계정마다 다릅니다.</b>
+     */
+    @GetMapping("/draft")
+    public ItineraryDraft draft() {
+        return itineraryService.loadDraft();
+    }
+
+    @PutMapping("/draft")
+    public ItineraryDraft saveDraft(@RequestBody ItineraryDraft draft) {
+        itineraryService.saveDraft(draft);
+        return draft;
+    }
+
+    @DeleteMapping("/draft")
+    public void clearDraft() {
+        itineraryService.clearDraft();
     }
 
     @PostMapping("/optimize")

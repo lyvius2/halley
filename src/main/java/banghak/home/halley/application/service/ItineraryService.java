@@ -12,6 +12,8 @@ import banghak.home.halley.adapter.outbound.persistence.VisitPlanStopRepository;
 import banghak.home.halley.application.port.out.cache.TravelTimeCache;
 import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
+import banghak.home.halley.adapter.inbound.web.dto.ItineraryDraft;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.StartLocationCache;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.itinerary.StartLocation;
@@ -42,10 +44,13 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@lombok.extern.slf4j.Slf4j
 @Service
 public class ItineraryService {
 
     private static final long DEPOT_ID = -1L;
+    /** 출발지 캐시(I52)와 같은 수명 — 임장 준비는 며칠에 걸친다. */
+    private static final java.time.Duration DRAFT_TTL = java.time.Duration.ofDays(7);
     /**
      * 한 번의 계산 안에서만 쓰는 기억 (설계 I176).
      *
@@ -66,6 +71,8 @@ public class ItineraryService {
     private final ItineraryOptimizer optimizer;
 
     private final StartLocationCache startLocationCache;
+    private final CachePort cache;
+    private final tools.jackson.databind.ObjectMapper objectMapper;
 
     public ItineraryService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
@@ -75,7 +82,9 @@ public class ItineraryService {
                             OdsayTransitPort odsayTransitPort,
                             TravelTimeCache travelTimeCache,
                             ItineraryOptimizer optimizer,
-                            StartLocationCache startLocationCache) {
+                            StartLocationCache startLocationCache,
+                            CachePort cache,
+                            tools.jackson.databind.ObjectMapper objectMapper) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyVisitPlanRepository = propertyVisitPlanRepository;
@@ -85,6 +94,40 @@ public class ItineraryService {
         this.travelTimeCache = travelTimeCache;
         this.optimizer = optimizer;
         this.startLocationCache = startLocationCache;
+        this.cache = cache;
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * 작업 중인 것을 사용자별로 담아 둔다 (설계 I179).
+     *
+     * <p><b>계정마다 다릅니다.</b> 예전에는 화면 상태로만 있어, 로그아웃하지 않고
+     * 다른 계정으로 들어오면 <b>앞 사람이 짜던 동선이 그대로 보였습니다.</b>
+     *
+     * <p>출발지(I52)와 같은 수명(7일)을 줍니다 — 임장 준비는 며칠에 걸칩니다.
+     */
+    public ItineraryDraft loadDraft() {
+        return cache.get(CachePort.ITINERARY, String.valueOf(currentUserId()))
+                .map(json -> {
+                    try {
+                        return objectMapper.readValue(json, ItineraryDraft.class);
+                    } catch (RuntimeException e) {
+                        // 담아 둔 모양이 바뀌었을 수 있다. 버리고 빈 것으로 시작한다
+                        log.warn("Itinerary draft unreadable - starting empty. cause={}", e.getMessage());
+                        cache.evict(CachePort.ITINERARY, String.valueOf(currentUserId()));
+                        return ItineraryDraft.empty();
+                    }
+                })
+                .orElseGet(ItineraryDraft::empty);
+    }
+
+    public void saveDraft(ItineraryDraft draft) {
+        cache.put(CachePort.ITINERARY, String.valueOf(currentUserId()),
+                objectMapper.writeValueAsString(draft), DRAFT_TTL);
+    }
+
+    public void clearDraft() {
+        cache.evict(CachePort.ITINERARY, String.valueOf(currentUserId()));
     }
 
     public OptimizeItineraryResponse optimize(OptimizeItineraryRequest request) {

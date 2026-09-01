@@ -365,7 +365,7 @@ function halley() {
             }
             if (view === 'itinerary') {
                 this.loadStartLocation();
-                this.renderItinerary();
+                this.loadItineraryDraft();
             }
         },
 
@@ -1774,7 +1774,19 @@ function halley() {
             this.showLogin = true;
             this.showPassword = false;
             this.showSessionWarn = false;
+            // 지도 오버레이만이 아니라 <b>작업 중이던 것</b>도 지운다 (설계 I179).
+            // 예전에는 로그아웃해도 남아, 다른 계정으로 들어오면 앞 사람의 동선이 보였다
+            this.resetItineraryState();
+        },
+
+        /** 임장 플래너의 화면 상태를 처음으로 되돌린다 (설계 I179). */
+        resetItineraryState() {
             this.clearItinerary();
+            this.itinProperties = [];
+            this.itinResult = null;
+            this.itinPlan = null;
+            this.itinStart = { address: '', lat: '', lng: '' };
+            this.itinMode = 'DRIVING';
         },
 
         startSessionTimer() {
@@ -2075,6 +2087,7 @@ function halley() {
             }
             this.itinResult = null;
             this.itinPlan = null;
+            this.saveItineraryDraft();
         },
 
         async optimizeItinerary() {
@@ -2094,6 +2107,7 @@ function halley() {
                 if (ok) {
                     this.itinResult = body;
                     this.itinPlan = null;
+                    this.saveItineraryDraft();
                     this.renderItinerary();
                 } else {
                     this.error = (body && body.message) || '경로 계산에 실패했습니다';
@@ -2167,6 +2181,35 @@ function halley() {
         propertyName(id) {
             const item = this.properties.find(x => x.property.id === id);
             return item ? item.property.name : '#' + id;
+        },
+
+        /**
+         * 내 임장 작업 상태를 불러온다 (설계 I179).
+         *
+         * <p><b>계정마다 다릅니다.</b> 서버가 사용자별로 담아 두므로 새로고침해도 남고,
+         * 다른 계정으로 들어오면 <b>그 사람 것</b>이 뜹니다.
+         */
+        async loadItineraryDraft() {
+            const { ok, body } = await this.request('/api/itinerary/draft').catch(() => ({ ok: false }));
+            if (ok && body) {
+                this.itinProperties = body.propertyIds || [];
+                this.itinMode = body.travelMode || 'DRIVING';
+                this.itinResult = body.result || null;
+            }
+            this.renderItinerary();
+        },
+
+        /** 고른 매물·이동수단·결과가 바뀌면 담아 둔다. 실패해도 화면은 그대로 쓴다. */
+        saveItineraryDraft() {
+            this.request('/api/itinerary/draft', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    propertyIds: this.itinProperties,
+                    travelMode: this.itinMode,
+                    result: this.itinResult
+                })
+            }).catch(() => {});
         },
 
         renderItinerary() {

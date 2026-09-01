@@ -3,7 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.LandUseResponse;
 import banghak.home.halley.adapter.outbound.persistence.LandUseRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
-import banghak.home.halley.application.port.out.cache.PropertyDetailCache;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.LandUsePort;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.landuse.LandUse;
@@ -30,24 +30,27 @@ import java.util.Optional;
 @Service
 public class LandUseService {
 
+    /** 중개사·토지이용계획은 거의 안 바뀐다 (설계 I158). */
+    private static final java.time.Duration DETAIL_TTL = java.time.Duration.ofHours(24);
+
     private final LandUsePort landUsePort;
     private final LandUseRepository landUseRepository;
     private final PropertyRepository propertyRepository;
     private final GeoService geoService;
-    private final PropertyDetailCache detailCache;
+    private final CachePort cache;
     private final ObjectMapper objectMapper;
 
     public LandUseService(LandUsePort landUsePort,
                           LandUseRepository landUseRepository,
                           PropertyRepository propertyRepository,
                           GeoService geoService,
-                          PropertyDetailCache detailCache,
+                          CachePort cache,
                           ObjectMapper objectMapper) {
         this.landUsePort = landUsePort;
         this.landUseRepository = landUseRepository;
         this.propertyRepository = propertyRepository;
         this.geoService = geoService;
-        this.detailCache = detailCache;
+        this.cache = cache;
         this.objectMapper = objectMapper;
     }
 
@@ -58,7 +61,7 @@ public class LandUseService {
      * 열 때마다 DB를 왕복했다.
      */
     public List<LandUseResponse> find(Long propertyId) {
-        final Optional<String> cached = detailCache.get(PropertyDetailCache.LAND_USE, propertyId);
+        final Optional<String> cached = cache.get(CachePort.LAND_USE, String.valueOf(propertyId));
         if (cached.isPresent()) {
             try {
                 return objectMapper.readValue(cached.get(), new TypeReference<List<LandUseResponse>>() {
@@ -67,13 +70,13 @@ public class LandUseService {
                 // 담아 둔 모양이 바뀌었을 수 있다. 버리고 DB 에서 다시 읽는다
                 log.warn("Land-use cache unreadable - falling back to DB. propertyId={}, cause={}",
                         propertyId, e.getMessage());
-                detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
+                cache.evict(CachePort.LAND_USE, String.valueOf(propertyId));
             }
         }
         final List<LandUseResponse> fresh = landUseRepository.findByPropertyId(propertyId).stream()
                 .map(LandUseResponse::from)
                 .toList();
-        detailCache.put(PropertyDetailCache.LAND_USE, propertyId, objectMapper.writeValueAsString(fresh));
+        cache.put(CachePort.LAND_USE, String.valueOf(propertyId), objectMapper.writeValueAsString(fresh), DETAIL_TTL);
         return fresh;
     }
 
@@ -94,7 +97,7 @@ public class LandUseService {
 
     private List<LandUseResponse> refresh(Long propertyId, boolean force) {
         // 다시 받기 전에 버린다 — 남겨 두면 방금 받은 값 대신 옛것을 돌려준다 (설계 I158)
-        detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
+        cache.evict(CachePort.LAND_USE, String.valueOf(propertyId));
         if (!force && !landUseRepository.findByPropertyId(propertyId).isEmpty()) {
             return find(propertyId);
         }
