@@ -157,6 +157,10 @@ function halley() {
         photoProperty: null,
         photoImages: [],
         photoViewerIndex: -1,
+        /** 뷰어가 걷는 목록 (설계 I203). 사진 모달의 것일 수도, 상세의 것일 수도 있다 */
+        viewerImages: [],
+        /** 매물 상세에 뿌릴 사진 (설계 I203). 사진 모달의 photoImages 와 별개다 */
+        detailImages: [],
         showAgentModal: false,
         agentProperty: null,
         agentLinks: [],
@@ -179,6 +183,14 @@ function halley() {
         pasteError: null,
         _pasteTimer: null,
         pasteDraftId: null,
+        /**
+         * 붙여넣기 화면에서 고른 사진 (설계 I204).
+         *
+         * <p><b>여기서는 아직 올릴 수 없습니다</b> — 매물이 없으니 붙일 곳이 없습니다.
+         * 브라우저가 들고 있다가 저장으로 매물이 생긴 뒤 올립니다.
+         */
+        pasteFloorPlan: null,
+        pastePhotos: [],
         pasteDraftName: null,
         showScoreModal: false,
         scoreProperty: null,
@@ -1558,6 +1570,7 @@ function halley() {
             this.detailRef = null;
             this.detailLlm = null;
             this.detailLandUse = [];
+            this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
             this.showM2 = true;
@@ -1566,15 +1579,17 @@ function halley() {
 
         // 중개사·실거래가는 매물 등록 시 이미 채워져 있다. 여기서는 읽기만 하고 실패해도 모달은 그대로 뜬다.
         async loadDetailExtras(propertyId) {
-            const [agents, ref, llm, landUse] = await Promise.all([
+            const [agents, ref, llm, landUse, images] = await Promise.all([
                 this.request(`/api/properties/${propertyId}/agents`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false })),
                 this.request(`/api/properties/${propertyId}/llm-recommendation`).catch(() => ({ ok: false })),
-                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false }))
+                this.request(`/api/properties/${propertyId}/land-use`).catch(() => ({ ok: false })),
+                this.request(`/api/properties/${propertyId}/images`).catch(() => ({ ok: false }))
             ]);
             if (this.detailItem && this.detailItem.property.id !== propertyId) {
                 return;
             }
+            this.detailImages = images.ok ? (images.body || []) : [];
             this.detailAgents = agents.ok ? (agents.body || []) : [];
             this.detailRef = ref.ok ? ref.body : null;
             // 아직 산출 전이면 204라 body가 없다
@@ -1692,8 +1707,18 @@ function halley() {
             // 남겨 두면 다음에 연 매물의 자리에 이전 매물 값이 잠깐 비친다 (설계 I112)
             this.detailLlm = null;
             this.detailLandUse = [];
+            this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
+        },
+
+        /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */
+        get detailFloorPlan() {
+            return this.detailImages.find(i => i.imageType === 'FLOOR_PLAN') || null;
+        },
+
+        get detailPhotos() {
+            return this.detailImages.filter(i => i.imageType === 'PHOTO');
         },
 
         async openPhotoModal(item) {
@@ -1721,7 +1746,15 @@ function halley() {
             return this.photoImages.filter(i => i.imageType === 'PHOTO');
         },
 
-        openPhotoViewer(index) {
+        /**
+         * 크게 본다 (설계 I203).
+         *
+         * <p>사진은 이제 <b>두 곳</b>에 뜹니다 — 사진 모달과 매물 상세. 뷰어가
+         * `photoImages` 만 보면 상세에서 연 사진이 <b>엉뚱한 장</b>을 띄웁니다.
+         * 어느 목록을 걷는지 열 때 함께 넘깁니다.
+         */
+        openPhotoViewer(index, images) {
+            this.viewerImages = images || this.photoImages;
             this.photoViewerIndex = index;
         },
 
@@ -1736,8 +1769,25 @@ function halley() {
         },
 
         photoNext() {
-            if (this.photoViewerIndex < this.photoImages.length - 1) {
+            if (this.photoViewerIndex < this.viewerImages.length - 1) {
                 this.photoViewerIndex++;
+            }
+        },
+
+        /**
+         * 좌우 방향키로 넘긴다 (설계 I203).
+         *
+         * <p>사진을 여러 장 볼 때 <b>화살표를 누르러 마우스를 옮기는 것</b>이 번거롭습니다.
+         * 뷰어가 떠 있을 때만 받습니다 — 아니면 목록에서 방향키를 눌러도 반응합니다.
+         */
+        onViewerKey(direction) {
+            if (!(this.photoViewerIndex >= 0)) {
+                return;
+            }
+            if (direction < 0) {
+                this.photoPrev();
+            } else {
+                this.photoNext();
             }
         },
 
@@ -2768,6 +2818,8 @@ function halley() {
             this.pastePreview = null;
             this.pasteForm = {};
             this.pasteError = null;
+            this.pasteFloorPlan = null;
+            this.pastePhotos = [];
             setTimeout(() => {
                 const el = document.getElementById('pasteText');
                 if (el) {
@@ -2784,6 +2836,8 @@ function halley() {
             this.pasteError = null;
             this.pasteDraftId = null;
             this.pasteDraftName = null;
+            this.pasteFloorPlan = null;
+            this.pastePhotos = [];
             clearTimeout(this._pasteTimer);
         },
 
@@ -2830,13 +2884,24 @@ function halley() {
                     body: JSON.stringify(this.buildPasteRequest())
                 });
                 if (ok) {
+                    // 매물이 생긴 뒤라야 사진을 붙일 수 있다 (설계 I204).
+                    // 사진이 실패해도 매물은 이미 저장됐다 — 되돌리지 않고 말만 한다
+                    // 등록·수정 모두 ScoredPropertyResponse 를 돌려준다 — id 는 그 안에 있다.
+                    // body.id 로 읽으면 늘 undefined 라 사진이 조용히 안 올라간다
+                    const failed = await this.uploadPastedImages(body?.property?.id);
                     this.showPasteModal = false;
                     this.pasteText = '';
                     this.pastePreview = null;
                     this.pasteForm = {};
                     this.pasteDraftId = null;
                     this.pasteDraftName = null;
+                    this.pasteFloorPlan = null;
+                    this.pastePhotos = [];
                     await this.loadProperties();
+                    if (failed.length > 0) {
+                        this.error = `매물은 저장했지만 사진 ${failed.length}장을 올리지 못했습니다`
+                            + ' — 매물 상세에서 다시 올려 주세요';
+                    }
                 } else {
                     this.pasteError = (body && body.message) || '등록에 실패했습니다';
                 }
@@ -2845,6 +2910,54 @@ function halley() {
             } finally {
                 this.pasteParsing = false;
             }
+        },
+
+        /** 붙여넣기 화면에서 고른 사진 목록 — 화면에 이름을 보여 주려고 따로 둔다. */
+        pastePickedCount() {
+            return (this.pasteFloorPlan ? 1 : 0) + this.pastePhotos.length;
+        },
+
+        pickPasteImages(event, imageType) {
+            const files = Array.from(event.target.files || []);
+            if (imageType === 'FLOOR_PLAN') {
+                // 평면도는 매물당 한 장이다 (설계 I63) — 마지막에 고른 것만 남긴다
+                this.pasteFloorPlan = files[0] || null;
+            } else {
+                this.pastePhotos = [...this.pastePhotos, ...files];
+            }
+            event.target.value = '';
+        },
+
+        dropPastedImage(file) {
+            if (this.pasteFloorPlan === file) {
+                this.pasteFloorPlan = null;
+                return;
+            }
+            this.pastePhotos = this.pastePhotos.filter(f => f !== file);
+        },
+
+        /** @returns 올리지 못한 파일들. 비어 있으면 전부 올라갔다 */
+        async uploadPastedImages(propertyId) {
+            const id = propertyId || this.pasteDraftId;
+            const queued = [
+                ...(this.pasteFloorPlan ? [[this.pasteFloorPlan, 'FLOOR_PLAN']] : []),
+                ...this.pastePhotos.map(f => [f, 'PHOTO'])
+            ];
+            if (!id || queued.length === 0) {
+                return [];
+            }
+            const failed = [];
+            for (const [file, imageType] of queued) {
+                const form = new FormData();
+                form.append('file', file);
+                form.append('imageType', imageType);
+                const res = await fetch(`/api/properties/${id}/images`, { method: 'POST', body: form })
+                    .catch(() => ({ ok: false }));
+                if (!res.ok) {
+                    failed.push(file);
+                }
+            }
+            return failed;
         },
 
         buildPasteRequest() {

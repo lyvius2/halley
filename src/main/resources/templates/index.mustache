@@ -19,7 +19,8 @@
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()">
+<body x-data="halley()" x-init="init()" @keydown.escape.window="closeTopModal()"
+      @keydown.arrow-left.window="onViewerKey(-1)" @keydown.arrow-right.window="onViewerKey(1)">
 
 <div class="shell">
     <div class="topbar">
@@ -833,6 +834,38 @@
                             넣어 두면 <b>판매완료를 자동으로 감지</b>합니다.</span>
                     </label>
                 </div>
+                <!-- 사진도 여기서 고른다 (설계 I204). 매물이 아직 없어 지금은 못 올리므로
+                     브라우저가 들고 있다가 '매물 등록' 뒤에 올린다 -->
+                <div class="paste-extra paste-images">
+                    <span class="paste-field-head"><b>사진</b>
+                        <span class="badge b-mem">등록 후 함께 올라갑니다</span></span>
+                    <div class="paste-pick">
+                        <label class="img-drop img-drop-sm">
+                            <input type="file" accept="image/*" @change="pickPasteImages($event, 'FLOOR_PLAN')">
+                            <span x-text="pasteFloorPlan ? '평면도 바꾸기' : '평면도 고르기'"></span>
+                        </label>
+                        <label class="img-drop img-drop-sm">
+                            <input type="file" accept="image/*" multiple @change="pickPasteImages($event, 'PHOTO')">
+                            <span>매물사진 고르기 (여러 장)</span>
+                        </label>
+                    </div>
+                    <ul class="paste-picked" x-show="pastePickedCount() > 0">
+                        <template x-if="pasteFloorPlan">
+                            <li>
+                                <span class="badge b-jeonse">평면도</span>
+                                <span x-text="pasteFloorPlan.name"></span>
+                                <button type="button" @click="dropPastedImage(pasteFloorPlan)" title="빼기">×</button>
+                            </li>
+                        </template>
+                        <template x-for="(f, i) in pastePhotos" :key="i">
+                            <li>
+                                <span class="badge b-mem">사진</span>
+                                <span x-text="f.name"></span>
+                                <button type="button" @click="dropPastedImage(f)" title="빼기">×</button>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
                 <p class="form-error" x-show="pasteError" x-text="pasteError"></p>
                 <div class="paste-actions">
                     <button class="btn btn-ghost" @click="pastePreview=null; pasteForm={}">다시 입력</button>
@@ -1084,7 +1117,7 @@
             </div>
             <template x-if="floorPlan">
                 <div class="img-single">
-                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan))">
+                    <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(floorPlan), photoImages)">
                         <img :src="floorPlan.storagePath" alt="평면도">
                     </button>
                     <button class="btn btn-xs btn-danger" @click="removeImage(floorPlan)" :disabled="loading">삭제</button>
@@ -1105,7 +1138,7 @@
             <div class="photo-grid" x-show="photos.length > 0">
                 <template x-for="img in photos" :key="img.id">
                     <div class="photo-cell">
-                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img))">
+                        <button class="photo-item" @click="openPhotoViewer(photoImages.indexOf(img), photoImages)">
                             <img :src="img.storagePath" alt="매물사진">
                         </button>
                         <button class="photo-del" @click="removeImage(img)" :disabled="loading" title="삭제">×</button>
@@ -1128,8 +1161,11 @@
 <div class="lightbox" x-show="photoViewerIndex >= 0" x-cloak @click.self="closePhotoViewer()">
     <button class="lightbox-close" @click="closePhotoViewer()">×</button>
     <button class="lightbox-nav prev" @click="photoPrev()" x-show="photoViewerIndex > 0">‹</button>
-    <img :src="photoViewerIndex >= 0 && photoImages[photoViewerIndex] ? photoImages[photoViewerIndex].storagePath : ''" alt="">
-    <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < photoImages.length - 1">›</button>
+    <img :src="photoViewerIndex >= 0 && viewerImages[photoViewerIndex] ? viewerImages[photoViewerIndex].storagePath : ''" alt="">
+    <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < viewerImages.length - 1">›</button>
+    <!-- 몇 번째 장인지 (설계 I203). 방향키로 넘길 수 있다는 표시이기도 하다 -->
+    <span class="lightbox-count" x-show="viewerImages.length > 1"
+          x-text="(photoViewerIndex + 1) + ' / ' + viewerImages.length"></span>
 </div>
 
 <!-- D17 확인 모달 -->
@@ -1432,6 +1468,19 @@
                     </div>
                 </section>
 
+                <!-- 평면도는 비용 바로 아래 (설계 I203). 다른 칸과 같은 크기로 두어
+                     격자가 어긋나지 않게 한다. 누르면 크게 본다 -->
+                <section class="m2-sec">
+                    <h4>평면도</h4>
+                    <template x-if="detailFloorPlan">
+                        <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(detailFloorPlan), detailImages)"
+                                title="크게 보기">
+                            <img :src="detailFloorPlan.storagePath" alt="평면도">
+                        </button>
+                    </template>
+                    <p class="m2-figure-empty" x-show="!detailFloorPlan">등록된 평면도가 없습니다.</p>
+                </section>
+
                 <section class="m2-sec">
                     <h4>입지</h4>
                     <div class="m2-rows">
@@ -1466,6 +1515,20 @@
                             <div class="m2-row"><span>휴대폰</span><b x-text="a.mobile || '-'"></b></div>
                         </div>
                     </template>
+                </section>
+
+                <!-- 사진은 토지이용계획 위에 (설계 I203). 좌우 방향키로 넘긴다 -->
+                <section class="m2-sec m2-sec-wide">
+                    <h4>사진 <span class="m2-count" x-show="detailPhotos.length" x-text="detailPhotos.length + '장'"></span></h4>
+                    <div class="m2-photos" x-show="detailPhotos.length > 0">
+                        <template x-for="img in detailPhotos" :key="img.id">
+                            <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
+                                    title="크게 보기 (좌우 방향키로 넘김)">
+                                <img :src="img.storagePath" alt="매물사진">
+                            </button>
+                        </template>
+                    </div>
+                    <p class="m2-figure-empty" x-show="detailPhotos.length === 0">등록된 사진이 없습니다.</p>
                 </section>
 
                 <section class="m2-sec m2-sec-wide">

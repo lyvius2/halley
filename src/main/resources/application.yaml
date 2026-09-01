@@ -17,6 +17,11 @@ server:
 # 서버는 자기 주소를 모르므로 알려 줘야 한다
 app:
   base-url: ${APP_BASE_URL:}
+  images:
+    # 사진이 실제로 쌓이는 곳 (설계 I202).
+    # 상대 경로는 <b>JVM 을 띄운 디렉터리</b> 기준이다 — jar 위치가 아니다.
+    # 배포 서버에서는 절대 경로를 주십시오: APP_IMAGES_DIR=/home/ec2-user/halley/uploads
+    dir: ${APP_IMAGES_DIR:uploads}
 
 kakao:
   js-key: ${KAKAO_JS_KEY:}

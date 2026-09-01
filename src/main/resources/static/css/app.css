@@ -761,6 +761,22 @@ input[type=checkbox], input[type=radio] {
 /* 매물 상세(M2) — 버튼을 눌러 펼치던 항목을 한 화면에 모두 보여준다 (설계 I53) */
 .m2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
 .m2-sec-wide { grid-column: 1 / -1; }
+
+/* 상세 안의 사진 (설계 I203). 다른 칸과 같은 크기로 두어 격자가 어긋나지 않게 한다 */
+.m2-figure {
+    display: block; width: 100%; padding: 0;
+    border: 1px solid var(--line2); border-radius: 6px; overflow: hidden;
+    background: var(--line2); cursor: zoom-in;
+}
+.m2-figure img { display: block; width: 100%; height: 100%; object-fit: cover; aspect-ratio: 4 / 3; }
+.m2-figure:hover { border-color: var(--ocean); }
+.m2-figure-empty { font-size: 12px; color: var(--ink3); padding: 10px 0; }
+/* 여러 장은 가로로 훑는다 — 세로로 쌓으면 상세가 사진으로 뒤덮인다 */
+.m2-photos {
+    display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr);
+    gap: 10px; overflow-x: auto; padding-bottom: 4px;
+}
+.m2-count { font-family: 'JetBrains Mono', monospace; color: var(--ink3); letter-spacing: 0; }
 .m2-sec > h4 {
     font-size: 10px;
     letter-spacing: .18em;
@@ -883,6 +899,12 @@ input[type=checkbox], input[type=radio] {
 }
 .lightbox-nav.prev { left: 16px; }
 .lightbox-nav.next { right: 16px; }
+/* 몇 번째 장인지 (설계 I203) — 방향키로 넘길 수 있다는 표시이기도 하다 */
+.lightbox-count {
+    position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,.8); font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: rgba(0,0,0,.45); padding: 4px 10px; border-radius: 999px;
+}
 
 /* ── 드래그 행 ─────────────────────────────────────── */
 .drag-handle { cursor: grab; }
@@ -2089,3 +2111,25 @@ tr.dragging { opacity: .5; background: var(--line2); }
     height: .28rem;
     border-radius: .14rem;
 }
+
+/* 붙여넣기 화면에서 고른 사진 (설계 I204) — 아직 안 올라간 것이라 목록으로만 보인다 */
+.paste-images { display: flex; flex-direction: column; gap: 8px; }
+.paste-pick { display: flex; gap: 10px; flex-wrap: wrap; }
+.img-drop-sm { flex: 1 1 200px; padding: 10px 12px; font-size: 12px; }
+.paste-picked {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 4px;
+}
+.paste-picked li {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 12px; color: var(--ink2);
+    padding: 4px 0; border-bottom: 1px solid var(--line2);
+}
+.paste-picked li span:nth-child(2) {
+    flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.paste-picked li button {
+    background: none; border: none; color: var(--ink3);
+    font-size: 15px; line-height: 1; cursor: pointer;
+}
+.paste-picked li button:hover { color: var(--lava); }

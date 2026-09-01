@@ -280,6 +280,21 @@ REDIS_HOST=... \
 |---|---|
 | `DB_URL` · `DB_USERNAME` · `DB_PASSWORD` | PostgreSQL 접속 정보 |
 | `REDIS_HOST` · `REDIS_PORT` | Redis 접속 정보 |
+| `APP_BASE_URL` | Slack 알림에 붙는 링크의 앞부분. 비우면 링크를 안 답니다 |
+| `APP_IMAGES_DIR` | 올린 사진이 쌓이는 **절대 경로**. 아래 설명을 보십시오 |
+
+> **`APP_IMAGES_DIR`을 반드시 절대 경로로 주십시오.** 기본값 `uploads`는 상대
+> 경로라 **JVM을 띄운 디렉터리** 기준으로 풀립니다 — jar가 놓인 자리가 아닙니다.
+> 다른 디렉터리에서 다시 띄우면 **DB 기록은 남고 파일만 사라진 것처럼** 보입니다
+> (깨진 이미지). 서버가 `/home/ec2-user/halley`라면:
+>
+> ```bash
+> APP_IMAGES_DIR=/home/ec2-user/halley/uploads
+> ```
+>
+> 실제로 어디를 쓰는지는 **기동 로그**에 찍힙니다:
+> `Serving uploaded images from /home/ec2-user/halley/uploads (exists=true, writable=true)`.
+> 사진이 안 보이면 여기부터 보십시오.
 
 ### 외부 연동 키
 
