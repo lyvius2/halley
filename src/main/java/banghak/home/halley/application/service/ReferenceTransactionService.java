@@ -170,7 +170,7 @@ public class ReferenceTransactionService {
         }
 
         final List<ReferenceTrade> trades = fetchMonths(lawdCd, month, dealMonth != null);
-        // 비었을 때 <b>어느 단계에서 걸렸는지</b> 말해 주려고 센다 (설계 I231)
+        // 비었을 때 <b>어느 단계에서 걸렸는지</b> 말해 주려고 센다 (설계 I232)
         final int nameMatched = (int) trades.stream()
                 .filter(trade -> !ComplexName.comparable(property.name(), trade.apartmentName())
                         || ComplexName.same(property.name(), trade.apartmentName()))
@@ -184,14 +184,32 @@ public class ReferenceTransactionService {
                         trade.dealAmount(), trade.areaM2(), trade.floorNo(),
                         ReferenceSource.MINISTRY_TRADE, Instant.now())))
                 .toList();
-        // 비었을 때 왜 비었는지 남긴다 — 받아온 게 없는 것과 걸러진 것은 다른 상황이다
-        if (saved.isEmpty()) {
-            // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
-            cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
-            log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}, nameMatched={}",
-                    propertyId, property.name(), property.areaExclusiveM2(), trades.size(), nameMatched);
+        if (!saved.isEmpty()) {
+            return toCard(property, saved, lawdCd, trades.size(), nameMatched, false);
         }
-        return toCard(property, saved, lawdCd, trades.size(), nameMatched);
+
+        // 이름은 맞는데 <b>면적이 하나도 안 맞는</b> 경우 (설계 I232).
+        // 조용히 "없습니다" 하면 <b>단지가 실제로 거래되고 있다는 사실</b>이 가려집니다 —
+        // 상계주공7단지가 그랬습니다: 매물 전용면적에 <b>공급면적(71.02)</b>이 들어가
+        // 있었는데, 화면이 빈 채로만 있어 아무도 못 알아챘습니다.
+        // <b>저장하지는 않습니다</b> — 다른 평형이라 이 매물의 참고 시세가 아닙니다
+        final List<ReferenceTransaction> otherAreas = trades.stream()
+                .filter(trade -> ComplexName.same(property.name(), trade.apartmentName()))
+                .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
+                .limit(MAX_SAVED)
+                .map(trade -> new ReferenceTransaction(
+                        null, propertyId, ReferenceDealType.TRADE, trade.contractDate(),
+                        trade.dealAmount(), trade.areaM2(), trade.floorNo(),
+                        ReferenceSource.MINISTRY_TRADE, Instant.now()))
+                .toList();
+
+        // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
+        cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
+        log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}, "
+                        + "nameMatched={}, otherAreas={}",
+                propertyId, property.name(), property.areaExclusiveM2(), trades.size(),
+                nameMatched, otherAreas.size());
+        return toCard(property, otherAreas, lawdCd, trades.size(), nameMatched, !otherAreas.isEmpty());
     }
 
     /**
@@ -271,22 +289,26 @@ public class ReferenceTransactionService {
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
                                          String lawdCd) {
-        return toCard(property, transactions, lawdCd, transactions.size(), transactions.size());
+        return toCard(property, transactions, lawdCd, transactions.size(), transactions.size(), false);
     }
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
-                                         String lawdCd, int fetched, int nameMatched) {
+                                         String lawdCd, int fetched, int nameMatched,
+                                         boolean areaMismatch) {
         final List<ReferenceTransactionResponse> list = transactions.stream()
                 .sorted(Comparator.comparing(ReferenceTransaction::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
-                .map(t -> new ReferenceTransactionResponse(t.contractDate(), t.price(), t.floorNo()))
+                .map(t -> new ReferenceTransactionResponse(t.contractDate(), t.price(), t.floorNo(), t.areaM2()))
                 .toList();
         final Long asking = property.priceDeposit();
         if (isComputeGapRate(asking, list)) {
-            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd, fetched, nameMatched);
+            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd,
+                    fetched, nameMatched, areaMismatch);
         }
         final long latest = list.getFirst().price();
         final BigDecimal gap = BigDecimal.valueOf((asking - latest) * 100.0 / latest).setScale(1, RoundingMode.HALF_UP);
-        return new ReferenceCardResponse(list, asking, gap, null, lookbackMonths, lawdCd, fetched, nameMatched);
+        // 다른 평형과 견준 괴리는 뜻이 없다 (설계 I232)
+        return new ReferenceCardResponse(list, asking, areaMismatch ? null : gap, null,
+                lookbackMonths, lawdCd, fetched, nameMatched, areaMismatch);
     }
 
     private static boolean isComputeGapRate(Long asking, List<ReferenceTransactionResponse> list) {

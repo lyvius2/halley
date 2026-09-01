@@ -2019,15 +2019,23 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <template x-if="refCard">
             <div class="ref-card">
-                <!-- 비었으면 <b>어느 단계에서 걸렸는지</b> 말한다 (설계 I231).
+                <!-- 비었으면 <b>어느 단계에서 걸렸는지</b> 말한다 (설계 I232).
                      "없습니다" 한 줄로는 코드 문제인지 이름 문제인지 면적 문제인지 알 수 없었다 -->
                 <template x-if="refCard.transactions.length === 0">
                     <p class="ref-empty" x-text="refEmptyReason()"></p>
                 </template>
-                <template x-for="t in refCard.transactions" :key="t.contractDate + '-' + t.floorNo">
+                <!-- 면적을 함께 보여 준다 (설계 I232). 없으면 "우리 집과 같은 평형인지"
+                     알 수 없다 — 실제로 전용면적에 공급면적이 들어간 것을 못 알아챘다 -->
+                <p class="ref-other-area" x-show="refCard.areaMismatch">
+                    전용 <b x-text="fmtArea(refProperty?.property?.areaExclusiveM2)"></b> 와 맞는 거래가 없어
+                    <b>같은 단지의 다른 평형</b>을 보여 줍니다. 호가 대비 괴리는 내지 않습니다 —
+                    평형이 다르면 견줄 수 없습니다.
+                </p>
+                <template x-for="t in refCard.transactions" :key="t.contractDate + '-' + t.floorNo + '-' + t.areaM2">
                     <div class="ref-row">
                         <span x-text="t.contractDate"></span>
                         <b x-text="fmtWon(t.price)"></b>
+                        <span x-text="t.areaM2 ? fmtArea(t.areaM2) : ''"></span>
                         <span x-text="t.floorNo ? t.floorNo + '층' : ''"></span>
                     </div>
                 </template>

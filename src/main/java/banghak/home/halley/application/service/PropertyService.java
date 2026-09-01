@@ -293,6 +293,33 @@ public class PropertyService {
         if (request.name() == null || request.name().isBlank()) {
             throw new InvalidPropertyRequestException("매물명은 필수입니다");
         }
+        validateAreas(request);
+    }
+
+    /**
+     * <b>전용면적은 공급면적보다 클 수 없습니다</b> (설계 I233).
+     *
+     * <p>둘을 바꿔 넣는 일이 실제로 있었습니다 — 상계주공7단지에 전용 49.94 대신
+     * <b>공급 71.02</b> 가 들어가 있었고, 그 때문에 국토부 실거래가 <b>한 건도 안
+     * 맞았습니다.</b> 화면은 그냥 "거래 내역이 없습니다" 였습니다.
+     *
+     * <p>사람이 실수할 수 있는 자리이고, <b>틀려도 아무 데서도 안 걸리는</b> 값이라
+     * 여기서 막습니다. 채점·대출·실거래가 전부 전용면적을 봅니다.
+     *
+     * <p>같은 값은 통과시킵니다 — <b>둘 중 하나만 아는 매물</b>이 실제로 있고,
+     * 그때 같은 값을 넣어 두는 것은 거짓말이 아닙니다.
+     */
+    private void validateAreas(PropertyRequest request) {
+        final BigDecimal supply = request.areaSupplyM2();
+        final BigDecimal exclusive = request.areaExclusiveM2();
+        if (supply == null || exclusive == null) {
+            return;
+        }
+        if (exclusive.compareTo(supply) > 0) {
+            throw new InvalidPropertyRequestException(
+                    "전용면적(" + exclusive + "㎡)이 공급면적(" + supply + "㎡)보다 큽니다. "
+                            + "두 값이 바뀌지 않았는지 확인해 주세요");
+        }
     }
 
     /**

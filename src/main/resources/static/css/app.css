@@ -2286,3 +2286,10 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .itin-visit.locked input { cursor: default; }
 /* 법정동코드를 못 찾았을 때 (설계 I227) — 조회가 안 되는 이유다 */
 .ref-nocode { color: var(--lava); }
+
+/* 같은 단지 다른 평형을 대신 보여 줄 때 (설계 I232) */
+.ref-other-area {
+    font-size: 11.5px; color: var(--lava); line-height: 1.7;
+    padding: 8px 10px; margin-bottom: 8px;
+    background: rgba(161, 61, 32, .07); border-radius: 6px;
+}
