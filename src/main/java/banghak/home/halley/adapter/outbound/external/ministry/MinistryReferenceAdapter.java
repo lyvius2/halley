@@ -18,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.List;
 import java.util.Objects;
 
@@ -56,10 +58,18 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
      * <p><b>안 주면 10건입니다.</b> 서울 한 구의 한 달 아파트 매매는 실측으로
      * 200~700건이라, 10건만 보면 <b>찾는 단지가 거의 안 걸립니다.</b>
      *
-     * <p>1000이면 한 달치가 한 번에 들어옵니다 — 실측 최대가 660건이었습니다.
-     * 넘칠 일이 생기면 `totalCount` 와 받은 수가 어긋나므로 그때 알 수 있습니다.
+     * <p>1000으로 뒀다가 <b>더 재 보고 올렸습니다.</b> 송파구 2025-03 이 952건이라
+     * 여유가 48건뿐이었습니다 — 거래가 몰리는 달에 조용히 잘릴 자리였습니다.
+     *
+     * <pre>
+     * 송파(11710) 2025-03  952      강남(11680) 2025-03  917
+     * 노원(11350) 2025-06  885      성북(11290) 2025-06  660
+     * </pre>
+     *
+     * <p>그래도 넘칠 수 있으므로 <b>넘쳤는지 확인합니다</b>(`warnIfTruncated`).
+     * 주석에 "어긋나면 알 수 있다"고 적어 두고 <b>비교하는 코드는 없었습니다.</b>
      */
-    private static final int PAGE_SIZE = 1000;
+    private static final int PAGE_SIZE = 3000;
 
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
@@ -72,7 +82,9 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         if (xml == null) {
             return null;
         }
-        return parse(xml);
+        final List<ReferenceTrade> trades = parse(xml);
+        warnIfTruncated(xml, trades.size(), "trades", lawdCd, dealYmd);
+        return trades;
     }
 
     /**
@@ -91,8 +103,36 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         if (xml == null) {
             return null;
         }
-        return parseRents(xml);
+        final List<ReferenceTrade> rents = parseRents(xml);
+        // 전세는 월세를 걸러 내므로 받은 수보다 적다 — 자른 것과 구분되지 않아 총량으로 본다
+        warnIfTruncated(xml, items(xml).size(), "rents", lawdCd, dealYmd);
+        return rents;
     }
+
+    /**
+     * 한 페이지에 다 못 담았는지 (설계 I229).
+     *
+     * <p>국토부는 <b>넘쳐도 아무 말 없이</b> 앞에서 잘라 줍니다. 그러면 뒤쪽 거래는
+     * 통째로 안 보이는데, 화면에는 "거래가 없다"로 나타납니다 —
+     * <b>없는 것과 못 받은 것을 구분할 수 없습니다.</b>
+     *
+     * <p>이걸 안 봐서 <b>10건만 받던 것을 반년 넘게 몰랐습니다</b>([I219]).
+     */
+    private void warnIfTruncated(String xml, int received, String what, String lawdCd, String dealYmd) {
+        final Matcher matcher = TOTAL_COUNT.matcher(xml);
+        if (!matcher.find()) {
+            return;
+        }
+        final int total = Integer.parseInt(matcher.group(1));
+        if (total > received) {
+            log.warn("Ministry {} were truncated - raise PAGE_SIZE. lawdCd={}, dealYmd={}, "
+                            + "totalCount={}, received={}, pageSize={}",
+                    what, lawdCd, dealYmd, total, received, PAGE_SIZE);
+        }
+    }
+
+    /** 응답 어디에나 한 번 나온다 — XML 을 다시 파싱하지 않고 뽑는다. */
+    private static final Pattern TOTAL_COUNT = Pattern.compile("<totalCount>(\\d+)</totalCount>");
 
     List<ReferenceTrade> parseRents(String xml) {
         final List<ReferenceTrade> rents = new ArrayList<>();
