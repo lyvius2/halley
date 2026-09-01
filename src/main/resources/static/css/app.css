@@ -474,7 +474,6 @@ input[type=checkbox], input[type=radio] {
 }
 .deal-tabs button:hover { border-color: var(--ocean); color: var(--ocean); }
 .deal-tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
-.deal-tabs .sold-toggle.on { background: var(--ink2); border-color: var(--ink2); }
 
 .property-card.sold { opacity: .55; }
 .property-card.sold .property-card-name { text-decoration: line-through; }
@@ -2197,3 +2196,68 @@ tr.dragging { opacity: .5; background: var(--line2); }
     display: inline-block; animation: dot-spin .8s linear infinite;
 }
 @keyframes dot-spin { to { transform: rotate(360deg); } }
+
+/* ── 목록 정렬 (설계 I221) ─────────────────────────── */
+/* 오른쪽 끝에 둔다 — 거래유형 탭은 '무엇을 볼까', 정렬은 '어떻게 볼까'다 */
+.sort-picker { position: relative; margin-left: auto; }
+.sort-trigger {
+    font-family: inherit; font-size: 12px;
+    padding: 5px 12px;
+    border: 1px solid var(--line); border-radius: 20px;
+    background: var(--card); color: var(--ink2);
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+    transition: .15s;
+}
+.sort-trigger:hover { border-color: var(--ocean); color: var(--ocean); }
+.sort-caret { font-style: normal; font-size: 10px; transition: transform .15s; }
+.sort-caret.open { transform: rotate(180deg); }
+.sort-menu {
+    position: absolute; right: 0; top: calc(100% + 6px); z-index: 20;
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,.12);
+    display: flex; flex-direction: column; min-width: 200px; overflow: hidden;
+}
+.sort-menu button {
+    font-family: inherit; font-size: 12px; text-align: left;
+    padding: 9px 14px; border: none; border-radius: 0;
+    background: none; color: var(--ink2); cursor: pointer; white-space: nowrap;
+}
+.sort-menu button:hover { background: var(--line2); }
+.sort-menu button.on { color: var(--ocean); font-weight: 600; background: var(--line2); }
+
+/* ── 지도 매물 표시 (설계 I222) ────────────────────── */
+/* 기본 마커는 어느 것이 어느 매물인지 말해 주지 않는다 — 값을 얹는다 */
+.map-pin {
+    position: relative;
+    display: flex; flex-direction: column; align-items: center;
+    padding: 5px 10px 4px;
+    background: var(--card);
+    border: 2px solid var(--ocean);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.25);
+    cursor: pointer;
+    white-space: nowrap;
+    transform: translateY(-6px);
+}
+.map-pin b {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; font-weight: 500; color: var(--ink3); line-height: 1.3;
+}
+.map-pin span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px; font-weight: 700; color: var(--ocean); line-height: 1.3;
+}
+/* 꼬리 — 실제 위치를 가리킨다 */
+.map-pin i {
+    position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 6px solid transparent; border-right: 6px solid transparent;
+    border-top: 7px solid var(--ocean);
+}
+/* 전세는 초록 (설계 I222) — 5.6억을 내는 것과 맡기는 것은 다르다 */
+.map-pin.is-jeonse { border-color: var(--palm); }
+.map-pin.is-jeonse span { color: var(--palm); }
+.map-pin.is-jeonse i { border-top-color: var(--palm); }
+/* 가 본 곳은 흐리게 (설계 I197) */
+.map-pin.is-visited { opacity: .6; }
+.map-pin:hover { z-index: 10; box-shadow: 0 4px 14px rgba(0,0,0,.35); }

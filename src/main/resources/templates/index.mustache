@@ -94,7 +94,20 @@
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
                             <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
                             <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
-                            <button class="sold-toggle" :class="{on: showSoldOut}" @click="toggleSoldOut()">판매완료 포함</button>
+                            <!-- 판매완료 숨김을 없앴다 (설계 I221). 생존 확인 배치를
+                                 걷어낸 뒤(I157) 그 값을 갱신하는 것이 아무것도 없다 -->
+                            <div class="sort-picker" @click.outside="sortOpen = false">
+                                <button class="sort-trigger" @click="sortOpen = !sortOpen">
+                                    <span x-text="sortLabel()"></span>
+                                    <i class="sort-caret" :class="{open: sortOpen}">▾</i>
+                                </button>
+                                <div class="sort-menu" x-show="sortOpen" x-cloak>
+                                    <template x-for="s in SORTS" :key="s.key">
+                                        <button :class="{on: sortKey === s.key}" @click="setSort(s.key)"
+                                                x-text="s.label"></button>
+                                    </template>
+                                </div>
+                            </div>
                         </div>
                         <div class="property-list">
                             <!-- 목록이 오기 전에는 '없습니다'가 아니라 기다리는 중임을 말한다 (설계 I122) -->

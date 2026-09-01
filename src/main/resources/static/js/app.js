@@ -100,10 +100,12 @@ function halley() {
         view: 'list',
         mobileTab: 'map',
         dealTypeFilter: 'ALL',
+        /** 목록 정렬 (설계 I221). 기본은 '아직 안 가 본 곳 · 추천점수 순' */
+        sortKey: 'default',
+        sortOpen: false,
         properties: [],
         scoreWatchTimer: null,
         visibleProperties: [],
-        showSoldOut: false,
         users: [],
         soldOutRecent: [],
         showSoldOutAlert: false,
@@ -2398,16 +2400,81 @@ function halley() {
             }
         },
 
+        /**
+         * 보이는 목록을 다시 짠다 (설계 I221).
+         *
+         * <p>판매완료 숨김을 <b>없앴습니다.</b> 생존 확인 배치를 걷어낸 뒤([I157])
+         * 그 값을 갱신하는 것이 아무것도 없어, "판매완료"는 <b>누군가 손으로 바꾼
+         * 것</b>일 뿐입니다. 자동으로 붙지 않는 표시로 목록을 가리면
+         * <b>매물이 사라진 것처럼</b> 보입니다.
+         */
         applySoldOutFilter() {
-            this.visibleProperties = this.showSoldOut
-                ? this.properties
-                : this.properties.filter(r => r.property.listingStatus !== 'SOLD_OUT');
+            this.visibleProperties = this.sortProperties(this.properties);
         },
 
-        toggleSoldOut() {
-            this.showSoldOut = !this.showSoldOut;
+        /**
+         * 무엇으로 줄 세울까 (설계 I221).
+         *
+         * <p><b>화면에서 정합니다.</b> 목록에 필요한 값은 이미 전부 실려 있고
+         * (총점·가격·면적·항목별 점수), <b>임장 여부는 서버가 목록에 담지 않습니다</b> —
+         * 사람마다 다른 값이라 담으면 캐시가 사람마다 갈립니다. 화면이 들고 있는
+         * `itinVisited`(I197)와 맞춰 세우는 편이 맞습니다.
+         */
+        SORTS: [
+            { key: 'default', label: '기본 (임장 전 · 추천점수)' },
+            { key: 'price', label: '매매가 낮은 순' },
+            { key: 'area', label: '전용면적 넓은 순' },
+            { key: 'score', label: '추천점수 높은 순' },
+            { key: 'commute', label: '직주근접 좋은 순' }
+        ],
+
+        sortLabel() {
+            const found = this.SORTS.find(s => s.key === this.sortKey);
+            return found ? found.label : this.SORTS[0].label;
+        },
+
+        setSort(key) {
+            this.sortKey = key;
+            this.sortOpen = false;
             this.applySoldOutFilter();
             this.renderMap();
+        },
+
+        /**
+         * 아직 안 잰 것은 <b>맨 뒤</b>로 (설계 I221).
+         *
+         * <p>등록 직후에는 점수도 직주근접도 없습니다([I220]). 그걸 0으로 보면
+         * <b>"나쁜 매물"로 줄 세워집니다</b> — 아직 모르는 것과 나쁜 것은 다릅니다.
+         */
+        sortProperties(rows) {
+            const list = [...rows];
+            const num = (v) => (v == null || v === '' ? null : Number(v));
+            const desc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : b - a);
+            const asc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : a - b);
+            const byName = (x, y) => String(x.property.name || '')
+                .localeCompare(String(y.property.name || ''), 'ko');
+
+            const compare = {
+                // 아직 안 가 본 곳이 먼저, 그 안에서 추천점수가 높은 순
+                default: (x, y) => {
+                    const gone = (this.isVisited(x.property.id) ? 1 : 0) - (this.isVisited(y.property.id) ? 1 : 0);
+                    return gone !== 0 ? gone : desc(num(x.totalScore), num(y.totalScore));
+                },
+                price: (x, y) => asc(num(x.property.priceDeposit), num(y.property.priceDeposit)),
+                area: (x, y) => desc(num(x.property.areaExclusiveM2), num(y.property.areaExclusiveM2)),
+                score: (x, y) => desc(num(x.totalScore), num(y.totalScore)),
+                commute: (x, y) => desc(this.criterionScore(x, 'COMMUTE'), this.criterionScore(y, 'COMMUTE'))
+            }[this.sortKey] || (() => 0);
+
+            // 같은 값이면 이름순 — 새로고침마다 순서가 흔들리면 눈이 못 따라간다
+            list.sort((x, y) => compare(x, y) || byName(x, y));
+            return list;
+        },
+
+        /** 항목 하나의 점수. 아직 없으면 null — 0이 아니다 (설계 I221). */
+        criterionScore(scored, code) {
+            const found = (scored.scores || []).find(s => s.code === code);
+            return found && found.effectiveScore != null ? Number(found.effectiveScore) : null;
         },
 
         async setDealTypeFilter(filter) {
@@ -4203,6 +4270,19 @@ function halley() {
             });
         },
 
+        /**
+         * 지도의 매물 표시 (설계 I222).
+         *
+         * <p>기본 마커는 <b>어느 것이 어느 매물인지</b> 알려 주지 않아, 지도에서
+         * 보다가 결국 목록으로 눈을 옮겨야 했습니다. 값을 마커에 얹습니다 —
+         * 전용면적과 가격, 둘이면 충분합니다.
+         *
+         * <p><b>전세는 초록입니다.</b> 매매와 전세는 숫자의 뜻이 달라서
+         * (5.6억을 내는 것과 맡기는 것) 색으로 갈라 두지 않으면 잘못 읽습니다.
+         *
+         * <p>`CustomOverlay` 를 씁니다 — `Marker` 는 그림만 바꿀 수 있고 글자를
+         * 얹을 수 없습니다. 임장 순번 마커(I177)와 같은 방식입니다.
+         */
         renderMarkers() {
             if (!this.map) {
                 return;
@@ -4213,9 +4293,19 @@ function halley() {
             coords.forEach(r => {
                 const p = r.property;
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
-                const marker = new kakao.maps.Marker({ position, map: this.map });
-                kakao.maps.event.addListener(marker, 'click', () => this.selectMarker(p.id));
-                this.markers[p.id] = marker;
+                const overlay = new kakao.maps.CustomOverlay({
+                    position,
+                    content: this.markerContent(r),
+                    yAnchor: 1,
+                    clickable: true
+                });
+                overlay.setMap(this.map);
+                // CustomOverlay 에는 이벤트를 못 건다 — 안쪽 요소에 직접 건다
+                const el = overlay.getContent();
+                if (el instanceof HTMLElement) {
+                    el.addEventListener('click', () => this.selectMarker(p.id));
+                }
+                this.markers[p.id] = overlay;
             });
             if (coords.length > 0) {
                 const bounds = new kakao.maps.LatLngBounds();
@@ -4225,6 +4315,36 @@ function halley() {
                 });
                 this.map.setBounds(bounds);
             }
+        },
+
+        /**
+         * 마커 안에 무엇을 적을까 (설계 I222).
+         *
+         * <p>문자열이 아니라 <b>요소</b>를 돌려줍니다 — 클릭을 걸어야 하고,
+         * 단지명이 그대로 들어가므로 <b>HTML 로 조립하면 안 됩니다.</b>
+         */
+        markerContent(scored) {
+            const p = scored.property;
+            const jeonse = p.dealType === 'JEONSE';
+
+            const box = document.createElement('div');
+            box.className = 'map-pin' + (jeonse ? ' is-jeonse' : '');
+            if (this.isVisited(p.id)) {
+                box.classList.add('is-visited');
+            }
+
+            const area = document.createElement('b');
+            area.textContent = p.areaExclusiveM2 ? `${Math.round(Number(p.areaExclusiveM2))}㎡` : p.name || '';
+            box.appendChild(area);
+
+            const price = document.createElement('span');
+            price.textContent = `${jeonse ? '전세' : '매매'} ${this.fmtWon(p.priceDeposit)}`;
+            box.appendChild(price);
+
+            const tail = document.createElement('i');
+            box.appendChild(tail);
+            box.title = p.name || '';
+            return box;
         },
 
         focusProperty(item) {
