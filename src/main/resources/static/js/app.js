@@ -2617,6 +2617,36 @@ function halley() {
             }
         },
 
+        /**
+         * 왜 비었는가 (설계 I231).
+         *
+         * <p>"실거래 내역이 없습니다"만 뜨니, <b>코드가 틀렸는지 · 단지명이 안 맞는지 ·
+         * 면적이 안 맞는지</b> 알 길이 없었습니다. 실제로 그것 때문에 원인을 짚는 데
+         * 오래 걸렸습니다 — 화면이 아는 것을 말하지 않았습니다.
+         */
+        refEmptyReason() {
+            const card = this.refCard;
+            if (!card) {
+                return '';
+            }
+            if (!card.lawdCd) {
+                return '지번주소에서 법정동코드를 찾지 못해 조회하지 못했습니다. 코드를 직접 넣어 보세요.';
+            }
+            if (card.fetched === 0) {
+                return `${card.lawdCd} 지역의 그 기간에 국토부 신고 자료가 없습니다.`
+                    + ' 계약년월이 미래이거나 아직 신고 전일 수 있습니다.';
+            }
+            const name = this.refProperty?.property?.name || '이 매물';
+            if (card.nameMatched === 0) {
+                return `${card.fetched}건을 받았지만 '${name}'과 이름이 맞는 거래가 없습니다.`
+                    + ' 국토부 표기가 다를 수 있습니다 (예: 상계주공7단지 ↔ 상계주공7(고층)).';
+            }
+            const area = this.refProperty?.property?.areaExclusiveM2;
+            return `${card.fetched}건 중 이름이 맞는 거래는 ${card.nameMatched}건이지만,`
+                + ` 전용면적 ${area ? area + '㎡' : '(미상)'} 과 맞는 것이 없습니다.`
+                + ' 같은 단지라도 평형이 다르면 제외됩니다.';
+        },
+
         openRefModal(item) {
             this.refProperty = item;
             this.refForm = { legalDongCode: '', dealMonth: '' };

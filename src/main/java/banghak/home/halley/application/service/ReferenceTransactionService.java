@@ -122,7 +122,7 @@ public class ReferenceTransactionService {
             }
             return null;
         }));
-        return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths, null);
+        return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, null);
     }
 
     /**
@@ -156,7 +156,7 @@ public class ReferenceTransactionService {
         // 실제로 그러고 있었습니다. 사용자가 특정 달을 물을 때는 무시합니다
         if (dealMonth == null && cache.get(CachePort.REFERENCE_MISS, String.valueOf(propertyId)).isPresent()) {
             log.debug("Skipping ministry lookup - nothing matched recently. propertyId={}", propertyId);
-            return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths, lawdCd);
+            return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
         }
 
         // 계약년월이 없으면 현재 월 사용
@@ -166,10 +166,15 @@ public class ReferenceTransactionService {
         if (lawdCd == null) {
             log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
                     propertyId, property.addressJibun());
-            return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths, lawdCd);
+            return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
         }
 
         final List<ReferenceTrade> trades = fetchMonths(lawdCd, month, dealMonth != null);
+        // 비었을 때 <b>어느 단계에서 걸렸는지</b> 말해 주려고 센다 (설계 I231)
+        final int nameMatched = (int) trades.stream()
+                .filter(trade -> !ComplexName.comparable(property.name(), trade.apartmentName())
+                        || ComplexName.same(property.name(), trade.apartmentName()))
+                .count();
         final List<ReferenceTransaction> saved = trades.stream()
                 .filter(trade -> matches(property, trade))
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
@@ -183,10 +188,10 @@ public class ReferenceTransactionService {
         if (saved.isEmpty()) {
             // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
             cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
-            log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}",
-                    propertyId, property.name(), property.areaExclusiveM2(), trades.size());
+            log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}, nameMatched={}",
+                    propertyId, property.name(), property.areaExclusiveM2(), trades.size(), nameMatched);
         }
-        return toCard(property, saved, lawdCd);
+        return toCard(property, saved, lawdCd, trades.size(), nameMatched);
     }
 
     /**
@@ -266,17 +271,22 @@ public class ReferenceTransactionService {
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
                                          String lawdCd) {
+        return toCard(property, transactions, lawdCd, transactions.size(), transactions.size());
+    }
+
+    private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
+                                         String lawdCd, int fetched, int nameMatched) {
         final List<ReferenceTransactionResponse> list = transactions.stream()
                 .sorted(Comparator.comparing(ReferenceTransaction::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .map(t -> new ReferenceTransactionResponse(t.contractDate(), t.price(), t.floorNo()))
                 .toList();
         final Long asking = property.priceDeposit();
         if (isComputeGapRate(asking, list)) {
-            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd);
+            return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd, fetched, nameMatched);
         }
         final long latest = list.getFirst().price();
         final BigDecimal gap = BigDecimal.valueOf((asking - latest) * 100.0 / latest).setScale(1, RoundingMode.HALF_UP);
-        return new ReferenceCardResponse(list, asking, gap, null, lookbackMonths, lawdCd);
+        return new ReferenceCardResponse(list, asking, gap, null, lookbackMonths, lawdCd, fetched, nameMatched);
     }
 
     private static boolean isComputeGapRate(Long asking, List<ReferenceTransactionResponse> list) {
