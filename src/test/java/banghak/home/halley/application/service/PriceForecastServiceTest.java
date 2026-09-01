@@ -144,8 +144,8 @@ class PriceForecastServiceTest {
     }
 
     @Test
-    @DisplayName("실거래를 세는 지표가 하나도 없으면 LLM이 뭐라 하든 UNCERTAIN — 사실의 문제다")
-    void forcesUncertainWhenSamplesTooFew() {
+    @DisplayName("실거래 표본이 없으면 지표를 세어 말하되 확신도는 낮춘다 (설계 I234)")
+    void fallsBackToAMajorityReadWhenSamplesTooFew() {
         stub(new AtomicReference<>(), """
                 {"direction":"UP","confidence":"HIGH",
                  "factors":[{"name":"금리 국면","effect":"UP","weight":"MEDIUM",
@@ -155,8 +155,33 @@ class PriceForecastServiceTest {
         // 달마다 1건뿐 — 실거래 추세도 장기 추세도 안 나온다
         final var verdict = service.forecast(thinInput());
 
-        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UNCERTAIN);
-        assertThat(verdict.conclusion().caveats()).anyMatch(c -> c.contains("표본이 3건 미만"));
+        // 한때는 여기서 UNCERTAIN 이었다. 그랬더니 거의 모든 매물이 판단 보류였고,
+        // 금리 같은 지표가 나와 있는데도 그랬다 — 알아낸 것을 안 보여 준 셈이다 (설계 I234)
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.conclusion().confidence())
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+        assertThat(verdict.conclusion().caveats())
+                .anyMatch(c -> c.contains("표본이 3건 미만"))
+                .anyMatch(c -> c.contains("확신이 있어서가 아닙니다"));
+    }
+
+    /**
+     * LLM 요인이 전부 걸러지면 <b>규칙 예측을 그대로 씁니다</b> — 다수결(설계 I234)보다
+     * 앞에 있는 규칙입니다. 지어낸 숫자만 인용한 답은 믿을 수 없기 때문입니다.
+     *
+     * <p>셀 것이 <b>정말로</b> 하나도 없는 경우는 `MajorityDirectionTest` 가 봅니다.
+     */
+    @Test
+    @DisplayName("LLM 요인이 비면 규칙 예측을 쓴다 — 다수결보다 앞선 규칙이다")
+    void emptyLlmFactorsFallBackToRules() {
+        stub(new AtomicReference<>(), """
+                {"direction":"DOWN","confidence":"HIGH","factors":[],"summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(thinInput());
+
+        // LLM 은 DOWN 이라 했지만 요인이 없어 버려졌다 — 규칙 예측(금리 국면 UP)이 남는다
+        assertThat(verdict.conclusion()).isEqualTo(verdict.byCode());
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UP);
     }
 
     /**
@@ -191,8 +216,8 @@ class PriceForecastServiceTest {
      * 그것으로 안전장치를 통과시키면 취지가 무너진다.
      */
     @Test
-    @DisplayName("금리 국면만 나왔으면 여전히 UNCERTAIN — 그건 이 매물의 실거래가 아니다 (설계 I151)")
-    void rateCycleAloneDoesNotPassTheGuard() {
+    @DisplayName("금리 국면만으로는 확신하지 않는다 — 방향은 세어 말하고 확신도를 낮춘다 (설계 I151 · I234)")
+    void rateCycleAloneDoesNotEarnConfidence() {
         stub(new AtomicReference<>(), """
                 {"direction":"UP","confidence":"HIGH",
                  "factors":[{"name":"금리 국면","effect":"UP","weight":"MEDIUM",
@@ -204,7 +229,10 @@ class PriceForecastServiceTest {
         assertThat(verdict.byCode().factors())
                 .extracting(banghak.home.halley.domain.forecast.PriceFactor::name)
                 .contains("금리 국면");
-        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UNCERTAIN);
+        // 그건 이 매물의 실거래가 아니다 — 방향은 말하되 <b>확신도는 LOW</b> 다
+        assertThat(verdict.conclusion().confidence())
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+        assertThat(verdict.conclusion().caveats()).anyMatch(c -> c.contains("표본이 3건 미만"));
     }
 
     @Test

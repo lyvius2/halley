@@ -349,18 +349,57 @@ public class PriceForecastService {
             return byCode;
         }
         if (!hasEnoughTradeSamples(byCode)) {
-            log.info("Forcing UNCERTAIN - no trade-based indicator. required={}, got=[{}]",
-                    TRADE_BASED_FACTORS, byCode.factors().stream()
-                            .map(banghak.home.halley.domain.forecast.PriceFactor::name)
-                            .collect(java.util.stream.Collectors.joining(", ")));
-            final List<String> caveats = new ArrayList<>(byLlm.caveats());
-            caveats.add(String.format(
-                    "이 단지·면적대의 실거래 표본이 %d건 미만이라 방향을 판단하지 않았습니다",
-                    MIN_TRADE_SAMPLES));
-            return new PriceOutlook(ForecastDirection.UNCERTAIN, ForecastConfidence.LOW,
-                    byLlm.horizonMonths(), byLlm.factors(), caveats);
+            return withoutTradeSamples(byLlm, byCode);
+        }
+        // LLM 이 "모르겠다"고 해도 <b>지표가 있으면 세어서 말합니다</b> (설계 I234)
+        if (byLlm.direction() == ForecastDirection.UNCERTAIN) {
+            return majorityRead(byLlm, byCode, "AI가 방향을 정하지 못해");
         }
         return byLlm;
+    }
+
+    /**
+     * 실거래 표본이 없을 때 (설계 I234).
+     *
+     * <p>전에는 곧바로 `UNCERTAIN` 이었습니다. 그런데 실제로 써 보니
+     * <b>거의 모든 매물이 판단 보류</b>였습니다 — 금리·전세가율·용도지역 같은
+     * 지표가 <b>여럿 나와 있는데도</b> 그랬습니다. 알아낸 것을 안 보여 준 셈입니다.
+     *
+     * <p>이제 <b>지표들이 가리키는 쪽을 세어</b> 말하되, <b>확신도는 낮게</b> 두고
+     * 무엇이 빠졌는지 함께 적습니다. 방향을 감추는 것과 근거를 밝히는 것 중
+     * 뒤쪽이 낫습니다.
+     */
+    private PriceOutlook withoutTradeSamples(PriceOutlook byLlm, PriceOutlook byCode) {
+        log.info("No trade-based indicator - falling back to a majority read. required={}, got=[{}]",
+                TRADE_BASED_FACTORS, byCode.factors().stream()
+                        .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                        .collect(java.util.stream.Collectors.joining(", ")));
+        return majorityRead(byLlm, byCode, String.format(
+                "이 단지·면적대의 실거래 표본이 %d건 미만이라", MIN_TRADE_SAMPLES));
+    }
+
+    /**
+     * 지표를 세어 방향을 낸다 (설계 I234).
+     *
+     * <p>LLM 이 낸 요인을 먼저 봅니다 — 그게 결론의 근거로 화면에 뜨는 것입니다.
+     * 비어 있으면 규칙 예측의 요인을 씁니다.
+     *
+     * <p><b>확신도는 언제나 LOW 입니다.</b> 세어서 고른 것이지 확신이 있어서가 아닙니다.
+     */
+    private PriceOutlook majorityRead(PriceOutlook byLlm, PriceOutlook byCode, String because) {
+        final List<banghak.home.halley.domain.forecast.PriceFactor> factors =
+                byLlm.factors().isEmpty() ? byCode.factors() : byLlm.factors();
+        final ForecastDirection majority = ForecastDirection.majorityOf(factors);
+        final List<String> caveats = new ArrayList<>(byLlm.caveats());
+        if (majority == ForecastDirection.UNCERTAIN) {
+            caveats.add(because + " 방향을 판단하지 않았습니다");
+            return new PriceOutlook(ForecastDirection.UNCERTAIN, ForecastConfidence.LOW,
+                    byLlm.horizonMonths(), factors, caveats);
+        }
+        caveats.add(because + " 지표 " + factors.size() + "개가 가리키는 쪽을 세어 정했습니다 "
+                + "— 확신이 있어서가 아닙니다");
+        return new PriceOutlook(majority, ForecastConfidence.LOW,
+                byLlm.horizonMonths(), factors, caveats);
     }
 
     /**
