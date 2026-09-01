@@ -12,17 +12,14 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyImageRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyOpinionRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyScoreRepository;
-import banghak.home.halley.adapter.outbound.persistence.PropertyVisitPlanRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyVisitRepository;
 import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
 import banghak.home.halley.adapter.outbound.persistence.RegulationParamRepository;
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserCriterionScoreRepository;
-import banghak.home.halley.adapter.outbound.persistence.VisitPlanStopRepository;
 import banghak.home.halley.domain.geo.LegalDongCode;
-import banghak.home.halley.domain.itinerary.PlanStatus;
-import banghak.home.halley.domain.itinerary.PropertyVisitPlan;
+import banghak.home.halley.domain.itinerary.PropertyVisit;
 import banghak.home.halley.domain.itinerary.TravelMode;
-import banghak.home.halley.domain.itinerary.VisitPlanStop;
 import banghak.home.halley.domain.loan.LoanEstimate;
 import banghak.home.halley.domain.loan.ProductType;
 import banghak.home.halley.domain.loan.RegulationParam;
@@ -63,6 +60,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 
@@ -87,8 +85,7 @@ class JooqRepositoryIntegrationTest {
     @Autowired private NotificationLogRepository notificationLogRepository;
     @Autowired private ReferenceTransactionRepository referenceTransactionRepository;
     @Autowired private LoanEstimateRepository loanEstimateRepository;
-    @Autowired private PropertyVisitPlanRepository propertyVisitPlanRepository;
-    @Autowired private VisitPlanStopRepository visitPlanStopRepository;
+    @Autowired private PropertyVisitRepository propertyVisitRepository;
     @Autowired private RegulationParamRepository regulationParamRepository;
     @Autowired private LegalDongCodeRepository legalDongCodeRepository;
     @Autowired private ObjectMapper objectMapper;
@@ -250,30 +247,42 @@ class JooqRepositoryIntegrationTest {
     }
 
     @Test
-    void propertyVisitPlanRoundTrip() {
-        PropertyVisitPlan saved = propertyVisitPlanRepository.save(new PropertyVisitPlan(
-                null, LocalDate.of(2026, 8, 30), 1L, "서울 종로구",
-                new BigDecimal("37.57"), new BigDecimal("126.98"),
-                TravelMode.TRANSIT, LocalTime.of(9, 0), LocalTime.of(19, 0),
-                25, PlanStatus.DRAFT, null));
+    void propertyVisitRoundTrip() {
+        // (property_id, user_id) 가 유니크다 — 이 테스트만의 값을 쓴다
+        final long propertyId = System.nanoTime() % 1_000_000L + 1_000L;
 
-        PropertyVisitPlan found = propertyVisitPlanRepository.findById(saved.id()).orElseThrow();
-        assertThat(found.travelMode()).isEqualTo(TravelMode.TRANSIT);
-        assertThat(found.status()).isEqualTo(PlanStatus.DRAFT);
+        propertyVisitRepository.mark(propertyId, 7L, Instant.parse("2026-09-06T01:00:00Z"));
+
+        assertThat(propertyVisitRepository.exists(propertyId, 7L)).isTrue();
+        assertThat(propertyVisitRepository.findByUser(7L))
+                .extracting(PropertyVisit::propertyId)
+                .contains(propertyId);
     }
 
     @Test
-    void visitPlanStopRoundTrip() {
-        // (plan_id, stop_order) 가 유니크다. 1L·0 을 박아 두면 다른 테스트가 같은 조합을
-        // 먼저 만들 때 순서에 따라 깨진다 — 실제로 겪었다. 이 테스트만의 값을 쓴다
-        final long planId = System.nanoTime() % 1_000_000L + 1_000L;
-        VisitPlanStop saved = visitPlanStopRepository.save(new VisitPlanStop(
-                null, planId, 1L, 0, LocalTime.of(9, 0), LocalTime.of(9, 25),
-                30, "TRANSIT", false, null));
+    void markIsIdempotentAndKeepsTheFirstTime() {
+        // 두 번 눌러도 한 줄이고, 처음 간 시각이 남는다 — 나중 클릭이 덮으면 기록이 아니다
+        final long propertyId = System.nanoTime() % 1_000_000L + 2_000L;
+        final Instant first = Instant.parse("2026-09-06T01:00:00Z");
 
-        VisitPlanStop found = visitPlanStopRepository.findById(saved.id()).orElseThrow();
-        assertThat(found.stopOrder()).isEqualTo(0);
-        assertThat(found.visited()).isFalse();
+        propertyVisitRepository.mark(propertyId, 8L, first);
+        propertyVisitRepository.mark(propertyId, 8L, Instant.parse("2026-09-20T05:00:00Z"));
+
+        assertThat(propertyVisitRepository.findByUser(8L))
+                .filteredOn(v -> v.propertyId().equals(propertyId))
+                .singleElement()
+                .extracting(PropertyVisit::visitedAt)
+                .isEqualTo(first);
+    }
+
+    @Test
+    void clearRemovesTheVisit() {
+        final long propertyId = System.nanoTime() % 1_000_000L + 3_000L;
+        propertyVisitRepository.mark(propertyId, 9L, Instant.now());
+
+        propertyVisitRepository.clear(propertyId, 9L);
+
+        assertThat(propertyVisitRepository.exists(propertyId, 9L)).isFalse();
     }
 
     @Test

@@ -243,13 +243,13 @@
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
                             <div class="paste-actions">
-                                <button class="btn" @click="optimizeItinerary()" :disabled="loading">경로 계산</button>
-                                <button class="btn btn-primary" @click="savePlan()" :disabled="loading" x-show="itinResult && !itinPlan">계획 저장</button>
-                                <button class="btn" @click="recomputePlan()" :disabled="loading" x-show="itinPlan">재계산</button>
+                                <!-- 계획 저장을 없앴다 (설계 I197). 계산이 곧 저장이었고,
+                                     저장이 더 주던 것은 방문 체크 하나였다 — 결과 층으로 옮겼다 -->
+                                <button class="btn btn-primary" @click="optimizeItinerary()" :disabled="loading">경로 계산</button>
                             </div>
                         </div>
 
-                        <template x-if="itinResult && !itinPlan">
+                        <template x-if="itinResult">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
 
@@ -273,12 +273,18 @@
                                 <ol class="itin-route">
                                     <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
                                         <li class="itin-route-item">
-                                            <div class="itin-stop">
+                                            <div class="itin-stop" :class="{done: isVisited(id)}">
                                                 <span class="itin-num" x-text="i + 1"></span>
                                                 <span x-text="propertyName(id)"></span>
                                                 <!-- 몇 시에 닿는지 (설계 I194) -->
                                                 <span class="itin-time" x-show="legFor(i)"
                                                       x-text="arrivalAt(i) + ' 도착'"></span>
+                                                <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
+                                                <label class="itin-visit">
+                                                    <input type="checkbox" :checked="isVisited(id)"
+                                                           @change="toggleVisited(id)">
+                                                    <span>방문완료</span>
+                                                </label>
                                             </div>
                                             <template x-if="legFor(i)">
                                                 <div class="itin-route-legs">
@@ -306,20 +312,6 @@
                             </div>
                         </template>
 
-                        <template x-if="itinPlan">
-                            <div class="itin-result card">
-                                <p class="itin-total">총 이동 <b x-text="(itinPlan?.totalMinutes ?? 0) + '분'"></b> · <b x-text="(itinPlan?.stops?.length ?? 0) + '곳'"></b></p>
-                                <template x-for="s in (itinPlan?.stops || [])" :key="s.id">
-                                    <label class="itin-stop" :class="{done: s.visited}">
-                                        <span class="itin-num" x-text="s.stopOrder + 1"></span>
-                                        <span class="itin-time" x-text="s.estimatedArrival"></span>
-                                        <span x-text="propertyName(s.propertyId)"></span>
-                                        <small x-text="s.travelMinutesFromPrev ? '이동 ' + s.travelMinutesFromPrev + '분' : '출발'"></small>
-                                        <input type="checkbox" :checked="s.visited" @change="toggleItineraryStop(s.id, !s.visited)">
-                                    </label>
-                                </template>
-                            </div>
-                        </template>
                     </div>
 
                     <div x-show="view==='me'">

@@ -104,7 +104,8 @@ function halley() {
         itinWindowStart: '09:00',
         itinStay: 25,
         itinResult: null,
-        itinPlan: null,
+        /** 가 본 매물 id 목록 (설계 I197). 계산 결과와 달리 DB에 남는다 */
+        itinVisited: [],
         _itinMarkers: {},
         _itinPolyline: null,
         _itinPolylines: [],
@@ -443,6 +444,7 @@ function halley() {
             if (view === 'itinerary') {
                 this.loadStartLocation();
                 this.loadItineraryDraft();
+                this.loadVisited();
             }
         },
 
@@ -1912,7 +1914,6 @@ function halley() {
             this.clearItinerary();
             this.itinProperties = [];
             this.itinResult = null;
-            this.itinPlan = null;
             this.itinStart = { address: '', lat: '', lng: '' };
             this.itinMode = 'DRIVING';
         },
@@ -2214,7 +2215,6 @@ function halley() {
                 this.itinProperties.push(id);
             }
             this.itinResult = null;
-            this.itinPlan = null;
             this.saveItineraryDraft();
         },
 
@@ -2238,7 +2238,6 @@ function halley() {
                 });
                 if (ok) {
                     this.itinResult = body;
-                    this.itinPlan = null;
                     this.saveItineraryDraft();
                     this.renderItinerary();
                 } else {
@@ -2251,63 +2250,46 @@ function halley() {
             }
         },
 
-        async savePlan() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/itinerary/plans', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        propertyIds: this.itinProperties,
-                        travelMode: this.itinMode,
-                        startLat: toNum(this.itinStart.lat),
-                        startLng: toNum(this.itinStart.lng),
-                        startAddress: this.itinStart.address || null,
-                        visitDate: this.itinDate || null,
-                        windowStart: this.itinWindowStart || null,
-                        stayMinutesDefault: toNum(this.itinStay)
-                    })
-                });
-                if (ok) {
-                    this.itinPlan = body;
-                    this.renderItinerary();
-                } else {
-                    this.error = (body && body.message) || '계획 저장에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
+        /**
+         * 방문완료 (설계 I197).
+         *
+         * <p>계획을 저장하지 않으므로 <b>이것만 DB에 남습니다.</b> 계산 결과는
+         * draft 캐시로 충분하지만, 어디를 가 봤는지는 그렇지 않습니다.
+         *
+         * <p><b>화면을 먼저 바꾸고 서버에 보냅니다.</b> 현장에서 누르는 것이라
+         * 왕복을 기다리게 하지 않습니다. 실패하면 되돌립니다 — 눌렀는데 안 눌린 것으로
+         * 남아 있으면 다음에 또 갑니다.
+         */
+        async toggleVisited(propertyId) {
+            const visited = !this.itinVisited.includes(propertyId);
+            this.setVisited(propertyId, visited);
+            const { ok } = await this.request(`/api/itinerary/visits/${propertyId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ visited })
+            }).catch(() => ({ ok: false }));
+            if (!ok) {
+                this.setVisited(propertyId, !visited);
+                this.error = '방문 기록을 저장하지 못했습니다';
             }
         },
 
-        async toggleItineraryStop(stopId, visited) {
-            if (!this.itinPlan) {
-                return;
-            }
-            const { ok, body } = await this.request(
-                `/api/itinerary/plans/${this.itinPlan.id}/stops/${stopId}`, {
-                    method: 'PATCH',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ visited })
-                });
-            if (ok) {
-                this.itinPlan = body;
-            }
+        setVisited(propertyId, visited) {
+            this.itinVisited = visited
+                ? [...this.itinVisited.filter(id => id !== propertyId), propertyId]
+                : this.itinVisited.filter(id => id !== propertyId);
         },
 
-        async recomputePlan() {
-            if (!this.itinPlan) {
-                return;
-            }
-            this.loading = true;
-            const { ok, body } = await this.request(
-                `/api/itinerary/plans/${this.itinPlan.id}/recompute`, { method: 'POST' });
-            this.loading = false;
-            if (ok) {
-                this.itinPlan = body;
-                this.renderItinerary();
+        isVisited(propertyId) {
+            return this.itinVisited.includes(propertyId);
+        },
+
+        /** 가 본 곳을 서버에서 받아 온다 — 새로고침해도, 다른 기기에서도 남는다. */
+        async loadVisited() {
+            const { ok, body } = await this.request('/api/itinerary/visits')
+                .catch(() => ({ ok: false }));
+            if (ok && Array.isArray(body)) {
+                this.itinVisited = body;
             }
         },
 
@@ -2350,9 +2332,7 @@ function halley() {
                 return;
             }
             this.clearItinerary();
-            const ids = this.itinPlan
-                ? this.itinPlan.stops.map(s => s.propertyId)
-                : (this.itinResult ? this.itinResult.orderedPropertyIds : []);
+            const ids = this.itinResult ? this.itinResult.orderedPropertyIds : [];
             if (ids.length === 0) {
                 return;
             }

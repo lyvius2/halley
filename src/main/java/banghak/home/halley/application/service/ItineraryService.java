@@ -1,14 +1,10 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.dto.CreatePlanRequest;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ItineraryLegResponse;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
-import banghak.home.halley.adapter.inbound.web.dto.VisitPlanResponse;
-import banghak.home.halley.adapter.inbound.web.dto.VisitPlanStopResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
-import banghak.home.halley.adapter.outbound.persistence.PropertyVisitPlanRepository;
-import banghak.home.halley.adapter.outbound.persistence.VisitPlanStopRepository;
+import banghak.home.halley.adapter.outbound.persistence.PropertyVisitRepository;
 import banghak.home.halley.application.port.out.cache.TravelTimeCache;
 import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
@@ -17,15 +13,11 @@ import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.StartLocationCache;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.domain.itinerary.StartLocation;
-import banghak.home.halley.config.exception.InvalidPlanRequestException;
-import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.itinerary.DriveRoute;
 import banghak.home.halley.domain.itinerary.ItineraryOptimizer;
-import banghak.home.halley.domain.itinerary.PlanStatus;
-import banghak.home.halley.domain.itinerary.PropertyVisitPlan;
+import banghak.home.halley.domain.itinerary.PropertyVisit;
 import banghak.home.halley.domain.itinerary.TravelCostMatrix;
 import banghak.home.halley.domain.itinerary.TravelMode;
-import banghak.home.halley.domain.itinerary.VisitPlanStop;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.TransitResult;
 import org.springframework.security.core.Authentication;
@@ -64,8 +56,7 @@ public class ItineraryService {
 
     private final PropertyRepository propertyRepository;
     private final PropertyAccessGuard propertyAccessGuard;
-    private final PropertyVisitPlanRepository propertyVisitPlanRepository;
-    private final VisitPlanStopRepository visitPlanStopRepository;
+    private final PropertyVisitRepository propertyVisitRepository;
     private final KakaoDirectionsPort kakaoDirectionsPort;
     private final OdsayTransitPort odsayTransitPort;
     private final TravelTimeCache travelTimeCache;
@@ -77,8 +68,7 @@ public class ItineraryService {
 
     public ItineraryService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
-                            PropertyVisitPlanRepository propertyVisitPlanRepository,
-                            VisitPlanStopRepository visitPlanStopRepository,
+                            PropertyVisitRepository propertyVisitRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
                             OdsayTransitPort odsayTransitPort,
                             TravelTimeCache travelTimeCache,
@@ -88,8 +78,7 @@ public class ItineraryService {
                             tools.jackson.databind.ObjectMapper objectMapper) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
-        this.propertyVisitPlanRepository = propertyVisitPlanRepository;
-        this.visitPlanStopRepository = visitPlanStopRepository;
+        this.propertyVisitRepository = propertyVisitRepository;
         this.kakaoDirectionsPort = kakaoDirectionsPort;
         this.odsayTransitPort = odsayTransitPort;
         this.travelTimeCache = travelTimeCache;
@@ -214,74 +203,32 @@ public class ItineraryService {
                 transit.legs(), odsayTransitPort.findLane(transit.mapObj()));
     }
 
-    @Transactional
-    public VisitPlanResponse createPlan(CreatePlanRequest request) {
-        final TravelMode mode = modeOf(request.travelMode());
-        final List<Property> properties = loadWithCoords(request.propertyIds());
-        if (properties.isEmpty()) {
-            throw new InvalidPlanRequestException("좌표가 있는 매물을 선택해 주세요");
-        }
-        final TravelCostMatrix matrix = buildMatrix(properties, request.startLat(), request.startLng(), mode,
-                departAt(request.visitDate(), request.windowStart()));
-        final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
-
-        final PropertyVisitPlan plan = propertyVisitPlanRepository.save(new PropertyVisitPlan(
-                null,
-                request.visitDate() == null ? LocalDate.now() : request.visitDate(),
-                currentUserId(),
-                request.startAddress(),
-                request.startLat(),
-                request.startLng(),
-                mode,
-                request.windowStart(),
-                request.windowEnd(),
-                request.stayMinutesDefault() == null ? 25 : request.stayMinutesDefault(),
-                PlanStatus.DRAFT,
-                Instant.now()));
-
-        final List<VisitPlanStop> stops = buildStops(plan.id(), order, matrix,
-                request.windowStart() == null ? LocalTime.of(9, 0) : request.windowStart(),
-                request.stayMinutesDefault() == null ? 25 : request.stayMinutesDefault());
-        final List<VisitPlanStop> savedStops = stops.stream()
-                .map(visitPlanStopRepository::save)
+    /**
+     * 가 본 곳 (설계 I197).
+     *
+     * <p>계획을 저장하지 않으므로 <b>여기가 유일하게 DB에 남는 것</b>입니다.
+     * 계산 결과는 캐시(I179)에 7일이면 충분하지만, 어디를 가 봤는지는 그렇지 않습니다.
+     */
+    public List<Long> visitedPropertyIds() {
+        return propertyVisitRepository.findByUser(currentUserId()).stream()
+                .map(PropertyVisit::propertyId)
                 .toList();
-        return toResponse(plan, savedStops);
     }
 
-    public VisitPlanResponse getPlan(Long planId) {
-        final PropertyVisitPlan plan = propertyVisitPlanRepository.findById(planId)
-                .orElseThrow(NotFoundListingsException::new);
-        return toResponse(plan, visitPlanStopRepository.findByPlanId(planId));
-    }
-
+    /**
+     * 방문완료를 켜고 끈다 (설계 I197).
+     *
+     * <p><b>내 그룹의 매물인지 먼저 봅니다.</b> 남의 매물 번호를 넣어 방문 기록을
+     * 심을 수 있으면 안 됩니다.
+     */
     @Transactional
-    public VisitPlanResponse toggleStopVisited(Long planId, Long stopId, boolean visited) {
-        propertyVisitPlanRepository.findById(planId)
-                .orElseThrow(NotFoundListingsException::new);
-        visitPlanStopRepository.updateVisited(stopId, visited, visited ? Instant.now() : null);
-        return getPlan(planId);
-    }
-
-    @Transactional
-    public VisitPlanResponse recompute(Long planId) {
-        final PropertyVisitPlan plan = propertyVisitPlanRepository.findById(planId)
-                .orElseThrow(NotFoundListingsException::new);
-        final List<Long> propertyIds = visitPlanStopRepository.findByPlanId(planId).stream()
-                .map(VisitPlanStop::propertyId)
-                .toList();
-        final List<Property> properties = loadWithCoords(propertyIds);
-        final TravelCostMatrix matrix = buildMatrix(properties, plan.startLat(), plan.startLng(), plan.travelMode(),
-                departAt(plan.visitDate(), plan.windowStart()));
-        final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
-
-        visitPlanStopRepository.deleteByPlanId(planId);
-        final List<VisitPlanStop> stops = buildStops(planId, order, matrix,
-                plan.windowStart() == null ? LocalTime.of(9, 0) : plan.windowStart(),
-                plan.stayMinutesDefault() == null ? 25 : plan.stayMinutesDefault());
-        for (final VisitPlanStop stop : stops) {
-            visitPlanStopRepository.save(stop);
+    public void markVisited(Long propertyId, boolean visited) {
+        propertyAccessGuard.require(propertyId);
+        if (visited) {
+            propertyVisitRepository.mark(propertyId, currentUserId(), Instant.now());
+        } else {
+            propertyVisitRepository.clear(propertyId, currentUserId());
         }
-        return getPlan(planId);
     }
 
     private List<Property> loadWithCoords(List<Long> propertyIds) {
@@ -308,25 +255,6 @@ public class ItineraryService {
             return travelTime(from.lng().doubleValue(), from.lat().doubleValue(),
                     to.lng().doubleValue(), to.lat().doubleValue(), mode, departAt);
         };
-    }
-
-    private List<VisitPlanStop> buildStops(Long planId, List<Long> order, TravelCostMatrix matrix,
-                                           LocalTime startTime, int stayMinutes) {
-        final List<VisitPlanStop> stops = new ArrayList<>();
-        LocalTime time = startTime;
-        long previous = DEPOT_ID;
-        for (int i = 0; i < order.size(); i++) {
-            final long propertyId = order.get(i);
-            final int travel = matrix.minutes(previous, propertyId);
-            final LocalTime arrival = time.plusMinutes(travel);
-            final LocalTime departure = arrival.plusMinutes(stayMinutes);
-            stops.add(new VisitPlanStop(
-                    null, planId, propertyId, i, arrival, departure, travel,
-                    null, false, null));
-            time = departure;
-            previous = propertyId;
-        }
-        return stops;
     }
 
     private int totalMinutes(List<Long> order, TravelCostMatrix matrix) {
@@ -363,21 +291,6 @@ public class ItineraryService {
     /** 좌표 넷을 하나의 열쇠로. 소수점 여섯 자리면 1m 안쪽이라 같은 지점으로 봐도 된다. */
     private static String legKey(double fromLng, double fromLat, double toLng, double toLat) {
         return String.format("%.6f,%.6f>%.6f,%.6f", fromLng, fromLat, toLng, toLat);
-    }
-
-    private VisitPlanResponse toResponse(PropertyVisitPlan plan, List<VisitPlanStop> stops) {
-        final List<VisitPlanStopResponse> stopResponses = stops.stream()
-                .sorted(java.util.Comparator.comparing(VisitPlanStop::stopOrder))
-                .map(s -> new VisitPlanStopResponse(
-                        s.id(), s.propertyId(), s.stopOrder(), s.estimatedArrival(),
-                        s.estimatedDeparture(), s.travelMinutesFromPrev(), s.visited()))
-                .toList();
-        final int total = stopResponses.stream()
-                .mapToInt(s -> s.travelMinutesFromPrev() == null ? 0 : s.travelMinutesFromPrev())
-                .sum();
-        return new VisitPlanResponse(
-                plan.id(), plan.visitDate(), plan.travelMode(), plan.status(),
-                plan.startAddress(), stopResponses, total);
     }
 
     private TravelMode modeOf(TravelMode mode) {

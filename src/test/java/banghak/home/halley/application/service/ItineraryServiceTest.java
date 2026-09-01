@@ -1,15 +1,14 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.dto.CreatePlanRequest;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryRequest;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
-import banghak.home.halley.adapter.inbound.web.dto.VisitPlanResponse;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.application.port.out.external.OdsayTransitPort;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.itinerary.DriveRoute;
 import banghak.home.halley.domain.itinerary.TravelMode;
 import banghak.home.halley.domain.property.DealType;
@@ -33,12 +32,14 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("local")
@@ -224,36 +225,63 @@ class ItineraryServiceTest {
     }
 
     @Test
-    @DisplayName("계획을 저장·조회하고 방문완료를 토글·재계산한다")
-    void planLifecycle() {
+    @DisplayName("방문완료는 계산 결과와 따로 남는다 — 계획을 저장하지 않는다 (설계 I197)")
+    void visitedSurvivesWithoutAPlan() {
         // given
-        final List<Long> ids = List.of(
-                propertyService.create(request("플랜A")).id(),
-                propertyService.create(request("플랜B")).id());
+        final Long id = propertyService.create(request("방문A")).id();
 
-        // when — 저장
-        final VisitPlanResponse plan = itineraryService.createPlan(new CreatePlanRequest(
-                ids, TravelMode.DRIVING, new BigDecimal("37.5"), new BigDecimal("126.9"),
-                "우리집", LocalDate.of(2026, 9, 1), LocalTime.of(9, 0), null, 25));
+        // when
+        itineraryService.markVisited(id, true);
+
+        // then — 계산을 다시 하든 말든, 저장 버튼을 누르지 않아도 남는다
+        assertThat(itineraryService.visitedPropertyIds()).contains(id);
+    }
+
+    @Test
+    @DisplayName("체크를 풀면 지워진다")
+    void unmarkRemovesIt() {
+        // given
+        final Long id = propertyService.create(request("방문B")).id();
+        itineraryService.markVisited(id, true);
+
+        // when
+        itineraryService.markVisited(id, false);
 
         // then
-        assertThat(plan.stops()).hasSize(2);
-        assertThat(plan.stops().getFirst().estimatedArrival()).isEqualTo(LocalTime.of(9, 10));
-        assertThat(plan.stops().getFirst().travelMinutesFromPrev()).isEqualTo(10);
+        assertThat(itineraryService.visitedPropertyIds()).doesNotContain(id);
+    }
 
-        // when — 방문완료 토글
-        final Long stopId = plan.stops().getFirst().id();
-        final VisitPlanResponse toggled = itineraryService.toggleStopVisited(plan.id(), stopId, true);
+    @Test
+    @DisplayName("같은 그룹이라도 남이 간 곳이 내 것으로 보이지 않는다 (설계 I197)")
+    void visitsAreNotSharedWithinTheGroup() {
+        // given — 같은 그룹의 매물을 A가 방문 체크
+        final Long groupId = GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+        final Long id = propertyService.create(request("공유매물")).id();
+        itineraryService.markVisited(id, true);
 
-        // then
-        assertThat(toggled.stops().getFirst().id()).isEqualTo(stopId);
-        assertThat(itineraryService.getPlan(plan.id()).stops().getFirst().visited()).isTrue();
-        assertThat(toggled.stops().getFirst().visited()).isTrue();
+        // when — 같은 그룹의 다른 사람으로 갈아탄다
+        GroupTestSupport.login(groupTestUserRepository.save(new User(
+                null, "동료" + id, "동료닉" + id, groupId, "hash", UserRole.MEMBER,
+                null, null, null, false, false, 0L, 0L, 0L, true, null, null, Instant.now())));
 
-        // when — 재계산
-        final VisitPlanResponse recomputed = itineraryService.recompute(plan.id());
-        assertThat(recomputed.stops()).hasSize(2);
-        assertThat(recomputed.stops().getFirst().visited()).isFalse();
+        // then — 매물은 보이지만 A의 방문 기록은 아니다. 임장은 각자 간다
+        assertThat(propertyService.get(id)).isNotNull();
+        assertThat(itineraryService.visitedPropertyIds()).doesNotContain(id);
+    }
+
+    @Test
+    @DisplayName("남의 매물에는 방문 기록을 심을 수 없다")
+    void cannotMarkAnotherGroupsProperty() {
+        // given — 내 그룹의 매물
+        final Long id = propertyService.create(request("남의매물")).id();
+
+        // when — 다른 그룹 사람으로 갈아탄다
+        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+
+        // then — 매물 번호를 알아도 방문 기록을 심을 수 없다
+        assertThatThrownBy(() -> itineraryService.markVisited(id, true))
+                .isInstanceOf(NotFoundListingsException.class);
+        assertThat(itineraryService.visitedPropertyIds()).isEmpty();
     }
 
     /**

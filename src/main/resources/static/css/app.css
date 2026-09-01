@@ -706,7 +706,16 @@ input[type=checkbox], input[type=radio] {
 }
 .itin-stop:last-child,
 .itin-route-item:last-child .itin-stop { border-bottom: none; }
-.itin-stop.done { opacity: .5; text-decoration: line-through; }
+/* 가 본 곳은 흐리게 (설계 I197). 취소선은 매물 이름에만 — 체크박스 문구까지 그으면
+   무엇을 눌러야 할지 알기 어렵다 */
+.itin-stop.done { opacity: .55; }
+.itin-stop.done > span:not(.itin-num):not(.itin-time) { text-decoration: line-through; }
+.itin-visit {
+    display: inline-flex; align-items: center; gap: 5px;
+    margin-left: 8px; cursor: pointer;
+    font-size: 11px; color: var(--ink3); white-space: nowrap;
+}
+.itin-visit input[type=checkbox] { margin: 0; }
 .itin-num {
     font-family: 'JetBrains Mono', monospace;
     min-width: 22px; height: 22px; border-radius: 50%;
