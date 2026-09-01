@@ -1,14 +1,13 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.config.exception.ConcurrentEditException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.DealType;
-import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.SourceType;
@@ -47,9 +46,11 @@ class PropertyServiceTest {
     private UserRepository groupTestUserRepository;
 
     /** 매물은 그룹에 딸리므로 그룹에 속한 회원으로 로그인해 둔다 (설계 I87). */
+    private Long groupId;
+
     @BeforeEach
     void loginAsGroupMember() {
-        GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
+        groupId = GroupTestSupport.loginAsGroupMember(userGroupRepository, groupTestUserRepository);
     }
 
     @AfterEach
@@ -125,33 +126,15 @@ class PropertyServiceTest {
     }
 
     @Test
-    @DisplayName("점검 이력과 최근 판매완료 목록을 조회한다")
-    void checkLogsAndRecentSoldOut() {
+    @DisplayName("최근 판매완료 목록을 조회한다 — 상태는 이제 사람이 정한다 (설계 I157)")
+    void recentSoldOut() {
         // given
         final PropertyResponse created = propertyService.create(request("이력 테스트", DealType.SALE, 400_000_000L));
         propertyRepository.updateListingStatus(created.id(), ListingStatus.SOLD_OUT, false, 3, Instant.now());
 
-        // when
-        final var logs = propertyService.checkLogs(created.id());
-        final var recent = propertyService.recentSoldOut();
-
-        // then
-        assertThat(logs).isEmpty();
-        assertThat(recent).extracting(PropertyResponse::id).contains(created.id());
-    }
-
-    @Test
-    @DisplayName("DRAFT 빠른 저장은 is_draft=true로 원본 URL을 보존한다")
-    void createDraft() {
-        // when
-        final PropertyResponse draft = propertyService.createDraft(
-                new CreateDraftRequest("https://fin.land.naver.com/articles/123", "마포역 근처"));
-
-        // then
-        assertThat(draft.isDraft()).isTrue();
-        assertThat(draft.name()).isEqualTo("마포역 근처");
-        assertThat(propertyRepository.findById(draft.id()).orElseThrow().sourceUrl())
-                .isEqualTo("https://fin.land.naver.com/articles/123");
+        // when / then
+        assertThat(propertyService.recentSoldOut())
+                .extracting(PropertyResponse::id).contains(created.id());
     }
 
     @Test
@@ -174,8 +157,9 @@ class PropertyServiceTest {
     @DisplayName("DRAFT 매물을 수정하면 정식(is_draft=false)으로 승격된다")
     void updatePromotesDraft() {
         // given
-        final PropertyResponse draft = propertyService.createDraft(
-                new CreateDraftRequest("https://fin.land.naver.com/articles/99", "초안"));
+        // '빠른 저장'은 없앴지만(설계 I156·I164) 예전에 만든 DRAFT 는 여전히 있다.
+        // 그것을 완성하는 길은 남아야 한다 — 저장소에 직접 넣어 그 상태를 만든다
+        final Property draft = propertyRepository.save(draftProperty());
         assertThat(draft.isDraft()).isTrue();
 
         // when
@@ -185,6 +169,21 @@ class PropertyServiceTest {
         // then
         assertThat(promoted.isDraft()).isFalse();
         assertThat(propertyRepository.findById(draft.id()).orElseThrow().isDraft()).isFalse();
+    }
+
+    /** 예전 '빠른 저장'이 만들던 모양 (설계 I164). 그 기능은 없앴지만 데이터는 남아 있다. */
+    private Property draftProperty() {
+        return new Property(
+                null, "초안", null, null, null, null,
+                null, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, null, null, null, null,
+                null, null, null, null, null, null, null, null,
+                null, null, null,
+                SourceType.PASTE, "https://fin.land.naver.com/articles/99", null, null, null, null,
+                true, ListingStatus.ACTIVE, true,
+                null, 0, null,
+                groupId, null, null, Instant.now());
     }
 
     @Test

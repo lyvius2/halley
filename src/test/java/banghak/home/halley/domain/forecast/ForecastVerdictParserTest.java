@@ -169,4 +169,25 @@ class ForecastVerdictParserTest {
                 SourceType.MANUAL, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true, null, 0, null, null, null, 1L, Instant.now());
     }
+
+    /**
+     * 예산이 모자라 답이 잘린 경우 (설계 I149).
+     *
+     * <p>운영에서 실제로 났다. 요인이 여섯으로 늘고(I148) 모델이 생각에도 예산을 쓰면서
+     * 1,500토큰을 정확히 다 쓰고 <b>배열 한가운데서 끊겼다.</b>
+     */
+    @Test
+    @DisplayName("잘린 JSON은 읽지 않는다 — 반쪽 답을 판단으로 쓰면 안 된다 (설계 I149)")
+    void truncatedJsonIsNotAVerdict() {
+        // 운영 로그에서 그대로 가져온 모양이다 — 배열이 안 닫혔다
+        final String cutOff = """
+                {
+                  "direction": "UNCERTAIN",
+                  "confidence": "LOW",
+                  "factors": [
+                    {"name": "금리 국면", "effect": "DOWN", "weight": "MEDIUM", "evidence": "가계대출금리가 2025-08 4.17%에서
+                """;
+
+        assertThat(parser.parse(cutOff, prompt, 12)).isEmpty();
+    }
 }

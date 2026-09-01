@@ -97,9 +97,19 @@ body {
     height: 2px;
     background: var(--sand);
 }
-.who { font-size: 11.5px; color: #b9b2a4; margin-left: 18px; }
-.nav .btn-ghost { margin-left: 12px; }
-.who b { color: #e8c98a; font-weight: 500; margin-right: 2px; }
+/* 「{그룹명}의 {닉네임}」 (설계 I170).
+   다른 메뉴와 <b>같은 모양</b>이되 색으로만 구분한다 — 이건 화면 이름이 아니라
+   '나'라서, 모양까지 다르면 메뉴 줄이 두 갈래로 읽힌다.
+   금색은 이 앱의 강조색(--sand)이고 헤더에서 유일하게 따뜻한 색이다 */
+.nav-btn.nav-mine { color: #d0ab63; }
+.nav-btn.nav-mine:hover { color: #f0d493; background: rgba(201, 169, 97, .10); }
+.nav-btn.nav-mine.on { color: #f5dda6; background: rgba(201, 169, 97, .16); }
+/* 둘이 한 문장으로 읽혀야 하므로 사이의 구분선과 여백을 지운다 */
+.nav-btn.nav-mine { padding-right: 6px; }
+.nav-btn.nav-mine-tail { padding-left: 6px; }
+.nav-btn.nav-mine-tail::before { display: none; }
+/* 로그아웃은 메뉴가 아니라 <b>나가는 문</b>이다. 붙여 두면 닉네임을 누르려다 눌린다 */
+.nav .btn-ghost { margin-left: 28px; }
 
 /* ── 본문 (좌 지도 / 우 리스트) ───────────────────── */
 .main-grid {
@@ -145,7 +155,6 @@ body {
 
 /* ── 섹션 헤더 ───────────────────────────────────── */
 .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
-.sec-num { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--sand); letter-spacing: .1em; }
 h2 { font-family: 'Noto Serif KR', serif; font-size: 20px; font-weight: 700; }
 .sec-sub { font-size: 11.5px; color: var(--ink3); margin-left: auto; }
 
@@ -759,6 +768,53 @@ input[type=checkbox], input[type=radio] {
 }
 
 /* ── 프로필 (M5) ───────────────────────────────────── */
+/* ── 그룹 정보 화면 (설계 I161) ─────────────────────
+   .card 는 테두리만 있고 안쪽 여백이 없다 — 다른 화면들은 .profile-panel 같은
+   안쪽 클래스나 인라인 margin 으로 각자 메우고 있었는데, 이 화면만 아무것도 없어
+   내용이 테두리에 붙고 카드끼리 맞닿아 있었다. */
+.group-panel { padding: 18px; }
+.group-panel + .group-panel { margin-top: 14px; }
+.group-stats + .group-panel { margin-top: 14px; }
+
+/* 카드 안의 소제목. 여러 화면이 쓰는데 정의가 아예 없었다 */
+.card-title {
+    font-family: 'Noto Serif KR', serif;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink2);
+    margin-bottom: 12px;
+}
+.card-title span { font-size: 11.5px; color: var(--ink3); font-weight: 400; margin-left: 4px; }
+
+/* 표는 카드 가장자리까지 붙인다 — 다른 화면의 표와 같은 모양이 된다.
+   구성원 표의 칸 폭 (설계 I165 · I168).
+   처음엔 em 고정폭을 줬는데 <b>가로 스크롤이 생겼습니다</b> — 고정폭 합이 좁은
+   패널보다 커지면 .table-wrap 의 overflow-x 가 스크롤을 만듭니다.
+   비율(%)로 나누면 폭이 어떻든 합이 100%라 넘칠 일이 없습니다. */
+.group-table { margin: 0 -18px; overflow-x: hidden; }
+.group-table table { table-layout: fixed; width: 100%; }
+.group-table :is(th, td) { padding-left: 12px; padding-right: 12px; }
+.group-table :is(th, td):nth-child(1) { width: 17%; }   /* 닉네임 */
+.group-table :is(th, td):nth-child(3) { width: 25%; }   /* 보유 현금 */
+.group-table :is(th, td):nth-child(4) { width: 15%; }   /* 상태 */
+/* 주소는 남은 폭(43%)을 쓰고 <b>두 줄이 되더라도 접힙니다</b> — 스크롤보다 낫습니다.
+   한국어는 단어 중간에서 끊으면 읽기 어려우므로 어절 단위로 끊되,
+   끊을 곳이 없는 긴 토큰(URL 등)은 어디서든 끊습니다 */
+.group-table td:nth-child(2) {
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+}
+/* 금액도 접히게 둔다. nowrap 이면 좁을 때 칸을 넘어 옆 칸을 밀어낸다 */
+.group-table td.num { white-space: normal; }
+.group-table .badge { white-space: nowrap; }
+.group-panel .settings-note { display: block; margin-top: 10px; }
+
+/* 이름·웹훅 줄은 입력이 늘어나고 버튼은 제 폭을 지킨다 */
+.group-panel .workplace-search { flex-wrap: wrap; }
+.group-panel .workplace-search .btn { flex: 0 0 auto; }
+
 .profile-panel { padding: 18px; }
 .profile-title { font-family: 'Noto Serif KR', serif; font-size: 14px; margin-bottom: 12px; color: var(--ink2); }
 /* 카드 안 액션 버튼은 입력과 붙지 않게 띄운다 */
@@ -964,24 +1020,6 @@ tr.dragging { opacity: .5; background: var(--line2); }
     align-self: center;
     white-space: nowrap;
 }
-/* 헤더의 그룹 배지 — 누르면 그룹 정보 화면으로 (설계 I123) */
-.group-chip {
-    border: 1px solid var(--line);
-    background: var(--paper);
-    color: var(--ink2);
-    border-radius: 999px;
-    padding: 3px 11px;
-    font-size: 11.5px;
-    font-weight: 600;
-    cursor: pointer;
-    max-width: 160px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.group-chip:hover { border-color: var(--ocean); color: var(--ocean); }
-.group-chip.on { border-color: var(--ocean); color: var(--ocean); background: rgba(38, 92, 140, .08); }
-
 /* 그룹 합계 — 모아서 사는 앱이라 이 값이 먼저 보인다 */
 .group-stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
 .group-stat {
@@ -1008,6 +1046,10 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 가격 전망 화살표 (설계 I136).
    한국 관습을 따른다 — 상승이 빨강, 하락이 파랑. 서구권과 반대지만 한국 부동산만 다룬다.
    색만이 아니라 모양도 다르게(▲▼▶) 해 색각 이상에서도 방향이 읽히게 한다. */
+/* 판단 보류 표시 (설계 I150). 색을 주지 않는다 — 색이 붙는 순간 방향으로 읽힌다 */
+.forecast-arrow.note { color: inherit; opacity: .75; font-size: 11px; }
+.forecast-arrow.note:hover { opacity: 1; }
+
 /* 전망을 시킬 수 있는 매매가만 눌리는 티를 낸다 (설계 I142).
    전부 밑줄을 그으면 어느 것이 눌리는지 알 수 없다 */
 .price-triggerable { cursor: pointer; text-decoration: underline dotted var(--sand); text-underline-offset: 3px; }

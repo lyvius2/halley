@@ -3,11 +3,14 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.LandUseResponse;
 import banghak.home.halley.adapter.outbound.persistence.LandUseRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
+import banghak.home.halley.application.port.out.cache.PropertyDetailCache;
 import banghak.home.halley.application.port.out.external.LandUsePort;
 import banghak.home.halley.domain.geo.GeoSearchResult;
 import banghak.home.halley.domain.landuse.LandUse;
 import banghak.home.halley.domain.property.Property;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.core.type.TypeReference;
+import tools.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,22 +34,47 @@ public class LandUseService {
     private final LandUseRepository landUseRepository;
     private final PropertyRepository propertyRepository;
     private final GeoService geoService;
+    private final PropertyDetailCache detailCache;
+    private final ObjectMapper objectMapper;
 
     public LandUseService(LandUsePort landUsePort,
                           LandUseRepository landUseRepository,
                           PropertyRepository propertyRepository,
-                          GeoService geoService) {
+                          GeoService geoService,
+                          PropertyDetailCache detailCache,
+                          ObjectMapper objectMapper) {
         this.landUsePort = landUsePort;
         this.landUseRepository = landUseRepository;
         this.propertyRepository = propertyRepository;
         this.geoService = geoService;
+        this.detailCache = detailCache;
+        this.objectMapper = objectMapper;
     }
 
-    /** 저장된 값만 읽는다 — 외부를 부르지 않는다. */
+    /**
+     * 저장된 값만 읽는다 — 외부를 부르지 않는다.
+     *
+     * <p>캐시를 먼저 본다 (설계 I158). 토지이용계획은 거의 바뀌지 않는데 상세 모달을
+     * 열 때마다 DB를 왕복했다.
+     */
     public List<LandUseResponse> find(Long propertyId) {
-        return landUseRepository.findByPropertyId(propertyId).stream()
+        final Optional<String> cached = detailCache.get(PropertyDetailCache.LAND_USE, propertyId);
+        if (cached.isPresent()) {
+            try {
+                return objectMapper.readValue(cached.get(), new TypeReference<List<LandUseResponse>>() {
+                });
+            } catch (RuntimeException e) {
+                // 담아 둔 모양이 바뀌었을 수 있다. 버리고 DB 에서 다시 읽는다
+                log.warn("Land-use cache unreadable - falling back to DB. propertyId={}, cause={}",
+                        propertyId, e.getMessage());
+                detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
+            }
+        }
+        final List<LandUseResponse> fresh = landUseRepository.findByPropertyId(propertyId).stream()
                 .map(LandUseResponse::from)
                 .toList();
+        detailCache.put(PropertyDetailCache.LAND_USE, propertyId, objectMapper.writeValueAsString(fresh));
+        return fresh;
     }
 
     /**
@@ -65,6 +93,8 @@ public class LandUseService {
     }
 
     private List<LandUseResponse> refresh(Long propertyId, boolean force) {
+        // 다시 받기 전에 버린다 — 남겨 두면 방금 받은 값 대신 옛것을 돌려준다 (설계 I158)
+        detailCache.evict(PropertyDetailCache.LAND_USE, propertyId);
         if (!force && !landUseRepository.findByPropertyId(propertyId).isEmpty()) {
             return find(propertyId);
         }

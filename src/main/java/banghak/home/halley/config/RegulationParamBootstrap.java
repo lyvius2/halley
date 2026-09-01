@@ -43,6 +43,13 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     "이 위면 실거주 수요가 하방을 받친다고 본다"),
             new Seed("forecast.jeonse.low", "0.50", RegulationValueType.DECIMAL,
                     "이 아래면 매매가에 기대가 많이 실려 있다고 본다"),
+            // 장기 지표 (설계 I148). 60개월치를 받아 두고 13개월만 쓰던 것을 실제로 쓴다
+            new Seed("forecast.longterm.threshold", "0.02", RegulationValueType.DECIMAL,
+                    "장기 추세를 방향으로 읽는 연평균 변동률. 물가상승률 언저리를 잡았다"),
+            new Seed("forecast.peak.near", "0.95", RegulationValueType.DECIMAL,
+                    "5년 전고점 대비 이 위면 고점에 붙었다고 본다 — 더 오를 여력이 적다"),
+            new Seed("forecast.peak.far", "0.80", RegulationValueType.DECIMAL,
+                    "5년 전고점 대비 이 아래면 고점과 멀다고 본다"),
             // 용적률 상한은 지자체 조례다 (설계 I132). 지역마다 달라 반드시 확인 후 조정
             new Seed("forecast.far.제1종일반주거지역", "1.5", RegulationValueType.DECIMAL,
                     "용적률 상한 — 지자체 조례. 서울 기준"),

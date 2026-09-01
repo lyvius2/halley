@@ -1,11 +1,9 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
 import banghak.home.halley.adapter.inbound.web.dto.CommentResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.LoanEstimateHistoryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LandUseResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LlmRecommendationResponse;
@@ -224,11 +222,6 @@ public class PropertyController {
         return parsePreviewService.preview(request.text());
     }
 
-    @PostMapping("/draft")
-    @ResponseStatus(HttpStatus.CREATED)
-    public PropertyResponse createDraft(@RequestBody CreateDraftRequest request) {
-        return propertyService.createDraft(request);
-    }
 
     @GetMapping
     public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {
@@ -244,11 +237,6 @@ public class PropertyController {
     @GetMapping("/sold-out/recent")
     public List<PropertyResponse> recentSoldOut() {
         return propertyService.recentSoldOut();
-    }
-
-    @GetMapping("/{id}/check-logs")
-    public List<CheckLogResponse> checkLogs(@PathVariable Long id) {
-        return propertyService.checkLogs(id);
     }
 
     @PatchMapping("/{id}/status")

@@ -1,7 +1,5 @@
 package banghak.home.halley.application.service;
 
-import banghak.home.halley.adapter.inbound.web.dto.CheckLogResponse;
-import banghak.home.halley.adapter.inbound.web.dto.CreateDraftRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.application.event.PropertyCreatedEvent;
@@ -11,13 +9,11 @@ import banghak.home.halley.config.exception.AdminCannotOwnPropertyException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NoGroupException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
-import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.ConcurrentEditException;
-import banghak.home.halley.domain.property.ListingCheckLog;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SchoolSource;
@@ -45,7 +41,6 @@ public class PropertyService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final UserRepository userRepository;
     private final AgentService agentService;
-    private final ListingCheckLogRepository listingCheckLogRepository;
     private final EditVersionStore editVersionStore;
     private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
@@ -54,7 +49,6 @@ public class PropertyService {
                                   PropertyRepository propertyRepository,
                            UserRepository userRepository,
                            AgentService agentService,
-                           ListingCheckLogRepository listingCheckLogRepository,
                            EditVersionStore editVersionStore,
                            GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
@@ -62,7 +56,6 @@ public class PropertyService {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.agentService = agentService;
-        this.listingCheckLogRepository = listingCheckLogRepository;
         this.editVersionStore = editVersionStore;
         this.geoService = geoService;
         this.eventPublisher = eventPublisher;
@@ -160,27 +153,6 @@ public class PropertyService {
         agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         editVersionStore.bump(versionKey(saved.id()));
-        return toResponse(saved);
-    }
-
-    @Transactional
-    public PropertyResponse createDraft(CreateDraftRequest request) {
-        if (request.sourceUrl() == null || request.sourceUrl().isBlank()) {
-            throw new InvalidPropertyRequestException("원본 URL은 필수입니다");
-        }
-        final String name = request.memo() == null || request.memo().isBlank()
-                ? "작성 중" : request.memo().trim();
-        final Property saved = propertyRepository.save(new Property(
-                null, name, null, null, null, null,
-                null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null,
-                null, null, null, null, null,
-                null, null, null, null, null, null, null, null,
-                null, null, null,
-                SourceType.PASTE, listingUrl(request.sourceUrl()), null, null, null, null,
-                true, ListingStatus.ACTIVE, true,
-                null, 0, null,
-                requireOwnerGroupId(), currentNickname(), currentUserId(), Instant.now()));
         return toResponse(saved);
     }
 
@@ -282,27 +254,14 @@ public class PropertyService {
         return get(id);
     }
 
-    public List<CheckLogResponse> checkLogs(Long id) {
-        propertyAccessGuard.require(id);
-        return listingCheckLogRepository.findByPropertyId(id).stream()
-                .map(this::toCheckLogResponse)
-                .toList();
-    }
-
     public List<PropertyResponse> recentSoldOut() {
         return propertyRepository.findRecentSoldOut(10).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
-    private CheckLogResponse toCheckLogResponse(ListingCheckLog log) {
-        return new CheckLogResponse(
-                log.id(), log.checkedAt(), log.httpStatus(), log.verdict(),
-                log.evidence(), log.elapsedMs());
-    }
-
     /**
-     * 원본 URL은 화면에서 링크로 열리고 생존 확인 배치가 주기적으로 두드리는 값이라
+     * 원본 URL은 화면에서 링크로 열리는 값이라
      * <b>http/https만</b> 받는다. `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간
      * 스크립트가 도는 통로가 된다 (설계 I62).
      */

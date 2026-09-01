@@ -18,3 +18,8 @@ spring:
       - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
       - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+
+# 로컬은 더 시끄럽게 본다 (설계 I162). 운영에서 켜면 로그가 못 쓰게 된다
+logging:
+  level:
+    banghak.home.halley: DEBUG

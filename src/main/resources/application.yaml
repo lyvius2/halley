@@ -165,8 +165,8 @@ llm:
 slack:
   enabled: ${SLACK_ENABLED:false}
   notify:
+    # 등록 알림만 따로 끌 수 있다. 보정이 끝나기 전에 보내면 반쯤 빈 카드가 간다
     property-created: ${SLACK_NOTIFY_PROPERTY_CREATED:false}
-    sold-out: ${SLACK_NOTIFY_SOLD_OUT:false}
 
 # 법제처 국가법령정보 — 규제지역 고시 조회 (설계 I73). OC는 키가 아니라 이메일 ID다
 # base-url은 https여야 한다 — http는 301로 넘기는데 Feign이 프로토콜 전환을 안 따라간다
@@ -215,6 +215,10 @@ forecast:
   # 화살표가 반년 전 시장을 가리킨다. 매월 15일 — 국토부 신고 기한이 계약 후 30일이라
   # 월초에는 지난달 자료가 덜 찬다. 대개 값이 싸다: 새로 받을 달은 서너 달뿐이고(I128)
   # 지표가 그대로면 프롬프트 해시가 같아 LLM 을 부르지 않는다(I59)
+  # 답의 토큰 상한 (설계 I149). 모자라면 JSON 중간에서 잘려 파싱이 실패한다 —
+  # 1500 으로 뒀다가 운영에서 정확히 다 쓰고 잘렸다. 요인이 여섯으로 늘어(I148) 답이
+  # 길어진 데다, 요즘 모델은 생각(thinking)에도 예산을 쓴다 (그날 549 토큰)
+  max-tokens: ${FORECAST_MAX_TOKENS:4000}
   monthly-refresh-cron: ${FORECAST_REFRESH_CRON:0 15 4 15 * *}
   monthly-refresh-enabled: ${FORECAST_REFRESH_ENABLED:true}
   # 이 연식 이상이라야 용적률 여유를 재건축 여력으로 본다 (설계 I132).
@@ -248,3 +252,28 @@ enrichment:
 membership:
   sign-up:
     open: ${MEMBERSHIP_SIGN_UP_OPEN:true}
+
+# ── 로깅 (설계 I162) ────────────────────────────────────────────────
+# 자세한 출력 모양·파일 회전은 logback-spring.xml 에 있다. 여기는 무엇을 얼마나
+# 남길지만 정한다.
+logging:
+  file:
+    # live 에서만 파일을 쓴다 (logback-spring.xml). 상대경로면 작업 디렉터리 기준
+    path: ${LOG_PATH:logs}
+  level:
+    root: INFO
+    # 우리 코드는 INFO. 배경 작업이 어디까지 갔는지가 여기서 보인다
+    banghak.home.halley: ${LOG_LEVEL_APP:INFO}
+    # 기동 때만 시끄럽고 그 뒤로는 쓸모가 적다
+    org.springframework: WARN
+    org.springframework.boot.autoconfigure: WARN
+    org.apache.catalina: WARN
+    com.zaxxer.hikari: WARN
+    # 커넥션 풀이 마르면 이건 봐야 한다
+    com.zaxxer.hikari.pool.HikariPool: INFO
+    # jOOQ 는 기본으로 조용히. 쿼리를 세야 할 때만 DEBUG 로 올린다 (설계 I124)
+    org.jooq: WARN
+    org.jooq.tools.LoggerListener: ${LOG_LEVEL_SQL:WARN}
+    # Feign 이 요청 URL 을 남기면 인증키가 새어 나간다 (설계 I140)
+    feign: WARN
+    org.springframework.cloud.openfeign: WARN

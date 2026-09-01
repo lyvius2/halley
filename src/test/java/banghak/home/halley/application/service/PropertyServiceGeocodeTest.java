@@ -2,7 +2,6 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
-import banghak.home.halley.adapter.outbound.persistence.ListingCheckLogRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
@@ -28,7 +27,6 @@ import static org.mockito.Mockito.when;
 class PropertyServiceGeocodeTest {
 
     private final PropertyRepository propertyRepository = mock(PropertyRepository.class);
-    private final ListingCheckLogRepository listingCheckLogRepository = mock(ListingCheckLogRepository.class);
     private final EditVersionStore editVersionStore = mock(EditVersionStore.class);
     private final GeoService geoService = mock(GeoService.class);
     private final ApplicationEventPublisher eventPublisher = mock(ApplicationEventPublisher.class);
@@ -39,7 +37,7 @@ class PropertyServiceGeocodeTest {
 
     private final PropertyService propertyService = new PropertyService(
             propertyAccessGuard, propertyRepository, userRepository, agentService,
-            listingCheckLogRepository, editVersionStore, geoService, eventPublisher);
+            editVersionStore, geoService, eventPublisher);
 
     @BeforeEach
     void stubGroup() {

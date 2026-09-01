@@ -144,7 +144,7 @@ class PriceForecastServiceTest {
     }
 
     @Test
-    @DisplayName("실거래 표본이 3건 미만이면 LLM이 뭐라 하든 UNCERTAIN — 사실의 문제다")
+    @DisplayName("실거래를 세는 지표가 하나도 없으면 LLM이 뭐라 하든 UNCERTAIN — 사실의 문제다")
     void forcesUncertainWhenSamplesTooFew() {
         stub(new AtomicReference<>(), """
                 {"direction":"UP","confidence":"HIGH",
@@ -152,11 +152,59 @@ class PriceForecastServiceTest {
                    "evidence":"금리가 내리는 중입니다"}],
                  "summary":"","caveats":[]}""");
 
-        // 달마다 1건뿐 — 실거래 추세 지표가 안 나온다
+        // 달마다 1건뿐 — 실거래 추세도 장기 추세도 안 나온다
         final var verdict = service.forecast(thinInput());
 
         assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UNCERTAIN);
         assertThat(verdict.conclusion().caveats()).anyMatch(c -> c.contains("표본이 3건 미만"));
+    }
+
+    /**
+     * 3개월 창이 얇은 것과 실거래 자료가 없는 것은 <b>다른 얘기다</b> (설계 I151).
+     *
+     * <p>§2.2-A 의 취지는 "3건으로는 누구도 알 수 없다"인데, 실거래 추세 하나만 보면
+     * <b>장기 표본이 넉넉해도 최근 석 달이 한산하면</b> 판단이 덮인다.
+     */
+    @Test
+    @DisplayName("최근 3개월이 얇아도 장기 추세가 나왔으면 LLM 판단을 그대로 쓴다 (설계 I151)")
+    void keepsLlmVerdictWhenLongTermTrendExists() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UP","confidence":"MEDIUM",
+                 "factors":[{"name":"장기 추세","effect":"UP","weight":"MEDIUM",
+                   "evidence":"4년에 걸쳐 올랐습니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(longTermOnlyInput());
+
+        // 코드가 덮지 않는다 — 실거래를 세는 지표가 하나는 나왔다
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.byCode().factors())
+                .extracting(banghak.home.halley.domain.forecast.PriceFactor::name)
+                .contains("장기 추세")
+                .doesNotContain("실거래 추세");
+    }
+
+    /**
+     * 실거래를 <b>안 세는</b> 지표만 나온 경우 (설계 I151).
+     *
+     * <p>금리 국면은 ECOS 통계라 아무리 나와도 <b>이 매물의 표본</b>과는 무관하다.
+     * 그것으로 안전장치를 통과시키면 취지가 무너진다.
+     */
+    @Test
+    @DisplayName("금리 국면만 나왔으면 여전히 UNCERTAIN — 그건 이 매물의 실거래가 아니다 (설계 I151)")
+    void rateCycleAloneDoesNotPassTheGuard() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UP","confidence":"HIGH",
+                 "factors":[{"name":"금리 국면","effect":"UP","weight":"MEDIUM",
+                   "evidence":"금리가 내리는 중입니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(thinInput());
+
+        assertThat(verdict.byCode().factors())
+                .extracting(banghak.home.halley.domain.forecast.PriceFactor::name)
+                .contains("금리 국면");
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UNCERTAIN);
     }
 
     @Test
@@ -246,6 +294,28 @@ class PriceForecastServiceTest {
      * 실거래는 달마다 1건뿐이라 추세 지표가 안 나오고(3건 미만), 금리만 나온다.
      * 그래야 LLM을 부르고 안전장치가 도는지 볼 수 있다.
      */
+    /**
+     * 장기 표본은 넉넉한데 <b>최근 석 달만</b> 한산한 경우 (설계 I151).
+     *
+     * <p>실거래 추세(3개월 창)는 안 나오고 장기 추세(12개월 창 둘)는 나온다 —
+     * 이것이 §2.2-A 를 좁게 구현했을 때 애꿎게 덮이던 자리다.
+     */
+    private ForecastInput longTermOnlyInput() {
+        final List<MonthlyTrades> months = new ArrayList<>();
+        for (int m = 61; m >= 1; m--) {
+            // 최근 3개월(1·2·3개월 전)에 1 + 1 + 0 = 2건만. 나머지 달은 3건씩
+            final int count = switch (m) {
+                case 1, 2 -> 1;
+                case 3 -> 0;
+                default -> 3;
+            };
+            // 4년에 걸쳐 오른다 — 장기 추세가 UP 을 낸다
+            final long price = m >= 49 ? 1_000_000_000L : 1_200_000_000L;
+            months.add(month(YearMonth.now().minusMonths(m), price, count));
+        }
+        return new ForecastInput(property(), months, List.of(), List.of(), List.of(), null);
+    }
+
     private ForecastInput thinInput() {
         final List<MonthlyTrades> months = new ArrayList<>();
         for (int i = 0; i < 7; i++) {

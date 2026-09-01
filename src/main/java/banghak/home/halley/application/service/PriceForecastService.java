@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * 지표를 놓고 LLM에게 방향을 묻는다 (설계 I134).
@@ -53,13 +54,32 @@ import java.util.Optional;
 @Service
 public class PriceForecastService {
 
-    private static final int MAX_TOKENS = 1500;
+    /**
+     * 예산이 모자라면 <b>답이 JSON 중간에서 잘립니다</b> (설계 I149).
+     *
+     * <p>1,500으로 뒀다가 운영에서 정확히 다 쓰고 잘렸습니다. 요인이 여섯으로 늘어(I148)
+     * 답이 길어진 데다, <b>요즘 모델은 생각(thinking)에도 예산을 씁니다</b> —
+     * 그날 549토큰이 생각에 나갔습니다.
+     *
+     * <p>잘리면 파싱이 실패해 코드 예측으로 되돌아갑니다. <b>조용히는 아닙니다</b>
+     * (I144의 경고가 잡습니다) — 다만 LLM을 부르고도 안 쓴 셈이라 값만 치릅니다.
+     */
+    private final int maxTokens;
     /**
      * 실거래 표본이 이보다 적으면 <b>LLM이 뭐라 하든 UNCERTAIN</b>입니다.
      * 3건으로는 누구도 알 수 없습니다 — 판단의 문제가 아니라 사실의 문제입니다.
      */
     private static final int MIN_TRADE_SAMPLES = 3;
-    private static final String TREND_CODE = "실거래 추세";
+    /**
+     * 실거래를 <b>실제로 세어 본</b> 지표들 (설계 I151).
+     *
+     * <p>둘 중 하나라도 값을 냈으면 표본이 있었다는 뜻입니다 — 각 지표가 이미
+     * 3건 미만이면 내지 않습니다(I130 · I148). 그래서 요인의 존재로 가립니다.
+     *
+     * <p>금리 국면과 용적률 여유는 <b>여기 없습니다.</b> 그 둘은 실거래를 안 봅니다 —
+     * ECOS 통계와 건축물대장이라 아무리 나와도 <b>이 매물의 표본</b>과는 무관합니다.
+     */
+    private static final Set<String> TRADE_BASED_FACTORS = Set.of("실거래 추세", "장기 추세");
 
     private final LlmPort llmPort;
     private final ForecastIndicatorFactory indicatorFactory;
@@ -89,7 +109,8 @@ public class PriceForecastService {
                                 ObjectMapper objectMapper,
                                 @Value("${llm.enabled:true}") boolean enabled,
                                 @Value("${llm.claude.model.forecast:}") String model,
-                                @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths) {
+                                @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths,
+                                @Value("${forecast.max-tokens:4000}") int maxTokens) {
         this.llmPort = llmPort;
         this.indicatorFactory = indicatorFactory;
         this.parser = new ForecastVerdictParser(objectMapper);
@@ -104,6 +125,7 @@ public class PriceForecastService {
         this.enabled = enabled;
         this.model = model == null || model.isBlank() ? null : model;
         this.rateLookbackMonths = rateLookbackMonths;
+        this.maxTokens = maxTokens;
     }
 
     /** 화면이 "지금 분석 중인가"를 물어볼 키 (설계 I72와 같은 방식). */
@@ -263,6 +285,11 @@ public class PriceForecastService {
                     input.property() == null ? null : input.property().id());
             return new ForecastVerdict(byCode, byCode, null, false);
         }
+        // 어느 지표가 값을 냈는지 남긴다 (설계 I150). 개수만 남기면 판단이 보류될 때
+        // 무엇이 없어서인지 알 수 없다 — 실거래 추세가 빠진 것인지, 전세가율이 빠진 것인지
+        log.info("Forecast indicators produced values. names=[{}]", byCode.factors().stream()
+                .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                .collect(java.util.stream.Collectors.joining(", ")));
         final ForecastPrompt prompt = ForecastPrompt.of(input.property(), byCode.factors(), horizon);
 
         if (!enabled || !llmPort.isEnabled()) {
@@ -285,14 +312,14 @@ public class PriceForecastService {
      * 해시가 같아 <b>영영 건너뛰었습니다.</b>
      */
     private Optional<PriceOutlook> ask(ForecastPrompt prompt, int horizon) {
-        log.info("Asking LLM for price forecast. factors={}, promptChars={}",
+        log.info("Asking LLM for price forecast. knownNumbers={}, promptChars={}",
                 prompt.allowedNumbers().size(), prompt.user().length());
         log.debug("Forecast prompt.\n{}", prompt.user());
 
         final long askedAt = System.currentTimeMillis();
         // 판단 작업이라 흔들리면 안 된다 (설계 I127)
         final LlmResult result = llmPort.complete(
-                LlmMessage.deterministic(prompt.system(), prompt.user(), MAX_TOKENS, model));
+                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens, model));
         log.info("LLM forecast responded. present={}, elapsedMs={}",
                 result.isPresent(), System.currentTimeMillis() - askedAt);
 
@@ -322,9 +349,13 @@ public class PriceForecastService {
             return byCode;
         }
         if (!hasEnoughTradeSamples(byCode)) {
-            log.info("Forcing UNCERTAIN - trade samples below {}.", MIN_TRADE_SAMPLES);
+            log.info("Forcing UNCERTAIN - no trade-based indicator. required={}, got=[{}]",
+                    TRADE_BASED_FACTORS, byCode.factors().stream()
+                            .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                            .collect(java.util.stream.Collectors.joining(", ")));
             final List<String> caveats = new ArrayList<>(byLlm.caveats());
-            caveats.add(String.format("실거래 표본이 %d건 미만이라 방향을 판단하지 않았습니다",
+            caveats.add(String.format(
+                    "이 단지·면적대의 실거래 표본이 %d건 미만이라 방향을 판단하지 않았습니다",
                     MIN_TRADE_SAMPLES));
             return new PriceOutlook(ForecastDirection.UNCERTAIN, ForecastConfidence.LOW,
                     byLlm.horizonMonths(), byLlm.factors(), caveats);
@@ -333,11 +364,17 @@ public class PriceForecastService {
     }
 
     /**
-     * 실거래 추세 요인이 나왔다는 것은 <b>표본이 충분했다는 뜻</b>입니다 —
-     * 지표가 이미 3건 미만이면 내지 않습니다(I130). 그래서 요인의 존재로 가립니다.
+     * 실거래 표본이 있었는가 (설계 I151).
+     *
+     * <p>예전에는 <b>실거래 추세 하나만</b> 봤습니다. 그 지표는 3개월 창이라,
+     * 장기 표본이 넉넉해도 <b>최근 석 달이 한산하면</b> 판단이 덮였습니다.
+     *
+     * <p>§2.2-A의 취지는 "3건으로는 누구도 알 수 없다"입니다 — <b>3개월 창이 얇은 것</b>과
+     * <b>실거래 자료가 없는 것</b>은 다른 얘기인데 둘을 같게 보고 있었습니다.
+     * 장기 추세(12개월 창 둘)가 나왔다면 표본은 이미 충분합니다.
      */
     private boolean hasEnoughTradeSamples(PriceOutlook byCode) {
-        return byCode.factors().stream().anyMatch(f -> TREND_CODE.equals(f.name()));
+        return byCode.factors().stream().anyMatch(f -> TRADE_BASED_FACTORS.contains(f.name()));
     }
 
     /**

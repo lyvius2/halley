@@ -65,8 +65,8 @@ Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. �
 | **실거래가** | 국토부 실거래를 12개월치 조회해 같은 단지·면적대 중앙값을 보여 줍니다 |
 | **공시가격·토지이용계획** | V-World에서 공시가격과 토지거래허가구역·정비구역을 받아 붙입니다 |
 | **규제지역 자동 적재** | 법제처 고시 PDF를 파싱해 투기과열지구·조정대상지역을 DB에 채웁니다 |
+| **가격 전망** | 실거래 추세·전세가율·장기 추세·전고점 대비·금리 국면·용적률 여유를 코드가 계산하고, **방향은 Claude가 판단**합니다. 매물 카드에 화살표 하나(▲▼▶)로만 뜹니다 |
 | **임장 플래너** | 하루 방문할 매물(최대 12건)을 고르면 자가용/대중교통 기준 최적 방문 순서를 계산합니다 |
-| **매물 생존 확인** | 매일 아침 등록된 매물이 판매완료됐는지 점검하고 그룹 Slack으로 알립니다 |
 | **그룹 알림** | 매물 등록·삭제, 코멘트, 쾌적함 평가를 그룹 Webhook으로 보냅니다 |
 | **지도·로드뷰** | 카카오맵 마커와 로드뷰 모달 |
 
@@ -204,8 +204,11 @@ Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. �
 | V-World | 공시가격 · 토지이용계획 · 행정구역 | 인증키 | 공시가격·규제 정보가 빈다 |
 | 법제처 | 규제지역 고시 | `OC` | **규제지역을 사람이 넣어야 한다** |
 | 금감원 | 대출 상품 금리 | `auth` | 기본 금리 4%로 계산 |
+| 국토부 전월세 실거래 | 전세가율 | 서비스 키(공유) | 전세가율 지표가 빠진다 |
+| 국토부 건축물대장 | 현재 용적률 → 재건축 여력 | 서비스 키(공유) | 용적률 여유 지표가 빠진다 |
 | 한국은행 ECOS | 가계대출 금리 5년 | 인증키(**경로**) | 스트레스 금리가 고정값으로 남는다 |
-| Claude | AI 추천도 | `x-api-key` | AI 항목만 미산출 |
+| 네이버 검색(뉴스) | 관련 기사 링크 — **점수 미반영** | Client ID/Secret | 전망 모달의 기사 목록이 빈다 |
+| Claude | AI 추천도 · **가격 전망 판단** | `x-api-key` | 그 두 항목만 미산출 |
 | Slack Webhook | 그룹 알림 | URL 자체 | 알림이 안 간다 |
 
 > **키가 없으면 그 기능만 비고 나머지는 그대로 돕니다.** 외부 연동 실패가 본 기능을
@@ -289,6 +292,7 @@ REDIS_HOST=... \
 | `FSS_API_KEY` | 금융감독원 금융상품통합비교공시 |
 | `ECOS_KEY` | 한국은행 경제통계시스템 |
 | `ANTHROPIC_API_KEY` | Anthropic Console |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 개발자센터 — 검색 API |
 
 > **Slack Webhook URL은 환경변수가 아닙니다.** 그룹마다 다르므로 DB
 > (`user_group.slack_webhook_url`)에 저장하고 **그룹 정보 화면**에서 관리합니다.
@@ -307,10 +311,78 @@ REDIS_HOST=... \
 | `ECOS_STAT_CODE` | `121Y006` | 예금은행 대출금리 |
 | `ECOS_HOUSEHOLD_ITEM` | `BECBLA03` | 가계대출 항목 코드 |
 | `LLM_ENABLED` · `LLM_PROVIDER` · `LLM_CLAUDE_MODEL` | `true` · `claude` · `claude-opus-5` | |
-| `SLACK_ENABLED` | `true` | |
+| `SLACK_ENABLED` | **`false`** | 알림 전체 스위치. **켜야 아무것도 나갑니다** |
+| `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림만 따로 |
 
 > 카카오 개발자 콘솔에 로컬(`http://localhost:8080`)과 운영 도메인을 **모두** 등록해야
 > 지도가 렌더됩니다.
+
+### Slack 알림 붙이기
+
+**웹훅 URL은 환경변수가 아니라 그룹마다 DB에 있습니다**(`user_group.slack_webhook_url`).
+그룹이 각자 다른 채널을 쓰기 때문입니다 — 한 곳에 몰면 **우리 매물이 남의 채널에 뜹니다.**
+
+#### 1. Slack에서 웹훅 만들기
+
+1. <https://api.slack.com/apps> → **Create New App** → *From scratch*
+2. 이름과 워크스페이스를 고릅니다
+3. 왼쪽 **Incoming Webhooks** → 스위치를 **On**
+4. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
+5. 만들어진 URL을 복사합니다
+
+생김새는 이렇습니다 (실제 값이 아니라 **모양만** 적습니다 — 진짜를 문서에 두면
+GitHub 비밀 검사가 푸시를 막습니다):
+
+```
+https://hooks.slack.com/services/<팀ID>/<채널ID>/<토큰>
+```
+
+> **이 URL 자체가 인증입니다.** 아는 사람은 누구나 그 채널에 글을 쓸 수 있습니다 —
+> 공개 저장소·이슈·스크린샷에 올리지 마십시오. 새면 Slack 앱 화면에서 지우고 다시 만듭니다.
+
+#### 2. 앱에 넣기
+
+**헤더의 `{그룹명}의` → 그룹 정보 → Slack Webhook URL** 칸에 붙여넣고 **저장**.
+바로 옆 **테스트** 버튼으로 실제로 닿는지 확인합니다 — 채널에 한 줄이 뜨면 된 것입니다.
+
+#### 3. 서버 스위치 켜기
+
+```bash
+SLACK_ENABLED=true                    # ← 이게 false 면 아무것도 안 나갑니다 (기본값)
+SLACK_NOTIFY_PROPERTY_CREATED=true    # 매물 등록 알림도 받으려면
+```
+
+> **`SLACK_ENABLED`의 기본값은 `false`입니다.** 웹훅을 넣고 저장해도 이걸 안 켜면
+> 조용합니다. **테스트 버튼은 이 스위치와 무관하게** 보내므로, "테스트는 되는데
+> 실제 알림이 안 온다"면 여기부터 보십시오.
+
+#### 무엇이 언제 가나
+
+| 사건 | 스위치 | 보내는 곳 |
+|---|---|---|
+| 매물 등록 | `SLACK_NOTIFY_PROPERTY_CREATED` | `PropertyCreatedListener` |
+| 매물 삭제 | 없음 (항상) | `PropertyCreatedListener` |
+| 코멘트 등록 | 없음 (항상) | `PropertyInsightListener` |
+| 공간의 쾌적함 평가 | 없음 (항상) | `PropertyInsightListener` |
+
+메시지는 **평문 한 줄**입니다(`{"text": "..."}`). 블록 킷을 쓰지 않습니다 —
+읽는 사람이 몇 명뿐이라 꾸밈보다 **한눈에 읽히는 것**이 낫습니다.
+
+```
+:house: 새 매물이 등록되었습니다 — 상계주공7단지 714동
+:speech_balloon: 월터님이 상계주공7단지 714동에 의견을 남겼습니다
+```
+
+#### 안 오면 볼 것
+
+| 증상 | 원인 |
+|---|---|
+| 테스트도 안 됨 | URL 오타 · Slack 앱에서 웹훅을 지웠음 |
+| 테스트는 되는데 알림이 없음 | **`SLACK_ENABLED=false`** |
+| 등록만 안 옴 | `SLACK_NOTIFY_PROPERTY_CREATED=false` |
+| 가끔 빠짐 | 전송 실패는 `notification_log`에 남고 **5분마다 재시도**합니다(`NotificationRetryJob`). 관리자 → 설정 → 알림 이력에서 상태를 봅니다 |
+
+> **알림 실패가 본 기능을 막지 않습니다.** 매물 등록·코멘트는 Slack이 죽어도 그대로 됩니다.
 
 ---
 
@@ -351,7 +423,6 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | `POST` | `/api/properties` | 등록 — 앞 단계 보정까지 마치고 응답 |
 | `GET` `PUT` `DELETE` | `/api/properties/{id}` | 단건 · 수정 · 삭제 |
 | `POST` | `/api/properties/parse-preview` | 붙여넣기 파싱 미리보기 |
-| `POST` | `/api/properties/draft` | 원본 URL만으로 초안 생성 |
 | `PATCH` | `/api/properties/{id}/status` | 판매 상태 |
 | `GET` | `/api/properties/score-versions` | 채점 판 번호 — 화면 폴링용 |
 
@@ -363,6 +434,9 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | `POST` | `/api/properties/{id}/scores/recompute` | **미산출 항목 재산출** |
 | `POST` | `/api/properties/{id}/rescore` | 재채점 |
 | `GET` | `/api/properties/{id}/llm-recommendation` | AI 추천도 (진행 중 표시 포함) |
+| `GET` | `/api/properties/{id}/forecast` | 가격 전망 — 결과가 없어도 200 (진행 중인지 알려야 한다) |
+| `POST` | `/api/properties/{id}/forecast/refresh` | 전망 다시 분석 (1~2분) |
+| `GET` | `/api/properties/{id}/news` | 관련 기사 — **점수·프롬프트 미반영** |
 | `GET` `POST` | `/api/properties/comparative-analysis` | 비교 우위 |
 | `GET` `PUT` | `/api/criteria/weights` | 가중치 |
 
@@ -395,7 +469,6 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | `GET` `PUT` | `/api/admin/regulations` · `/params` | 규제 파라미터 |
 | `GET` `POST` `DELETE` | `/api/admin/regulated-areas` | 규제지역 |
 | `POST` | `/api/admin/stress-rate/refresh` | **스트레스 금리 재산출** (ECOS) |
-| `POST` | `/api/admin/listing-check/run` | 생존 확인 즉시 실행 |
 | `GET` | `/api/admin/notifications` | 알림 발송 이력 |
 
 ---
@@ -467,7 +540,9 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | [`docs/DDL.sql`](./docs/DDL.sql) | PostgreSQL 스키마 (초기 생성 + 마이그레이션 이력) |
 | [`docs/DDL-repair.sql`](./docs/DDL-repair.sql) | 멱등 복구 스크립트 — 운영 DB가 뒤처졌을 때 |
 | [`docs/ADJUST_CACHE.md`](./docs/ADJUST_CACHE.md) | 캐시·성능 검토 (실측 기반) |
-| [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 기능 설계 검토 (미구현) |
+| [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 설계 — 지표 산식 · 코드/LLM 역할 분담 · 안전장치 |
+| [`docs/MORTGAGE_ENGINE.md`](./docs/MORTGAGE_ENGINE.md) | 대출 계산 엔진 — LTV · 스트레스 DSR · 담보가치 |
+| [`docs/DDL-forecast-reset.sql`](./docs/DDL-forecast-reset.sql) | 전망 재시작용 정리 (429·400 시절 값 걷어내기) |
 | [`AGENTS.md`](./AGENTS.md) | AI 코딩 에이전트용 작업 지침 |
 
 > **설계 결정은 번호로 관리합니다.** 코드 주석의 `(설계 I117)` 같은 표기는
@@ -481,3 +556,6 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 
 대출 한도·실거래가·규제지역은 **자체 계산과 공공 데이터**이며 실제 은행 심사 결과와
 다를 수 있습니다. 투자 판단의 근거로 삼지 마십시오.
+
+**가격 전망은 특히 그렇습니다.** 공개된 지표 몇 개로 낸 것이고 틀릴 수 있습니다.
+재료가 모자라면 방향을 내지 않고 `판단 보류`로 남깁니다 — 넷 중 하나를 억지로 고르지 않습니다.

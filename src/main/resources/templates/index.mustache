@@ -26,17 +26,22 @@
                 <nav class="nav">
                     <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
-                    <button class="nav-btn" :class="{on: view==='me'}" @click="setView('me')">프로필</button>
                     <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
-                    <!-- 그룹명을 눌러 그룹 정보 화면으로 (설계 I123) -->
-                    <button class="group-chip" x-show="myGroup" :class="{on: view==='group'}"
-                            @click="setView('group')"
+                    <!-- 「{그룹명}의 {닉네임}」 (설계 I170).
+                         한 문장으로 읽히지만 <b>가는 곳이 둘</b>이라 버튼도 둘이다 —
+                         앞은 그룹 정보(I123), 뒤는 내 프로필(I153). 사이의 구분선만 지운다 -->
+                    <button class="nav-btn nav-mine" type="button" x-show="myGroup"
+                            :class="{on: view==='group'}" @click="setView('group')"
                             :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
-                        <span x-text="myGroup ? myGroup.name : ''"></span>
+                        <span x-text="(myGroup ? myGroup.name : '') + '의'"></span>
                     </button>
-                    <span class="who"><b x-text="session.nickname"></b><span x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span></span>
+                    <button class="nav-btn nav-mine nav-mine-tail" type="button"
+                            :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
+                        <span x-text="session.nickname"></span><span
+                                x-text="session.role==='ADMIN' ? ' · 관리자' : ''"></span>
+                    </button>
                     <button class="btn btn-ghost" @click="logout()">로그아웃</button>
                 </nav>
             </template>
@@ -62,7 +67,7 @@
                 <div>
                     <div x-show="view==='list'">
                         <div class="sec-head sec-head-actions">
-                            <span class="sec-num">01</span><h2>매물</h2>
+                            <h2>매물</h2>
                             <span class="sec-sub" x-text="visibleProperties.length + '건'"></span>
                             <div class="sec-actions">
                                 <button class="btn btn-sm" @click="openCompare()"
@@ -138,7 +143,6 @@
                                     <div class="property-card-actions" @click.stop>
                                         <button class="btn-link" @click="openDetail(r)">상세</button>
                                         <button class="btn-link" x-show="r.property.isDraft" @click="openPasteModal(r)">완성</button>
-                                        <button class="btn-link" @click="openCheckLogs(r)">이력</button>
                                         <button class="btn-link" @click="openComments(r)">코멘트</button>
                                         <button class="btn-link" @click="openScoreModal(r)">채점</button>
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
@@ -152,7 +156,7 @@
                     </div>
 
                     <div x-show="view==='weights'">
-                        <div class="sec-head"><span class="sec-num">03</span><h2>평가 기준·가중치</h2><span class="sec-sub" x-text="weights.length + '개'"></span></div>
+                        <div class="sec-head"><h2>평가 기준·가중치</h2><span class="sec-sub" x-text="weights.length + '개'"></span></div>
                         <div class="card table-wrap">
                             <table>
                                 <thead>
@@ -185,7 +189,7 @@
                     </div>
 
                     <div x-show="view==='itinerary'">
-                        <div class="sec-head"><span class="sec-num">05</span><h2>임장 플래너</h2><span class="sec-sub" x-text="itinProperties.length + '건 선택'"></span></div>
+                        <div class="sec-head"><h2>임장 플래너</h2><span class="sec-sub" x-text="itinProperties.length + '건 선택'"></span></div>
                         <div class="card itin-panel">
                             <div class="form-grid">
                                 <label class="span2">출발지 주소
@@ -260,41 +264,61 @@
                     </div>
 
                     <div x-show="view==='me'">
-                        <div class="sec-head"><span class="sec-num">06</span><h2>내 프로필</h2></div>
+                        <div class="sec-head"><h2>내 프로필</h2></div>
+                        <!-- 순서는 쓰는 빈도다 (설계 I168): 수정 → 부채 → 비밀번호 → 그룹 → 탈퇴.
+                             읽기 전용 요약 카드는 뺐다 — 바로 아래 수정 폼에 같은 값이 있다 -->
                         <template x-if="profile">
-                            <div class="card profile-panel">
-                                <div class="profile-row"><span>아이디</span><b x-text="profile.loginId"></b></div>
-                                <div class="profile-row"><span>닉네임</span><b x-text="profile.nickname"></b></div>
-                                <div class="profile-row"><span>역할</span><b x-text="profile.role === 'ADMIN' ? '관리자' : '회원'"></b></div>
-                                <!-- 행을 늘 보여 준다 (설계 I102). 숨기면 admin이라 없는 것인지
-                                     조회가 실패한 것인지 화면에서 구분되지 않는다 -->
-                                <div class="profile-row">
-                                    <span>그룹</span>
-                                    <b>
-                                        <template x-if="myGroup">
-                                            <span>
-                                                <span x-text="myGroup.name"></span>
-                                                <span class="group-members"
-                                                      x-text="'· ' + myGroup.memberCount + '명'"></span>
-                                            </span>
-                                        </template>
-                                        <template x-if="!myGroup">
-                                            <span class="group-members"
-                                                  x-text="profile.role === 'ADMIN'
-                                                      ? '없음 (관리자는 그룹에 속하지 않습니다)'
-                                                      : '불러오지 못했습니다'"></span>
-                                        </template>
-                                    </b>
-                                </div>
-                                <div class="profile-row"><span>보유 현금</span><b x-text="fmtWon(profile.availableBudget)"></b></div>
-                                <div class="profile-row"><span>연소득</span><b x-text="fmtWon(profile.annualIncome)"></b></div>
-                                <div class="profile-row"><span>기존 대출액</span><b x-text="fmtWon(profile.existingLoan)"></b></div>
-                                <div class="profile-row"><span>직장</span><b x-text="profile.workplaceName || '미설정'"></b></div>
-                                <div class="profile-row"><span>직장 좌표</span><b x-text="(profile.workplaceLat != null ? profile.workplaceLat + ', ' + profile.workplaceLng : '미설정')"></b></div>
+                        <div>
+                        <div class="card profile-panel">
+                            <h4 class="profile-title">프로필 수정</h4>
+                            <div class="form-grid">
+                                <label>닉네임
+                                    <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
+                                </label>
+                                <label class="span2">직장 주소
+                                    <div class="workplace-search">
+                                        <input type="text" x-model="profileForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
+                                        <button class="btn" type="button" @click="searchPostcodeFor('profile')">주소 검색</button>
+                                    </div>
+                                </label>
+                                <label>위도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
+                                </label>
+                                <label>경도
+                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
+                                </label>
+                                <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
+                                              x-text="moneyHint(profileForm.availableBudget)"></span>
+                                    </span>
+                                    <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
+                                </label>
+                                <label>연소득 (원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
+                                              x-text="moneyHint(profileForm.annualIncome)"></span>
+                                    </span>
+                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
+                                </label>
+                                <label>기존 대출액 (원)
+                                    <span class="money-row">
+                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
+                                        <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
+                                              x-text="moneyHint(profileForm.existingLoan)"></span>
+                                    </span>
+                                    <span class="settings-note">대출액수만큼 DSR 여력에서 빠집니다.</span>
+                                </label>
                             </div>
-                        </template>
-                        <template x-if="profile">
-                        <!-- D3-1b 기존 부채 (설계 I92) -->
+                            <p class="form-error" x-show="error" x-text="error"></p>
+                            <div class="panel-actions">
+                                <button class="btn btn-primary" @click="saveProfile()" :disabled="loading">
+                                    <span x-text="loading ? '저장 중…' : '프로필 저장'"></span>
+                                </button>
+                            </div>
+                        </div>
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">기존 부채</h4>
                             <p class="settings-note">
@@ -334,8 +358,12 @@
                                 </div>
                             </template>
                         </div>
-
-                        <!-- D3-2 그룹 (설계 I89) -->
+                        <div class="card profile-panel" style="margin-top:14px;">
+                            <h4 class="profile-title">비밀번호 변경</h4>
+                            <div class="panel-actions">
+                                <button class="btn" @click="openChangePw()">비밀번호 변경</button>
+                            </div>
+                        </div>
                         <template x-if="myGroup">
                         <div class="card profile-panel" style="margin-top:14px;">
                             <h4 class="profile-title">그룹</h4>
@@ -388,8 +416,6 @@
                             </div>
                         </div>
                         </template>
-
-                        <!-- D3-3 회원 탈퇴 (설계 I89 · 규칙 15·16) -->
                         <div class="card profile-panel profile-danger" style="margin-top:14px;"
                              x-show="profile && profile.role !== 'ADMIN'">
                             <h4 class="profile-title">회원 탈퇴</h4>
@@ -404,70 +430,14 @@
                                         :disabled="loading || !withdrawForm.password">탈퇴</button>
                             </div>
                         </div>
-
-                        <div class="card profile-panel" style="margin-top:14px;">
-                            <h4 class="profile-title">프로필 수정</h4>
-                            <div class="form-grid">
-                                <label>닉네임
-                                    <input type="text" x-model="profileForm.nickname" placeholder="리스트·의견에 표시되는 이름">
-                                </label>
-                                <label class="span2">직장 주소
-                                    <div class="workplace-search">
-                                        <input type="text" x-model="profileForm.workplaceName" placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
-                                        <button class="btn" type="button" @click="searchPostcodeFor('profile')">주소 검색</button>
-                                    </div>
-                                </label>
-                                <label>위도
-                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLat" readonly placeholder="주소 선택 시 자동 입력">
-                                </label>
-                                <label>경도
-                                    <input type="number" step="0.000001" x-model="profileForm.workplaceLng" readonly placeholder="주소 선택 시 자동 입력">
-                                </label>
-                                <label class="span2">보유 현금 (총 자산에서 가용 가능한 금액 - 원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.availableBudget" @input="profileForm.availableBudget = numericInput($event)" placeholder="300000000" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.availableBudget)"
-                                              x-text="moneyHint(profileForm.availableBudget)"></span>
-                                    </span>
-                                    <span class="settings-note">대출을 뺀 동원 가능한 현금입니다. 바꾸면 전 매물의 가격 점수가 다시 계산됩니다.</span>
-                                </label>
-                                <label>연소득 (원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.annualIncome" @input="profileForm.annualIncome = numericInput($event)" placeholder="50000000" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.annualIncome)"
-                                              x-text="moneyHint(profileForm.annualIncome)"></span>
-                                    </span>
-                                    <span class="settings-note">세전 기준. 대출 한도(DSR) 계산에 씁니다.</span>
-                                </label>
-                                <label>기존 대출액 (원)
-                                    <span class="money-row">
-                                        <input type="text" inputmode="numeric" :value="profileForm.existingLoan" @input="profileForm.existingLoan = numericInput($event)" placeholder="0" style="width:50%">
-                                        <span class="money-hint" x-show="moneyHint(profileForm.existingLoan)"
-                                              x-text="moneyHint(profileForm.existingLoan)"></span>
-                                    </span>
-                                    <span class="settings-note">없으면 0. 있으면 그만큼 DSR 여력에서 빠집니다.</span>
-                                </label>
-                            </div>
-                            <p class="form-error" x-show="error" x-text="error"></p>
-                            <div class="panel-actions">
-                                <button class="btn btn-primary" @click="saveProfile()" :disabled="loading">
-                                    <span x-text="loading ? '저장 중…' : '프로필 저장'"></span>
-                                </button>
-                            </div>
                         </div>
                         </template>
-                        <div class="card profile-panel" style="margin-top:14px;">
-                            <h4 class="profile-title">비밀번호 변경</h4>
-                            <div class="panel-actions">
-                                <button class="btn" @click="openChangePw()">비밀번호 변경</button>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —
                          구성원·초대 코드까지 함께 보는 자리라 좁은 상자에 넣지 않는다 -->
                     <div x-show="view==='group'">
-                        <div class="sec-head"><span class="sec-num">07</span><h2>그룹 정보</h2></div>
+                        <div class="sec-head"><h2>그룹 정보</h2></div>
                         <div class="progress-strip" x-show="isLoading('groupDetail')" x-cloak>
                             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
                             <div class="progress-strip-bar"><i></i></div>
@@ -480,7 +450,7 @@
                             </div>
                         </template>
                         <template x-if="groupDetail">
-                            <div>
+                            <div class="group-view">
                                 <!-- 이 앱은 모아서 집을 사려고 만든 것이라 합계가 먼저 보인다 -->
                                 <div class="group-stats">
                                     <div class="group-stat">
@@ -495,7 +465,8 @@
                                     </div>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
+                                    <h4 class="card-title">그룹 설정</h4>
                                     <div class="form-grid">
                                         <label class="span2">그룹 이름
                                             <div class="workplace-search">
@@ -520,9 +491,10 @@
                                     </div>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
                                     <h4 class="card-title">구성원 <span x-text="groupDetail.memberCount + '명'"></span></h4>
-                                    <table class="tbl">
+                                    <div class="table-wrap group-table">
+                                    <table>
                                         <thead>
                                         <tr><th>닉네임</th><th>직장</th><th class="num">보유 현금</th><th>상태</th></tr>
                                         </thead>
@@ -530,7 +502,8 @@
                                         <template x-for="m in groupDetail.members" :key="m.id">
                                             <tr>
                                                 <td x-text="m.nickname"></td>
-                                                <td x-text="m.workplaceName || '-'"></td>
+                                                <!-- 칸이 좁아 줄바꿈되므로 전체 주소는 툴팁으로 (설계 I165) -->
+                                                <td :title="m.workplaceName || ''" x-text="m.workplaceName || '-'"></td>
                                                 <td class="num" x-text="fmtWon(m.availableBudget)"></td>
                                                 <td><span class="badge" :class="m.enabled ? 'b-on' : 'b-off'"
                                                           x-text="m.enabled ? '활성' : '비활성'"></span></td>
@@ -538,10 +511,11 @@
                                         </template>
                                         </tbody>
                                     </table>
+                                    </div>
                                     <p class="settings-note">열람만 가능합니다. 프로필 수정은 각자 합니다.</p>
                                 </div>
 
-                                <div class="card">
+                                <div class="card group-panel">
                                     <h4 class="card-title">초대 코드</h4>
                                     <p class="settings-note">코드는 <b>24시간</b> 동안만 쓸 수 있고, 새로 만들면 이전 코드는 사라집니다.</p>
                                     <div class="workplace-search">
@@ -568,7 +542,7 @@
 
 <!-- D1 로그인 모달 -->
 <div class="modal" x-show="showLogin" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
@@ -598,7 +572,7 @@
 
 <!-- D1-2 회원 가입 모달 (설계 I89 · 규칙 13·14) -->
 <div class="modal" x-show="showSignUp" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">우리들끼리 부동산 매물 비교 🏡</span>
@@ -639,7 +613,7 @@
 
 <!-- D2 비밀번호 강제 변경 모달 -->
 <div class="modal" x-show="showPassword" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
@@ -663,7 +637,7 @@
 
 <!-- D2-2 프로필 확인 (강제 — 설계 6.1 · I48 · I100) -->
 <div class="modal" x-show="showProfileSetup" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <!-- 로그인·비밀번호 화면과 같은 결로 (설계 I121). 초기 설정 흐름은 하나로 읽혀야 한다 -->
     <div class="modal-card modal-wide modal-login">
         <div class="modal-head">
@@ -741,39 +715,13 @@
                 <b>직접 입력</b>
                 <span>빈 폼에 직접 입력합니다.</span>
             </button>
-            <button class="add-choice" @click="openDraftModal()">
-                <b>빠른 저장</b>
-                <span>URL만 던져두고 나중에 완성합니다 (DRAFT).</span>
-            </button>
         </div>
-    </div>
-</div>
-
-<!-- DRAFT 빠른 저장 모달 -->
-<div class="modal" x-show="showDraftModal" x-cloak>
-    <div class="modal-backdrop"></div>
-    <div class="modal-card">
-        <div class="modal-head">
-            <span class="modal-kicker">빠른 저장</span>
-            <h3>DRAFT 등록</h3>
-            <p>네이버 매물 URL을 저장해 두고, 나중에 PC에서 붙여넣기로 완성합니다.</p>
-        </div>
-        <form class="form" @submit.prevent="saveDraft()">
-            <label>원본 URL
-                <input type="text" x-model="draftForm.sourceUrl" placeholder="https://fin.land.naver.com/articles/..." required>
-            </label>
-            <label>메모
-                <input type="text" x-model="draftForm.memo" placeholder="마포역 근처 3호선">
-            </label>
-            <p class="form-error" x-show="error" x-text="error"></p>
-            <button class="btn btn-primary btn-block" type="submit" :disabled="loading">저장</button>
-        </form>
     </div>
 </div>
 
 <!-- D9 붙여넣기 등록 모달 -->
 <div class="modal" x-show="showPasteModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide modal-tall">
         <div class="modal-head">
             <span class="modal-kicker">붙여넣기 등록</span>
@@ -834,7 +782,7 @@
 
 <!-- D3 세션 만료 경고 모달 -->
 <div class="modal" x-show="showSessionWarn" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">세션</span>
@@ -850,7 +798,7 @@
 
 <!-- 비밀번호 변경 (자발) 모달 -->
 <div class="modal" x-show="showChangePw" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">보안</span>
@@ -871,7 +819,7 @@
 
 <!-- D4/D5 사용자 생성·수정 모달 -->
 <div class="modal modal-stacked" x-show="showUserForm" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">사용자 관리</span>
@@ -991,7 +939,7 @@
 
 <!-- D11 중개인 관리 모달 -->
 <div class="modal" x-show="showAgentModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">중개인</span>
@@ -1049,7 +997,7 @@
 
 <!-- D12 사진 업로드 모달 -->
 <div class="modal" x-show="showPhotoModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
@@ -1121,7 +1069,7 @@
 
 <!-- D17 확인 모달 -->
 <div class="modal modal-top" x-show="confirmState" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">확인</span>
@@ -1137,7 +1085,7 @@
 
 <!-- M3 사용자 관리 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showUsers" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeUsers()">×</button>
         <div class="modal-head">
@@ -1186,7 +1134,7 @@
 
 <!-- M6 시스템 설정 모달 (ADMIN 전용) -->
 <div class="modal" x-show="showSettings" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeSettings()">×</button>
         <div class="modal-head">
@@ -1326,12 +1274,6 @@
         </div>
 
         <div class="settings-section">
-            <h4>생존 확인 배치</h4>
-            <p class="settings-note">매일 09:00 스케줄로 자동 실행됩니다. 즉시 수동 실행하려면 아래 버튼을 누르세요.</p>
-            <button class="btn" @click="runListingCheck()" :disabled="loading">배치 수동 실행</button>
-        </div>
-
-        <div class="settings-section">
             <h4>알림 이력</h4>
             <div class="card table-wrap">
                 <table>
@@ -1358,7 +1300,7 @@
 
 <!-- M2 매물 상세 모달 -->
 <div class="modal modal-detail" x-show="showM2" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <template x-if="detailItem">
         <div class="modal-card modal-xwide">
             <button class="modal-close" @click="closeDetail()">×</button>
@@ -1562,7 +1504,6 @@
                 <button class="btn btn-sm" @click="openScoreModal(detailItem)">채점</button>
                 <button class="btn btn-sm" @click="openLoanModal(detailItem)">대출</button>
                 <button class="btn btn-sm" @click="openComments(detailItem)">코멘트</button>
-                <button class="btn btn-sm" @click="openCheckLogs(detailItem)">이력</button>
                 <button class="btn btn-sm" @click="openPhotoModal(detailItem)">사진</button>
                 <button class="btn btn-sm btn-primary" @click="openEditProperty(detailItem)">정보 수정</button>
             </div>
@@ -1572,7 +1513,7 @@
 
 <!-- D10 매물 수기 등록/수정 모달 -->
 <div class="modal" x-show="showPropertyForm" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">매물 등록</span>
@@ -1590,19 +1531,40 @@
                         <option value="JEONSE">전세</option>
                     </select>
                 </label>
+                <!-- 금액은 type=text + 숫자만 (설계 I160). number 는 화살표가 붙고 휠로 값이
+                     바뀌며, 자릿수 많은 원 단위에서 실수를 부른다 -->
                 <label>보증금/매매가 (원)
                     <span class="money-row">
-                        <input type="number" min="0" x-model="propertyForm.priceDeposit" placeholder="550000000">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.priceDeposit"
+                               @input="propertyForm.priceDeposit = numericInput($event)"
+                               placeholder="550000000">
                         <span class="money-hint" x-show="moneyHint(propertyForm.priceDeposit)"
                               x-text="moneyHint(propertyForm.priceDeposit)"></span>
                     </span>
                 </label>
                 <label>관리비 (원/월)
                     <span class="money-row">
-                        <input type="number" min="0" x-model="propertyForm.maintenanceFee" placeholder="0">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.maintenanceFee"
+                               @input="propertyForm.maintenanceFee = numericInput($event)"
+                               placeholder="0">
                         <span class="money-hint" x-show="moneyHint(propertyForm.maintenanceFee)"
                               x-text="moneyHint(propertyForm.maintenanceFee)"></span>
                     </span>
+                </label>
+                <!-- KB시세는 대출 한도(LTV)를 가르는 값이다 (설계 I160). 파싱이 놓치거나
+                     은행이 다르게 볼 때 사람이 고칠 수 있어야 한다 -->
+                <label>KB시세 (원)
+                    <span class="money-row">
+                        <input type="text" inputmode="numeric" style="width:50%"
+                               :value="propertyForm.kbPrice"
+                               @input="propertyForm.kbPrice = numericInput($event)"
+                               placeholder="740000000">
+                        <span class="money-hint" x-show="moneyHint(propertyForm.kbPrice)"
+                              x-text="moneyHint(propertyForm.kbPrice)"></span>
+                    </span>
+                    <span class="settings-note">은행이 LTV를 매길 때 보는 값입니다. 비우면 실거래·공시가격으로 대신합니다.</span>
                 </label>
                 <label class="span2">주소로 좌표 검색
                     <div class="workplace-search">
@@ -1692,7 +1654,7 @@
 
 <!-- D14 평가 채점 모달 -->
 <div class="modal" x-show="showScoreModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
@@ -1785,7 +1747,7 @@
 
 <!-- D16-2 국토부 실거래가 참고 카드 모달 -->
 <div class="modal" x-show="showRefModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">최근 실거래</span>
@@ -1826,7 +1788,7 @@
 
 <!-- D16 대출 한도 시뮬레이션 모달 -->
 <div class="modal" x-show="showLoanModal" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide loan-modal">
         <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
@@ -2092,7 +2054,7 @@
 <!-- D25 매물 코멘트 모달 (설계 I56) -->
 <!-- 가격 전망 상세 (설계 I136) -->
 <div class="modal" x-show="showForecast" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closeForecast()">×</button>
         <div class="modal-head">
@@ -2185,7 +2147,7 @@
 </div>
 
 <div class="modal" x-show="showComments" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
         <button class="modal-close" @click="closeComments()">×</button>
         <div class="modal-head">
@@ -2244,7 +2206,7 @@
 
 <!-- D26 비교 우위 분석 모달 (설계 I61) -->
 <div class="modal" x-show="showCompare" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
         <button class="modal-close" @click="closeCompare()">×</button>
         <div class="modal-head">
@@ -2303,44 +2265,9 @@
     </div>
 </div>
 
-<!-- D20 매물 점검 이력 모달 -->
-<div class="modal" x-show="showCheckLogs" x-cloak>
-    <div class="modal-backdrop"></div>
-    <div class="modal-card modal-wide">
-        <div class="modal-head">
-            <span class="modal-kicker">점검 이력</span>
-            <h3 x-text="checkLogProperty?.property?.name"></h3>
-            <p>생존 확인 배치의 판정 기록입니다.</p>
-        </div>
-        <div class="card table-wrap">
-            <table>
-                <thead><tr><th>시각</th><th>판정</th><th>HTTP</th><th>근거</th></tr></thead>
-                <tbody>
-                <template x-if="checkLogs.length === 0">
-                    <tr><td colspan="4" class="empty-cell">점검 이력이 없습니다</td></tr>
-                </template>
-                <template x-for="l in checkLogs" :key="l.id">
-                    <tr>
-                        <td x-text="fmtTime(l.checkedAt)"></td>
-                        <td><span class="badge" :class="l.verdict==='ALIVE' ? 'b-on' : 'b-off'" x-text="verdictLabel(l.verdict)"></span></td>
-                        <td class="num" x-text="l.httpStatus ?? '-'"></td>
-                        <td x-text="l.evidence"></td>
-                    </tr>
-                </template>
-                </tbody>
-            </table>
-        </div>
-        <div class="paste-actions">
-            <button class="btn btn-ghost" @click="closeCheckLogs()">닫기</button>
-            <button class="btn btn-primary" x-show="checkLogProperty?.property?.listingStatus==='SOLD_OUT'"
-                    @click="restoreListing(checkLogProperty)">판매중으로 복구</button>
-        </div>
-    </div>
-</div>
-
 <!-- D21 판매완료 알림 확인 모달 -->
 <div class="modal" x-show="showSoldOutAlert" x-cloak>
-    <div class="modal-backdrop"></div>
+    <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
         <div class="modal-head">
             <span class="modal-kicker">알림</span>

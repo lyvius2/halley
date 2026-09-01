@@ -85,9 +85,6 @@ function halley() {
         soldOutRecent: [],
         showSoldOutAlert: false,
         soldOutAlertShown: false,
-        showCheckLogs: false,
-        checkLogs: [],
-        checkLogProperty: null,
         showLoanModal: false,
         loanProperty: null,
         loanForm: { firstHome: false, mortgageInsured: false, ownedHouseCount: 0, rateType: 'VARIABLE' },
@@ -178,8 +175,6 @@ function halley() {
         pasteForm: {},
         pasteError: null,
         _pasteTimer: null,
-        showDraftModal: false,
-        draftForm: { sourceUrl: '', memo: '' },
         pasteDraftId: null,
         pasteDraftName: null,
         showScoreModal: false,
@@ -816,11 +811,13 @@ function halley() {
                     const address = data.userSelectedType === 'R' ? data.roadAddress : data.jibunAddress;
                     const label = data.buildingName ? `${address} (${data.buildingName})` : address;
                     const coords = await this.geocodeAddress(address);
-                    if (!coords) {
-                        this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
-                        return;
-                    }
+
                     if (target === 'itinerary') {
+                        // 출발지는 좌표가 있어야 경로를 못 짠다 — 여기서만 좌표를 필수로 본다
+                        if (!coords) {
+                            this.error = '선택한 주소의 좌표를 찾지 못했습니다. 다른 주소로 시도해 주세요.';
+                            return;
+                        }
                         this.itinStart = { address: label, lat: coords.lat, lng: coords.lng };
                         await this.rememberStartLocation();
                         return;
@@ -828,9 +825,16 @@ function halley() {
                     const form = target === 'setup' ? this.setupForm
                         : target === 'user' ? this.userForm
                         : this.profileForm;
+                    // 사용자가 고른 주소는 <b>무조건 담는다</b> (설계 I154).
+                    // 좌표 조회가 실패했다고 주소까지 버리면, 화면에서는 아무 일도 안 일어난 것처럼
+                    // 보이고 직장을 영영 못 바꾼다 — 사용자가 한 선택을 우리가 지우는 셈이다
                     form.workplaceName = label;
-                    form.workplaceLat = coords.lat;
-                    form.workplaceLng = coords.lng;
+                    form.workplaceLat = coords ? coords.lat : '';
+                    form.workplaceLng = coords ? coords.lng : '';
+                    if (!coords) {
+                        // 좌표가 없으면 직주근접만 못 낸다. 나머지는 저장된다
+                        this.error = '주소는 담았지만 좌표를 찾지 못했습니다 — 직주근접 점수는 산출되지 않습니다.';
+                    }
                 }
             }).open();
         },
@@ -1905,19 +1909,6 @@ function halley() {
             this.showSoldOutAlert = false;
         },
 
-        async openCheckLogs(item) {
-            this.checkLogProperty = item;
-            const { ok, body } = await this.request(`/api/properties/${item.property.id}/check-logs`);
-            this.checkLogs = ok ? (body || []) : [];
-            this.showCheckLogs = true;
-        },
-
-        closeCheckLogs() {
-            this.showCheckLogs = false;
-            this.checkLogs = [];
-            this.checkLogProperty = null;
-        },
-
         restoreListing(item) {
             this.askConfirm('판매중 복구', `'${item.property.name}' 매물을 판매중으로 복구할까요?`, async () => {
                 await this.request(`/api/properties/${item.property.id}/status`, {
@@ -2257,44 +2248,6 @@ function halley() {
             this.openAddProperty();
         },
 
-        openDraftModal() {
-            this.closeAddMenu();
-            this.draftForm = { sourceUrl: '', memo: '' };
-            this.error = null;
-            this.showDraftModal = true;
-        },
-
-        closeDraftModal() {
-            this.showDraftModal = false;
-            this.draftForm = { sourceUrl: '', memo: '' };
-            this.error = null;
-        },
-
-        async saveDraft() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/properties/draft', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        sourceUrl: this.draftForm.sourceUrl,
-                        memo: this.draftForm.memo
-                    })
-                });
-                if (ok) {
-                    this.closeDraftModal();
-                    await this.loadProperties();
-                } else {
-                    this.error = (body && body.message) || '저장에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
         openPasteModal(item) {
             this.closeAddMenu();
             this.pasteDraftId = item ? item.property.id : null;
@@ -2455,10 +2408,16 @@ function halley() {
             return field ? field.note : null;
         },
 
+        /**
+         * 파싱 항목의 화면 이름 (설계 I159).
+         *
+         * <p><b>여기 없으면 영문 키가 그대로 뜹니다.</b> kbPrice 가 화면에 'kbPrice' 로
+         * 보이던 것이 그것입니다 — 파서는 읽고 있는데 이름표만 빠져 있었습니다.
+         */
         fieldLabel(key) {
             return {
                 name: '단지명', naverArticleNo: '매물번호', dongHo: '동/호', dealType: '거래유형',
-                priceDeposit: '매매가/보증금',                maintenanceFee: '관리비',
+                priceDeposit: '매매가/보증금', kbPrice: 'KB시세', maintenanceFee: '관리비',
                 areaSupplyM2: '공급면적', areaExclusiveM2: '전용면적', floor: '해당층/총층',
                 roomBath: '방/욕실', direction: '향', heatingType: '난방',
                 addressJibun: '지번주소', approvalYear: '사용승인년도',
@@ -2484,6 +2443,9 @@ function halley() {
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
+                // 폼에 칸이 생겼으므로 carry 에서 뺐다 (설계 I160). 양쪽에 두면
+                // carry 가 폼 값을 덮어써서 고쳐도 안 바뀐다
+                kbPrice: p.kbPrice ?? '',
                 addressRoad: p.addressRoad || '',
                 sourceUrl: p.sourceUrl || '',
                 addressJibun: p.addressJibun || '',
@@ -2508,7 +2470,6 @@ function halley() {
                     floorBand: p.floorBand ?? null,
                     roomBath: p.roomBath ?? null,
                     heatingType: p.heatingType ?? null,
-                    kbPrice: p.kbPrice ?? null,
                     brokerageFee: p.brokerageFee ?? null,
                     brokerageRate: p.brokerageRate ?? null,
                     acquisitionTax: p.acquisitionTax ?? null,
@@ -2579,6 +2540,7 @@ function halley() {
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
+                kbPrice: toNum(this.propertyForm.kbPrice),
                 addressRoad: this.propertyForm.addressRoad || null,
                 addressJibun: this.propertyForm.addressJibun || null,
                 sourceUrl: this.propertyForm.sourceUrl || null,
@@ -2652,11 +2614,14 @@ function halley() {
         },
 
         /**
-         * Esc로 맨 위 모달을 닫는다 (설계 I122).
+         * Esc 또는 배경 클릭으로 맨 위 모달을 닫는다 (설계 I122 · I155).
          *
-         * <p>배경을 클릭해도 닫히던 것을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러
-         * <b>입력이 통째로 사라지는</b> 일이 있었습니다. 대신 Esc를 남겨 빠른 탈출은
-         * 그대로 둡니다.
+         * <p>한때 배경 클릭을 막았습니다 — 긴 폼을 채우다 옆을 잘못 눌러 입력이 사라지는
+         * 일이 있었습니다. <b>쓰기 불편하다는 쪽이 더 컸습니다.</b> 되살립니다.
+         *
+         * <p>강제 모달(로그인·비밀번호 변경·프로필 확인·세션 경고)은 <b>아래 목록에
+         * 없습니다.</b> 그래서 같은 핸들러를 달아도 배경을 눌러 빠져나갈 수 없습니다 —
+         * 끝내야 넘어가는 화면이라 그래야 합니다.
          *
          * <p><b>순서가 중요합니다.</b> 겹쳐 뜬 모달은 위에 있는 것부터 닫아야 합니다 —
          * 아래 것을 먼저 닫으면 위에 뜬 모달만 남아 배경 없이 떠 있게 됩니다.
@@ -2679,11 +2644,9 @@ function halley() {
                 ['showPhotoModal', () => this.closePhotoModal()],
                 ['showRoadview', () => this.closeRoadview()],
                 ['showPasteModal', () => this.closePasteModal()],
-                ['showDraftModal', () => this.closeDraftModal()],
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
-                ['showCheckLogs', () => this.closeCheckLogs()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
                 ['showUsers', () => this.closeUsers()],
                 ['showSettings', () => this.closeSettings()],
@@ -2705,8 +2668,13 @@ function halley() {
          * <p>화살표는 <b>오직 LLM 예측</b>만 나타낸다. 코드 예측과 갈려도 색을 흐리지 않는다 —
          * 목록은 여러 매물을 견주는 자리라 신호가 하나여야 읽힌다. 갈린 사실은 모달에서 말한다.
          *
-         * <p>UNCERTAIN 은 아무것도 안 띄운다. 회색 화살표를 두면 '약한 전망'으로 읽히는데
-         * 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다.
+         * <p>UNCERTAIN 에는 <b>화살표를 쓰지 않는다</b>. 회색 화살표를 두면 '약한 전망'으로
+         * 읽히는데 실제로는 '판단하지 않았다'는 뜻이다 — 둘은 다르다. 대신 📝 를 단다
+         * (설계 I150): 화살표가 아니라서 방향으로 오해되지 않고, <b>눌러 볼 것이 있다</b>는
+         * 표시가 된다. 여태는 아무것도 없어 왜 판단을 못 했는지 볼 길이 없었다.
+         *
+         * <p>아직 낸 적이 없는 경우(stored=false)에는 안 단다 — 그때 UNCERTAIN 은
+         * '결과 없음'의 자리표시일 뿐이다.
          */
         forecastArrow(scored) {
             const f = scored?.forecast;
@@ -2715,6 +2683,9 @@ function halley() {
             }
             if (f.running) {
                 return '◌';
+            }
+            if (f.direction === 'UNCERTAIN') {
+                return f.stored ? '📝' : '';
             }
             return this.arrowOf(f.direction);
         },
@@ -2742,6 +2713,10 @@ function halley() {
             const f = scored?.forecast;
             if (f?.running) {
                 return 'running';
+            }
+            // 📝 는 방향이 아니다 — 색을 주면 그것부터 방향으로 읽힌다 (설계 I150)
+            if (f?.direction === 'UNCERTAIN') {
+                return 'note';
             }
             return this.arrowClassOf(f?.direction);
         },
@@ -2853,6 +2828,9 @@ function halley() {
             }
             if (f.running) {
                 return '가격 전망을 분석 중입니다…';
+            }
+            if (f.direction === 'UNCERTAIN') {
+                return '판단을 보류했습니다 — 이유 보기';
             }
             return '가격 전망: ' + f.directionLabel
                 + (f.confidenceLabel ? ' (확신도 ' + f.confidenceLabel + ')' : '');
@@ -3125,23 +3103,6 @@ function halley() {
                     await this.loadSettings();
                 } else {
                     this.error = (resBody && resBody.message) || '설정 저장에 실패했습니다';
-                }
-            } catch (e) {
-                this.error = '네트워크 오류가 발생했습니다';
-            } finally {
-                this.loading = false;
-            }
-        },
-
-        async runListingCheck() {
-            this.loading = true;
-            this.error = null;
-            try {
-                const { ok, body } = await this.request('/api/admin/listing-check/run', { method: 'POST' });
-                if (!ok) {
-                    this.error = (body && body.message) || '배치 실행에 실패했습니다';
-                } else {
-                    this.error = '생존 확인 배치를 실행했습니다.';
                 }
             } catch (e) {
                 this.error = '네트워크 오류가 발생했습니다';

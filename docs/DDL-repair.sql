@@ -792,3 +792,32 @@ CREATE TABLE IF NOT EXISTS price_forecast_history (
 );
 CREATE INDEX IF NOT EXISTS ix_price_forecast_history_property
     ON price_forecast_history (property_id, computed_at DESC);
+
+-- ---------------------------------------------------------------------------
+-- 채점 항목에 가중치가 없으면 총점에서 무게가 0이 된다 (설계 I152)
+--
+--   AI 추천도가 100점이어도 총점이 꿈쩍하지 않는 증상이 이것이다.
+--   이관 스크립트가 criterion 에만 넣고 criterion_weight 는 안 넣었는데,
+--   그다음 기동에서 "항목이 이미 있으니" 건너뛰어 가중치가 영영 안 생겼다.
+--
+--   앱을 새 판으로 올리면 기동 때 자동으로 메운다. 그전에 바로 고치려면 아래를 돌린다.
+-- ---------------------------------------------------------------------------
+SELECT c.code AS 가중치없는항목
+  FROM criterion c
+  LEFT JOIN criterion_weight w ON w.criterion_code = c.code
+ WHERE w.criterion_code IS NULL;
+
+-- 기존 순위 뒤에 붙인다. 앞 항목의 가중치를 흔들면 모든 매물의 총점이 바뀐다.
+-- weight(rank) = 3.0 - (rank-1) * 0.2, 하한 0.2 (설계 I29)
+INSERT INTO criterion_weight (criterion_code, priority_rank, weight)
+SELECT c.code,
+       (SELECT COALESCE(MAX(priority_rank), 0) FROM criterion_weight)
+           + ROW_NUMBER() OVER (ORDER BY c.code),
+       GREATEST(0.2, 3.0 - ((SELECT COALESCE(MAX(priority_rank), 0) FROM criterion_weight)
+           + ROW_NUMBER() OVER (ORDER BY c.code) - 1) * 0.2)
+  FROM criterion c
+  LEFT JOIN criterion_weight w ON w.criterion_code = c.code
+ WHERE w.criterion_code IS NULL;
+
+-- 가중치가 생겼어도 저장된 총점은 옛것이다. 전량 재채점이 필요하다:
+--   POST /api/properties/{id}/rescore   (매물마다)

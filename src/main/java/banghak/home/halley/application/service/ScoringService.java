@@ -709,8 +709,31 @@ public class ScoringService {
     }
 
     private Map<String, BigDecimal> loadWeights() {
-        return criterionWeightRepository.findAll().stream()
+        final Map<String, BigDecimal> weights = criterionWeightRepository.findAll().stream()
                 .collect(Collectors.toMap(CriterionWeight::criterionCode, CriterionWeight::weight));
+        warnAboutUnweightedScorers(weights);
+        return weights;
+    }
+
+    /**
+     * 가중치 없는 채점 항목을 <b>시끄럽게</b> 알린다 (설계 I152).
+     *
+     * <p>가중치가 없으면 총점에서 그 항목의 무게가 0이 됩니다 — 점수는 화면에 멀쩡히 뜨는데
+     * <b>총점만 꿈쩍하지 않습니다.</b> 조용히 틀리는 쪽이라 눈으로는 못 찾습니다.
+     *
+     * <p>기동 때 `CriteriaBootstrap`이 메우지만, 그 뒤에 항목이 생기거나 가중치가
+     * 지워지는 일도 있습니다. 채점할 때마다 확인합니다.
+     */
+    private void warnAboutUnweightedScorers(Map<String, BigDecimal> weights) {
+        final List<String> unweighted = scorers.stream()
+                .map(CriterionScorer::code)
+                .filter(code -> weights.get(code) == null
+                        || weights.get(code).signum() <= 0)
+                .toList();
+        if (!unweighted.isEmpty()) {
+            log.warn("Scoring criteria have no weight - they contribute nothing to the total. codes={}",
+                    unweighted);
+        }
     }
 
     private Map<String, BigDecimal> loadManualScores(Long propertyId) {
