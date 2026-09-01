@@ -28,6 +28,15 @@ public interface CachePort {
     /** 임장 플래너에서 작업 중인 것. <b>키는 사용자 번호</b> (설계 I179) */
     String ITINERARY = "itinerary";
 
+    /**
+     * "찾아봤지만 없었다" (설계 I219).
+     *
+     * <p>결과가 아니라 <b>이미 찾아봤다는 사실</b>을 담습니다. 실거래는 못 찾으면
+     * 저장할 것이 없어, 저장된 게 없으면 <b>상세를 열 때마다 12개월치를 다시</b>
+     * 받아 왔습니다.
+     */
+    String REFERENCE_MISS = "refmiss";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);

@@ -4,6 +4,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceTransactionResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.Property;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -58,6 +60,15 @@ public class ReferenceTransactionService {
     private final int lookbackMonths;
     /** 배경 조회를 다른 보정과 같은 줄에 세운다 (설계 I108). */
     private final banghak.home.halley.config.VirtualThreadGate gate;
+    private final CachePort cache;
+
+    /**
+     * 헛걸음을 기억해 두는 시간 (설계 I219).
+     *
+     * <p>국토부 자료는 <b>달 단위로 들어옵니다.</b> 오늘 없던 거래가 오늘 오후에
+     * 생기지는 않습니다 — 하루면 충분하고, 새 달이 오면 어차피 만료됩니다.
+     */
+    private static final Duration MISS_TTL = Duration.ofHours(24);
 
     public ReferenceTransactionService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
@@ -66,7 +77,8 @@ public class ReferenceTransactionService {
                                        LegalDongCodeService legalDongCodeService,
                                        @Value("${ministry.reference.lookback-months:12}")
                                        int lookbackMonths,
-                                       banghak.home.halley.config.VirtualThreadGate gate) {
+                                       banghak.home.halley.config.VirtualThreadGate gate,
+                                       CachePort cache) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.referenceTransactionRepository = referenceTransactionRepository;
@@ -74,6 +86,7 @@ public class ReferenceTransactionService {
         this.legalDongCodeService = legalDongCodeService;
         this.lookbackMonths = lookbackMonths;
         this.gate = gate;
+        this.cache = cache;
     }
 
     /**
@@ -128,6 +141,13 @@ public class ReferenceTransactionService {
         if (!cached.isEmpty()) {
             return toCard(property, cached);
         }
+        // <b>못 찾은 것도 결과입니다 (설계 I219).</b> 저장할 거래가 없다고 아무것도
+        // 남기지 않으면, 상세를 열 때마다 12개월치를 다시 받아 옵니다 —
+        // 실제로 그러고 있었습니다. 사용자가 특정 달을 물을 때는 무시합니다
+        if (dealMonth == null && cache.get(CachePort.REFERENCE_MISS, String.valueOf(propertyId)).isPresent()) {
+            log.debug("Skipping ministry lookup - nothing matched recently. propertyId={}", propertyId);
+            return new ReferenceCardResponse(List.of(), property.priceDeposit(), null, null, lookbackMonths);
+        }
 
         // 법정동코드가 없으면 지번주소에서 역매핑, 계약년월이 없으면 현재 월 사용
         final String lawdCd = blankToNull(legalDongCode) != null
@@ -154,6 +174,8 @@ public class ReferenceTransactionService {
                 .toList();
         // 비었을 때 왜 비었는지 남긴다 — 받아온 게 없는 것과 걸러진 것은 다른 상황이다
         if (saved.isEmpty()) {
+            // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
+            cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
             log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}",
                     propertyId, property.name(), property.areaExclusiveM2(), trades.size());
         }

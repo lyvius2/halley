@@ -49,6 +49,18 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         return URLDecoder.decode(key.replace("+", "%2B"), StandardCharsets.UTF_8);
     }
 
+
+    /**
+     * 한 번에 받아 올 건수 (설계 I219).
+     *
+     * <p><b>안 주면 10건입니다.</b> 서울 한 구의 한 달 아파트 매매는 실측으로
+     * 200~700건이라, 10건만 보면 <b>찾는 단지가 거의 안 걸립니다.</b>
+     *
+     * <p>1000이면 한 달치가 한 번에 들어옵니다 — 실측 최대가 660건이었습니다.
+     * 넘칠 일이 생기면 `totalCount` 와 받은 수가 어긋나므로 그때 알 수 있습니다.
+     */
+    private static final int PAGE_SIZE = 1000;
+
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
         // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다 (설계 I140)
@@ -56,7 +68,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             return null;
         }
         rateGate.acquire();
-        final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd);
+        final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
         if (xml == null) {
             return null;
         }
@@ -75,7 +87,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             return null;
         }
         rateGate.acquire();
-        final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd);
+        final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
         if (xml == null) {
             return null;
         }

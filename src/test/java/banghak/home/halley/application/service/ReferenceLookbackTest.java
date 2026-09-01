@@ -9,7 +9,11 @@ import java.lang.reflect.Method;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import banghak.home.halley.adapter.outbound.cache.InMemoryCachePort;
+import banghak.home.halley.application.port.out.cache.CachePort;
+
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -23,6 +27,50 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ReferenceLookbackTest {
 
     private static final DateTimeFormatter YM = DateTimeFormatter.ofPattern("yyyyMM");
+
+    /**
+     * 못 찾은 것도 결과다 (설계 I219).
+     *
+     * <p>저장할 거래가 없다고 아무것도 남기지 않으면, 상세를 열 때마다 12개월치를
+     * 다시 받아 옵니다 — <b>운영에서 실제로 그러고 있었습니다.</b>
+     */
+    @Test
+    @DisplayName("헛걸음을 기억한다 — 상세를 다시 열어도 국토부를 또 부르지 않는다")
+    void remembersTheMiss() {
+        final AtomicInteger calls = new AtomicInteger();
+        final MinistryReferencePort port = (lawdCd, dealYmd) -> {
+            calls.incrementAndGet();
+            return List.of();   // 12개월 내내 한 건도 안 맞는다
+        };
+        final InMemoryCachePort cache = new InMemoryCachePort();
+        final ReferenceTransactionService service = serviceWith(port, cache);
+
+        service.prefetch(11L);
+        final int afterFirst = calls.get();
+        service.prefetch(11L);
+
+        assertThat(afterFirst).isGreaterThan(0);
+        assertThat(calls.get()).isEqualTo(afterFirst);
+    }
+
+    @Test
+    @DisplayName("기억이 만료되면 다시 찾아본다 — 새 달에 거래가 생길 수 있다")
+    void looksAgainOnceTheMemoryExpires() {
+        final AtomicInteger calls = new AtomicInteger();
+        final MinistryReferencePort port = (lawdCd, dealYmd) -> {
+            calls.incrementAndGet();
+            return List.of();
+        };
+        final InMemoryCachePort cache = new InMemoryCachePort();
+        final ReferenceTransactionService service = serviceWith(port, cache);
+
+        service.prefetch(11L);
+        final int afterFirst = calls.get();
+        cache.evictAll(CachePort.REFERENCE_MISS);
+        service.prefetch(11L);
+
+        assertThat(calls.get()).isEqualTo(afterFirst * 2);
+    }
 
     @Test
     @DisplayName("24개월을 거슬러 부르고 이번 달은 건너뛴다 — 신고 지연 때문이다")
@@ -69,11 +117,48 @@ class ReferenceLookbackTest {
         callFetchMonths(port, baseMonth, true);
     }
 
+    /**
+     * 헛걸음 기억을 보려면 `collect` 를 통째로 지나야 한다 — 리포지터리 대역이 필요하다.
+     * 이 테스트가 보는 것은 <b>국토부를 몇 번 부르는가</b> 하나다.
+     */
+    private ReferenceTransactionService serviceWith(MinistryReferencePort port, InMemoryCachePort cache) {
+        final banghak.home.halley.adapter.outbound.persistence.PropertyRepository properties =
+                org.mockito.Mockito.mock(
+                        banghak.home.halley.adapter.outbound.persistence.PropertyRepository.class);
+        org.mockito.Mockito.when(properties.findById(11L))
+                .thenReturn(java.util.Optional.of(sampleProperty()));
+
+        final banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository saved =
+                org.mockito.Mockito.mock(
+                        banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository.class);
+        org.mockito.Mockito.when(saved.findByPropertyId(11L)).thenReturn(List.of());
+
+        final LegalDongCodeService codes = org.mockito.Mockito.mock(LegalDongCodeService.class);
+        org.mockito.Mockito.when(codes.deriveSigunguCode(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Optional.of("11290"));
+
+        return new ReferenceTransactionService(null, properties, saved, port, codes, 12,
+                new banghak.home.halley.config.VirtualThreadGate("test", 4), cache);
+    }
+
+    private banghak.home.halley.domain.property.Property sampleProperty() {
+        return new banghak.home.halley.domain.property.Property(
+                11L, "석관신동아파밀리에", null,
+                banghak.home.halley.domain.property.DealType.SALE, 800_000_000L, null,
+                null, "서울 성북구 석관동 123", new java.math.BigDecimal("37.60"),
+                new java.math.BigDecimal("127.06"), null, new java.math.BigDecimal("84.92"),
+                null, 5, 15, null, null, null, 2004, null, null, null, null, null, null,
+                null, null, null, null, null, null, null, null, null, null, null, null,
+                banghak.home.halley.domain.property.SourceType.MANUAL, null, null, null, null, null,
+                false, banghak.home.halley.domain.property.ListingStatus.ACTIVE, true,
+                null, 0, null, 1L, "등록자", 1L, java.time.Instant.now());
+    }
+
     private void callFetchMonths(MinistryReferencePort port, String baseMonth, boolean exact)
             throws Exception {
         final ReferenceTransactionService service = new ReferenceTransactionService(
                 null, null, null, port, null, 24,
-                new banghak.home.halley.config.VirtualThreadGate("test", 4));
+                new banghak.home.halley.config.VirtualThreadGate("test", 4), null);
         final Method method = ReferenceTransactionService.class
                 .getDeclaredMethod("fetchMonths", String.class, String.class, boolean.class);
         method.setAccessible(true);
