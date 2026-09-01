@@ -534,7 +534,8 @@
                                         <template x-for="m in groupDetail.members" :key="m.id">
                                             <tr>
                                                 <td x-text="m.nickname"></td>
-                                                <td x-text="m.workplaceName || '-'"></td>
+                                                <!-- 칸이 좁아 줄바꿈되므로 전체 주소는 툴팁으로 (설계 I165) -->
+                                                <td :title="m.workplaceName || ''" x-text="m.workplaceName || '-'"></td>
                                                 <td class="num" x-text="fmtWon(m.availableBudget)"></td>
                                                 <td><span class="badge" :class="m.enabled ? 'b-on' : 'b-off'"
                                                           x-text="m.enabled ? '활성' : '비활성'"></span></td>
