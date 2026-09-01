@@ -40,6 +40,36 @@ class ClaudeLlmAdapterTest {
         assertThat(result.model()).isEqualTo("claude-sonnet-4-5-20250929");
     }
 
+    /**
+     * 생각에 예산을 다 쓰고 <b>본문을 시작도 못 한</b> 경우 (설계 I217).
+     *
+     * <p>운영에서 실제로 온 응답입니다. 그때 로그에는 `empty response` 만 남고
+     * <b>진짜 원인인 `max_tokens` 는 안 찍혔습니다</b> — 검사 순서가 뒤바뀌어 있어서
+     * 빈 답 검사가 먼저 돌고 바로 돌아가 버렸습니다.
+     */
+    @Test
+    @DisplayName("생각이 예산을 다 먹으면 그렇다고 말한다 — 'empty response' 로 뭉개지 않는다")
+    void reportsBudgetExhaustedByThinking() {
+        final LlmResult result = adapter(mock(ClaudeFeignClient.class), "key").parse("""
+                {"model":"claude-opus-5","content":[{"type":"thinking","thinking":"","signature":"x"}],
+                 "stop_reason":"max_tokens",
+                 "usage":{"input_tokens":612,"output_tokens":120,
+                          "output_tokens_details":{"thinking_tokens":120}}}
+                """);
+
+        assertThat(result.failureCause()).isEqualTo("token budget exhausted by thinking");
+    }
+
+    @Test
+    @DisplayName("잘리지 않았는데 본문이 없으면 그건 다른 문제다")
+    void plainEmptyStaysPlain() {
+        final LlmResult result = adapter(mock(ClaudeFeignClient.class), "key").parse("""
+                {"model":"claude-opus-5","content":[],"stop_reason":"end_turn"}
+                """);
+
+        assertThat(result.failureCause()).isEqualTo("empty response");
+    }
+
     @Test
     @DisplayName("오류 응답은 실패로 돌려준다 — 예외를 던지지 않는다")
     void returnsFailureOnErrorBody() {

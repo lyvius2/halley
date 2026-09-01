@@ -39,8 +39,26 @@ public class LlmTransitEstimator {
      */
     private static final int BATCH_SIZE = 20;
 
-    /** 쌍 하나당 넉넉히 잡은 응답 토큰. */
-    private static final int TOKENS_PER_PAIR = 120;
+    /**
+     * 생각에도 예산이 든다 (설계 I217 · I144).
+     *
+     * <p>처음에 쌍당 120토큰만 줬습니다. 운영에서 이렇게 돌아왔습니다.
+     *
+     * <pre>
+     * "stop_reason":"max_tokens", "output_tokens":120,
+     * "output_tokens_details":{"thinking_tokens":120}
+     * </pre>
+     *
+     * <p><b>120토큰을 생각이 전부 먹고 본문은 시작도 못 했습니다.</b> 요즘 모델은
+     * 답하기 전에 생각하는데, 그 몫이 같은 예산에서 나갑니다 — 이 프로젝트가
+     * [I144]에서 이미 겪은 함정을 제가 되풀이했습니다.
+     *
+     * <p>그래서 <b>생각 몫을 먼저 떼어 둡니다.</b> 쌍이 하나여도 이만큼은 줍니다.
+     */
+    private static final int THINKING_BUDGET = 2000;
+
+    /** 쌍 하나당 실제 JSON 이 차지하는 몫. 구간 상세까지 담아 넉넉히 잡았다. */
+    private static final int TOKENS_PER_PAIR = 200;
 
     /** 서울·수도권 안에서 대중교통으로 이만큼 넘게 걸리는 곳은 사실상 없다. */
     private static final int MAX_PLAUSIBLE_MINUTES = 300;
@@ -117,7 +135,7 @@ public class LlmTransitEstimator {
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
         final LlmResult answer = llmPort.complete(LlmMessage.deterministic(
-                SYSTEM, user.toString(), legs.size() * TOKENS_PER_PAIR,
+                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
                 model == null || model.isBlank() ? null : model));
         if (answer.failureCause() != null) {
             log.warn("LLM transit fallback failed. legs={}, cause={}", legs.size(), answer.failureCause());

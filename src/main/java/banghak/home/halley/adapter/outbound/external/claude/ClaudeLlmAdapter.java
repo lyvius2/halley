@@ -101,15 +101,22 @@ public class ClaudeLlmAdapter implements LlmPort {
                     text.append(block.path("text").asString(""));
                 }
             }
-            if (text.isEmpty()) {
-                log.warn("Claude returned no text block. body={}", body);
-                return LlmResult.failed("empty response");
-            }
-            // 예산이 모자라 잘렸으면 뒤에서 JSON 파싱이 실패한다. 그때 원인을 못 찾는다 (설계 I144)
-            if ("max_tokens".equals(root.path("stop_reason").asString(null))) {
-                log.warn("Claude hit the token budget - the answer is cut off. "
-                        + "maxTokens may be too small for this model's thinking. usage={}",
+            // 예산이 모자라 잘렸으면 뒤에서 JSON 파싱이 실패한다. 그때 원인을 못 찾는다 (설계 I144).
+            // <b>빈 답 검사보다 먼저 봅니다 (설계 I217)</b> — 순서가 뒤바뀌어 있어서
+            // 생각에 예산을 다 쓰고 본문을 시작도 못 한 경우에 "empty response" 만 남고
+            // <b>진짜 원인인 max_tokens 는 안 찍혔습니다</b>
+            final boolean cutOff = "max_tokens".equals(root.path("stop_reason").asString(null));
+            if (cutOff) {
+                log.warn("Claude hit the token budget - the answer is cut off{}. "
+                                + "maxTokens may be too small for this model's thinking. usage={}",
+                        text.isEmpty() ? " before writing any text" : "",
                         root.path("usage"));
+            }
+            if (text.isEmpty()) {
+                if (!cutOff) {
+                    log.warn("Claude returned no text block. body={}", body);
+                }
+                return LlmResult.failed(cutOff ? "token budget exhausted by thinking" : "empty response");
             }
             return LlmResult.of(text.toString(), root.path("model").asString(model));
         } catch (RuntimeException e) {

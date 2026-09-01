@@ -46,6 +46,9 @@ class TransitWithLlmFallbackTest {
     private String llmAnswer = GOOD_ANSWER;
     private boolean llmEnabled = true;
 
+    /** 마지막 요청의 토큰 예산 — 생각 몫을 떼어 두는지 본다 (설계 I217). */
+    private int lastMaxTokens;
+
     private LlmPort llmPort() {
         return new LlmPort() {
             @Override
@@ -61,6 +64,7 @@ class TransitWithLlmFallbackTest {
             @Override
             public LlmResult complete(LlmMessage message) {
                 llmCalls.incrementAndGet();
+                lastMaxTokens = message.maxTokens();
                 return LlmResult.of(llmAnswer, "stub");
             }
         };
@@ -284,6 +288,37 @@ class TransitWithLlmFallbackTest {
             offset += 0.01;
         }
         return legs;
+    }
+
+    /**
+     * 생각에도 예산이 든다 (설계 I217 · I144).
+     *
+     * <p>처음에 쌍당 120토큰만 줬더니 운영에서 <b>120토큰을 생각이 전부 먹고
+     * 본문을 시작도 못 했습니다</b> — `stop_reason: max_tokens`, `thinking_tokens: 120`.
+     * 쌍이 하나여도 생각 몫은 따로 있어야 합니다.
+     */
+    @Test
+    @DisplayName("쌍이 하나여도 생각 몫을 떼어 둔다 — 예산을 쌍 수에만 비례시키면 안 된다")
+    void reservesRoomForThinking() {
+        when(odsay.findTransit(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenThrow(new TransitQuotaExceededException("code=429"));
+
+        fallback().findTransit(126.9, 37.5, 127.0, 37.5);
+
+        assertThat(lastMaxTokens).isGreaterThanOrEqualTo(2000);
+    }
+
+    @Test
+    @DisplayName("쌍이 늘면 예산도 는다 — 답이 뒤에서 잘리면 그 쌍들이 통째로 빠진다")
+    void budgetGrowsWithPairs() {
+        when(odsay.findTransit(anyDouble(), anyDouble(), anyDouble(), anyDouble()))
+                .thenThrow(new TransitQuotaExceededException("code=429"));
+
+        fallback().findTransit(126.9, 37.5, 127.0, 37.5);
+        final int one = lastMaxTokens;
+        fallback().findTransitBatch(legs("a", "b", "c", "d", "e"));
+
+        assertThat(lastMaxTokens).isGreaterThan(one);
     }
 
     @Test

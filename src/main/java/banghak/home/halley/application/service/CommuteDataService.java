@@ -40,6 +40,10 @@ public class CommuteDataService {
         if (property.lat() == null || property.lng() == null) {
             return Map.of();
         }
+        // 새로 물어야 할 사람들을 <b>한 번에</b> 받아 둔다 (설계 I217).
+        // 사람마다 따로 부르면 ODsay 는 괜찮지만(50ms) LLM 폴백은 한 사람당 4~5초다
+        prewarm(property, activeUsers);
+
         final Map<Long, Integer> minutes = new LinkedHashMap<>();
         for (final User user : activeUsers) {
             final Integer userMinutes = ensureForUser(property, user);
@@ -48,6 +52,54 @@ public class CommuteDataService {
             }
         }
         return minutes;
+    }
+
+    /**
+     * 아직 없는 사람들 몫을 한 번에 받아 둔다 (설계 I217).
+     *
+     * <p>운영 로그에서 <b>한 사람당 4~5초</b>가 걸렸습니다 — 매물 9개 × 사람 2명이면
+     * 채점 한 번에 80초입니다. `findTransitBatch` 는 ODsay 면 그냥 돌고,
+     * LLM 이면 <b>한 번에 묶어</b> 묻습니다.
+     *
+     * <p>받은 것은 바로 저장합니다. 뒤이어 도는 `ensureForUser` 가 <b>저장된 것을
+     * 그대로 씁니다</b> — 같은 사람을 두 번 묻지 않습니다.
+     */
+    private void prewarm(Property property, List<User> users) {
+        final Map<String, double[]> pending = new LinkedHashMap<>();
+        final Map<String, User> byKey = new LinkedHashMap<>();
+        for (final User user : users) {
+            if (user.workplaceLat() == null || user.workplaceLng() == null) {
+                continue;
+            }
+            final Optional<CommuteResult> cached = commuteResultRepository.findById(property.id(), user.id());
+            if (cached.isPresent() && cached.get().totalMinutes() != null && !isEstimate(cached.get())) {
+                continue;
+            }
+            final String key = String.valueOf(user.id());
+            byKey.put(key, user);
+            pending.put(key, new double[]{
+                    user.workplaceLng().doubleValue(), user.workplaceLat().doubleValue(),
+                    property.lng().doubleValue(), property.lat().doubleValue()});
+        }
+        if (pending.size() < 2) {
+            // 한 명뿐이면 묶을 것이 없다 — ensureForUser 가 평소대로 부른다
+            return;
+        }
+        try {
+            odsayTransitPort.findTransitBatch(pending).forEach((key, transit) -> {
+                if (!transit.isComputed()) {
+                    return;
+                }
+                final User user = byKey.get(key);
+                commuteResultRepository.upsert(new CommuteResult(
+                        property.id(), user.id(), transit.totalMinutes(),
+                        transit.transferCount(), transit.walkMinutes(), sourceOf(transit), Instant.now()));
+            });
+        } catch (RuntimeException e) {
+            // 묶어 받기가 실패해도 아래에서 한 명씩 다시 시도한다
+            log.warn("Batch commute lookup failed - falling back to one at a time. propertyId={}, cause={}",
+                    property.id(), e.getMessage());
+        }
     }
 
     /**
