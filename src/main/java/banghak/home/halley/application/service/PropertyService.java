@@ -75,8 +75,6 @@ public class PropertyService {
         return toResponse(propertyAccessGuard.require(id));
     }
 
-    @Transactional
-
     /**
      * 등록자의 그룹 (설계 I87). 매물은 <b>반드시</b> 그룹에 딸립니다.
      *
@@ -95,6 +93,17 @@ public class PropertyService {
         return propertyAccessGuard.currentUser().map(u -> u.nickname()).orElse(null);
     }
 
+    /**
+     * 매물을 등록한다.
+     *
+     * <p><b>트랜잭션을 걸지 않습니다 (설계 I216).</b> 좌표를 구하려고 카카오를 부르는데
+     * (`resolveCoordinates`), 그 왕복 동안 DB 연결을 쥐고 있게 됩니다 — 운영 풀이
+     * 5개라 등록이 몇 건만 겹쳐도 화면 전체가 멈춥니다.
+     *
+     * <p>한때 여기에 `@Transactional` 이 붙어 있었는데, [I87]에서 메서드가 사이에
+     * 끼어들며 <b>다른 메서드의 javadoc 위에 떠 버렸습니다.</b> 그 뒤로 아무 데도
+     * 적용되지 않았고, <b>알아챈 것은 알림이 안 나간다는 신고 덕</b>이었습니다.
+     */
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
         final Long groupId = requireOwnerGroupId();
