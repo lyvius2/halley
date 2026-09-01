@@ -272,11 +272,14 @@ function halley() {
         async init() {
             this.guardNumberInputs();
             this.watchModalClose();
+            this.watchModalRoutes();
             this.restoreLoginId();
             // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
             window.addEventListener('popstate', () => {
                 if (this.session.authenticated) {
+                    this._applyingRoute = true;
                     this.closeAllModals();
+                    this._applyingRoute = false;
                     this.applyRoute();
                 }
             });
@@ -381,6 +384,121 @@ function halley() {
             weights: '/weights'
         },
 
+        /**
+         * 모달에도 주소를 준다 (설계 I198).
+         *
+         * <p>화면에만 주소가 있었습니다. 그래서 <b>Slack 이 "누가 공간 쾌적함을 채점했다"</b>
+         * 고 알려도 링크는 매물 첫 화면으로만 갔습니다 — 거기서 다시 찾아 들어가야 했습니다.
+         *
+         * <p><b>순서가 곧 우선순위입니다.</b> 겹쳐 뜬 모달은 맨 위의 주소를 씁니다.
+         * 위에서부터 훑어 처음 열려 있는 것을 고릅니다.
+         *
+         * <p>`prop` 이 있으면 매물에 딸린 모달이라 `/properties/{id}/…` 가 되고,
+         * 없으면 전역 주소입니다. `open` 은 그 주소로 <b>들어왔을 때</b> 어떻게 여는가입니다.
+         *
+         * <p>강제 모달(로그인·비밀번호 변경·프로필 확인·세션 경고)과 잠깐 뜨는 것
+         * (메뉴·확인창·판매완료 알림)은 <b>일부러 뺐습니다.</b> 링크로 건넬 것이 아니고,
+         * 주소로 들어올 수 있으면 안 되는 것도 있습니다.
+         */
+        MODAL_ROUTES: [
+            { key: 'photo', flag: 'photoViewerIndex', prop: 'photoProperty',
+              suffix: i => `/photos/${i}`,
+              open(app, item, n) { return app.openPhotoModal(item).then(() => app.openPhotoViewer(Number(n))); } },
+            { key: 'photos', flag: 'showPhotoModal', prop: 'photoProperty', suffix: () => '/photos',
+              open: (app, item) => app.openPhotoModal(item) },
+            { key: 'score', flag: 'showScoreModal', prop: 'scoreProperty', suffix: () => '/score',
+              open: (app, item) => app.openScoreModal(item) },
+            { key: 'loan', flag: 'showLoanModal', prop: 'loanProperty', suffix: () => '/loan',
+              open: (app, item) => app.openLoanModal(item) },
+            { key: 'transactions', flag: 'showRefModal', prop: 'refProperty', suffix: () => '/transactions',
+              open: (app, item) => app.openRefModal(item) },
+            { key: 'comments', flag: 'showComments', prop: 'commentProperty', suffix: () => '/comments',
+              open: (app, item) => app.openComments(item) },
+            { key: 'forecast', flag: 'showForecast', prop: 'forecastProperty', suffix: () => '/forecast',
+              open: (app, item) => app.openForecast(item) },
+            { key: 'agents', flag: 'showAgentModal', prop: 'agentProperty', suffix: () => '/agents',
+              open: (app, item) => app.openAgentModal(item) },
+            { key: 'roadview', flag: 'showRoadview', prop: 'roadviewProperty', suffix: () => '/roadview',
+              open: (app, item) => app.openRoadview(item) },
+            { key: 'edit', flag: 'showPropertyForm', suffix: () => '/edit',
+              path: app => app.propertyForm.id ? `/properties/${app.propertyForm.id}/edit` : '/properties/new',
+              open: (app, item) => (item ? app.openEditProperty(item) : app.openAddProperty()) },
+            { key: 'paste', flag: 'showPasteModal', suffix: () => '/paste',
+              path: app => app.pasteDraftId ? `/properties/${app.pasteDraftId}/paste` : '/properties/paste',
+              open: (app, item) => app.openPasteModal(item) },
+            { key: 'compare', flag: 'showCompare', path: () => '/compare',
+              open: app => app.openCompare() },
+            { key: 'userForm', flag: 'showUserForm',
+              path: app => app.userForm.id ? `/users/${app.userForm.id}/edit` : '/users/new' },
+            { key: 'password', flag: 'showChangePw', path: () => '/password',
+              open: app => app.openChangePw() },
+            { key: 'signup', flag: 'showSignUp', path: () => '/signup' },
+            { key: 'users', flag: 'showUsers', path: () => '/users',
+              open: app => app.openUsers() },
+            { key: 'settings', flag: 'showSettings', path: () => '/settings',
+              open: app => app.openSettings() }
+        ],
+
+        /**
+         * 지금 열려 있는 것을 주소로 옮긴다 (설계 I198).
+         *
+         * <p><b>여는 함수마다 주소를 밀지 않습니다.</b> 모달이 스물 몇 개인데 각각에
+         * 넣으면 반드시 하나를 빠뜨리고, 닫는 쪽은 더 그렇습니다. 상태를 지켜보다가
+         * <b>바뀔 때마다 지금 상태에서 주소를 다시 계산</b>합니다 — 어느 경로로 열리고
+         * 닫혀도 맞습니다.
+         */
+        currentPath() {
+            const base = (this.showM2 && this.detailItem)
+                ? `/properties/${this.detailItem.property.id}`
+                : (this.ROUTES[this.view] || '/properties');
+            for (const route of this.MODAL_ROUTES) {
+                // photoViewerIndex 는 0도 '열림'이다. null 은 닫힌 것인데
+                // `null >= 0` 이 true 라 그냥 비교하면 안 열린 뷰어가 열린 것으로 읽힌다
+                const open = route.flag === 'photoViewerIndex'
+                    ? Number.isInteger(this[route.flag]) && this[route.flag] >= 0
+                    : this[route.flag] === true;
+                if (!open) {
+                    continue;
+                }
+                if (route.path) {
+                    return route.path(this);
+                }
+                const id = this[route.prop]?.property?.id ?? this[route.prop]?.id;
+                if (id == null) {
+                    // 어느 매물인지 모르면 주소를 지어내지 않는다 — 열 수 없는 링크가 된다
+                    return base;
+                }
+                return `/properties/${id}${route.suffix(this[route.flag])}`;
+            }
+            return base;
+        },
+
+        syncRoute() {
+            // 주소를 읽어 여는 중에는 밀지 않는다 — 여는 동작이 다시 주소를 밀면 기록이 겹친다
+            if (this._applyingRoute || this._routeQueued) {
+                return;
+            }
+            // 한 번에 여러 상태가 바뀐다 — 모달을 닫으면 플래그 두셋이 같이 꺼진다.
+            // 그때마다 밀면 <b>중간 상태가 기록에 남아</b> 뒤로 가기가 이상해진다.
+            // 한 박자 미뤄 마지막 상태 하나만 민다
+            this._routeQueued = true;
+            queueMicrotask(() => {
+                this._routeQueued = false;
+                if (!this._applyingRoute) {
+                    this.pushRoute(this.currentPath());
+                }
+            });
+        },
+
+        /** 모달이 열리고 닫히는 것을 지켜본다. 새 모달이 늘어도 여기를 고칠 일이 없다 (설계 I198). */
+        watchModalRoutes() {
+            Object.keys(this)
+                .filter(key => key.startsWith('show') && typeof this[key] === 'boolean')
+                .forEach(key => this.$watch(key, () => this.syncRoute()));
+            this.$watch('photoViewerIndex', () => this.syncRoute());
+            this.$watch('view', () => this.syncRoute());
+        },
+
         /** 주소만 바꾼다. 화면은 이미 바뀐 뒤다 — 뒤로 가기를 위해 기록만 남긴다. */
         pushRoute(path) {
             if (window.location.pathname !== path) {
@@ -394,44 +512,74 @@ function halley() {
          * <p>주소창에 직접 넣거나, 링크로 들어오거나, 뒤로 가기를 눌렀을 때 부릅니다.
          * <b>화면을 바꾸되 주소는 다시 밀지 않습니다</b> — 그러면 기록이 두 번 쌓입니다.
          */
-        applyRoute() {
+        async applyRoute() {
             const path = window.location.pathname;
+            // 여는 사이에 주소를 다시 밀면 기록이 겹친다 (설계 I198)
+            this._applyingRoute = true;
+            try {
+                await this.openRoute(path);
+            } finally {
+                this._applyingRoute = false;
+            }
+        },
+
+        async openRoute(path) {
+            // 매물에 딸린 모달: /properties/{id}/{key}[/{n}]
+            const scoped = path.match(/^\/properties\/(\d+)\/([a-z]+)(?:\/(\d+))?$/);
+            if (scoped) {
+                this.view = 'list';
+                const item = await this.findProperty(Number(scoped[1]));
+                const route = this.MODAL_ROUTES.find(r => r.key === scoped[2]);
+                if (item && route && route.open) {
+                    await route.open(this, item, scoped[3]);
+                    return;
+                }
+                // 없는 매물이거나 모르는 주소면 상세라도 연다 — 빈 화면보다 낫다
+                if (item) {
+                    this.openDetail(item);
+                }
+                return;
+            }
             const detail = path.match(/^\/properties\/(\d+)$/);
             if (detail) {
                 this.view = 'list';
-                this.openDetailById(Number(detail[1]));
+                await this.openDetailById(Number(detail[1]));
                 return;
             }
-            if (path === '/users') {
+            const global = this.MODAL_ROUTES.find(
+                r => r.path && r.open && !r.prop && r.path(this) === path);
+            if (global) {
                 this.view = 'list';
-                this.openUsers(false);
+                await global.open(this);
                 return;
             }
-            if (path === '/settings') {
+            if (path === '/properties/new' || path === '/properties/paste') {
                 this.view = 'list';
-                this.openSettings(false);
+                (path.endsWith('new') ? this.openAddProperty() : this.openPasteModal(null));
                 return;
             }
             const entry = Object.entries(this.ROUTES).find(([, p]) => p === path);
-            this.setView(entry ? entry[0] : 'list', false);
+            this.setView(entry ? entry[0] : 'list');
+        },
+
+        /** 목록에서 매물을 찾는다. 아직 안 받았으면 받아 온 뒤 찾는다. */
+        async findProperty(id) {
+            if ((this.properties || []).length === 0) {
+                await this.loadProperties();
+            }
+            return this.properties.find(x => x.property.id === id) || null;
         },
 
         /** 링크로 들어온 매물 상세를 연다. 목록이 아직 없으면 받아 온 뒤 연다. */
         async openDetailById(id) {
-            if ((this.properties || []).length === 0) {
-                await this.loadProperties();
-            }
-            const item = this.properties.find(x => x.property.id === id);
+            const item = await this.findProperty(id);
             if (item) {
-                this.openDetail(item, false);
+                this.openDetail(item);
             }
         },
 
-        setView(view, push = true) {
+        setView(view) {
             this.view = view;
-            if (push && this.ROUTES[view]) {
-                this.pushRoute(this.ROUTES[view]);
-            }
             if (view === 'weights') {
                 this.loadWeights();
             }
@@ -449,12 +597,9 @@ function halley() {
         },
 
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */
-        openSettings(push = true) {
+        openSettings() {
             if (this.session.role !== 'ADMIN') {
                 return;
-            }
-            if (push) {
-                this.pushRoute('/settings');
             }
             this.showSettings = true;
             this.error = null;
@@ -467,16 +612,12 @@ function halley() {
         closeSettings() {
             this.showSettings = false;
             this.error = null;
-            this.pushRoute(this.ROUTES[this.view] || '/properties');
         },
 
         /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
-        openUsers(push = true) {
+        openUsers() {
             if (this.session.role !== 'ADMIN') {
                 return;
-            }
-            if (push) {
-                this.pushRoute('/users');
             }
             this.showUsers = true;
             this.error = null;
@@ -487,7 +628,6 @@ function halley() {
             this.showUsers = false;
             this.users = [];
             this.error = null;
-            this.pushRoute(this.ROUTES[this.view] || '/properties');
         },
 
         async loadUsers() {
@@ -1412,10 +1552,7 @@ function halley() {
             }
         },
 
-        openDetail(item, push = true) {
-            if (push) {
-                this.pushRoute(`/properties/${item.property.id}`);
-            }
+        openDetail(item) {
             this.detailItem = item;
             this.detailAgents = [];
             this.detailRef = null;
@@ -1548,7 +1685,6 @@ function halley() {
         },
 
         closeDetail() {
-            this.pushRoute(this.ROUTES[this.view] || '/properties');
             this.showM2 = false;
             this.detailItem = null;
             this.detailAgents = [];
@@ -3002,7 +3138,9 @@ function halley() {
                 }
             });
             this.confirmState = null;
-            this.photoViewerIndex = null;
+            // 닫힘은 -1 이다 (초기값·closePhotoViewer 와 같게). null 을 넣으면
+            // `null >= 0` 이 true 라 열린 것으로 읽힌다
+            this.photoViewerIndex = -1;
             this.resetModalScroll();
         },
 
@@ -3360,6 +3498,29 @@ function halley() {
             } else {
                 this.error = '재산출에 실패했습니다';
             }
+        },
+
+        /**
+         * 슬라이더의 <b>지나온 쪽</b>만 색을 채운다 (설계 I200).
+         *
+         * <p>기본 `input[type=range]` 는 막대 전체가 한 색이라 손잡이 위치만으로
+         * 점수를 읽어야 합니다. 잠긴 항목의 읽기용 막대(`gauge-fill`)는 이미 채워진
+         * 모양인데 열린 항목만 비어 있어, 나란히 두면 <b>다른 것처럼 보였습니다.</b>
+         *
+         * <p>가상 요소(`::-webkit-slider-runnable-track`)에는 값을 넘길 수 없어
+         * 배경 그러데이션으로 그립니다. 브라우저를 가리지 않는 방법이기도 합니다.
+         */
+        scoreRangeFill(s) {
+            const min = Number(this.scoreMin(s));
+            const max = Number(this.scoreMax(s));
+            const raw = this.scoreForm[s.code];
+            const span = max - min;
+            // 아직 안 매긴 항목은 <b>비워 둡니다</b> — 0점을 매긴 것과 다릅니다
+            const pct = (raw === '' || raw == null || span <= 0)
+                ? 0
+                : Math.min(100, Math.max(0, ((Number(raw) - min) / span) * 100));
+            return `background: linear-gradient(to right,`
+                + ` var(--ocean) 0 ${pct}%, var(--line2) ${pct}% 100%)`;
         },
 
         /** 채점 모달의 입력 칸을 주어진 매물 값으로 채운다. */

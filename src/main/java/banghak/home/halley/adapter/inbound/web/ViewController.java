@@ -36,12 +36,23 @@ public class ViewController {
     @GetMapping({
             "/",
             "/properties",
+            "/properties/new",
+            "/properties/paste",
             "/properties/{id}",
+            // 모달에도 주소를 준다 (설계 I198). `{modal}` 이 무엇인지는 `app.js` 의
+            // MODAL_ROUTES 가 정합니다 — 모르는 값이면 상세를 엽니다
+            "/properties/{id}/{modal}",
+            "/properties/{id}/photos/{index}",
             "/itinerary",
             "/me",
             "/group",
             "/weights",
             "/users",
+            "/users/new",
+            "/users/{id}/edit",
+            "/compare",
+            "/password",
+            "/signup",
             "/settings"
     })
     public String shell(Model model) {
