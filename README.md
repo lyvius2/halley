@@ -332,7 +332,7 @@ REDIS_HOST=... \
 | `FSS_API_KEY` | 금융감독원 금융상품통합비교공시 |
 | `ECOS_KEY` | 한국은행 경제통계시스템 |
 | `ANTHROPIC_API_KEY` | Anthropic Console |
-| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 개발자센터 — 검색 API |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | **네이버 클라우드 콘솔 — API Hub > 검색** (옛 developers.naver.com 키는 401) |
 
 > **Slack Webhook URL은 환경변수가 아닙니다.** 그룹마다 다르므로 DB
 > (`user_group.slack_webhook_url`)에 저장하고 **그룹 정보 화면**에서 관리합니다.

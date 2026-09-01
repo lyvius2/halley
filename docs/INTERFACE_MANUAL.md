@@ -27,7 +27,7 @@
 | **법제처 국가법령정보** | 규제지역 고시 원문 → 투기과열지구·조정대상지역 | 서버(Feign) | `OC` 쿼리 파라미터 | `LAW_OC` | `LawNoticeFeignClient` | 사용 중 (5.9) |
 | **한국은행 ECOS** | 가계대출 금리 5년 → 스트레스 DSR 기준 금리 | 서버(Feign) | 인증키(**URL 경로**) | `ECOS_KEY` | `EcosFeignClient` | 사용 중 (5.10) |
 | **국토부 건축물대장** | 연면적·대지면적·용적률 → 재건축 여력 | 서버(Feign) | 서비스 키(`serviceKey`, 재사용) | `MINISTRY_API_KEY` | `BuildingLedgerFeignClient` | 사용 중 (5.11) — 별도 활용신청 필요 |
-| **네이버 검색(뉴스)** | 관련 기사 링크 목록 — **점수 미반영** | 서버(Feign) | Client ID/Secret **헤더** | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | `NaverSearchFeignClient` | 사용 중 (5.12) |
+| **네이버 검색(뉴스)** | 관련 기사 링크 목록 — **점수 미반영** | 서버(Feign) | NCP API Hub **헤더** (`X-NCP-APIGW-API-KEY-ID/KEY`) | `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | `NaverSearchFeignClient` | 사용 중 (5.12) — **2026년 API Hub 이관** |
 | **국토부 전월세 실거래** | 전세가율 산출 | 서버(Feign) | 서비스 키(재사용) | `MINISTRY_API_KEY` | `MinistryReferenceFeignClient#fetchRent` | 사용 중 (5.13) |
 | **KB부동산 시세** | KB시세 — <b>대출 한도(LTV)의 기준</b> | 서버(예정) | **인증 없음** | — | — | **검토 완료 · 미구현** (5.14) |
 
@@ -1018,14 +1018,54 @@ curl -s "https://apis.data.go.kr/1613000/BldRgstHubService/getBrRecapTitleInfo\
 **점수에 반영하지 않습니다.** 제목·날짜·출처·링크만 보여 주고 판단은 사람이 합니다
 (`docs/PRICE_FORECAST.md` 4-B).
 
+### ⚠️ 2026년에 옮겨졌습니다 (설계 I235)
+
+`openapi.naver.com` 은 **폐기됐습니다.** 새로 발급한 키로도 `401` 이 옵니다 —
+"인증에 실패했습니다"라고만 나와, <b>키가 틀린 줄 알고 한참 헤맵니다.</b>
+
+같은 키로 두 주소를 나란히 불러 확인한 결과입니다.
+
+```
+옛것  GET https://openapi.naver.com/v1/search/news.json
+      X-Naver-Client-Id / X-Naver-Client-Secret
+      → HTTP 401  {"errorMessage":"NID AUTH Result Invalid (1000) …","errorCode":"024"}
+
+지금  GET https://naverapihub.apigw.ntruss.com/search/v1/news
+      X-NCP-APIGW-API-KEY-ID / X-NCP-APIGW-API-KEY
+      → HTTP 200  {"lastBuildDate":…,"total":8331,"items":[…]}
+```
+
+**바뀐 것은 주소와 헤더뿐입니다.** 응답 구조는 그대로라 파서는 손대지 않았습니다.
+
+### 키 발급
+
+`console.ncloud.com` → **API Hub** → 검색 → 이용 신청.
+`developers.naver.com` 의 옛 애플리케이션 키로는 <b>안 됩니다.</b>
+
+> 환경변수 이름(`NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET`)은 그대로 뒀습니다 —
+> 값이 담는 것(Client ID·Secret)이 같고, 이름을 바꾸면 <b>배포된 설정이 조용히
+> 비어</b> 기사만 사라집니다.
+
 ### 요청
 
 ```
-GET https://openapi.naver.com/v1/search/news.json?query={단지명 지역명}&display=10&sort=date
+GET https://naverapihub.apigw.ntruss.com/search/v1/news
+      ?query={단지명 지역명}&display=10&sort=date
 Headers:
-  X-Naver-Client-Id: {NAVER_CLIENT_ID}
-  X-Naver-Client-Secret: {NAVER_CLIENT_SECRET}
+  X-NCP-APIGW-API-KEY-ID: {NAVER_CLIENT_ID}
+  X-NCP-APIGW-API-KEY:    {NAVER_CLIENT_SECRET}
 ```
+
+| 파라미터 | 범위 | 기본 | 비고 |
+|---|---|---|---|
+| `query` | — | 필수 | UTF-8 인코딩 |
+| `display` | 1~100 | 10 | |
+| `start` | 1~1000 | 1 | 우리는 안 씁니다 |
+| `sort` | `sim`·`date` | `sim` | **개발 호재는 `date`** — 정확도순은 오래된 기사가 위로 옵니다 |
+| `format` | `json`·`xml` | `json` | **안 보냅니다** — 기본값을 굳이 적으면 기본이 바뀌었을 때 못 알아챕니다 |
+
+> 주소가 **`.json` 으로 끝나지 않습니다.** 옛 경로(`/news.json`)를 그대로 두면
+> 404 입니다.
 
 ### 응답 다룰 때
 
