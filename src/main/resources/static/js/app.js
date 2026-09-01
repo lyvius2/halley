@@ -348,6 +348,7 @@ function halley() {
                 this.session = { authenticated: false, userId: null, nickname: null,
                     role: null, mustChangePassword: false };
                 this.showLogin = true;
+                this.focusLogin();
                 if (hadSession) {
                     this.error = '로그인이 풀렸습니다. 다시 로그인해 주세요';
                 }
@@ -392,6 +393,7 @@ function halley() {
             } else {
                 this.session = { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false };
                 this.showLogin = true;
+                this.focusLogin();
             }
         },
 
@@ -782,6 +784,7 @@ function halley() {
         openLogin() {
             this.showSignUp = false;
             this.showLogin = true;
+            this.focusLogin();
             this.error = null;
         },
 
@@ -2018,6 +2021,29 @@ function halley() {
             }
         },
 
+        /**
+         * 로그인 화면을 열면 바로 칠 수 있게 (설계 I209).
+         *
+         * <p>`x-effect` 로 걸어 뒀는데 <b>커서가 가지 않았습니다.</b> 모달은
+         * `x-show` 라 요소가 처음부터 있고, 그래서 효과가 <b>`showLogin` 이 아직
+         * 거짓일 때 한 번 돌고 맙니다</b>. 이 저장소에 이미 되는 방식이 있어
+         * 그쪽에 맞춥니다(`openPasteModal`).
+         *
+         * <p><b>ID 가 이미 채워져 있으면 비밀번호로 갑니다.</b> ID 저장(I190)을 켠
+         * 사람에게 채워진 칸을 다시 가리키는 것은 한 번 더 누르게 하는 일입니다.
+         */
+        focusLogin() {
+            setTimeout(() => {
+                const id = document.getElementById('loginId');
+                const pw = document.getElementById('loginPassword');
+                const target = (this.loginForm.loginId || '').trim() ? (pw || id) : id;
+                if (target) {
+                    target.focus();
+                    target.select?.();
+                }
+            }, 60);
+        },
+
         restoreLoginId() {
             try {
                 const saved = localStorage.getItem('halley.loginId');
@@ -2114,6 +2140,7 @@ function halley() {
             // 다시 로그인하면 앞사람이 보던 모달이 그대로 떠 있었다
             this.closeAllModals();
             this.showLogin = true;
+            this.focusLogin();
             // 지도 오버레이만이 아니라 <b>작업 중이던 것</b>도 지운다 (설계 I179).
             // 예전에는 로그아웃해도 남아, 다른 계정으로 들어오면 앞 사람의 동선이 보였다
             this.resetItineraryState();

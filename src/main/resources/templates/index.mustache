@@ -612,11 +612,14 @@
         </div>
         <form class="form" @submit.prevent="login()">
             <label>ID
-                <input type="text" x-model="loginForm.loginId" autocomplete="username" placeholder="admin" required
-                       x-ref="loginId" x-effect="if (showLogin) $nextTick(() => $refs.loginId.focus())">
+                <!-- 커서는 focusLogin() 이 옮긴다 (설계 I209).
+                     x-effect 는 x-show 모달에서 showLogin 이 거짓일 때 한 번 돌고 말았다 -->
+                <input id="loginId" type="text" x-model="loginForm.loginId" autocomplete="username"
+                       placeholder="admin" required>
             </label>
             <label>Password
-                <input type="password" x-model="loginForm.password" autocomplete="current-password" placeholder="••••••••" required>
+                <input id="loginPassword" type="password" x-model="loginForm.password"
+                       autocomplete="current-password" placeholder="••••••••" required>
             </label>
             <!-- ID 저장은 브라우저에, 로그인 유지는 서버 세션에 (설계 I190) -->
             <div class="login-options">
@@ -1474,19 +1477,6 @@
                     </div>
                 </section>
 
-                <!-- 평면도는 비용 바로 아래 (설계 I203). 다른 칸과 같은 크기로 두어
-                     격자가 어긋나지 않게 한다. 누르면 크게 본다 -->
-                <section class="m2-sec">
-                    <h4>평면도</h4>
-                    <template x-if="detailFloorPlan">
-                        <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(detailFloorPlan), detailImages)"
-                                title="크게 보기">
-                            <img :src="detailFloorPlan.storagePath" alt="평면도">
-                        </button>
-                    </template>
-                    <p class="m2-figure-empty" x-show="!detailFloorPlan">등록된 평면도가 없습니다.</p>
-                </section>
-
                 <section class="m2-sec">
                     <h4>입지</h4>
                     <div class="m2-rows">
@@ -1523,19 +1513,32 @@
                     </template>
                 </section>
 
-                <!-- 사진은 토지이용계획 위에 (설계 I203). 좌우 방향키로 넘긴다 -->
-                <section class="m2-sec m2-sec-wide">
-                    <h4>사진 <span class="m2-count" x-show="detailPhotos.length" x-text="detailPhotos.length + '장'"></span></h4>
-                    <div class="m2-photos" x-show="detailPhotos.length > 0">
-                        <template x-for="img in detailPhotos" :key="img.id">
-                            <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
-                                    title="크게 보기 (좌우 방향키로 넘김)">
-                                <img :src="img.storagePath" alt="매물사진">
-                            </button>
-                        </template>
-                    </div>
-                    <p class="m2-figure-empty" x-show="detailPhotos.length === 0">등록된 사진이 없습니다.</p>
-                </section>
+                <!-- 순서는 읽는 순서다 (설계 I208): 기본 → 비용 → 입지 → 중개사 → 평면도 → 사진.
+                     사진이 없으면 <b>칸 자체를 안 그린다</b> — "없습니다" 한 줄이 격자에
+                     빈자리를 만들어 뒤 칸을 밀어낸다 -->
+                <template x-if="detailFloorPlan">
+                    <section class="m2-sec">
+                        <h4>평면도</h4>
+                        <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(detailFloorPlan), detailImages)"
+                                title="크게 보기">
+                            <img :src="detailFloorPlan.storagePath" alt="평면도">
+                        </button>
+                    </section>
+                </template>
+
+                <template x-if="detailPhotos.length > 0">
+                    <section class="m2-sec m2-sec-wide">
+                        <h4>사진 <span class="m2-count" x-text="detailPhotos.length + '장'"></span></h4>
+                        <div class="m2-photos">
+                            <template x-for="img in detailPhotos" :key="img.id">
+                                <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
+                                        title="크게 보기 (좌우 방향키로 넘김)">
+                                    <img :src="img.storagePath" alt="매물사진">
+                                </button>
+                            </template>
+                        </div>
+                    </section>
+                </template>
 
                 <section class="m2-sec m2-sec-wide">
                     <h4>토지이용계획</h4>
