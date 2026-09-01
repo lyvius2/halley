@@ -32,8 +32,7 @@ public class SlackWebhookAdapter implements SlackPort {
         }
         try {
             final String payload = objectMapper.createObjectNode().put("text", text).toString();
-            return client.post(URI.create(webhookUrl.trim()), payload,
-                    "application/json;charset=UTF-8") != null;
+            return client.post(URI.create(webhookUrl.trim()), payload) != null;
         } catch (RuntimeException e) {
             // 주소는 찍지 않는다
             log.warn("Slack send failed. cause={}", e.toString());
