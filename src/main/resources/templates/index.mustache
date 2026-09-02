@@ -2365,7 +2365,11 @@
                 <div class="forecast-verdict">
                     <span class="forecast-verdict-arrow" :class="arrowClassOf(forecastDetail.direction)"
                           x-text="arrowOf(forecastDetail.direction)"></span>
-                    <b x-text="forecastDetail.directionLabel"></b>
+                    <!-- 상승·하락만 이름을 갖는다. 그 외에는 판단 보류 (설계 I247) -->
+                    <b x-text="forecastVerdictLabel(forecastDetail.direction, forecastDetail.directionLabel)"></b>
+                    <!-- AI 와 지표 셈이 따로 같은 결론에 닿았다 (설계 I249) -->
+                    <span class="forecast-strong" x-show="forecastDetail.strong" x-cloak
+                          title="AI 판단과 지표를 센 결과가 같은 쪽입니다">(유력)</span>
                     <span class="forecast-verdict-meta" x-show="forecastDetail.confidenceLabel"
                           x-text="'확신도 ' + forecastDetail.confidenceLabel"></span>
                     <span class="forecast-verdict-meta" x-show="forecastDetail.horizonMonths"

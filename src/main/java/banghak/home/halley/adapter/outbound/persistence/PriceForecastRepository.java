@@ -23,6 +23,7 @@ import java.util.Optional;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.CAVEATS;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.CAVEATS_RAW;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.CODE_DIRECTION;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.LLM_DIRECTION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.COMPUTED_AT;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.CONFIDENCE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PriceForecastTable.DIRECTION;
@@ -106,6 +107,8 @@ public class PriceForecastRepository {
         final PriceOutlook outlook = forecast.outlook();
         final java.util.Map<Field<?>, Object> values = new java.util.LinkedHashMap<>();
         values.put(DIRECTION, outlook.direction().name());
+        values.put(LLM_DIRECTION, forecast.llmDirection() == null
+                ? null : forecast.llmDirection().name());
         values.put(CODE_DIRECTION, forecast.codeDirection() == null
                 ? null : forecast.codeDirection().name());
         values.put(CONFIDENCE, outlook.confidence().name());
@@ -122,6 +125,8 @@ public class PriceForecastRepository {
         final PriceOutlook outlook = forecast.outlook();
         final java.util.Map<Field<?>, Object> values = new java.util.LinkedHashMap<>();
         values.put(PriceForecastHistoryTable.DIRECTION, outlook.direction().name());
+        values.put(PriceForecastHistoryTable.LLM_DIRECTION, forecast.llmDirection() == null
+                ? null : forecast.llmDirection().name());
         values.put(PriceForecastHistoryTable.CODE_DIRECTION, forecast.codeDirection() == null
                 ? null : forecast.codeDirection().name());
         values.put(PriceForecastHistoryTable.CONFIDENCE, outlook.confidence().name());
@@ -169,6 +174,7 @@ public class PriceForecastRepository {
                         r.get(HORIZON_MONTHS),
                         toFactors(toJsonNode(r.get(FACTORS_RAW), objectMapper)),
                         toStrings(toJsonNode(r.get(CAVEATS_RAW), objectMapper))),
+                toEnum(ForecastDirection.class, r.get(LLM_DIRECTION)),
                 toEnum(ForecastDirection.class, r.get(CODE_DIRECTION)),
                 r.get(PROMPT_HASH),
                 r.get(MODEL),
@@ -185,6 +191,7 @@ public class PriceForecastRepository {
                         r.get(PriceForecastHistoryTable.HORIZON_MONTHS),
                         toFactors(toJsonNode(r.get(PriceForecastHistoryTable.FACTORS_RAW), objectMapper)),
                         toStrings(toJsonNode(r.get(PriceForecastHistoryTable.CAVEATS_RAW), objectMapper))),
+                toEnum(ForecastDirection.class, r.get(PriceForecastHistoryTable.LLM_DIRECTION)),
                 toEnum(ForecastDirection.class, r.get(PriceForecastHistoryTable.CODE_DIRECTION)),
                 r.get(PriceForecastHistoryTable.PROMPT_HASH),
                 r.get(PriceForecastHistoryTable.MODEL),

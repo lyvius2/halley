@@ -27,6 +27,19 @@ import java.util.Objects;
 @Component
 public class MinistryReferenceAdapter implements MinistryReferencePort {
 
+    /** {@code <resultCode>00</resultCode>} — 공백·CDATA 가 섞여 와도 읽는다 */
+    private static final Pattern RESULT_CODE =
+            Pattern.compile("<resultCode>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]\\s]+)");
+    private static final Pattern RESULT_MSG =
+            Pattern.compile("<resultMsg>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]]+)");
+    /**
+     * 정상으로 볼 코드.
+     *
+     * <p>{@code 00} 이 표준이지만 일부 응답이 {@code INFO-000} 을 씁니다.
+     * <b>둘 다 정상입니다.</b>
+     */
+    private static final java.util.Set<String> OK_CODES = java.util.Set.of("00", "0", "INFO-000");
+
     private final MinistryReferenceFeignClient client;
     private final RateGate rateGate;
     private final String serviceKey;
@@ -84,7 +97,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         }
         rateGate.acquire();
         final String xml = client.fetchTrade(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
-        if (xml == null) {
+        if (xml == null || rejected(xml, "trades", lawdCd, dealYmd)) {
             return null;
         }
         final List<ReferenceTrade> trades = parse(xml);
@@ -105,7 +118,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         }
         rateGate.acquire();
         final String xml = client.fetchRent(serviceKey, lawdCd, dealYmd, PAGE_SIZE);
-        if (xml == null) {
+        if (xml == null || rejected(xml, "rents", lawdCd, dealYmd)) {
             return null;
         }
         final List<ReferenceTrade> rents = parseRents(xml);
@@ -123,6 +136,43 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
      *
      * <p>이걸 안 봐서 <b>10건만 받던 것을 반년 넘게 몰랐습니다</b>([I219]).
      */
+    /**
+     * 국토부는 <b>오류도 200으로 줍니다</b> (설계 I251).
+     *
+     * <pre>
+     * &lt;header&gt;
+     *   &lt;resultCode&gt;22&lt;/resultCode&gt;
+     *   &lt;resultMsg&gt;LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR&lt;/resultMsg&gt;
+     * &lt;/header&gt;
+     * </pre>
+     *
+     * <p>이 본문에는 {@code <item>} 이 없어 파서가 <b>빈 목록</b>을 돌려주고,
+     * 수집기는 그것을 <b>"그 달은 거래가 없었다"</b>로 저장합니다.
+     * 과거 달은 다시 받지 않으므로([I128]) <b>영영 구멍</b>이 됩니다.
+     *
+     * <p>[I140]에서 "실패를 캐시에 굳히지 않는다"고 고쳤는데 <b>연결 실패만</b>
+     * 막았습니다. 429는 연결이 되고 200이 오므로 그 그물을 그냥 통과했습니다.
+     *
+     * <p>정상 코드는 {@code 00} 입니다. <b>코드가 아예 없으면 통과시킵니다</b> —
+     * 헤더를 안 주는 응답 형태가 있을 수 있고, 없다고 실패로 몰면 멀쩡한 달까지
+     * 안 받게 됩니다.
+     */
+    private boolean rejected(String xml, String what, String lawdCd, String dealYmd) {
+        final Matcher matcher = RESULT_CODE.matcher(xml);
+        if (!matcher.find()) {
+            return false;
+        }
+        final String code = matcher.group(1).trim();
+        if (OK_CODES.contains(code)) {
+            return false;
+        }
+        final Matcher message = RESULT_MSG.matcher(xml);
+        log.warn("Ministry {} rejected - not storing this month. lawdCd={}, dealYmd={}, "
+                        + "resultCode={}, resultMsg={}",
+                what, lawdCd, dealYmd, code, message.find() ? message.group(1).trim() : null);
+        return true;
+    }
+
     private void warnIfTruncated(String xml, int received, String what, String lawdCd, String dealYmd) {
         final Matcher matcher = TOTAL_COUNT.matcher(xml);
         if (!matcher.find()) {

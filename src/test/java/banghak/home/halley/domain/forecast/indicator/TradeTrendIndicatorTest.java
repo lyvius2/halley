@@ -240,9 +240,19 @@ class TradeTrendIndicatorTest {
         assertThat(factor.effect()).isEqualTo(ForecastDirection.UP);
     }
 
+    /**
+     * 구멍이 있으면 <b>창을 넓혀</b> 다시 센다 (설계 I252 · [I147] 조정).
+     *
+     * <p>전에는 여기서 아무것도 내지 않았습니다. 그랬더니 <b>거래가 드문 단지가 늘
+     * 판단 보류</b>였습니다 — 345세대 단지의 한 평형은 1년에 8건쯤 팔립니다.
+     *
+     * <p><b>[I147]이 지키려던 것은 그대로입니다.</b> 그것은 "창을 <b>위치</b>로 자르지
+     * 말라"는 것이었지 "넓히지 말라"가 아니었습니다. 지금도 창은 <b>달력</b>으로
+     * 자릅니다 — 빠진 달은 0건으로 셀 뿐, 더 오래된 달이 그 자리를 메우지 않습니다.
+     */
     @Test
-    @DisplayName("구멍 때문에 표본이 3건 미만이 되면 판단하지 않는다 — 다른 달로 메우지 않는다 (설계 I147)")
-    void gapsReduceSamplesRatherThanBorrowingOtherMonths() {
+    @DisplayName("구멍이 있으면 창을 넓혀 센다 — 그래도 달력으로 자른다 (설계 I147 · I252)")
+    void gapsWidenTheWindowButStillCutByCalendar() {
         // given — 최근 구간(1~3개월 전)에서 두 달이 빠져 1건만 남는다
         final List<MonthlyTrades> monthly = new ArrayList<>();
         for (int monthsAgo = 7; monthsAgo >= 1; monthsAgo--) {
@@ -256,9 +266,18 @@ class TradeTrendIndicatorTest {
                     Instant.now()));
         }
 
-        // when / then — 위치로 잘랐다면 더 오래된 달을 끌어와 3건을 채워 버린다
-        assertThat(indicator.evaluate(
-                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly))).isEmpty();
+        // when — 3개월로는 2건뿐이라 6개월로 넓힌다
+        final PriceFactor factor = indicator.evaluate(
+                ForecastInput.ofTrades(property("측정단지", "84.9"), monthly)).orElseThrow();
+
+        // then — 최근 6개월(1~6달 전) = 1+1+0+0+3+3 = 8건.
+        // 빠진 두 달은 0건으로 셀 뿐이고, 7달 전 것이 그 자리를 메우지 않는다.
+        // 위치로 잘랐다면 이 수가 달라진다
+        assertThat(factor.evidence())
+                .as("달력으로 자르지 않으면 표본 수가 어긋난다")
+                .contains("표본 3건 → 8건")
+                .contains("6개월")
+                .contains("거래가 드물어 창을 넓혀 쟀습니다");
     }
 
     @SafeVarargs
