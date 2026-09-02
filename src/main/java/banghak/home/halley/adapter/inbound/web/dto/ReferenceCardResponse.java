@@ -28,10 +28,25 @@ public record ReferenceCardResponse(
         String lawdCd,
         int fetched,
         int nameMatched,
-        boolean areaMismatch
+        boolean areaMismatch,
+        boolean looking
 ) {
-    /** 조회를 못 해 본 경우 — 셀 것이 없다. */
+
+    /**
+     * <b>지금 받아 오는 중</b> (설계 I259).
+     *
+     * <p>화면은 기다리지 않고 배경에서 받아 옵니다([I106]). 그동안 {@code fetched=0}
+     * 을 돌려주었더니 화면이 <b>"국토부 신고 자료가 없습니다"</b> 라고 단정했습니다 —
+     * <b>안 물어본 것과 물어봤는데 없는 것이 구분되지 않았습니다.</b>
+     */
+    public static ReferenceCardResponse looking(Long askingPrice, int lookbackMonths, String lawdCd) {
+        return new ReferenceCardResponse(List.of(), askingPrice, null, null,
+                lookbackMonths, lawdCd, 0, 0, false, true);
+    }
+
+    /** 조회를 못 해 본 경우 — 셀 것이 없다. <b>더 기다려도 안 채워집니다</b> */
     public static ReferenceCardResponse notLookedUp(Long askingPrice, int lookbackMonths, String lawdCd) {
-        return new ReferenceCardResponse(List.of(), askingPrice, null, null, lookbackMonths, lawdCd, 0, 0, false);
+        return new ReferenceCardResponse(List.of(), askingPrice, null, null,
+                lookbackMonths, lawdCd, 0, 0, false, false);
     }
 }

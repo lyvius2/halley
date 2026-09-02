@@ -90,6 +90,10 @@ const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
 // 전망은 60개월 수집 + LLM 판단이라 1~2분 걸린다. 5초 × 36 = 3분이면 넉넉하다 (설계 I142)
+/** 실거래를 배경에서 받아 오는 동안 다시 묻는 간격 (설계 I259) */
+const REF_POLL_INTERVAL_MS = 3000;
+/** 3초 × 20 = 1분. 12개월치를 받는 데 그 정도면 넉넉하다 */
+const REF_POLL_MAX_ATTEMPTS = 20;
 const FORECAST_POLL_INTERVAL_MS = 5000;
 const FORECAST_POLL_MAX_ATTEMPTS = 36;
 
@@ -204,6 +208,7 @@ function halley() {
         commentEditText: '',
         detailAgents: [],
         detailRef: null,
+        _refTimer: null,
         detailLlm: null,
         detailLandUse: [],
         llmPending: false,
@@ -1759,6 +1764,7 @@ function halley() {
             this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
+            this.stopRefPolling();
             this.showM2 = true;
             this.withLoading('detail', () => this.loadDetailExtras(item.property.id));
         },
@@ -1786,6 +1792,53 @@ function halley() {
             this.llmPending = !this.detailLlm && !!(llm.ok && llm.body && llm.body.pending);
             if (this.llmPending) {
                 this.startLlmPolling(propertyId);
+            }
+            // 실거래를 배경에서 받아 오는 중이면 다 받을 때까지 다시 묻는다 (설계 I259).
+            // 전에는 새로고침해야 채워졌다 — 그 사이 화면은 "없습니다"였다
+            if (this.detailRef?.looking) {
+                this.startRefPolling(propertyId);
+            }
+        },
+
+        /**
+         * 실거래가 채워질 때까지 다시 묻는다 (설계 I259).
+         *
+         * <p>화면은 기다리지 않고 배경에서 받아 옵니다([I106]). 그래서 <b>새로고침해야
+         * 보였습니다</b> — 눌러서 연 사람은 그걸 알 길이 없습니다.
+         *
+         * <p>AI 추천이 이미 같은 방식으로 돕니다([I72]). 같은 모양으로 맞춥니다.
+         */
+        startRefPolling(propertyId) {
+            this.stopRefPolling();
+            let attempts = 0;
+            this._refTimer = setInterval(async () => {
+                // 배경 조회는 12개월치라 오래 걸린다. 그래도 끝은 있어야 한다
+                // 멈추는 조건이 넷 다 있어야 한다 (설계 I72) — 하나라도 빠지면
+                // 탭이 열려 있는 동안 계속 두드린다
+                if (++attempts > REF_POLL_MAX_ATTEMPTS || !this.showM2
+                        || !this.detailItem || this.detailItem.property.id !== propertyId) {
+                    this.stopRefPolling();
+                    return;
+                }
+                const { ok, body } = await this.request(
+                    `/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false }));
+                if (!ok || !body) {
+                    return;
+                }
+                // 열려 있는 것이 그 사이 바뀌었으면 덮지 않는다
+                if (this.detailItem && this.detailItem.property.id === propertyId) {
+                    this.detailRef = body;
+                }
+                if (!body.looking) {
+                    this.stopRefPolling();
+                }
+            }, REF_POLL_INTERVAL_MS);
+        },
+
+        stopRefPolling() {
+            if (this._refTimer) {
+                clearInterval(this._refTimer);
+                this._refTimer = null;
             }
         },
 
@@ -1896,6 +1949,7 @@ function halley() {
             this.detailImages = [];
             this.llmPending = false;
             this.stopLlmPolling();
+            this.stopRefPolling();
         },
 
         /**
@@ -2834,6 +2888,10 @@ function halley() {
             const card = this.refCard;
             if (!card) {
                 return '';
+            }
+            if (card.looking) {
+                // 아직 안 물어봤다. "없다"고 단정하면 안 된다 (설계 I259)
+                return '국토부 실거래를 받아 오는 중입니다…';
             }
             if (!card.lawdCd) {
                 return '지번주소에서 법정동코드를 찾지 못해 조회하지 못했습니다. 코드를 직접 넣어 보세요.';
