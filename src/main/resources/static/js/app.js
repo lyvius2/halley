@@ -1867,9 +1867,17 @@ function halley() {
                 // 배경 조회는 12개월치라 오래 걸린다. 그래도 끝은 있어야 한다
                 // 멈추는 조건이 넷 다 있어야 한다 (설계 I72) — 하나라도 빠지면
                 // 탭이 열려 있는 동안 계속 두드린다
-                if (++attempts > REF_POLL_MAX_ATTEMPTS || !this.showM2
+                const gaveUp = ++attempts > REF_POLL_MAX_ATTEMPTS;
+                if (gaveUp || !this.showM2
                         || !this.detailItem || this.detailItem.property.id !== propertyId) {
                     this.stopRefPolling();
+                    // <b>그만 물으면 그만 돈다고 말해야 한다 (설계 I262).</b>
+                    // 전에는 조용히 멈추기만 해서 프로그래스바가 <b>영원히</b> 돌았습니다.
+                    // 아직 열려 있는 그 매물일 때만 끕니다 — 남의 화면을 덮지 않게
+                    if (gaveUp && this.detailRef
+                            && this.detailItem && this.detailItem.property.id === propertyId) {
+                        this.detailRef = { ...this.detailRef, looking: false, timedOut: true };
+                    }
                     return;
                 }
                 const { ok, body } = await this.request(
@@ -1885,6 +1893,19 @@ function halley() {
                     this.stopRefPolling();
                 }
             }, REF_POLL_INTERVAL_MS);
+        },
+
+        /** 지쳐서 멈춘 뒤 사람이 직접 다시 묻는다 (설계 I262). */
+        async reloadReferences(propertyId) {
+            const { ok, body } = await this.request(
+                `/api/properties/${propertyId}/reference-transactions`).catch(() => ({ ok: false }));
+            if (!ok || !body || !this.detailItem || this.detailItem.property.id !== propertyId) {
+                return;
+            }
+            this.detailRef = body;
+            if (body.looking) {
+                this.startRefPolling(propertyId);
+            }
         },
 
         stopRefPolling() {

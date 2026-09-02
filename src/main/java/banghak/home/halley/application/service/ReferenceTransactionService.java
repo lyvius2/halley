@@ -73,6 +73,23 @@ public class ReferenceTransactionService {
      */
     private static final Duration MISS_TTL = Duration.ofHours(24);
 
+    /**
+     * 배경 조회가 <b>돌고 있다는 표시</b>의 수명 (설계 I262).
+     *
+     * <p>12개월치를 초당 4건 제한(I140) 아래서 훑으므로 넉넉해야 하지만,
+     * <b>너무 길면 죽은 표시가 남아</b> 아무도 다시 못 띄웁니다. 3분이면
+     * 12번 호출에 충분하고, 잘못돼도 3분 뒤에 풀립니다.
+     */
+    private static final Duration LOOKING_TTL = Duration.ofMinutes(3);
+
+    /**
+     * <b>못 찾은 게 아니라 못 찾아본</b> 경우의 수명 (설계 I262).
+     *
+     * <p>법정동코드 사전이 아직 안 채워졌으면 자료가 없는 것이 아니라 <b>물어볼 주소를
+     * 못 만든 것</b>입니다. 사전이 채워지면 곧 풀려야 하므로 하루는 너무 깁니다.
+     */
+    private static final Duration BLOCKED_TTL = Duration.ofMinutes(10);
+
     public ReferenceTransactionService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
                                        ReferenceTransactionRepository referenceTransactionRepository,
@@ -114,16 +131,35 @@ public class ReferenceTransactionService {
                     ? legalDongCode
                     : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null));
         }
-        // 화면은 기다리지 않는다. <b>받아 오는 중이라고 말하고</b> 화면이 다시 묻는다 (설계 I259)
-        gate.runAll(List.of(() -> {
-            try {
-                collect(property, legalDongCode, null);
-            } catch (RuntimeException e) {
-                log.warn("Background reference fetch failed. propertyId={}, cause={}",
-                        propertyId, e.toString());
-            }
-            return null;
-        }));
+        // <b>이미 찾아봤고 없었다면 기다리게 하면 안 된다 (설계 I262).</b>
+        // [I259]는 "저장된 게 없다"만 보고 <b>늘</b> 받아 오는 중이라고 답했습니다.
+        // 못 찾은 매물은 저장될 것이 영영 없으니 <b>프로그래스바가 영원히 돕니다</b> —
+        // 실제로 한 시간을 돌았습니다. 헛걸음 표시가 그 사실을 이미 알고 있었는데
+        // 이 길만 그것을 안 봤습니다. 아래 호출은 국토부를 부르지 않고 곧바로 답합니다
+        final String miss = String.valueOf(propertyId);
+        if (cache.get(CachePort.REFERENCE_MISS, miss).isPresent()) {
+            return collect(property, legalDongCode, null);
+        }
+
+        // 화면은 기다리지 않는다. <b>받아 오는 중이라고 말하고</b> 화면이 다시 묻는다 (설계 I259).
+        // 다만 <b>이미 도는 것이 있으면 또 띄우지 않는다</b> (설계 I262) —
+        // 3초마다 묻는 화면 하나가 1분에 스무 벌을 띄우고 있었습니다
+        if (cache.get(CachePort.REFERENCE_LOOKING, miss).isEmpty()) {
+            cache.put(CachePort.REFERENCE_LOOKING, miss, "1", LOOKING_TTL);
+            // <b>맡기고 곧바로 답한다 (설계 I262).</b> 전에는 runAll 을 불러
+            // 12개월치가 다 끝날 때까지 이 요청이 붙잡혀 있었습니다
+            gate.detach(() -> {
+                try {
+                    collect(property, legalDongCode, null);
+                } catch (RuntimeException e) {
+                    log.warn("Background reference fetch failed. propertyId={}, cause={}",
+                            propertyId, e.toString());
+                } finally {
+                    // 끝났으면 <b>반드시</b> 지운다 — 남으면 다음 사람이 영영 못 띄운다
+                    cache.evict(CachePort.REFERENCE_LOOKING, miss);
+                }
+            });
+        }
         return ReferenceCardResponse.looking(property.priceDeposit(), lookbackMonths,
                 legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null));
     }
@@ -136,8 +172,17 @@ public class ReferenceTransactionService {
      * 이미 인가된 매물 번호로 도는 것이라 다시 확인할 대상이 아닙니다.
      */
     public void prefetch(Long propertyId) {
-        propertyRepository.findById(propertyId)
-                .ifPresent(property -> collect(property, null, null));
+        propertyRepository.findById(propertyId).ifPresent(property -> {
+            // 등록 직후 상세를 열면 <b>같은 조회가 두 벌</b> 돕니다 (설계 I262).
+            // 여기도 같은 표시를 세워 화면 쪽이 기다리게 합니다
+            final String key = String.valueOf(propertyId);
+            cache.put(CachePort.REFERENCE_LOOKING, key, "1", LOOKING_TTL);
+            try {
+                collect(property, null, null);
+            } finally {
+                cache.evict(CachePort.REFERENCE_LOOKING, key);
+            }
+        });
     }
 
     private ReferenceCardResponse collect(Property property, String legalDongCode,
@@ -167,6 +212,10 @@ public class ReferenceTransactionService {
                 ? dealMonth
                 : YearMonth.now().format(DateTimeFormatter.ofPattern("yyyyMM"));
         if (lawdCd == null) {
+            // <b>여기도 끝난 것이다 (설계 I262).</b> 예전에는 아무 자국을 안 남기고
+            // 돌아섰습니다 — 화면은 "받아 오는 중"인 채로 <b>영영 멈추지 않았습니다.</b>
+            // 다만 이건 자료가 없는 게 아니라 <b>사전이 아직 없는 것</b>이라 짧게 기억합니다
+            cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", BLOCKED_TTL);
             log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
                     propertyId, property.addressJibun());
             return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);

@@ -1728,7 +1728,17 @@
                             <div class="progress-strip-bar"><i></i></div>
                         </div>
                     </template>
-                    <template x-if="!detailRef?.looking && (!detailRef || detailRef.transactions.length === 0)">
+                    <!-- 기다리다 지친 것과 <b>정말 없는 것</b>은 다르다 (설계 I262).
+                         둘을 같은 문장으로 말하면 "없습니다"가 거짓이 된다 -->
+                    <template x-if="detailRef?.timedOut && detailRef.transactions.length === 0">
+                        <p class="m2-empty">
+                            아직 받아 오는 중입니다. 잠시 뒤 다시 열어 주십시오.
+                            <button type="button" class="link-btn"
+                                    @click="reloadReferences(detailItem.property.id)">지금 다시 확인</button>
+                        </p>
+                    </template>
+                    <template x-if="!detailRef?.looking && !detailRef?.timedOut
+                                    && (!detailRef || detailRef.transactions.length === 0)">
                         <p class="m2-empty">
                             <span x-show="detailRef"
                                   x-text="'최근 ' + detailRef?.lookbackMonths + '개월 동안 같은 단지·면적의 거래내역이 없습니다.'"></span>
