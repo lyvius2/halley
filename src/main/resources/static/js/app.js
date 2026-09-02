@@ -91,6 +91,10 @@ const LLM_POLL_INTERVAL_MS = 2000;
 const LLM_POLL_MAX_ATTEMPTS = 60;
 // 전망은 60개월 수집 + LLM 판단이라 1~2분 걸린다. 5초 × 36 = 3분이면 넉넉하다 (설계 I142)
 /** 실거래를 배경에서 받아 오는 동안 다시 묻는 간격 (설계 I259) */
+/** 점수가 채워질 때까지 다시 묻는 간격 (설계 I261) */
+const SCORE_POLL_INTERVAL_MS = 3000;
+/** 3초 × 40 = 2분. 보정은 1~2분이라 그 정도면 넉넉하다 */
+const SCORE_POLL_MAX_ATTEMPTS = 40;
 const REF_POLL_INTERVAL_MS = 3000;
 /** 3초 × 20 = 1분. 12개월치를 받는 데 그 정도면 넉넉하다 */
 const REF_POLL_MAX_ATTEMPTS = 20;
@@ -209,6 +213,7 @@ function halley() {
         detailAgents: [],
         detailRef: null,
         _refTimer: null,
+        _scoreTimer: null,
         detailLlm: null,
         detailLandUse: [],
         llmPending: false,
@@ -1765,6 +1770,7 @@ function halley() {
             this.llmPending = false;
             this.stopLlmPolling();
             this.stopRefPolling();
+            this.stopScorePolling();
             this.showM2 = true;
             this.withLoading('detail', () => this.loadDetailExtras(item.property.id));
         },
@@ -1797,6 +1803,52 @@ function halley() {
             // 전에는 새로고침해야 채워졌다 — 그 사이 화면은 "없습니다"였다
             if (this.detailRef?.looking) {
                 this.startRefPolling(propertyId);
+            }
+            // 아직 점수가 없으면 채워질 때까지 스스로 묻는다 (설계 I261)
+            if (this.scoring(this.detailItem)) {
+                this.startScorePolling(propertyId);
+            }
+        },
+
+        /**
+         * 점수가 채워질 때까지 <b>상세가 스스로</b> 다시 묻는다 (설계 I261).
+         *
+         * <p>배너({@code scoring()})는 <b>목록에서 온</b> `detailItem.scores` 만 봅니다.
+         * 그래서 목록이 갱신되고 {@code syncDetailItem} 이 돌아야만 걷힙니다 —
+         * <b>그 사슬 중 하나만 끊겨도 영영 남습니다.</b> 채점이 다 끝났는데도
+         * "분석하고 있습니다"가 계속 떠 있는 것을 실제로 겪었습니다.
+         *
+         * <p>어느 링크가 끊겼는지는 아직 모릅니다. 이 고침은 <b>사슬을 타지 않으므로</b>
+         * 어느 쪽이든 듣습니다 — [I72]·[I259]와 같은 모양입니다.
+         */
+        startScorePolling(propertyId) {
+            this.stopScorePolling();
+            let attempts = 0;
+            this._scoreTimer = setInterval(async () => {
+                // 멈추는 조건이 넷 다 있어야 한다 (설계 I72)
+                if (++attempts > SCORE_POLL_MAX_ATTEMPTS || !this.showM2
+                        || !this.detailItem || this.detailItem.property.id !== propertyId) {
+                    this.stopScorePolling();
+                    return;
+                }
+                const { ok, body } = await this.request('/api/properties/' + propertyId)
+                    .catch(() => ({ ok: false }));
+                if (!ok || !body) {
+                    return;
+                }
+                if (this.detailItem && this.detailItem.property.id === propertyId) {
+                    this.detailItem = body;
+                }
+                if (!this.scoring(body)) {
+                    this.stopScorePolling();
+                }
+            }, SCORE_POLL_INTERVAL_MS);
+        },
+
+        stopScorePolling() {
+            if (this._scoreTimer) {
+                clearInterval(this._scoreTimer);
+                this._scoreTimer = null;
             }
         },
 
@@ -1950,6 +2002,7 @@ function halley() {
             this.llmPending = false;
             this.stopLlmPolling();
             this.stopRefPolling();
+            this.stopScorePolling();
         },
 
         /**
