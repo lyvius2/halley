@@ -77,8 +77,10 @@ class TransitWithLlmFallbackTest {
     }
 
     private TransitWithLlmFallback fallback() {
+        // 게이트는 진짜를 쓴다 — 동시에 도는 것까지 그대로 재려는 것이다 (설계 I263)
         return new TransitWithLlmFallback(odsay,
-                new LlmTransitEstimator(llmPort(), objectMapper, ""));
+                new LlmTransitEstimator(llmPort(), objectMapper, ""),
+                new banghak.home.halley.config.VirtualThreadGate("test", 8), 20);
     }
 
     @BeforeEach

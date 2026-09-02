@@ -8,10 +8,15 @@ import banghak.home.halley.domain.scoring.TransitResult;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import banghak.home.halley.config.VirtualThreadGate;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
+
+import java.time.Duration;
 import java.time.LocalDate;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * ODsay 를 먼저, 하루치를 다 썼으면 LLM 으로 (설계 I210).
@@ -52,9 +57,18 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
     /** 구간 하나만 물을 때의 열쇠. 프롬프트와 로그에 그대로 실리므로 읽히는 이름을 쓴다. */
     private static final String SINGLE = "leg";
 
-    public TransitWithLlmFallback(OdsayTransitAdapter odsay, LlmTransitEstimator estimator) {
+    /** 구간들을 한꺼번에 물을 때 쓰는 자리 (설계 I263). */
+    private final VirtualThreadGate gate;
+    /** 이 시간 안에 못 받은 구간은 <b>추정으로 넘깁니다</b> (설계 I263). */
+    private final Duration batchBudget;
+
+    public TransitWithLlmFallback(OdsayTransitAdapter odsay, LlmTransitEstimator estimator,
+                                  @Qualifier("itineraryGate") VirtualThreadGate gate,
+                                  @Value("${itinerary.transit-budget-seconds:20}") long budgetSeconds) {
         this.odsay = odsay;
         this.estimator = estimator;
+        this.gate = gate;
+        this.batchBudget = Duration.ofSeconds(budgetSeconds);
     }
 
     /**
@@ -92,20 +106,34 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
      */
     @Override
     public Map<String, TransitResult> findTransitBatch(Map<String, double[]> legs) {
-        final Map<String, TransitResult> found = new LinkedHashMap<>();
-        final List<LlmTransitEstimator.Leg> unresolved = new java.util.ArrayList<>();
-        for (final Map.Entry<String, double[]> entry : legs.entrySet()) {
-            final double[] c = entry.getValue();
-            if (quotaExhausted()) {
-                unresolved.add(new LlmTransitEstimator.Leg(entry.getKey(), c[0], c[1], c[2], c[3]));
-                continue;
-            }
-            try {
-                found.put(entry.getKey(), odsay.findTransit(c[0], c[1], c[2], c[3]));
-            } catch (TransitQuotaExceededException e) {
-                markExhausted(e);
-                unresolved.add(new LlmTransitEstimator.Leg(entry.getKey(), c[0], c[1], c[2], c[3]));
-            }
+        final Map<String, TransitResult> found = new ConcurrentHashMap<>();
+        // <b>한 줄로 돌지 않는다 (설계 I263).</b> 49쌍을 순서대로 부르면 ODsay 가
+        // 느려진 날 5분이 걸립니다 — 프록시가 60초에 끊어 504 가 났습니다
+        gate.runWithin(legs.entrySet().stream()
+                .map(entry -> (Runnable) () -> {
+                    if (quotaExhausted()) {
+                        return;
+                    }
+                    final double[] c = entry.getValue();
+                    try {
+                        found.put(entry.getKey(), odsay.findTransit(c[0], c[1], c[2], c[3]));
+                    } catch (TransitQuotaExceededException e) {
+                        markExhausted(e);
+                    }
+                })
+                .toList(), batchBudget);
+
+        // <b>못 받은 것은 이유를 가리지 않는다.</b> 할당량이 끝났든 시간이 모자랐든
+        // 화면에는 답이 있어야 합니다 — 남은 것을 <b>한 번에</b> 추정으로 넘깁니다
+        final List<LlmTransitEstimator.Leg> unresolved = legs.entrySet().stream()
+                .filter(entry -> !found.containsKey(entry.getKey()))
+                .map(entry -> new LlmTransitEstimator.Leg(entry.getKey(),
+                        entry.getValue()[0], entry.getValue()[1],
+                        entry.getValue()[2], entry.getValue()[3]))
+                .toList();
+        if (!unresolved.isEmpty()) {
+            log.info("Transit legs unresolved by ODsay - estimating. total={}, unresolved={}",
+                    legs.size(), unresolved.size());
         }
         found.putAll(estimator.estimate(unresolved));
         return found;

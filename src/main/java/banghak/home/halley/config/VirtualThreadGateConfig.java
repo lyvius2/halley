@@ -37,6 +37,22 @@ public class VirtualThreadGateConfig {
     }
 
     /**
+     * 임장 경로 계산용 (설계 I263).
+     *
+     * <p>매물 7개면 구간이 <b>49쌍</b>입니다. 예전에는 이것을 <b>한 줄로</b> 돌았습니다 —
+     * 카카오 읽기 제한이 6초이니 최악이면 5분입니다. 프록시가 60초에 끊어
+     * <b>504</b>가 났습니다.
+     *
+     * <p>상한이 작습니다. 길찾기 API는 한꺼번에 몰면 429를 돌려줍니다 —
+     * 빨리 하자고 넓히면 다 같이 실패합니다.
+     */
+    @Bean
+    public VirtualThreadGate itineraryGate(
+            @Value("${itinerary.max-concurrency:8}") int maxConcurrency) {
+        return new VirtualThreadGate("itinerary", maxConcurrency);
+    }
+
+    /**
      * 국토부는 <b>초당</b> 요청 수를 셉니다 (설계 I140).
      *
      * <p>동시 실행 상한만으로는 부족했습니다. 6으로 묶어도 각 호출이 40ms에 끝나면
