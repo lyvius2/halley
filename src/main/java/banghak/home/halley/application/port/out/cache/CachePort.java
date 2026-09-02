@@ -65,6 +65,14 @@ public interface CachePort {
     /** 법정동코드 사전. 사전 재적재 말고는 바뀌지 않습니다 */
     String LEGAL_DONG = "legaldong";
 
+    /**
+     * 관련 기사 검색 결과 (설계 I246). 키는 <b>검색어</b>다.
+     *
+     * <p>매물 번호가 아닙니다 — 같은 단지의 매물 둘은 검색어가 같고, 그러면
+     * <b>한 번만 물으면 됩니다.</b>
+     */
+    String NEWS = "news";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);
