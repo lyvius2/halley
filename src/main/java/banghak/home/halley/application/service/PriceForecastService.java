@@ -13,6 +13,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.domain.forecast.PriceForecast;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.reference.CachedDealType;
+import banghak.home.halley.domain.forecast.FactorTally;
 import banghak.home.halley.domain.forecast.ForecastConfidence;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.ForecastPrompt;
@@ -156,10 +157,13 @@ public class PriceForecastService {
                 return cached;
             }
             final PriceForecast saved = forecastRepository.upsert(new PriceForecast(
-                    null, propertyId, verdict.conclusion(), verdict.byCode().direction(),
+                    null, propertyId, verdict.conclusion(), verdict.llmDirection(),
+                    verdict.byCode().direction(),
                     hash, modelToStore(verdict, llmPort.provider()), Instant.now()));
-            log.info("Price forecast stored. propertyId={}, direction={}, codeDirection={}, agreed={}",
-                    propertyId, saved.outlook().direction(), saved.codeDirection(), saved.agreed());
+            log.info("Price forecast stored. propertyId={}, direction={}, llmDirection={}, "
+                            + "codeDirection={}, strong={}",
+                    propertyId, saved.outlook().direction(), saved.llmDirection(),
+                    saved.codeDirection(), saved.strong());
             return Optional.of(saved);
         } finally {
             // 성공이든 실패든 지운다 (설계 I109). 결과는 DB에 있고, 표시가 남으면
@@ -283,7 +287,7 @@ public class PriceForecastService {
             // 재료가 없으면 묻지 않는다 — 일반론이 돌아온다
             log.info("Skipping forecast LLM call - no indicators. propertyId={}",
                     input.property() == null ? null : input.property().id());
-            return new ForecastVerdict(byCode, byCode, null, false);
+            return new ForecastVerdict(byCode, byCode, null, null, false);
         }
         // 어느 지표가 값을 냈는지 남긴다 (설계 I150). 개수만 남기면 판단이 보류될 때
         // 무엇이 없어서인지 알 수 없다 — 실거래 추세가 빠진 것인지, 전세가율이 빠진 것인지
@@ -295,13 +299,14 @@ public class PriceForecastService {
         if (!enabled || !llmPort.isEnabled()) {
             log.info("Skipping forecast LLM call - provider not enabled. provider={}", llmPort.provider());
             // 키를 나중에 넣으면 다시 물어야 한다. 해시를 남기면 그 기회가 사라진다
-            return new ForecastVerdict(byCode, byCode, prompt, false);
+            return new ForecastVerdict(byCode, byCode, null, prompt, false);
         }
         final Optional<PriceOutlook> byLlm = ask(prompt, horizon);
         return byLlm
-                .map(llm -> new ForecastVerdict(guard(llm, byCode), byCode, prompt, true))
+                .map(llm -> new ForecastVerdict(
+                        guard(llm, byCode), byCode, llm.direction(), prompt, true))
                 // 못 받았으면 코드 예측으로 답하되, 답한 것처럼 굳히지는 않는다
-                .orElseGet(() -> new ForecastVerdict(byCode, byCode, prompt, false));
+                .orElseGet(() -> new ForecastVerdict(byCode, byCode, null, prompt, false));
     }
 
     /**
@@ -346,16 +351,53 @@ public class PriceForecastService {
     private PriceOutlook guard(PriceOutlook byLlm, PriceOutlook byCode) {
         if (byLlm.factors().isEmpty() && !byCode.factors().isEmpty()) {
             log.warn("All LLM factors were dropped - falling back to rule-based.");
-            return byCode;
+            return tallied(byCode, byCode.caveats(), false);
         }
-        if (!hasEnoughTradeSamples(byCode)) {
-            return withoutTradeSamples(byLlm, byCode);
+        final List<String> caveats = new ArrayList<>(byLlm.caveats());
+        // 이 매물의 실거래가 모자라면 <b>방향은 말하되 확신은 하지 않습니다</b> (설계 I151).
+        // 금리 국면은 ECOS 통계라 아무리 나와도 이 단지의 표본과는 무관합니다
+        final boolean thinEvidence = !hasEnoughTradeSamples(byCode);
+        if (thinEvidence) {
+            log.info("No trade-based indicator - counting the rest. required={}, got=[{}]",
+                    TRADE_BASED_FACTORS, byCode.factors().stream()
+                            .map(banghak.home.halley.domain.forecast.PriceFactor::name)
+                            .collect(java.util.stream.Collectors.joining(", ")));
+            caveats.add(String.format(
+                    "이 단지·면적대의 실거래 표본이 %d건 미만이라 지표가 가리키는 쪽을 "
+                            + "세어 정했습니다 — 확신이 있어서가 아닙니다", MIN_TRADE_SAMPLES));
         }
-        // LLM 이 "모르겠다"고 해도 <b>지표가 있으면 세어서 말합니다</b> (설계 I234)
-        if (byLlm.direction() == ForecastDirection.UNCERTAIN) {
-            return majorityRead(byLlm, byCode, "AI가 방향을 정하지 못해");
+        return tallied(byLlm, caveats, thinEvidence);
+    }
+
+    /**
+     * 결론은 <b>지표에서 계산합니다</b> (설계 I248).
+     *
+     * <p>LLM 이 스스로 낸 방향은 쓰지 않습니다 — LLM 은 <b>지표와 근거만</b> 주고
+     * 판정은 우리가 합니다. 규칙이 전부 "지표 중에서"로 되어 있어서입니다.
+     *
+     * <p>이렇게 하면 <b>화면에 보이는 화살표들과 결론이 어긋날 수 없습니다.</b>
+     * 전에는 지표가 ▲▼▼▲ 인데 결론이 "판단 보류"로 떴습니다 — 세어 보면 2:2 동수라
+     * 상승이어야 했습니다.
+     */
+    private PriceOutlook tallied(PriceOutlook outlook, List<String> caveats, boolean thinEvidence) {
+        final ForecastDirection said = outlook.direction();
+        // <b>LLM 이 방향을 말했으면 그대로 따릅니다</b> (설계 I249).
+        // 유지·판단 보류는 "방향을 말하지 않은 것"입니다 — 그때만 우리가 셉니다
+        final boolean committed = said == ForecastDirection.UP || said == ForecastDirection.DOWN;
+        final ForecastDirection direction = committed
+                ? said
+                : FactorTally.of(outlook.factors()).direction();
+        // 표본이 얇거나 우리가 대신 정했으면 확신도를 낮춥니다.
+        // 우리가 세어 넣은 판단에 "확신도 높음"을 붙일 수는 없습니다
+        final ForecastConfidence confidence = (thinEvidence || !committed)
+                ? ForecastConfidence.LOW
+                : outlook.confidence();
+        if (!committed) {
+            caveats.add("AI가 방향을 정하지 못해 지표가 가리키는 쪽을 세어 정했습니다 "
+                    + "— 확신이 있어서가 아닙니다");
         }
-        return byLlm;
+        return new PriceOutlook(direction, confidence,
+                outlook.horizonMonths(), outlook.factors(), caveats);
     }
 
     /**
@@ -377,6 +419,15 @@ public class PriceForecastService {
         return majorityRead(byLlm, byCode, String.format(
                 "이 단지·면적대의 실거래 표본이 %d건 미만이라", MIN_TRADE_SAMPLES));
     }
+
+    /**
+     * 지표를 세어 방향을 낸다 (설계 I234).
+     *
+     * <p>LLM 이 낸 요인을 먼저 봅니다 — 그게 결론의 근거로 화면에 뜨는 것입니다.
+     * 비어 있으면 규칙 예측의 요인을 씁니다.
+     *
+     * <p><b>확신도는 언제나 LOW 입니다.</b> 세어서 고른 것이지 확신이 있어서가 아닙니다.
+     */
 
     /**
      * 지표를 세어 방향을 낸다 (설계 I234).
@@ -427,7 +478,12 @@ public class PriceForecastService {
      *                   400을 맞아도 프롬프트는 남는다. <b>이걸 구분하지 않으면
      *                   실패가 해시로 굳어 다시 물을 수 없게 된다.</b>
      */
+    /**
+     * @param llmDirection LLM 이 <b>스스로 낸</b> 결론 (설계 I249). 답을 못 받았으면 null.
+     *                     {@code conclusion} 은 규칙까지 거친 최종 결론이라 둘이 다를 수 있다
+     */
     public record ForecastVerdict(PriceOutlook conclusion, PriceOutlook byCode,
+                                  ForecastDirection llmDirection,
                                   ForecastPrompt prompt, boolean llmAnswered) {
 
         /** 둘이 같은 방향인가 — 모달 문구를 가른다. */

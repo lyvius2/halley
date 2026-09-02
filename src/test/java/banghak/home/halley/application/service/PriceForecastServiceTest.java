@@ -143,6 +143,89 @@ class PriceForecastServiceTest {
         assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.DOWN);
     }
 
+    /**
+     * <b>AI 가 방향을 말했으면 그대로 따릅니다</b> (설계 I249).
+     *
+     * <p>지표를 세면 하락인데 AI 는 상승이라 했습니다. 결론은 <b>상승</b>입니다 —
+     * 우리가 세는 것은 AI 가 <b>방향을 안 말했을 때</b>뿐입니다.
+     */
+    @Test
+    @DisplayName("AI 가 방향을 말하면 지표와 달라도 그대로 따른다 (설계 I249)")
+    void followsTheModelWhenItCommits() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UP","confidence":"HIGH",
+                 "factors":[
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"},
+                   {"name":"전세가율","effect":"DOWN","weight":"MEDIUM","evidence":"전세가율이 낮습니다"},
+                   {"name":"장기 추세","effect":"UP","weight":"MEDIUM","evidence":"완만히 올랐습니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection())
+                .as("AI 가 뭐라 했는지 따로 남겨야 '유력'을 가릴 수 있다")
+                .isEqualTo(ForecastDirection.UP);
+    }
+
+    /**
+     * <b>AI 가 판단을 보류하면 우리가 셉니다</b> (설계 I249).
+     *
+     * <p>실제로 겪은 화면입니다 — 지표는 ▲▼▼▲ 인데 결론만 판단 보류였습니다.
+     * 세어 보면 2:2 동수이고, <b>동수면 상승</b>입니다.
+     */
+    @Test
+    @DisplayName("AI 가 보류하면 지표를 세어 정한다 — 동수면 상승 (설계 I249)")
+    void countsWhenTheModelAbstains() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UNCERTAIN","confidence":"LOW",
+                 "factors":[
+                   {"name":"장기 가격 추세","effect":"UP","weight":"MEDIUM","evidence":"완만히 올랐습니다"},
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"},
+                   {"name":"낮은 전세가율","effect":"DOWN","weight":"MEDIUM","evidence":"전세가율이 낮습니다"},
+                   {"name":"정비 기대","effect":"UP","weight":"LOW","evidence":"노후 대단지입니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction())
+                .as("무게로 세면 하락(4:3)이지만 머릿수로는 2:2 동수다")
+                .isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection()).isEqualTo(ForecastDirection.UNCERTAIN);
+        assertThat(verdict.conclusion().confidence())
+                .as("우리가 대신 정했으면 확신도를 낮춘다")
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+    }
+
+    /**
+     * <b>유지도 "방향을 말한 것"이 아닙니다</b> (설계 I248 · I249).
+     *
+     * <p>규칙 1에서 <b>유지 = 판단 보류</b>로 합쳤습니다. 그러니 AI 가 `FLAT` 을 내도
+     * 우리가 셉니다 — 파서가 AI 의 "모르겠다"를 `FLAT` 으로 바꿔 넣고 있어([I247])
+     * `FLAT` 은 이미 <b>모름의 하치장</b>입니다.
+     */
+    @Test
+    @DisplayName("AI 가 유지라 해도 지표를 센다 — 유지는 방향을 말한 것이 아니다 (설계 I249)")
+    void countsWhenTheModelSaysFlat() {
+        stub(new AtomicReference<>(), """
+                {"direction":"FLAT","confidence":"HIGH",
+                 "factors":[
+                   {"name":"장기 추세","effect":"UP","weight":"MEDIUM","evidence":"올랐습니다"},
+                   {"name":"실거래 추세","effect":"UP","weight":"HIGH","evidence":"오릅니다"},
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction())
+                .as("유지를 결론으로 받아들이면 판단 보류가 다시 쌓인다")
+                .isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection()).isEqualTo(ForecastDirection.FLAT);
+        assertThat(verdict.conclusion().confidence())
+                .as("우리가 대신 정했으면 확신도를 낮춘다")
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+    }
+
     @Test
     @DisplayName("실거래 표본이 없으면 지표를 세어 말하되 확신도는 낮춘다 (설계 I234)")
     void fallsBackToAMajorityReadWhenSamplesTooFew() {
@@ -277,8 +360,8 @@ class PriceForecastServiceTest {
         final var outlook = PriceOutlook.uncertain(12, List.of());
         final var prompt = ForecastPrompt.of(property(), List.of(), 12);
 
-        final var failed = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, false);
-        final var answered = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, true);
+        final var failed = new PriceForecastService.ForecastVerdict(outlook, outlook, null, prompt, false);
+        final var answered = new PriceForecastService.ForecastVerdict(outlook, outlook, null, prompt, true);
 
         // then — 프롬프트가 있다고 해시를 남기면 안 된다. 그 둘은 다른 얘기다
         assertThat(PriceForecastService.hashToStore(failed)).isNull();
@@ -295,7 +378,7 @@ class PriceForecastServiceTest {
     void noHashWhenNeverAsked() {
         final var outlook = PriceOutlook.uncertain(12, List.of());
         assertThat(PriceForecastService.hashToStore(
-                new PriceForecastService.ForecastVerdict(outlook, outlook, null, false))).isNull();
+                new PriceForecastService.ForecastVerdict(outlook, outlook, null, null, false))).isNull();
     }
 
     // ── 도우미 ─────────────────────────────────────────────

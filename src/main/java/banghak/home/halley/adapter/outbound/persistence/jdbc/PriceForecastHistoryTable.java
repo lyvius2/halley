@@ -22,6 +22,8 @@ public final class PriceForecastHistoryTable {
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<Long> PROPERTY_ID = field(name(T, "property_id"), Long.class);
     public static final Field<String> DIRECTION = field(name(T, "direction"), String.class);
+    /** LLM 이 스스로 낸 결론 (설계 I249). 사후 검증(구현 10)이 누가 맞혔는지 세려면 필요하다 */
+    public static final Field<String> LLM_DIRECTION = field(name(T, "llm_direction"), String.class);
     public static final Field<String> CODE_DIRECTION = field(name(T, "code_direction"), String.class);
     public static final Field<String> CONFIDENCE = field(name(T, "confidence"), String.class);
     public static final Field<Integer> HORIZON_MONTHS = field(name(T, "horizon_months"), Integer.class);
