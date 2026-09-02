@@ -72,6 +72,12 @@ const COMPARE_MIN_PROPERTIES = 4;
 const PAGE_SIZE = 30;
 /** 목록 바닥에서 이만큼 남으면 다음 쪽을 부른다 — 다 내려간 뒤에 부르면 끊겨 보인다 */
 const INFINITE_SCROLL_MARGIN_PX = 400;
+/**
+ * 겹친 지도 핀의 앞뒤 (설계 I245).
+ *
+ * <p>다녀온 곳은 뒤로. 임장은 <b>아직 안 가 본 곳을 고르려고</b> 보는 지도입니다.
+ */
+const PIN_Z = { visited: 1, fresh: 2, hover: 10 };
 
 /** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
 /**
@@ -4676,17 +4682,25 @@ function halley() {
             const coords = this.pins.filter(p => p.lat && p.lng);
             coords.forEach(p => {
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
+                const base = this.pinZIndex(p);
                 const overlay = new kakao.maps.CustomOverlay({
                     position,
                     content: this.markerContent(p),
                     yAnchor: 1,
-                    clickable: true
+                    clickable: true,
+                    zIndex: base
                 });
                 overlay.setMap(this.map);
                 // CustomOverlay 에는 이벤트를 못 건다 — 안쪽 요소에 직접 건다
                 const el = overlay.getContent();
                 if (el instanceof HTMLElement) {
                     el.addEventListener('click', () => this.selectMarker(p.id));
+                    // 겹친 핀은 <b>가리킨 것</b>이 맨 앞으로 (설계 I245).
+                    // CSS 의 `.map-pin:hover { z-index }` 로는 안 됩니다 — 오버레이에
+                    // zIndex 를 주면 컨테이너가 쌓임 맥락을 만들어, 그 안의 z-index 는
+                    // <b>형제 오버레이와 겨루지 못합니다.</b> 오버레이째로 올립니다
+                    el.addEventListener('mouseenter', () => overlay.setZIndex(PIN_Z.hover));
+                    el.addEventListener('mouseleave', () => overlay.setZIndex(base));
                 }
                 this.markers[p.id] = overlay;
             });
@@ -4703,6 +4717,21 @@ function halley() {
          * <p>문자열이 아니라 <b>요소</b>를 돌려줍니다 — 클릭을 걸어야 하고,
          * 단지명이 그대로 들어가므로 <b>HTML 로 조립하면 안 됩니다.</b>
          */
+        /**
+         * 겹친 핀 중 무엇을 위에 둘까 (설계 I245).
+         *
+         * <p><b>다녀온 곳이 안 가 본 곳을 가리고 있었습니다.</b> 오버레이에 순서를
+         * 안 주면 <b>만든 차례대로</b> 쌓이는데, 그 차례는 그저 목록이 온 순서입니다 —
+         * 무엇이 위에 올지가 <b>운에 달려 있었습니다.</b>
+         *
+         * <p>가려도 되는 것이 가려야 합니다. 임장은 <b>아직 안 가 본 곳을 고르려고</b>
+         * 보는 지도인데, 이미 다녀온 곳이 그것을 덮으면 <b>정작 볼 것이 안 보입니다.</b>
+         * 흐리게 칠한 것([I225])과 같은 이유입니다.
+         */
+        pinZIndex(p) {
+            return p.visited ? PIN_Z.visited : PIN_Z.fresh;
+        },
+
         /** 지도용 얇은 매물 하나를 받는다 (설계 I240) — 채점까지 붙은 목록이 아니다 */
         markerContent(p) {
             const jeonse = p.dealType === 'JEONSE';
