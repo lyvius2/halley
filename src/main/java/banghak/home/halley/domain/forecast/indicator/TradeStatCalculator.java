@@ -114,7 +114,60 @@ public class TradeStatCalculator {
                 .divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
     }
 
+    /**
+     * 어디서 0이 됐는지 센다 (설계 I253).
+     *
+     * <p>실거래 지표가 안 나올 때 <b>이유가 넷</b>인데 화면도 로그도 아무 말이
+     * 없었습니다 — 자료를 못 받았는지, 단지명이 안 맞는지, 평형이 다른지,
+     * 그냥 거래가 드문지. 사람이 LLM 산문을 읽고 짐작해야 했습니다.
+     *
+     * <p>[I232]에서 실거래 카드에 한 것과 같은 처방입니다.
+     */
+    public MatchTally tally(Property property, List<MonthlyTrades> monthly) {
+        int trades = 0;
+        int nameMatched = 0;
+        int areaMatched = 0;
+        if (monthly != null) {
+            for (final MonthlyTrades month : monthly) {
+                if (month == null || month.trades() == null) {
+                    continue;
+                }
+                for (final ReferenceTrade trade : month.trades()) {
+                    trades++;
+                    if (!sameName(property, trade)) {
+                        continue;
+                    }
+                    nameMatched++;
+                    if (sameArea(property, trade)) {
+                        areaMatched++;
+                    }
+                }
+            }
+        }
+        return new MatchTally(trades, nameMatched, areaMatched);
+    }
+
+    /**
+     * 창 안의 거래가 <b>어디서 걸러졌는가</b> (설계 I253).
+     *
+     * @param trades      받아 둔 거래 전부
+     * @param nameMatched 그중 단지명이 맞는 것
+     * @param areaMatched 그중 면적까지 맞는 것 — 지표가 실제로 세는 것
+     */
+    public record MatchTally(int trades, int nameMatched, int areaMatched) {
+    }
+
     private boolean matches(Property property, ReferenceTrade trade) {
+        return matchesProperty(property, trade);
+    }
+
+    /**
+     * 이 거래가 이 매물의 것인가 (설계 I255).
+     *
+     * <p>지표마다 따로 거르면 <b>같은 규칙이 여러 벌</b>이 됩니다 — [I230]에서
+     * 정확히 그 일로 전망이 늘 자료 부족이었습니다.
+     */
+    public boolean matchesProperty(Property property, ReferenceTrade trade) {
         return sameName(property, trade) && sameArea(property, trade);
     }
 

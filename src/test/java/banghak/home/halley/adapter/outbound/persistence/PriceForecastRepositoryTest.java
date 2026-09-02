@@ -72,7 +72,7 @@ class PriceForecastRepositoryTest {
 
         // when
         repository.upsert(new PriceForecast(null, propertyId, outlook,
-                ForecastDirection.FLAT, "hash1", "claude", Instant.now()));
+                null, ForecastDirection.FLAT, "hash1", "claude", Instant.now()));
 
         // then
         final var found = repository.findByPropertyId(propertyId).orElseThrow();
@@ -89,7 +89,7 @@ class PriceForecastRepositoryTest {
     void storesBothPredictions() {
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.UP, ForecastConfidence.LOW, 12, List.of(), List.of()),
-                ForecastDirection.FLAT, "hash1", "claude", Instant.now()));
+                null, ForecastDirection.FLAT, "hash1", "claude", Instant.now()));
 
         final var found = repository.findByPropertyId(propertyId).orElseThrow();
         assertThat(found.outlook().direction()).isEqualTo(ForecastDirection.UP);
@@ -102,10 +102,10 @@ class PriceForecastRepositoryTest {
     void keepsOnlyOnePerProperty() {
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.UP, ForecastConfidence.HIGH, 12, List.of(), List.of()),
-                ForecastDirection.UP, "hash1", "claude", Instant.now()));
+                null, ForecastDirection.UP, "hash1", "claude", Instant.now()));
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.DOWN, ForecastConfidence.LOW, 12, List.of(), List.of()),
-                ForecastDirection.DOWN, "hash2", "claude", Instant.now()));
+                null, ForecastDirection.DOWN, "hash2", "claude", Instant.now()));
 
         final var found = repository.findByPropertyId(propertyId).orElseThrow();
         assertThat(found.outlook().direction()).isEqualTo(ForecastDirection.DOWN);
@@ -117,7 +117,7 @@ class PriceForecastRepositoryTest {
     void allowsNullModel() {
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.FLAT, ForecastConfidence.LOW, 12, List.of(), List.of()),
-                ForecastDirection.FLAT, null, null, Instant.now()));
+                null, ForecastDirection.FLAT, null, null, Instant.now()));
 
         final var found = repository.findByPropertyId(propertyId).orElseThrow();
         assertThat(found.model()).isNull();
@@ -133,13 +133,13 @@ class PriceForecastRepositoryTest {
                         List.of(new PriceFactor("실거래 추세", ForecastDirection.UP, FactorWeight.HIGH,
                                 "직전 3개월 중앙값 11억 → 최근 12억 (+9.1%)")),
                         List.of()),
-                ForecastDirection.UP, "hash1", "claude", Instant.parse("2026-01-01T00:00:00Z")));
+                null, ForecastDirection.UP, "hash1", "claude", Instant.parse("2026-01-01T00:00:00Z")));
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.FLAT, ForecastConfidence.LOW, 12, List.of(), List.of()),
-                ForecastDirection.UP, "hash2", "claude", Instant.parse("2026-04-01T00:00:00Z")));
+                null, ForecastDirection.UP, "hash2", "claude", Instant.parse("2026-04-01T00:00:00Z")));
         repository.upsert(new PriceForecast(null, propertyId,
                 new PriceOutlook(ForecastDirection.DOWN, ForecastConfidence.MEDIUM, 12, List.of(), List.of()),
-                ForecastDirection.DOWN, "hash3", "claude", Instant.parse("2026-07-01T00:00:00Z")));
+                null, ForecastDirection.DOWN, "hash3", "claude", Instant.parse("2026-07-01T00:00:00Z")));
 
         // then — 최신은 하나지만
         assertThat(repository.findByPropertyId(propertyId).orElseThrow().promptHash())

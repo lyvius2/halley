@@ -1157,6 +1157,15 @@ tr.dragging { opacity: .5; background: var(--line2); }
     cursor: pointer;
     flex: 0 0 auto;
 }
+/* AI 와 지표 셈이 따로 같은 결론에 닿았다 (설계 I249). 결론 옆에 작게 붙는다 —
+   크게 쓰면 그것부터 읽히고, 유력은 결론이 아니라 결론에 대한 말이다 */
+.forecast-strong {
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink3);
+    letter-spacing: -.2px;
+}
 .forecast-arrow.up   { color: #d4342c; }
 .forecast-arrow.down { color: #1f5fbf; }
 .forecast-arrow.flat { color: var(--ink2); }
@@ -2312,7 +2321,9 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .map-pin.is-jeonse i { border-top-color: var(--palm); }
 /* 가 본 곳은 흐리게 (설계 I197) */
 .map-pin.is-visited { opacity: .6; }
-.map-pin:hover { z-index: 10; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+.map-pin:hover { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+/* 앞뒤는 CSS 로 못 정한다 (설계 I245). 오버레이마다 컨테이너가 따로라
+   여기 z-index 를 줘도 <b>형제 오버레이와 겨루지 못한다</b> — app.js 가 오버레이째로 올린다 */
 
 /* 임장 플래너에서 이미 다녀온 곳 (설계 I225) — 목록의 done 과 같은 농도로 맞춘다 */
 .itin-check.done { opacity: .55; }

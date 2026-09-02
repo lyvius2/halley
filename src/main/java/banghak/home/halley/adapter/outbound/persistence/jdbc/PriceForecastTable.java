@@ -20,6 +20,8 @@ public final class PriceForecastTable {
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<Long> PROPERTY_ID = field(name(T, "property_id"), Long.class);
     public static final Field<String> DIRECTION = field(name(T, "direction"), String.class);
+    /** LLM 이 스스로 낸 결론 (설계 I249). `direction` 은 규칙까지 거친 최종 결론이다 */
+    public static final Field<String> LLM_DIRECTION = field(name(T, "llm_direction"), String.class);
     public static final Field<String> CODE_DIRECTION = field(name(T, "code_direction"), String.class);
     public static final Field<String> CONFIDENCE = field(name(T, "confidence"), String.class);
     public static final Field<Integer> HORIZON_MONTHS = field(name(T, "horizon_months"), Integer.class);
