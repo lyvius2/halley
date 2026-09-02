@@ -33,12 +33,16 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     private static final Pattern RESULT_MSG =
             Pattern.compile("<resultMsg>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]]+)");
     /**
-     * 정상으로 볼 코드.
+     * 정상으로 볼 코드 (설계 I258).
      *
-     * <p>{@code 00} 이 표준이지만 일부 응답이 {@code INFO-000} 을 씁니다.
-     * <b>둘 다 정상입니다.</b>
+     * <p>[I251]에서 {@code 00}·{@code 0}·{@code INFO-000} 만 정상으로 잡았습니다.
+     * <b>실물은 {@code 000} 이었습니다</b> — 목록에 없어 <b>정상 응답을 전부
+     * 버리고</b> 있었습니다.
+     *
+     * <p>이름을 열거하지 않고 <b>0만으로 이뤄졌는가</b>를 봅니다.
+     * {@code 0}·{@code 00}·{@code 000}·{@code INFO-000} 이 한 규칙에 들어옵니다.
      */
-    private static final java.util.Set<String> OK_CODES = java.util.Set.of("00", "0", "INFO-000");
+    private static final Pattern OK_CODE = Pattern.compile("^(?:INFO-)?0+$");
 
     private final MinistryReferenceFeignClient client;
     private final RateGate rateGate;
@@ -163,7 +167,15 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
             return false;
         }
         final String code = matcher.group(1).trim();
-        if (OK_CODES.contains(code)) {
+        if (OK_CODE.matcher(code).matches()) {
+            return false;
+        }
+        // 코드 이름을 못 맞혀도 <b>본문이 왔으면 정상</b>이다 (설계 I258).
+        // 이름을 열거하는 방식은 한 번 틀렸다 — 그때 정상 응답을 전부 버렸다.
+        // 오류 응답에는 body 가 없어 totalCount 도 없다
+        if (TOTAL_COUNT.matcher(xml).find()) {
+            log.info("Ministry {} had an unknown result code but a real body - storing it. "
+                            + "lawdCd={}, dealYmd={}, resultCode={}", what, lawdCd, dealYmd, code);
             return false;
         }
         final Matcher message = RESULT_MSG.matcher(xml);
