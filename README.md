@@ -11,6 +11,8 @@
 ![Alpine.js](https://img.shields.io/badge/Alpine.js-frontend-8BC0D0?logo=alpinedotjs&logoColor=black)
 ![Kakao Map](https://img.shields.io/badge/Kakao%20Map-SDK-FFCD00?logo=kakao&logoColor=black)
 ![Claude](https://img.shields.io/badge/AI-Claude-D97757?logo=claude&logoColor=white)
+![DeepSeek](https://img.shields.io/badge/Scaffolding-DeepSeek%20V4%20Flash-4D6BFE?logo=deepseek&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 **같은 집을 함께 찾는 사람들을 위한 매물 비교·평가 도구입니다.**
 
@@ -36,6 +38,7 @@
 13. [용어](#용어)
 14. [문서](#문서)
 15. [상태](#상태)
+16. [라이선스](#라이선스)
 
 ---
 
@@ -103,37 +106,49 @@ Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. �
 
 ## 아키텍처
 
-```
-┌──────────────────────────────────────────────────────────────────────┐
-│                         Browser (App Shell)                          │
-│   Mustache 한 장 + Alpine.js — 빌드 단계 없음                          │
-│   폴링: 채점 판 번호 3초 · AI 추천도 2초                                │
-└───────────────────────────────┬──────────────────────────────────────┘
-                                │ REST (JSON)
-┌───────────────────────────────▼──────────────────────────────────────┐
-│  adapter/inbound/web        컨트롤러 · DTO                            │
-├──────────────────────────────────────────────────────────────────────┤
-│  application/service        서비스 · port/out (외부·캐시만)            │
-│    PropertyAccessGuard  ← 그룹 격리의 유일한 길목                       │
-├──────────────────────────────────────────────────────────────────────┤
-│  domain                     채점 산식 · 대출 계산 · 순수 로직           │
-│    scoring/criterion/*Scorer   loan/LoanCalculator                   │
-├──────────────────────────────────────────────────────────────────────┤
-│  adapter/outbound                                                    │
-│    persistence  jOOQ (코드젠 없이 손으로 쓴 테이블 정의)                 │
-│    cache        Redis(live) / InMemory(local)                        │
-│    external     OpenFeign + Resilience4j (FallbackFactory 필수)       │
-└───────┬──────────────────────────────────────────────────────────────┘
-        │
-        ├─ 카카오 (지도 · 지오코딩 · POI · 자가용 경로)
-        ├─ ODsay (대중교통)
-        ├─ 국토부 (실거래가)
-        ├─ V-World (공시가격 · 토지이용계획 · 행정구역)
-        ├─ 법제처 (규제지역 고시)
-        ├─ 금감원 (대출 상품 금리)
-        ├─ 한국은행 ECOS (가계대출 금리 시계열)
-        ├─ Claude (AI 추천도)
-        └─ Slack (그룹별 Webhook)
+```mermaid
+flowchart TB
+    subgraph browser["Browser — App Shell"]
+        UI["Mustache 한 장 + Alpine.js<br/>빌드 단계 없음<br/>폴링: 채점 판 번호 3초 · AI 추천도 2초"]
+    end
+
+    subgraph app["Spring Boot"]
+        direction TB
+        WEB["adapter/inbound/web<br/>컨트롤러 · DTO"]
+        SVC["application/service<br/>서비스 · port/out (외부·캐시만)"]
+        GUARD["PropertyAccessGuard<br/>그룹 격리의 유일한 길목"]
+        DOM["domain<br/>채점 산식 · 대출 계산 · 순수 로직"]
+        PERS["adapter/outbound/persistence<br/>jOOQ — 코드젠 없이 손으로 쓴 테이블 정의"]
+        CACHE["adapter/outbound/cache<br/>Redis(live) / InMemory(local)"]
+        EXT["adapter/outbound/external<br/>OpenFeign + Resilience4j<br/>FallbackFactory 필수"]
+
+        WEB --> SVC
+        SVC --> GUARD
+        SVC --> DOM
+        SVC --> PERS
+        SVC --> CACHE
+        SVC --> EXT
+    end
+
+    subgraph outside["바깥"]
+        direction TB
+        KAKAO["카카오<br/>지도 · 지오코딩 · POI · 자가용 경로"]
+        ODSAY["ODsay<br/>대중교통"]
+        MOLIT["국토교통부<br/>실거래가"]
+        VWORLD["V-World<br/>공시가격 · 토지이용계획 · 행정구역"]
+        LAW["법제처<br/>규제지역 고시"]
+        FSS["금융감독원<br/>대출 상품 금리"]
+        ECOS["한국은행 ECOS<br/>가계대출 금리 시계열"]
+        CLAUDE["Claude<br/>AI 추천도 · 가격 전망"]
+        NAVER["네이버 검색<br/>관련 기사"]
+        SLACK["Slack<br/>그룹별 Webhook"]
+    end
+
+    UI -- "REST (JSON)" --> WEB
+    EXT --> KAKAO & ODSAY & MOLIT & VWORLD & LAW
+    EXT --> FSS & ECOS & CLAUDE & NAVER & SLACK
+    DB[("PostgreSQL(live)<br/>H2(local)")]
+    PERS --> DB
 ```
 
 **포트는 캐시·세션·외부 API에만 둡니다.** DB 접근은 리포지토리를 직접 씁니다 —
@@ -145,26 +160,34 @@ Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. �
 
 외부 API가 수십 번 붙는 작업이라 **요청이 기다리는 부분과 배경으로 미루는 부분**을 나눕니다.
 
+```mermaid
+flowchart TB
+    A["사용자가 매물 등록"] --> B["DB 저장 (커밋)"]
+    B --> C["응답 — 카드가 곧바로 뜬다<br/>점수 자리에 '분석 중'"]
+    C -.-> D
+
+    subgraph D["앞 단계 — 배경 (수 초)"]
+        direction LR
+        D1["초등학교"]
+        D2["토지이용계획"]
+        D3["채점"]
+    end
+
+    D --> E["채점 판 번호가 오른다<br/>목록이 스스로 갱신"]
+    E -.-> F
+
+    subgraph F["뒤 단계 — 배경 (수십 초)"]
+        direction LR
+        F1["실거래가"]
+        F2["공시가격"] --> F3["AI 추천도"]
+    end
+
+    F --> G["진행 막대 + 폴링으로 자동 반영"]
 ```
-사용자가 매물 등록
-        │
-        ▼
-  DB 저장 (커밋)
-        │
-        ▼
-┌───────────────────────────────────────────┐
-│ 앞 단계 — 요청이 기다린다 (수 초)            │
-│   초등학교 ∥ 토지이용계획 ∥ 채점             │  ← 가상 스레드로 동시에
-│   화면: "저장 중입니다… 학교·규제·점수 확인"   │
-└───────────────────┬───────────────────────┘
-                    │ 응답 (실제 점수가 실려 온다)
-                    ▼
-┌───────────────────────────────────────────┐
-│ 뒤 단계 — 배경 (수십 초)                    │
-│   실거래가 ∥ (공시가격 → AI 추천도)          │
-│   화면: 진행 막대 + 폴링으로 자동 반영        │
-└───────────────────────────────────────────┘
-```
+
+> **등록 응답은 보정을 기다리지 않습니다** (설계 I220). 한때 앞 단계를 기다렸는데,
+> ODsay 할당량이 끝나 직주근접이 LLM으로 넘어가면 사람당 4~5초라 등록 한 번이
+> 수십 초가 됐습니다. 카드를 먼저 보여 주고 진행 표시를 띄웁니다.
 
 > **AI 추천도는 공시가격 뒤에 옵니다.** 프롬프트에 `공시가격(원)` 줄이 들어가기 때문입니다.
 > 나란히 돌리면 첫 판단이 '정보 없음'으로 굳고, 그 뒤로 다시 물을 계기가 없습니다.
@@ -309,7 +332,7 @@ REDIS_HOST=... \
 | `FSS_API_KEY` | 금융감독원 금융상품통합비교공시 |
 | `ECOS_KEY` | 한국은행 경제통계시스템 |
 | `ANTHROPIC_API_KEY` | Anthropic Console |
-| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | 네이버 개발자센터 — 검색 API |
+| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | **네이버 클라우드 콘솔 — API Hub > 검색** (옛 developers.naver.com 키는 401) |
 
 > **Slack Webhook URL은 환경변수가 아닙니다.** 그룹마다 다르므로 DB
 > (`user_group.slack_webhook_url`)에 저장하고 **그룹 정보 화면**에서 관리합니다.
@@ -561,6 +584,7 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 |---|---|
 | [`docs/DESIGN.md`](./docs/DESIGN.md) | 전체 설계서 — 아키텍처 · ERD · 화면 정의 · API 명세 · 채점 산식 · **확정된 의사결정 이력(I1~)** |
 | [`docs/INTERFACE_MANUAL.md`](./docs/INTERFACE_MANUAL.md) | 외부 API 매뉴얼 — 키 발급처 · 호출 규격 · 응답 구조 · 실측으로 드러난 함정 |
+| [`docs/SCHEMA.md`](./docs/SCHEMA.md) | DB 스키마 — 관계도(mermaid) · 표별 요약 · 조심할 것 |
 | [`docs/DDL.sql`](./docs/DDL.sql) | PostgreSQL 스키마 (초기 생성 + 마이그레이션 이력) |
 | [`docs/DDL-repair.sql`](./docs/DDL-repair.sql) | 멱등 복구 스크립트 — 운영 DB가 뒤처졌을 때 |
 | [`docs/ADJUST_CACHE.md`](./docs/ADJUST_CACHE.md) | 캐시·성능 검토 (실측 기반) |
@@ -568,6 +592,7 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 | [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 설계 — 지표 산식 · 코드/LLM 역할 분담 · 안전장치 |
 | [`docs/MORTGAGE_ENGINE.md`](./docs/MORTGAGE_ENGINE.md) | 대출 계산 엔진 — LTV · 스트레스 DSR · 담보가치 |
 | [`docs/DDL-forecast-reset.sql`](./docs/DDL-forecast-reset.sql) | 전망 재시작용 정리 (429·400 시절 값 걷어내기) |
+| [`docs/COMPLEX_NAME_MATCHING.md`](./docs/COMPLEX_NAME_MATCHING.md) | 단지명 매칭 검토 — 브랜드가 바뀐 단지를 어떻게 찾을 것인가 **(미구현)** |
 | [`AGENTS.md`](./AGENTS.md) | AI 코딩 에이전트용 작업 지침 |
 
 > **설계 결정은 번호로 관리합니다.** 코드 주석의 `(설계 I117)` 같은 표기는
@@ -583,4 +608,17 @@ REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`
 다를 수 있습니다. 투자 판단의 근거로 삼지 마십시오.
 
 **가격 전망은 특히 그렇습니다.** 공개된 지표 몇 개로 낸 것이고 틀릴 수 있습니다.
-재료가 모자라면 방향을 내지 않고 `판단 보류`로 남깁니다 — 넷 중 하나를 억지로 고르지 않습니다.
+지표들이 서로 다른 방향을 가리키면 **많은 쪽을 따르되 그 사실을 함께 보여 줍니다**
+ — 확신이 있어서가 아니라, 무엇을 보고 그렇게 판단했는지 드러내려는 것입니다.
+
+---
+
+## 라이선스
+
+[MIT](./LICENSE) © 2026 walter.hwang
+
+코드는 MIT입니다. 다만 **이 저장소가 부르는 공공·상용 API는 각자의 약관을 따릅니다** —
+카카오·ODsay·국토교통부·V-World·법제처·금융감독원·한국은행·네이버·Anthropic.
+포크해서 쓰실 때는 키를 각자 발급받으시고, 데이터 재배포 조건을 따로 확인하십시오.
+
+`src/main/resources/static/image/` 의 로고는 이 프로젝트의 것입니다.

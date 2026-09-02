@@ -14,10 +14,12 @@ import banghak.home.halley.adapter.inbound.web.dto.ParsePreviewResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyAgentLink;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyAgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
+import banghak.home.halley.adapter.inbound.web.dto.PropertyPinResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ReferenceCardResponse;
 import banghak.home.halley.adapter.inbound.web.dto.ScoreVersionResponse;
+import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyPage;
 import banghak.home.halley.adapter.inbound.web.dto.ScoredPropertyResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateListingStatusRequest;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateScoresRequest;
@@ -35,10 +37,12 @@ import banghak.home.halley.application.service.PropertyCommentService;
 import banghak.home.halley.application.service.LoanEstimateService;
 import banghak.home.halley.application.service.ParsePreviewService;
 import banghak.home.halley.application.service.PropertyImageService;
+import banghak.home.halley.application.service.PropertyListService;
 import banghak.home.halley.application.service.PropertyService;
 import banghak.home.halley.application.service.ReferenceTransactionService;
 import banghak.home.halley.application.service.ScoringService;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.PropertySort;
 import banghak.home.halley.domain.property.ImageType;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -77,6 +81,7 @@ public class PropertyController {
     private final PropertyEnrichmentService propertyEnrichmentService;
     private final PriceForecastService priceForecastService;
     private final PropertyNewsService propertyNewsService;
+    private final PropertyListService propertyListService;
     private final PropertyAccessGuard propertyAccessGuard;
 
     public PropertyController(PropertyService propertyService,
@@ -93,6 +98,7 @@ public class PropertyController {
                               PropertyEnrichmentService propertyEnrichmentService,
                               PriceForecastService priceForecastService,
                               PropertyNewsService propertyNewsService,
+                              PropertyListService propertyListService,
                               PropertyAccessGuard propertyAccessGuard) {
         this.propertyService = propertyService;
         this.scoringService = scoringService;
@@ -108,6 +114,7 @@ public class PropertyController {
         this.propertyEnrichmentService = propertyEnrichmentService;
         this.priceForecastService = priceForecastService;
         this.propertyNewsService = propertyNewsService;
+        this.propertyListService = propertyListService;
         this.propertyAccessGuard = propertyAccessGuard;
     }
 
@@ -223,10 +230,40 @@ public class PropertyController {
     }
 
 
+    /**
+     * 목록 한 쪽 (설계 I240).
+     *
+     * <p>줄 세우기가 <b>서버로 넘어왔습니다.</b> 받은 30건 안에서만 줄 세우면
+     * 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다 — 자르는 곳과 줄 세우는 곳은 같아야 합니다.
+     *
+     * <p>전망 요약은 <b>이 쪽의 30건에만</b> 붙입니다. 예전에는 전체에 붙였습니다.
+     */
     @GetMapping
-    public List<ScoredPropertyResponse> list(@RequestParam(value = "dealType", required = false) DealType dealType) {
+    public ScoredPropertyPage list(
+            @RequestParam(value = "dealType", required = false) DealType dealType,
+            @RequestParam(value = "sort", required = false) String sort,
+            @RequestParam(value = "page", defaultValue = "0") int page,
+            @RequestParam(value = "size", defaultValue = "30") int size,
+            @RequestParam(value = "archived", defaultValue = "false") boolean archived) {
+        final ScoredPropertyPage found =
+                propertyListService.page(dealType, PropertySort.of(sort), page, size, archived);
         // 전망 요약을 한 번에 붙인다 (설계 I136). 요인 상세는 모달에서 따로 받는다
-        return priceForecastService.attachForecasts(scoringService.list(dealType));
+        return new ScoredPropertyPage(
+                priceForecastService.attachForecasts(found.items()),
+                found.page(), found.size(), found.total(), found.hasNext(), found.archivedTotal());
+    }
+
+    /**
+     * 지도와 임장 플래너가 쓰는 <b>전체</b> 목록 (설계 I240).
+     *
+     * <p>목록은 잘라 보내지만 지도는 전부 찍어야 합니다. 잘린 목록으로 그리면
+     * <b>매물이 사라진 것처럼</b> 보입니다.
+     */
+    @GetMapping("/pins")
+    public List<PropertyPinResponse> pins(
+            @RequestParam(value = "dealType", required = false) DealType dealType,
+            @RequestParam(value = "archived", defaultValue = "false") boolean archived) {
+        return propertyListService.pins(dealType, archived);
     }
 
     @GetMapping("/{id}")
@@ -270,8 +307,10 @@ public class PropertyController {
      * 달라진 게 있을 때만 목록을 받습니다.
      */
     @GetMapping("/score-versions")
-    public List<ScoreVersionResponse> scoreVersions() {
-        return scoringService.scoreVersions();
+    public List<ScoreVersionResponse> scoreVersions(
+            @RequestParam(value = "dealType", required = false) DealType dealType,
+            @RequestParam(value = "archived", defaultValue = "false") boolean archived) {
+        return scoringService.scoreVersions(dealType, archived);
     }
 
     /**

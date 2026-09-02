@@ -308,7 +308,7 @@ class ScoringServiceTest {
         scoringService.rescore(a.id());
 
         // when
-        final List<ScoreVersionResponse> versions = scoringService.scoreVersions();
+        final List<ScoreVersionResponse> versions = scoringService.scoreVersions(null, false);
 
         // then
         assertThat(versions).extracting(ScoreVersionResponse::propertyId).contains(a.id(), b.id());

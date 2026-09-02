@@ -1,9 +1,11 @@
 package banghak.home.halley.adapter.outbound.persistence;
 
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.domain.geo.LegalDongCode;
 import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
+import tools.jackson.core.type.TypeReference;
 
 import java.util.List;
 import java.util.Optional;
@@ -21,10 +23,14 @@ import static banghak.home.halley.adapter.outbound.persistence.support.JooqMappi
 @Repository
 public class LegalDongCodeRepository {
 
-    private final DSLContext dsl;
+    private static final TypeReference<List<LegalDongCode>> LIST = new TypeReference<>() { };
 
-    public LegalDongCodeRepository(DSLContext dsl) {
+    private final DSLContext dsl;
+    private final ReferenceDataCache cache;
+
+    public LegalDongCodeRepository(DSLContext dsl, ReferenceDataCache cache) {
         this.dsl = dsl;
+        this.cache = cache;
     }
 
     public LegalDongCode save(LegalDongCode legalDongCode) {
@@ -36,17 +42,40 @@ public class LegalDongCodeRepository {
                 .set(RI_NAME, legalDongCode.riName())
                 .set(IS_ACTIVE, legalDongCode.isActive())
                 .execute();
+        // 낡은 칸이 어느 것인지 정확히 안다 — 갈래를 통째로 훑을 이유가 없다 (설계 I239).
+        // 사전은 칸이 수만 개라, 한 건 넣을 때마다 전부 훑으면 캐시가 짐이 된다
+        cache.evictKeys(CachePort.LEGAL_DONG,
+                "code:" + legalDongCode.code(),
+                dongKey(legalDongCode.sigungu(), legalDongCode.dongName()));
         return findById(legalDongCode.code()).orElseThrow();
     }
 
     public Optional<LegalDongCode> findById(String code) {
+        return cache.findOne(CachePort.LEGAL_DONG, "code:" + code, LIST, () -> fetchById(code));
+    }
+
+    private Optional<LegalDongCode> fetchById(String code) {
         return dsl.selectFrom(TABLE)
                 .where(CODE.eq(code))
                 .fetchOptional()
                 .map(this::map);
     }
 
+    /**
+     * 실거래를 볼 때마다 지나는 자리라 담아 둡니다 (설계 I239).
+     *
+     * <p><b>못 찾은 것도 담습니다.</b> 사전에 없는 동네가 드물지 않고, 그때마다
+     * 원본까지 가면 캐시가 아무 일도 안 합니다 — [I219]에서 실거래에 쓴 처방과 같습니다.
+     *
+     * <p>{@code findAll} 은 담지 않습니다. 수만 행이라 한 덩어리로 담을 것이 못 되고,
+     * 부르는 곳도 규제 고시를 반영하는 관리자 작업 한 군데뿐입니다.
+     */
     public Optional<LegalDongCode> findBySigunguAndDong(String sigungu, String dongName) {
+        return cache.findOne(CachePort.LEGAL_DONG, dongKey(sigungu, dongName), LIST,
+                () -> fetchBySigunguAndDong(sigungu, dongName));
+    }
+
+    private Optional<LegalDongCode> fetchBySigunguAndDong(String sigungu, String dongName) {
         return dsl.selectFrom(TABLE)
                 .where(SIGUNGU.eq(sigungu).and(DONG_NAME.eq(dongName)).and(IS_ACTIVE.eq(true)))
                 .fetchOptional()
@@ -70,6 +99,12 @@ public class LegalDongCodeRepository {
         dsl.deleteFrom(TABLE)
                 .where(CODE.eq(code))
                 .execute();
+        cache.evict(CachePort.LEGAL_DONG);
+    }
+
+    /** 키를 만드는 자리는 <b>하나</b>여야 한다 — 읽는 쪽과 지우는 쪽이 어긋나면 지운 적이 없는 셈이다 */
+    private String dongKey(String sigungu, String dongName) {
+        return "dong:" + sigungu + ":" + dongName;
     }
 
     private LegalDongCode map(Record r) {

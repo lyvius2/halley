@@ -24,6 +24,7 @@ import banghak.home.halley.config.exception.InvalidScoreException;
 import banghak.home.halley.domain.loan.LoanCalculator;
 import banghak.home.halley.domain.loan.RegulationParam;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.NearbyFacility;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.domain.group.UserGroup;
@@ -138,11 +139,29 @@ public class ScoringService {
     }
 
     public List<ScoredPropertyResponse> list(DealType dealType) {
+        return list(dealType, false);
+    }
+
+    /**
+     * @param archived 아카이빙한 것만 볼 것인가 (설계 I241). 기본은 <b>아니오</b> —
+     *                 치운 매물이 목록에 계속 보이면 치운 의미가 없습니다
+     */
+    public List<ScoredPropertyResponse> list(DealType dealType, boolean archived) {
         // admin은 전부, 회원은 자기 그룹만 (설계 I87)
-        final List<Property> properties = visibleProperties(dealType);
+        final List<Property> properties = visibleProperties(dealType, archived);
         // 목록에 필요한 것을 한 번에 모은다 (설계 I124). 매물마다 따로 부르면
         // 그 수만큼 왕복이 늘어난다 — 느린 DB에서는 그게 그대로 체감 지연이다
         final ListBatch batch = loadBatch(properties);
+        // 순위표는 목록 한 번에 한 번만 읽는다 (설계 I238)
+        rankMemo.set(byPriorityRank());
+        try {
+            return sortedList(properties, batch);
+        } finally {
+            rankMemo.remove();
+        }
+    }
+
+    private List<ScoredPropertyResponse> sortedList(List<Property> properties, ListBatch batch) {
         final Collator korean = Collator.getInstance(Locale.KOREAN);
         return properties.stream()
                 .map(p -> ensureScored(p, batch))
@@ -177,7 +196,15 @@ public class ScoringService {
      * <p>admin은 모든 그룹을 봅니다. 회원은 자기 그룹만 보며, <b>그룹이 없으면 아무것도
      * 보지 않습니다</b> — 그룹 없는 회원은 정상 상태가 아니므로 빈 목록이 맞습니다.
      */
-    private List<Property> visibleProperties(DealType dealType) {
+    List<Property> visibleProperties(DealType dealType, boolean archived) {
+        // 아카이빙 여부는 <b>한 군데</b>에서 가른다 (설계 I241).
+        // 저장소의 조회 메서드마다 조건을 붙이면 넷 중 하나를 반드시 빠뜨린다
+        return byGroup(dealType).stream()
+                .filter(p -> (p.listingStatus() == ListingStatus.ARCHIVED) == archived)
+                .toList();
+    }
+
+    private List<Property> byGroup(DealType dealType) {
         if (propertyAccessGuard.isAdmin()) {
             return dealType == null
                     ? propertyRepository.findAll()
@@ -467,7 +494,7 @@ public class ScoringService {
         double weightedSum = 0.0;
         double totalWeight = 0.0;
         final List<CriterionScoreView> views = new ArrayList<>();
-        final Comparator<String> order = byPriorityRank();
+        final Comparator<String> order = priorityOrder();
         for (final PropertyScore s : persisted.stream()
                 .sorted(Comparator.comparing(PropertyScore::criterionCode, order))
                 .toList()) {
@@ -505,7 +532,7 @@ public class ScoringService {
                                               Map<String, BigDecimal> weights) {
         final Map<String, Criterion> criteria = criterionRepository.findAll().stream()
                 .collect(Collectors.toMap(Criterion::code, c -> c));
-        final Comparator<String> order = byPriorityRank();
+        final Comparator<String> order = priorityOrder();
         final List<CriterionScoreView> views = result.criteria().stream()
                 .sorted(Comparator.comparing(CriterionScoreResult::code, order))
                 .map(c -> new CriterionScoreView(
@@ -749,6 +776,23 @@ public class ScoringService {
      * <b>가중치 순위</b>입니다 — 총점에 크게 물리는 것이 위에 옵니다. 순위가 없는 항목은
      * 뒤로 보내되 코드순으로 묶어, 무게가 0인 것들끼리도 자리가 흔들리지 않게 합니다.
      */
+    /**
+     * 한 요청 안에서 순위표를 <b>한 번만</b> 읽는다 (설계 I238).
+     *
+     * <p>[I199]에서 정렬을 넣으며 `byPriorityRank()` 를 <b>매물마다</b> 불렀습니다 —
+     * 실측하니 매물 6건에 `criterion_weight` 조회가 <b>7회</b>였습니다.
+     * [I124]에서 걷어낸 N+1을 제가 다시 만든 것입니다.
+     *
+     * <p>14행짜리 표라 눈에 안 띄지만, 매물이 늘면 그대로 늘어납니다.
+     * <b>캐시를 얹기 전에 이것부터</b>입니다 — 캐시는 증상을 가릴 뿐입니다.
+     */
+    private final ThreadLocal<Comparator<String>> rankMemo = new ThreadLocal<>();
+
+    private Comparator<String> priorityOrder() {
+        final Comparator<String> remembered = rankMemo.get();
+        return remembered != null ? remembered : byPriorityRank();
+    }
+
     private Comparator<String> byPriorityRank() {
         final Map<String, Integer> ranks = criterionWeightRepository.findAll().stream()
                 .filter(w -> w.priorityRank() != null)
@@ -838,10 +882,19 @@ public class ScoringService {
 
     /**
      * 매물별 채점 판 번호. 화면이 <b>목록 전체를 받지 않고</b> 바뀐 것만 알아내려고 씁니다.
+     *
+     * <p><b>목록과 같은 것을 세야 합니다</b> (설계 I241). `findAllIds()` 는 그룹도
+     * 아카이빙도 안 보고 <b>모든 매물</b>을 돌려주고 있었습니다. 화면은 이 개수를
+     * 자기 목록 길이와 견주어 "매물이 늘거나 줄었다"를 판단하므로, 세는 대상이
+     * 다르면 <b>3초마다 목록을 통째로 다시 받습니다.</b>
+     *
+     * <p>목록이 30건씩 잘려 오기 시작하면서([I240]) 이 어긋남이 <b>드러났습니다</b> —
+     * 전에도 거래유형 탭에서는 같은 일이 벌어지고 있었습니다.
      */
-    public List<ScoreVersionResponse> scoreVersions() {
-        return propertyRepository.findAllIds().stream()
-                .map(id -> new ScoreVersionResponse(id, editVersionStore.current(scoreVersionKey(id))))
+    public List<ScoreVersionResponse> scoreVersions(DealType dealType, boolean archived) {
+        return visibleProperties(dealType, archived).stream()
+                .map(p -> new ScoreVersionResponse(p.id(),
+                        editVersionStore.current(scoreVersionKey(p.id()))))
                 .toList();
     }
 

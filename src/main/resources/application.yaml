@@ -253,10 +253,11 @@ building:
   base-url: https://apis.data.go.kr/1613000/BldRgstHubService
 
 naver:
-  # 네이버 검색 API — 관련 기사 (설계 I137).
-  # developers.naver.com 에서 애플리케이션 등록 후 발급. 승인 절차는 없다.
+  # 네이버 검색 API — 관련 기사 (설계 I137 · I235).
+  # <b>네이버 클라우드 API Hub 로 옮겨졌다.</b> 옛 openapi.naver.com 은 같은 키로 401 이다.
+  # console.ncloud.com 에서 API Hub > 검색 신청 후 발급.
   # 기사는 점수에도 LLM 프롬프트에도 넣지 않는다 — 링크 목록으로만 쓴다
-  base-url: https://openapi.naver.com/v1/search
+  base-url: https://naverapihub.apigw.ntruss.com/search/v1
   client-id: ${NAVER_CLIENT_ID:}
   client-secret: ${NAVER_CLIENT_SECRET:}
   news-limit: ${NAVER_NEWS_LIMIT:10}
@@ -266,6 +267,12 @@ enrichment:
   # 스레드가 아니라 그 끝에 붙은 외부 API를 지키려는 값이다 — 넘어선 작업은
   # 거절되지 않고 자리가 날 때까지 기다린다
   max-concurrency: ${ENRICHMENT_MAX_CONCURRENCY:400}
+
+halley:
+  cache:
+    reference:
+      # 기준 정보 캐시 (설계 I239). 끄면 늘 원본에서 읽는다 — 답은 같다
+      enabled: ${HALLEY_CACHE_REFERENCE_ENABLED:true}
 
 membership:
   sign-up:

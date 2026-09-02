@@ -5,14 +5,8 @@ spring:
     username: ${DB_USERNAME:halley}
     password: ${DB_PASSWORD:halley}
     hikari:
-      # 무료 등급 PostgreSQL은 max_connections 가 20~30 언저리다. 앱 인스턴스 수 x 풀
-      # 크기가 그 안에 들어와야 한다 — 실제로 넘겨서 기동이 막힌 적이 있다
-      # (`remaining connection slots are reserved for SUPERUSER`).
-      # 늘리는 게 아니라 줄이는 방향이다 (설계 I125)
-      maximum-pool-size: ${DB_POOL_MAX:5}
+      maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:1}
-      # 커넥션을 못 받으면 오래 매달리지 말고 빨리 실패한다.
-      # 30초(기본값)를 기다리면 사용자는 화면이 멈춘 것으로 본다
       connection-timeout: ${DB_POOL_TIMEOUT_MS:3000}
   sql:
     init:

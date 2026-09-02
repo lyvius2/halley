@@ -49,6 +49,22 @@ public interface CachePort {
      */
     String ENRICHING = "enriching";
 
+    /**
+     * 사람이 손대야만 바뀌는 기준 정보 (설계 I239 · `docs/ADJUST_CACHE.md` §2.1).
+     *
+     * <p>읽기는 매우 잦고 쓰기는 거의 없습니다 — 캐시가 가장 잘 듣는 모양입니다.
+     * <b>바뀌는 지점이 명확</b>해서 무효화가 쉽다는 것이 더 중요합니다.
+     */
+    String CRITERION = "criterion";
+    /** 항목 가중치. 순위를 바꾸면 <b>모든 매물의 총점</b>이 달라집니다 */
+    String CRITERION_WEIGHT = "criterionweight";
+    /** 규제 파라미터. 키는 프로파일. <b>틀리면 대출 한도가 틀립니다</b> */
+    String REGULATION_PARAM = "regparam";
+    /** 운영 설정. 관리자 화면에서 자주 만지므로 수명을 짧게 둡니다 */
+    String SYSTEM_CONFIG = "sysconfig";
+    /** 법정동코드 사전. 사전 재적재 말고는 바뀌지 않습니다 */
+    String LEGAL_DONG = "legaldong";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);
