@@ -1,7 +1,10 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CreateRegulationProfileRequest;
+import banghak.home.halley.adapter.inbound.web.dto.LlmModelSettingsResponse;
 import banghak.home.halley.adapter.inbound.web.dto.NotificationLogResponse;
+import banghak.home.halley.adapter.inbound.web.dto.UpdateLlmModelRequest;
+import banghak.home.halley.application.service.LlmModelService;
 import banghak.home.halley.adapter.inbound.web.dto.NotificationSettingsResponse;
 import banghak.home.halley.adapter.inbound.web.dto.RegulatedAreaRequest;
 import banghak.home.halley.adapter.inbound.web.dto.RegulatedAreaResponse;
@@ -39,17 +42,37 @@ public class AdminSettingsController {
     private final RegulationAdminService regulationAdminService;
     private final GroupService groupService;
     private final StressRateService stressRateService;
+    private final LlmModelService llmModelService;
 
     public AdminSettingsController(SystemConfigService systemConfigService,
                                    NotificationService notificationService,
                                    RegulationAdminService regulationAdminService,
                                    GroupService groupService,
-                                   StressRateService stressRateService) {
+                                   StressRateService stressRateService,
+                                   LlmModelService llmModelService) {
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
         this.regulationAdminService = regulationAdminService;
         this.groupService = groupService;
         this.stressRateService = stressRateService;
+        this.llmModelService = llmModelService;
+    }
+
+    /**
+     * AI 모델 설정 (설계 I267).
+     *
+     * <p>자리 넷과 고를 수 있는 모델을 <b>한 번에</b> 보냅니다 — 화면이 두 번
+     * 물으면 목록이 늦게 와서 드롭다운이 잠깐 빈 채로 보입니다.
+     */
+    @GetMapping("/llm-models")
+    public LlmModelSettingsResponse llmModels() {
+        return LlmModelSettingsResponse.of(llmModelService.current(), llmModelService.available());
+    }
+
+    @PutMapping("/llm-models")
+    public LlmModelSettingsResponse updateLlmModels(@RequestBody List<UpdateLlmModelRequest> requests) {
+        llmModelService.update(requests);
+        return LlmModelSettingsResponse.of(llmModelService.current(), llmModelService.available());
     }
 
     @GetMapping("/settings")

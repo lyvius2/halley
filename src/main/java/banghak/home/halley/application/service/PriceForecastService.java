@@ -21,6 +21,7 @@ import banghak.home.halley.domain.forecast.ForecastVerdictParser;
 import banghak.home.halley.domain.forecast.PriceFactor;
 import banghak.home.halley.domain.forecast.PriceOutlook;
 import banghak.home.halley.domain.forecast.indicator.ForecastInput;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
 import lombok.extern.slf4j.Slf4j;
@@ -91,6 +92,7 @@ public class PriceForecastService {
             new banghak.home.halley.domain.forecast.indicator.YearlyMedians();
 
     private final LlmPort llmPort;
+    private final LlmModelService llmModelService;
     private final ForecastIndicatorFactory indicatorFactory;
     private final ForecastVerdictParser parser;
     private final ForecastTradeCollector collector;
@@ -102,7 +104,6 @@ public class PriceForecastService {
     private final LegalDongCodeService legalDongCodeService;
     private final LlmJobCache jobCache;
     private final boolean enabled;
-    private final String model;
     private final int rateLookbackMonths;
 
     public PriceForecastService(LlmPort llmPort,
@@ -117,10 +118,11 @@ public class PriceForecastService {
                                 LlmJobCache jobCache,
                                 ObjectMapper objectMapper,
                                 @Value("${llm.enabled:true}") boolean enabled,
-                                @Value("${llm.claude.model.forecast:}") String model,
+                                LlmModelService llmModelService,
                                 @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths,
                                 @Value("${forecast.max-tokens:4000}") int maxTokens) {
         this.llmPort = llmPort;
+        this.llmModelService = llmModelService;
         this.indicatorFactory = indicatorFactory;
         this.parser = new ForecastVerdictParser(objectMapper);
         this.collector = collector;
@@ -132,7 +134,6 @@ public class PriceForecastService {
         this.legalDongCodeService = legalDongCodeService;
         this.jobCache = jobCache;
         this.enabled = enabled;
-        this.model = model == null || model.isBlank() ? null : model;
         this.rateLookbackMonths = rateLookbackMonths;
         this.maxTokens = maxTokens;
     }
@@ -357,7 +358,9 @@ public class PriceForecastService {
         final long askedAt = System.currentTimeMillis();
         // 판단 작업이라 흔들리면 안 된다 (설계 I127)
         final LlmResult result = llmPort.complete(
-                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens, model));
+                // 자리마다 고른 모델을 쓴다 (설계 I267) — 환경변수 하나로 묶여 있었다
+                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens,
+                        llmModelService.modelFor(LlmFeature.PRICE_FORECAST)));
         log.info("LLM forecast responded. present={}, elapsedMs={}",
                 result.isPresent(), System.currentTimeMillis() - askedAt);
 

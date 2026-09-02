@@ -8,6 +8,7 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.LlmJobCache;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.domain.llm.LlmJobState;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmRecommendation;
 import banghak.home.halley.domain.llm.LlmResult;
@@ -69,6 +70,7 @@ public class LlmRecommendationService {
             """;
 
     private final LlmPort llmPort;
+    private final LlmModelService llmModelService;
     private final LlmRecommendationRepository recommendationRepository;
     private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
@@ -81,6 +83,7 @@ public class LlmRecommendationService {
     private final boolean enabled;
 
     public LlmRecommendationService(LlmPort llmPort,
+                                    LlmModelService llmModelService,
                                     LlmRecommendationRepository recommendationRepository,
                                     LlmJobCache jobCache,
                                     PropertyRepository propertyRepository,
@@ -92,6 +95,7 @@ public class LlmRecommendationService {
                                     ObjectMapper objectMapper,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
+        this.llmModelService = llmModelService;
         this.recommendationRepository = recommendationRepository;
         this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
@@ -263,7 +267,9 @@ public class LlmRecommendationService {
             // 실제로 무엇을 보냈는지 봐야 원인을 가릴 수 있다
             log.debug("LLM prompt. propertyId={}\n{}", propertyId, prompt);
             final long askedAt = System.currentTimeMillis();
-            final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            // 자리마다 고른 모델을 쓴다 (설계 I267)
+            final LlmResult result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS,
+                    llmModelService.modelFor(LlmFeature.RECOMMENDATION)));
             log.info("LLM responded. propertyId={}, present={}, elapsedMs={}",
                     propertyId, result.isPresent(), System.currentTimeMillis() - askedAt);
             if (!result.isPresent()) {

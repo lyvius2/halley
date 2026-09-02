@@ -1368,6 +1368,45 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <button class="btn btn-primary" @click="saveSettings()" :disabled="loading">설정 저장</button>
 
+        <!-- AI 모델 (설계 I267). 자리마다 따로 고른다 — 성격이 서로 다르다 -->
+        <div class="settings-section">
+            <h4>AI 모델</h4>
+            <p class="settings-note">
+                AI를 쓰는 자리마다 모델을 따로 고릅니다. <b>비워 두면 기본 모델</b>을 씁니다.
+                목록은 Anthropic 에서 받아 48시간 담아 둡니다 — 새 모델이 곧바로 안 보이면
+                그 때문입니다.
+            </p>
+            <template x-if="!llmModels">
+                <p class="m2-empty">모델 목록을 받지 못했습니다. API 키를 확인해 주십시오.</p>
+            </template>
+            <template x-if="llmModels">
+                <div>
+                    <div class="card table-wrap">
+                        <table>
+                            <thead><tr><th>자리</th><th>하는 일</th><th>모델</th></tr></thead>
+                            <tbody>
+                            <template x-for="f in llmModels.features" :key="f.key">
+                                <tr>
+                                    <td class="strong" x-text="f.label"></td>
+                                    <td x-text="f.description"></td>
+                                    <td>
+                                        <select class="settings-input" x-model="llmForm[f.key]">
+                                            <option value="">기본 모델</option>
+                                            <template x-for="m in llmModels.models" :key="m.id">
+                                                <option :value="m.id" x-text="m.displayName"></option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-primary" @click="saveLlmModels()" :disabled="loading">AI 모델 저장</button>
+                </div>
+            </template>
+        </div>
+
         <!-- 규제 파라미터 (설계 I68) -->
         <div class="settings-section">
             <h4>규제 파라미터</h4>

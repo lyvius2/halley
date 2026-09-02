@@ -197,7 +197,7 @@ class ComparativeAnalysisServiceTest {
         // given
         givenProperties(4);
         final ComparativeAnalysisService service = new ComparativeAnalysisService(
-                stub(LlmResult.of("{}", "m")), analysisRepository, jobCache, propertyRepository,
+                stub(LlmResult.of("{}", "m")), llmModels(), analysisRepository, jobCache, propertyRepository,
                 userRepository, accessGuard, scoringService, objectMapper, false);
 
         // when · then
@@ -229,7 +229,7 @@ class ComparativeAnalysisServiceTest {
     private final LlmJobCache jobCache = new InMemoryLlmJobCache();
 
     private ComparativeAnalysisService service(LlmPort port) {
-        return new ComparativeAnalysisService(port, analysisRepository, jobCache, propertyRepository,
+        return new ComparativeAnalysisService(port, llmModels(), analysisRepository, jobCache, propertyRepository,
                 userRepository, accessGuard, scoringService, objectMapper, true);
     }
 
@@ -310,5 +310,18 @@ class ComparativeAnalysisServiceTest {
                 SourceType.MANUAL, null, null, null, null, null,
                 draft, active ? ListingStatus.ACTIVE : ListingStatus.SOLD_OUT, active,
                 null, 0, null, GROUP_ID, "테스터", 1L, Instant.now());
+    }
+
+    /**
+     * 자리마다 모델을 고르는 설정 (설계 I267) — 이 시험은 <b>모델을 안 고른</b> 상태로 본다.
+     *
+     * <p>{@code null} 이면 어댑터가 기본 모델을 씁니다. 여기서 특정 이름을 박아 두면
+     * 시험이 <b>설정이 아니라 그 이름</b>을 재게 됩니다.
+     */
+    private static LlmModelService llmModels() {
+        final LlmModelService models = org.mockito.Mockito.mock(LlmModelService.class);
+        org.mockito.Mockito.when(models.modelFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(null);
+        return models;
     }
 }

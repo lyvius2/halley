@@ -78,7 +78,7 @@ class TransitWithLlmFallbackTest {
 
     private TransitWithLlmFallback fallback() {
         return new TransitWithLlmFallback(odsay,
-                new LlmTransitEstimator(llmPort(), objectMapper, ""));
+                new LlmTransitEstimator(llmPort(), objectMapper, llmModels()));
     }
 
     @BeforeEach
@@ -423,5 +423,12 @@ class TransitWithLlmFallbackTest {
         assertThat(result.totalMinutes()).isEqualTo(33);
         assertThat(result.legs()).isEmpty();
         assertThat(List.of(result)).allMatch(TransitResult::estimated);
+    }
+
+    /** 이 시험은 <b>모델을 안 고른</b> 상태를 본다 — 그러면 어댑터가 기본을 쓴다 (설계 I267). */
+    private static banghak.home.halley.application.service.LlmModelService llmModels() {
+        final var models = mock(banghak.home.halley.application.service.LlmModelService.class);
+        when(models.modelFor(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+        return models;
     }
 }

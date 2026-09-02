@@ -11,6 +11,7 @@ import banghak.home.halley.domain.llm.LlmJobState;
 import banghak.home.halley.config.exception.InsufficientPropertiesException;
 import banghak.home.halley.config.exception.LlmUnavailableException;
 import banghak.home.halley.domain.llm.ComparativeAnalysis;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.property.Property;
@@ -74,6 +75,7 @@ public class ComparativeAnalysisService {
             """;
 
     private final LlmPort llmPort;
+    private final LlmModelService llmModelService;
     private final ComparativeAnalysisRepository analysisRepository;
     private final LlmJobCache jobCache;
     private final PropertyRepository propertyRepository;
@@ -84,6 +86,7 @@ public class ComparativeAnalysisService {
     private final boolean enabled;
 
     public ComparativeAnalysisService(LlmPort llmPort,
+                                    LlmModelService llmModelService,
                                       ComparativeAnalysisRepository analysisRepository,
                                       LlmJobCache jobCache,
                                       PropertyRepository propertyRepository,
@@ -93,6 +96,7 @@ public class ComparativeAnalysisService {
                                       ObjectMapper objectMapper,
                                       @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
+        this.llmModelService = llmModelService;
         this.analysisRepository = analysisRepository;
         this.jobCache = jobCache;
         this.propertyRepository = propertyRepository;
@@ -165,7 +169,8 @@ public class ComparativeAnalysisService {
         final LlmResult result;
         final List<Ranking> rankings;
         try {
-            result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS));
+            result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS,
+                    llmModelService.modelFor(LlmFeature.COMPARATIVE)));
             if (!result.isPresent()) {
                 log.warn("Comparative analysis unavailable. cause={}", result.failureCause());
                 throw new LlmUnavailableException();

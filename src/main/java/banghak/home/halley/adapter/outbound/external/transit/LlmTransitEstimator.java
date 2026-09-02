@@ -100,18 +100,23 @@ public class LlmTransitEstimator {
 
     private final LlmPort llmPort;
     private final ObjectMapper objectMapper;
-    private final String model;
+    /** 이 자리에 쓸 모델을 <b>부를 때마다 물어본다</b> (설계 I267) — 붙박이가 아니다. */
+    private final banghak.home.halley.application.service.LlmModelService llmModelService;
 
     public LlmTransitEstimator(LlmPort llmPort,
                                ObjectMapper objectMapper,
-                               @Value("${transit.fallback.model:}") String model) {
+                               banghak.home.halley.application.service.LlmModelService llmModelService) {
         this.llmPort = llmPort;
         this.objectMapper = objectMapper;
-        this.model = model;
+        this.llmModelService = llmModelService;
     }
 
     public boolean isEnabled() {
         return llmPort.isEnabled();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** 좌표 넷으로 한 구간을 가리킨다. {@code id} 는 답을 되돌려 짝지을 열쇠다. */
@@ -145,7 +150,8 @@ public class LlmTransitEstimator {
         }
         final LlmMessage message = LlmMessage.deterministic(
                 SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
-                model == null || model.isBlank() ? null : model);
+                blankToNull(llmModelService.modelFor(
+                        banghak.home.halley.domain.llm.LlmFeature.COMMUTE_ESTIMATE)));
 
         LlmResult answer = llmPort.complete(message);
         if (retryable(answer)) {

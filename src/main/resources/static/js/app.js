@@ -279,6 +279,9 @@ function halley() {
         _loadingTimers: {},
         weights: [],
         settings: [],
+        // AI 모델 설정 (설계 I267)
+        llmModels: null,
+        llmForm: {},
         settingsForm: {},
         notifications: [],
         map: null,
@@ -722,6 +725,7 @@ function halley() {
             this.error = null;
             this.regError = null;
             this.loadSettings();
+            this.loadLlmModels();
             this.loadNotifications();
             this.loadNotifySettings();
             this.loadRegulations();
@@ -4683,6 +4687,52 @@ function halley() {
             }
         },
 
+        /**
+         * AI 모델 설정 (설계 I267).
+         *
+         * <p>자리 넷과 고를 수 있는 모델을 <b>한 번에</b> 받습니다 — 두 번 물으면
+         * 목록이 늦게 와서 드롭다운이 잠깐 빈 채로 보입니다.
+         */
+        async loadLlmModels() {
+            const { ok, body } = await this.request('/api/admin/llm-models')
+                .catch(() => ({ ok: false }));
+            if (!ok || !body) {
+                this.llmModels = null;
+                return;
+            }
+            this.llmModels = body;
+            const form = {};
+            (body.features || []).forEach(f => {
+                form[f.key] = f.model || '';
+            });
+            this.llmForm = form;
+        },
+
+        async saveLlmModels() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const payload = (this.llmModels?.features || []).map(f => ({
+                    key: f.key,
+                    model: this.llmForm[f.key] ?? ''
+                }));
+                const { ok, body } = await this.request('/api/admin/llm-models', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (ok) {
+                    this.llmModels = body;
+                } else {
+                    this.error = (body && body.message) || 'AI 모델 설정 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+            }
+        },
+
         async loadSettings() {
             const { ok, body } = await this.request('/api/admin/settings');
             if (ok) {
@@ -4737,7 +4787,11 @@ function halley() {
         settingCategories() {
             const order = ['BATCH', 'LOAN'];
             const rank = c => (order.indexOf(c) === -1 ? order.length : order.indexOf(c));
-            const present = [...new Set(this.settings.map(s => s.category))];
+            // AI 모델은 <b>따로 층을 둔다</b> (설계 I267) — 여기 섞이면 자유 입력칸이 되어
+            // 아무 문자열이나 넣을 수 있고, 그러면 그 자리의 AI가 조용히 죽는다
+            const present = [...new Set(this.settings
+                .filter(s => s.category !== 'LLM')
+                .map(s => s.category))];
             return present.sort((a, b) => rank(a) - rank(b));
         },
 

@@ -84,6 +84,14 @@ public interface CachePort {
      */
     String NEWS = "news";
 
+    /**
+     * 쓸 수 있는 Claude 모델 목록 (설계 I267).
+     *
+     * <p>모델 종류는 <b>자주 바뀌지 않습니다.</b> 관리자가 설정 화면을 열 때마다
+     * Anthropic 에 묻는 것은 값이 아깝습니다 — 48시간 담아 둡니다.
+     */
+    String LLM_MODELS = "llmmodels";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);
