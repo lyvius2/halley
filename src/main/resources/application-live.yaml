@@ -5,18 +5,8 @@ spring:
     username: ${DB_USERNAME:halley}
     password: ${DB_PASSWORD:halley}
     hikari:
-      # 같은 EC2 안 Docker 로 옮겼다 (설계 I242). 5로 묶어 둔 이유였던
-      # `remaining connection slots are reserved for SUPERUSER` 는 무료 등급의
-      # max_connections(20~30) 때문이었고, 자체 호스팅에서는 그 제약이 없다.
-      #
-      # 기준은 HikariCP 공식 (vCPU x 2 + 디스크). 다만 <b>Postgres 가 앱과 같은 코어를
-      # 나눠 쓰므로</b> 공식값 위로 가지 않는다 — 전용 DB 호스트가 아니다.
-      # vCPU 2 기준 10. 쿼리가 1ms 아래라 이 규모에서는 남아돈다.
-      # 더 늘리면 연결당 메모리(5~10MB)와 문맥 전환만 늘어난다
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:1}
-      # 커넥션을 못 받으면 오래 매달리지 말고 빨리 실패한다.
-      # 30초(기본값)를 기다리면 사용자는 화면이 멈춘 것으로 본다
       connection-timeout: ${DB_POOL_TIMEOUT_MS:3000}
   sql:
     init:
