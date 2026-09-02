@@ -244,8 +244,33 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
                         Integer.parseInt(year),
                         Integer.parseInt(Objects.requireNonNull(month)),
                         Integer.parseInt(Objects.requireNonNull(day))
-                )
+                ),
+                // 법정동·번지는 <b>이미 오고 있었습니다</b> (설계 I257). 버리고 있었을 뿐입니다
+                text(item, "umdNm", "법정동"),
+                jibunOf(item)
         );
+    }
+
+    /**
+     * 번지 (설계 I257).
+     *
+     * <p>{@code jibun} 이 {@code 138} 또는 {@code 138-2} 로 옵니다. 안 오는 응답이
+     * 있어 {@code bonbun}·{@code bubun}(네 자리 0채움)으로 되짚습니다 —
+     * {@code 0138}·{@code 0000} → {@code 138}.
+     */
+    private String jibunOf(Element item) {
+        final String jibun = text(item, "jibun", "지번");
+        if (jibun != null && !jibun.isBlank()) {
+            return jibun.trim();
+        }
+        final String bonbun = text(item, "bonbun", "본번");
+        if (bonbun == null || bonbun.isBlank()) {
+            return null;
+        }
+        final int main = Integer.parseInt(bonbun.trim());
+        final String bubun = text(item, "bubun", "부번");
+        final int sub = bubun == null || bubun.isBlank() ? 0 : Integer.parseInt(bubun.trim());
+        return sub == 0 ? String.valueOf(main) : main + "-" + sub;
     }
 
     /** 국토부는 금액을 <b>만원 단위 문자열</b>로 준다 (`"110,000"`). 원으로 바꾼다. */

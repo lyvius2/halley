@@ -51,7 +51,8 @@ class MinistryErrorResponseTest {
             <response><header><resultCode>00</resultCode></header><body><items>
               <item><aptNm>송산</aptNm><excluUseAr>58.59</excluUseAr>
                     <dealAmount> 70,000</dealAmount><dealYear>2026</dealYear>
-                    <dealMonth>7</dealMonth><dealDay>14</dealDay><floor>18</floor></item>
+                    <dealMonth>7</dealMonth><dealDay>14</dealDay><floor>18</floor>
+                    <umdNm>정릉동</umdNm><jibun>1037</jibun></item>
             </items><totalCount>1</totalCount></body></response>
             """;
 
@@ -96,6 +97,60 @@ class MinistryErrorResponseTest {
      * 헤더를 안 주는 응답 형태가 있을 수 있습니다. <b>없다고 실패로 몰면</b>
      * 멀쩡한 달까지 안 받게 됩니다.
      */
+    /**
+     * <b>법정동과 번지는 이미 오고 있었습니다</b> (설계 I257). 버리고 있었을 뿐입니다 —
+     * 이름이 통째로 바뀐 단지를 이것으로 잡습니다.
+     */
+    @Test
+    @DisplayName("법정동과 번지를 읽는다 — 안 읽으면 이름으로만 가리게 된다")
+    void readsTheLotFields() {
+        final ReferenceTrade trade = adapter(OK_ONE).fetchTrades("11350", "202607").getFirst();
+
+        assertThat(trade.legalDong()).isEqualTo("정릉동");
+        assertThat(trade.jibun()).isEqualTo("1037");
+        assertThat(trade.lot()).get()
+                .isEqualTo(new banghak.home.halley.domain.property.JibunAddress("정릉동", 1037, 0));
+    }
+
+    /**
+     * {@code jibun} 을 안 주는 응답이 있어 {@code bonbun}·{@code bubun} 으로 되짚습니다.
+     * 네 자리 0채움이라 그대로 쓰면 {@code 0138} 이 됩니다.
+     */
+    @Test
+    @DisplayName("jibun 이 없으면 bonbun·bubun 으로 되짚는다")
+    void fallsBackToBonbunAndBubun() {
+        final String withoutJibun = """
+                <response><header><resultCode>00</resultCode></header><body><items>
+                  <item><aptNm>송산</aptNm><excluUseAr>58.59</excluUseAr>
+                        <dealAmount> 70,000</dealAmount><dealYear>2026</dealYear>
+                        <dealMonth>7</dealMonth><dealDay>14</dealDay><floor>18</floor>
+                        <umdNm>안암동3가</umdNm><bonbun>0138</bonbun><bubun>0002</bubun></item>
+                </items></body></response>
+                """;
+
+        final ReferenceTrade trade = adapter(withoutJibun).fetchTrades("11350", "202607").getFirst();
+
+        assertThat(trade.jibun()).as("0채움을 그대로 쓰면 0138 이 된다").isEqualTo("138-2");
+        assertThat(trade.lot()).get()
+                .isEqualTo(new banghak.home.halley.domain.property.JibunAddress("안암동3가", 138, 2));
+    }
+
+    @Test
+    @DisplayName("부번이 0이면 본번만 쓴다")
+    void dropsAZeroSubLot() {
+        final String zeroBubun = """
+                <response><header><resultCode>00</resultCode></header><body><items>
+                  <item><aptNm>송산</aptNm><excluUseAr>58.59</excluUseAr>
+                        <dealAmount> 70,000</dealAmount><dealYear>2026</dealYear>
+                        <dealMonth>7</dealMonth><dealDay>14</dealDay><floor>18</floor>
+                        <umdNm>정릉동</umdNm><bonbun>1037</bonbun><bubun>0000</bubun></item>
+                </items></body></response>
+                """;
+
+        assertThat(adapter(zeroBubun).fetchTrades("11350", "202607").getFirst().jibun())
+                .isEqualTo("1037");
+    }
+
     @Test
     @DisplayName("코드가 아예 없으면 통과시킨다")
     void passesWhenThereIsNoCode() {

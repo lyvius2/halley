@@ -7,7 +7,7 @@ import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepo
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
-import banghak.home.halley.domain.property.ComplexName;
+import banghak.home.halley.domain.property.ComplexMatch;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceDealType;
 import banghak.home.halley.domain.property.ReferenceSource;
@@ -171,9 +171,10 @@ public class ReferenceTransactionService {
 
         final List<ReferenceTrade> trades = fetchMonths(lawdCd, month, dealMonth != null);
         // 비었을 때 <b>어느 단계에서 걸렸는지</b> 말해 주려고 센다 (설계 I232)
+        // 이름이 아니라 <b>단지가</b> 맞는 수다 (설계 I257) — 주소로 잡힌 것도 센다
         final int nameMatched = (int) trades.stream()
-                .filter(trade -> !ComplexName.comparable(property.name(), trade.apartmentName())
-                        || ComplexName.same(property.name(), trade.apartmentName()))
+                .filter(trade -> ComplexMatch.same(
+                        property.addressJibun(), property.name(), trade))
                 .count();
         final List<ReferenceTransaction> saved = trades.stream()
                 .filter(trade -> matches(property, trade))
@@ -194,7 +195,8 @@ public class ReferenceTransactionService {
         // 있었는데, 화면이 빈 채로만 있어 아무도 못 알아챘습니다.
         // <b>저장하지는 않습니다</b> — 다른 평형이라 이 매물의 참고 시세가 아닙니다
         final List<ReferenceTransaction> otherAreas = trades.stream()
-                .filter(trade -> ComplexName.same(property.name(), trade.apartmentName()))
+                .filter(trade -> ComplexMatch.same(
+                        property.addressJibun(), property.name(), trade))
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(MAX_SAVED)
                 .map(trade -> new ReferenceTransaction(
@@ -260,11 +262,12 @@ public class ReferenceTransactionService {
      */
     private boolean matches(Property property, ReferenceTrade trade) {
         // 규칙은 `ComplexName` 하나다 (설계 I230) — 전망과 다르게 정규화하다 갈라졌다
-        final boolean nameKnown = ComplexName.comparable(property.name(), trade.apartmentName());
+        final boolean nameKnown = ComplexMatch.same(
+                property.addressJibun(), property.name(), trade);
         final boolean areaKnown = property.areaExclusiveM2() != null && trade.areaM2() != null
                 && property.areaExclusiveM2().signum() > 0;
 
-        if (nameKnown && !ComplexName.same(property.name(), trade.apartmentName())) {
+        if (!nameKnown) {
             return false;
         }
         if (!areaKnown) {
@@ -272,19 +275,6 @@ public class ReferenceTransactionService {
         }
         final double diff = Math.abs(property.areaExclusiveM2().doubleValue() - trade.areaM2().doubleValue());
         return diff / property.areaExclusiveM2().doubleValue() <= AREA_TOLERANCE;
-    }
-
-    /** `은마아파트(테스트)` → `은마`. 표기 흔들림을 걷어낸다. */
-    private String normalizeComplexName(String name) {
-        if (name == null) {
-            return null;
-        }
-        final String normalized = name
-                .replaceAll("\\(.*?\\)", "")
-                .replaceAll("아파트|APT|apt", "")
-                .replaceAll("\\s+", "")
-                .toLowerCase(java.util.Locale.ROOT);
-        return normalized.length() < MIN_NAME_LENGTH ? null : normalized;
     }
 
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
