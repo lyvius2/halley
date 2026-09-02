@@ -4178,10 +4178,19 @@ function halley() {
                 // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
                 if (!found || !found.forecast?.running) {
                     this.stopForecastPolling();
-                    // 판단 보류로 끝나면 화살표가 안 뜬다 (설계 I136) — 열어 주지 않으면
-                    // 2분을 기다린 끝에 아무 변화도 못 본다. 방향이 나온 경우는
-                    // 화살표가 곧 응답이라 굳이 덮지 않는다 (설계 I146)
-                    if (found?.forecast?.direction === 'UNCERTAIN' && this.noModalOpen()) {
+                    /*
+                     * 끝났으면 결과를 연다 (설계 I254).
+                     *
+                     * 전에는 `UNCERTAIN` 일 때만 열었습니다(I146) — 방향이 나오면
+                     * 화살표가 곧 응답이라 굳이 덮지 않는다는 뜻이었습니다.
+                     * 그런데 [I248]에서 판단 보류를 `FLAT` 으로 바꾸면서 이 조건이
+                     * <b>아무것도 안 걸리게</b> 됐고, 2분을 기다려도 화면이 그대로였습니다.
+                     *
+                     * 이제 <b>끝나면 엽니다.</b> 눌러서 시킨 일이라 결과를 보고 싶은
+                     * 것이 당연하고, 화살표만으로는 왜 그렇게 나왔는지 알 수 없습니다.
+                     * 그 사이에 사람이 다른 것을 열었으면 덮지 않습니다.
+                     */
+                    if (found?.forecast?.stored && this.noModalOpen()) {
                         await this.openForecast(found);
                     }
                 }

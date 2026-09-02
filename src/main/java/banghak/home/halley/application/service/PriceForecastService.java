@@ -82,6 +82,14 @@ public class PriceForecastService {
      */
     private static final Set<String> TRADE_BASED_FACTORS = Set.of("실거래 추세", "장기 추세");
 
+    /** 실거래가 어디서 걸러졌는지 세는 데만 쓴다 (설계 I253) */
+    private final banghak.home.halley.domain.forecast.indicator.TradeStatCalculator tradeStats =
+            new banghak.home.halley.domain.forecast.indicator.TradeStatCalculator();
+
+    /** 5년의 모양을 한 줄로 (설계 I255) */
+    private final banghak.home.halley.domain.forecast.indicator.YearlyMedians yearlyMedians =
+            new banghak.home.halley.domain.forecast.indicator.YearlyMedians();
+
     private final LlmPort llmPort;
     private final ForecastIndicatorFactory indicatorFactory;
     private final ForecastVerdictParser parser;
@@ -312,7 +320,14 @@ public class PriceForecastService {
         log.info("Forecast indicators produced values. names=[{}]", byCode.factors().stream()
                 .map(banghak.home.halley.domain.forecast.PriceFactor::name)
                 .collect(java.util.stream.Collectors.joining(", ")));
-        final ForecastPrompt prompt = ForecastPrompt.of(input.property(), byCode.factors(), horizon);
+        // 실거래 지표가 빠졌으면 <b>왜</b> 빠졌는지 함께 넘긴다 (설계 I253).
+        // 안 알려 주면 모델이 "인근 실거래 비교 자료가 없습니다" 처럼 지어낸 추측을 쓴다
+        final String gapNote = hasEnoughTradeSamples(byCode) ? null : tradeGapNote(input);
+        // 5년이 어떤 모양으로 움직였는지 (설계 I255). 지표가 아니라 읽을 재료다
+        final String shape = yearlyMedians.describe(input.property(), input.monthlyTrades(),
+                input.baseMonth().getYear());
+        final ForecastPrompt prompt = ForecastPrompt.of(
+                input.property(), byCode.factors(), horizon, gapNote, shape);
 
         if (!enabled || !llmPort.isEnabled()) {
             log.info("Skipping forecast LLM call - provider not enabled. provider={}", llmPort.provider());
@@ -322,7 +337,7 @@ public class PriceForecastService {
         final Optional<PriceOutlook> byLlm = ask(prompt, horizon);
         return byLlm
                 .map(llm -> new ForecastVerdict(
-                        guard(llm, byCode), byCode, llm.direction(), prompt, true))
+                        guard(llm, byCode, input), byCode, llm.direction(), prompt, true))
                 // 못 받았으면 코드 예측으로 답하되, 답한 것처럼 굳히지는 않는다
                 .orElseGet(() -> new ForecastVerdict(byCode, byCode, null, prompt, false));
     }
@@ -366,10 +381,44 @@ public class PriceForecastService {
      *
      * <p>요인이 전부 걸러졌다면(지어낸 숫자만 인용했다면) 그 답은 믿을 수 없습니다.
      */
-    private PriceOutlook guard(PriceOutlook byLlm, PriceOutlook byCode) {
+    /**
+     * 실거래 지표가 <b>왜</b> 빠졌는지 (설계 I253).
+     *
+     * <p>이유가 넷인데 화면도 로그도 아무 말이 없었습니다 — 자료를 못 받았는지,
+     * 단지명이 안 맞는지, 평형이 다른지, 그냥 거래가 드문지.
+     * 사람이 LLM 산문을 읽고 짐작해야 했습니다.
+     *
+     * <p><b>이 문장은 LLM 에도 갑니다.</b> 이유를 알려 주면 "인근 실거래 비교 자료가
+     * 없습니다" 같은 <b>지어낸 추측</b> 대신 정확한 이유를 씁니다.
+     */
+    String tradeGapNote(ForecastInput input) {
+        final var tally = tradeStats.tally(input.property(), input.monthlyTrades());
+        final String name = input.property() == null || input.property().name() == null
+                ? "이 매물" : input.property().name();
+        if (tally.trades() == 0) {
+            return "이 지역의 실거래 자료를 받아 두지 못해 실거래 지표를 넣지 못했습니다";
+        }
+        if (tally.nameMatched() == 0) {
+            return String.format("실거래 %d건을 받았지만 '%s'과 이름이 맞는 거래가 없어 "
+                    + "실거래 지표를 넣지 못했습니다 — 국토부 표기가 다를 수 있습니다",
+                    tally.trades(), name);
+        }
+        if (tally.areaMatched() == 0) {
+            return String.format("실거래 %d건 중 이름이 맞는 것은 %d건이지만 전용 %s㎡와 맞는 "
+                    + "평형이 없어 실거래 지표를 넣지 못했습니다",
+                    tally.trades(), tally.nameMatched(),
+                    input.property() == null ? "?" : String.valueOf(input.property().areaExclusiveM2()));
+        }
+        // 총량이 아니라 <b>구간마다</b> 안 찬 것이다 — "14건뿐"이라고 하면 틀린 말이 된다
+        return String.format("이름·면적이 맞는 실거래는 %d건이지만 비교 구간마다 %d건을 "
+                + "채우지 못해 실거래 지표를 넣지 못했습니다 — 거래가 여러 달에 흩어져 "
+                + "있습니다", tally.areaMatched(), MIN_TRADE_SAMPLES);
+    }
+
+    private PriceOutlook guard(PriceOutlook byLlm, PriceOutlook byCode, ForecastInput input) {
         if (byLlm.factors().isEmpty() && !byCode.factors().isEmpty()) {
             log.warn("All LLM factors were dropped - falling back to rule-based.");
-            return tallied(byCode, byCode.caveats(), false);
+            return tallied(byCode, new ArrayList<>(byCode.caveats()), false);
         }
         final List<String> caveats = new ArrayList<>(byLlm.caveats());
         // 이 매물의 실거래가 모자라면 <b>방향은 말하되 확신은 하지 않습니다</b> (설계 I151).
@@ -380,9 +429,7 @@ public class PriceForecastService {
                     TRADE_BASED_FACTORS, byCode.factors().stream()
                             .map(banghak.home.halley.domain.forecast.PriceFactor::name)
                             .collect(java.util.stream.Collectors.joining(", ")));
-            caveats.add(String.format(
-                    "이 단지·면적대의 실거래 표본이 %d건 미만이라 지표가 가리키는 쪽을 "
-                            + "세어 정했습니다 — 확신이 있어서가 아닙니다", MIN_TRADE_SAMPLES));
+            caveats.add(tradeGapNote(input));
         }
         return tallied(byLlm, caveats, thinEvidence);
     }

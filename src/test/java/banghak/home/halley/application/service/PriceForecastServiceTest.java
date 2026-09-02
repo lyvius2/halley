@@ -244,8 +244,8 @@ class PriceForecastServiceTest {
         assertThat(verdict.conclusion().confidence())
                 .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
         assertThat(verdict.conclusion().caveats())
-                .anyMatch(c -> c.contains("표본이 3건 미만"))
-                .anyMatch(c -> c.contains("확신이 있어서가 아닙니다"));
+                .anyMatch(c -> c.contains("실거래 지표를 넣지 못했습니다"))
+                .anyMatch(c -> c.contains("여러 달에 흩어져 있습니다"));
     }
 
     /**
@@ -315,7 +315,8 @@ class PriceForecastServiceTest {
         // 그건 이 매물의 실거래가 아니다 — 방향은 말하되 <b>확신도는 LOW</b> 다
         assertThat(verdict.conclusion().confidence())
                 .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
-        assertThat(verdict.conclusion().caveats()).anyMatch(c -> c.contains("표본이 3건 미만"));
+        assertThat(verdict.conclusion().caveats())
+                .anyMatch(c -> c.contains("실거래 지표를 넣지 못했습니다"));
     }
 
     @Test
@@ -428,18 +429,21 @@ class PriceForecastServiceTest {
      * 그래야 LLM을 부르고 안전장치가 도는지 볼 수 있다.
      */
     /**
-     * 장기 표본은 넉넉한데 <b>최근 석 달만</b> 한산한 경우 (설계 I151).
+     * 장기 표본은 넉넉한데 <b>최근 반년만</b> 한산한 경우 (설계 I151 · I252).
      *
-     * <p>실거래 추세(3개월 창)는 안 나오고 장기 추세(12개월 창 둘)는 나온다 —
+     * <p>실거래 추세는 안 나오고 장기 추세(12개월 창 둘)는 나온다 —
      * 이것이 §2.2-A 를 좁게 구현했을 때 애꿎게 덮이던 자리다.
+     *
+     * <p><b>여섯 달을 비웁니다.</b> 석 달만 비우면 [I252]에서 창을 6개월로 넓혀
+     * 실거래 추세가 나와 버려, 이 테스트가 보려던 상태가 안 만들어집니다.
      */
     private ForecastInput longTermOnlyInput() {
         final List<MonthlyTrades> months = new ArrayList<>();
         for (int m = 61; m >= 1; m--) {
-            // 최근 3개월(1·2·3개월 전)에 1 + 1 + 0 = 2건만. 나머지 달은 3건씩
+            // 최근 6개월에 1 + 1 = 2건만. 나머지 달은 3건씩
             final int count = switch (m) {
                 case 1, 2 -> 1;
-                case 3 -> 0;
+                case 3, 4, 5, 6 -> 0;
                 default -> 3;
             };
             // 4년에 걸쳐 오른다 — 장기 추세가 UP 을 낸다
