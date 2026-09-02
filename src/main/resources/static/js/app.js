@@ -3771,6 +3771,9 @@ function halley() {
             }
             return {
                 name: value('name'),
+                // <b>파서가 읽은 것을 안 보내고 있었다 (설계 I265).</b> 화면에는
+                // '102동'이 멀쩡히 떴는데 payload 에서 빠져 DB 는 늘 NULL 이었다
+                dongHo: value('dongHo') || null,
                 dealType: dealCode,
                 priceDeposit: toNum(value('priceDeposit')),
                 kbPrice: toNum(value('kbPrice')),
@@ -4462,6 +4465,20 @@ function halley() {
          * 쾌적함은 직접 가 보지 않으면 매길 수 없는 항목이라, 점수가 있다는 것은
          * 임장을 다녀왔다는 뜻이다. 따로 '다녀옴' 칸을 두면 사람이 또 눌러야 한다.
          */
+        /**
+         * 카드·상세·지도가 한 이름으로 부른다 (설계 I265).
+         *
+         * <p>같은 단지 매물을 여럿 담으면 <b>이름만으로는 구별이 안 됩니다.</b>
+         * 상세 모달만 동·호를 붙이고 있었고, 목록과 지도는 아니었습니다 —
+         * 같은 규칙이 두 벌이면 이렇게 갈립니다.
+         */
+        propertyTitle(property) {
+            if (!property) {
+                return '';
+            }
+            return property.dongHo ? `${property.name} ${property.dongHo}` : property.name;
+        },
+
         hasVisited(scored) {
             return (scored?.scores || []).some(
                 s => s.code === 'COMFORT' && s.effectiveScore != null);
@@ -4812,8 +4829,10 @@ function halley() {
             this.markers = {};
             // 목록은 30건씩 잘려 오지만 지도는 전부 찍는다 (설계 I240)
             const coords = this.pins.filter(p => p.lat && p.lng);
+            const spread = this.spreadOverlappingPins(coords);
             coords.forEach(p => {
-                const position = new kakao.maps.LatLng(p.lat, p.lng);
+                const at = spread[p.id];
+                const position = new kakao.maps.LatLng(at.lat, at.lng);
                 const base = this.pinZIndex(p);
                 const overlay = new kakao.maps.CustomOverlay({
                     position,
@@ -4841,6 +4860,49 @@ function halley() {
                 coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
             }
+        },
+
+        /**
+         * 같은 자리에 겹친 핀을 <b>둘러 앉힌다</b> (설계 I265).
+         *
+         * <p>같은 단지의 102동과 104동은 좌표가 <b>같습니다.</b> 주소로 찍은 값이라
+         * 단지 대표점 하나뿐입니다 — 핀이 정확히 포개져 <b>뒤엣것은 누를 수도
+         * 없었습니다.</b>
+         *
+         * <p><b>동의 실제 위치를 아는 척하지 않습니다.</b> 우리는 그 좌표를 갖고
+         * 있지 않습니다. 겹친 것들을 작은 원으로 <b>벌려 놓을 뿐</b>이고, 반지름은
+         * 15m 남짓이라 단지 밖으로 나가지 않습니다.
+         *
+         * <p>순서는 동·호 이름으로 정합니다 — 목록이 다시 그려져도 <b>같은 핀이
+         * 같은 자리</b>에 있어야 합니다. 배열 순서로 하면 정렬을 바꿀 때마다 춤춥니다.
+         */
+        spreadOverlappingPins(coords) {
+            const RADIUS_DEG = 0.00014;   // 위도 1e-4 ≈ 11m
+            const groups = {};
+            coords.forEach(p => {
+                // 소수점 다섯 자리 ≈ 1m. 그 안이면 같은 자리로 본다
+                const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+                (groups[key] = groups[key] || []).push(p);
+            });
+            const placed = {};
+            Object.values(groups).forEach(group => {
+                if (group.length === 1) {
+                    placed[group[0].id] = { lat: Number(group[0].lat), lng: Number(group[0].lng) };
+                    return;
+                }
+                const ordered = [...group].sort((a, b) =>
+                    String(a.dongHo || '').localeCompare(String(b.dongHo || ''), 'ko')
+                    || a.id - b.id);
+                ordered.forEach((p, i) => {
+                    const angle = (2 * Math.PI * i) / ordered.length;
+                    placed[p.id] = {
+                        lat: Number(p.lat) + RADIUS_DEG * Math.cos(angle),
+                        // 경도는 위도만큼 촘촘하지 않다 — 서울(37.5도)에서 약 1.26배 벌려야 같은 거리다
+                        lng: Number(p.lng) + RADIUS_DEG * Math.sin(angle) * 1.26
+                    };
+                });
+            });
+            return placed;
         },
 
         /**
@@ -4885,7 +4947,8 @@ function halley() {
 
             const tail = document.createElement('i');
             box.appendChild(tail);
-            box.title = p.name || '';
+            // 벌려 놓은 핀은 <b>어느 동인지 말해 줘야</b> 고를 수 있다 (설계 I265)
+            box.title = this.propertyTitle(p);
             return box;
         },
 

@@ -26,6 +26,8 @@ import java.math.BigDecimal;
 public record PropertyPinResponse(
         Long id,
         String name,
+        /** 같은 단지 매물을 지도에서 가르는 유일한 값 (설계 I265). */
+        String dongHo,
         DealType dealType,
         Long priceDeposit,
         BigDecimal areaExclusiveM2,

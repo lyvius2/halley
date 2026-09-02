@@ -252,7 +252,7 @@ public class PropertyListService {
     }
 
     private PropertyPinResponse toPin(Property p, boolean visited, boolean byComfort) {
-        return new PropertyPinResponse(p.id(), p.name(), p.dealType(), p.priceDeposit(),
+        return new PropertyPinResponse(p.id(), p.name(), p.dongHo(), p.dealType(), p.priceDeposit(),
                 p.areaExclusiveM2(), p.lat(), p.lng(), visited, byComfort,
                 p.active(), p.isDraft());
     }

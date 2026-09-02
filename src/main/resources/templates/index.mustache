@@ -140,7 +140,9 @@
                                 <article class="property-card" :class="{active: activePropertyId === r.property.id, sold: r.property.listingStatus==='SOLD_OUT'}"
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
-                                        <span class="property-card-name" x-text="r.property.name"></span>
+                                        <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I265).
+                                             없으면 카드가 전부 같은 이름으로 보인다 -->
+                                        <span class="property-card-name" x-text="propertyTitle(r.property)"></span>
                                         <!-- 가격 전망 (설계 I136). 화살표는 오직 LLM 예측만 나타낸다 —
                                              코드 예측과 갈려도 색을 흐리지 않는다. 그 사실은 모달에서 말한다 -->
                                         <button class="forecast-arrow" type="button"
@@ -1531,7 +1533,7 @@
             <button class="modal-close" @click="closeDetail()">×</button>
             <div class="modal-head">
                 <span class="modal-kicker">매물 상세</span>
-                <h3 x-text="detailItem.property.name + (detailItem.property.dongHo ? ' ' + detailItem.property.dongHo : '')"></h3>
+                <h3 x-text="propertyTitle(detailItem.property)"></h3>
             </div>
             <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
             <div class="progress-strip" x-show="isLoading('detail')" x-cloak>
@@ -2607,7 +2609,7 @@
             <template x-for="p in soldOutRecent" :key="p.id">
                 <article class="property-card sold">
                     <div class="property-card-header">
-                        <span class="property-card-name" x-text="p.name"></span>
+                        <span class="property-card-name" x-text="propertyTitle(p)"></span>
                         <span class="property-card-price" x-text="fmtWon(p.priceDeposit)"></span>
                     </div>
                     <div class="property-card-meta">
