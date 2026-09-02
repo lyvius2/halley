@@ -297,8 +297,10 @@ public class NotificationService {
         final StringBuilder sb = new StringBuilder("<!channel> ").append(text);
         final String suffix = eventType == null ? null : eventType.linkSuffix();
         if (propertyId != null && suffix != null && baseUrl != null && !baseUrl.isBlank()) {
+            // 주소가 `#` 뒤로 갔다 (설계 I244). 이걸 안 바꾸면 링크를 눌러도
+            // <b>껍데기만 뜨고 아무것도 안 열립니다</b> — 서버는 `#` 뒤를 못 봅니다
             sb.append('\n').append(baseUrl.replaceAll("/+$", ""))
-                    .append("/properties/").append(propertyId).append(suffix);
+                    .append("/#/properties/").append(propertyId).append(suffix);
         }
         return sb.toString();
     }
