@@ -4010,6 +4010,20 @@ function halley() {
          * <p>아직 낸 적이 없는 경우(stored=false)에는 안 단다 — 그때 UNCERTAIN 은
          * '결과 없음'의 자리표시일 뿐이다.
          */
+        /**
+         * 카드에 무엇을 띄울까 (설계 I248).
+         *
+         * <pre>
+         * 요약이 없다        →  (없음)
+         * 분석 중            →  ◌
+         * 아직 안 물어봤다    →  (없음)   ← 매매가를 눌러 시킬 수 있다 (I142)
+         * 셀 것이 없었다      →  🤔 ▶     ← 지표가 없거나 전부 유지
+         * 상승 · 하락 · 유지  →  ▲ · ▼ · ▶
+         * </pre>
+         *
+         * <p><b>유지와 판단 보류는 같은 것</b>입니다(I248). 그래서 옛 `UNCERTAIN` 도
+         * `▶` 로 그립니다 — 저장된 값이 무엇이든 사람에게는 한 가지 뜻입니다.
+         */
         forecastArrow(scored) {
             const f = scored?.forecast;
             if (!f) {
@@ -4018,17 +4032,45 @@ function halley() {
             if (f.running) {
                 return '◌';
             }
-            if (f.direction === 'UNCERTAIN') {
-                return f.stored ? '📝' : '';
+            // 물어본 적이 없으면 아무것도 안 띄운다 — 없는 답을 그릴 수는 없다
+            if (!f.stored) {
+                return '';
             }
-            return this.arrowOf(f.direction);
+            if (f.noSignal) {
+                return '🤔 ▶';
+            }
+            return this.arrowOf(f.direction) || '▶';
+        },
+
+        /**
+         * 모달이 <b>결론으로 내세우는 말</b> (설계 I247).
+         *
+         * <p><b>상승·하락만 이름을 갖습니다.</b> 그 외에는 "판단 보류"입니다 —
+         * `유지`는 <b>올라가지도 내려가지도 않는다고 단언하는 말</b>인데,
+         * 요인 다수결이 그쪽으로 기울었다는 것과 <b>그렇게 될 것이라 말하는 것</b>은
+         * 다릅니다([I234]에서 다수결로 바꾸며 이 구분을 잃었습니다).
+         *
+         * <p><b>저장된 값은 그대로 `FLAT` 입니다.</b> 화면에서만 그렇게 부릅니다 —
+         * 도메인에서 `FLAT` 과 `UNCERTAIN` 을 합쳐 버리면 사후 검증(구현 10)이
+         * <b>"유지를 맞혔다"와 "판단을 안 했다"를 구분하지 못합니다.</b>
+         */
+        forecastVerdictLabel(direction, directionLabel) {
+            return (direction === 'UP' || direction === 'DOWN')
+                ? directionLabel
+                : '판단 보류';
+        },
+
+        /** 카드에 마우스를 올렸을 때. 결론과 <b>같은 말</b>을 쓴다 (설계 I248) */
+        forecastVerdictOf(f) {
+            return this.forecastVerdictLabel(f.direction, this.DIRECTION_LABEL[f.direction]);
         },
 
         arrowOf(direction) {
             switch (direction) {
                 case 'UP': return '▲';
                 case 'DOWN': return '▼';
-                case 'FLAT': return '▶';
+                // 유지와 판단 보류는 같은 것이다 (설계 I248)
+                case 'FLAT': case 'UNCERTAIN': return '▶';
                 default: return '';
             }
         },
@@ -4038,7 +4080,8 @@ function halley() {
             switch (direction) {
                 case 'UP': return 'up';
                 case 'DOWN': return 'down';
-                case 'FLAT': return 'flat';
+                // 유지와 판단 보류는 같은 것이다 (설계 I248)
+                case 'FLAT': case 'UNCERTAIN': return 'flat';
                 default: return '';
             }
         },
@@ -4048,11 +4091,11 @@ function halley() {
             if (f?.running) {
                 return 'running';
             }
-            // 📝 는 방향이 아니다 — 색을 주면 그것부터 방향으로 읽힌다 (설계 I150)
-            if (f?.direction === 'UNCERTAIN') {
+            // 🤔 는 방향이 아니다 — 색을 주면 그것부터 방향으로 읽힌다 (설계 I150·I248)
+            if (f?.noSignal) {
                 return 'note';
             }
-            return this.arrowClassOf(f?.direction);
+            return this.arrowClassOf(f?.direction) || 'flat';
         },
 
         /**
@@ -4073,7 +4116,10 @@ function halley() {
             if (!f || f.running) {
                 return false;
             }
-            return !f.stored || f.direction === 'UNCERTAIN';
+            // 유지 = 판단 보류다 (설계 I248). 둘 다 "방향을 못 정한 것"이니
+            // 둘 다 다시 시킬 수 있어야 한다 — 하나만 열어 두면 같은 상태인데
+            // 어떤 것은 눌리고 어떤 것은 안 눌린다
+            return !f.stored || f.direction === 'UNCERTAIN' || f.direction === 'FLAT';
         },
 
         forecastPriceTitle(scored) {
@@ -4138,10 +4184,19 @@ function halley() {
                 // ① 분석이 끝났다 (결과가 저장됐거나, 실패해서 진행 표시가 걷혔거나)
                 if (!found || !found.forecast?.running) {
                     this.stopForecastPolling();
-                    // 판단 보류로 끝나면 화살표가 안 뜬다 (설계 I136) — 열어 주지 않으면
-                    // 2분을 기다린 끝에 아무 변화도 못 본다. 방향이 나온 경우는
-                    // 화살표가 곧 응답이라 굳이 덮지 않는다 (설계 I146)
-                    if (found?.forecast?.direction === 'UNCERTAIN' && this.noModalOpen()) {
+                    /*
+                     * 끝났으면 결과를 연다 (설계 I254).
+                     *
+                     * 전에는 `UNCERTAIN` 일 때만 열었습니다(I146) — 방향이 나오면
+                     * 화살표가 곧 응답이라 굳이 덮지 않는다는 뜻이었습니다.
+                     * 그런데 [I248]에서 판단 보류를 `FLAT` 으로 바꾸면서 이 조건이
+                     * <b>아무것도 안 걸리게</b> 됐고, 2분을 기다려도 화면이 그대로였습니다.
+                     *
+                     * 이제 <b>끝나면 엽니다.</b> 눌러서 시킨 일이라 결과를 보고 싶은
+                     * 것이 당연하고, 화살표만으로는 왜 그렇게 나왔는지 알 수 없습니다.
+                     * 그 사이에 사람이 다른 것을 열었으면 덮지 않습니다.
+                     */
+                    if (found?.forecast?.stored && this.noModalOpen()) {
                         await this.openForecast(found);
                     }
                 }
@@ -4155,6 +4210,15 @@ function halley() {
             }
         },
 
+        /**
+         * 방향 이름. <b>서버의 `ForecastDirection` 과 같은 말을 씁니다</b> (설계 I247).
+         *
+         * <p>규칙 기반 예측(`codeDirection`)은 요약에 라벨이 실려 오지 않아 여기서
+         * 붙입니다. 그래서 <b>이 표가 서버와 어긋나면 같은 방향을 두 이름으로</b>
+         * 부르게 됩니다 — 실제로 한 번 그랬습니다.
+         */
+        DIRECTION_LABEL: { UP: '상승', DOWN: '하락', FLAT: '유지', UNCERTAIN: '판단 보류' },
+
         forecastTitle(scored) {
             const f = scored?.forecast;
             if (!f) {
@@ -4163,10 +4227,12 @@ function halley() {
             if (f.running) {
                 return '가격 전망을 분석 중입니다…';
             }
-            if (f.direction === 'UNCERTAIN') {
-                return '판단을 보류했습니다 — 이유 보기';
+            if (f.noSignal) {
+                return '방향을 가리키는 지표가 없습니다 — 이유 보기';
             }
-            return '가격 전망: ' + f.directionLabel
+            // 카드와 모달이 같은 말을 써야 한다 (설계 I248) — 여기만 '유지'라고
+            // 하면 눌러서 '판단 보류'를 보게 된다
+            return '가격 전망: ' + this.forecastVerdictOf(f)
                 + (f.confidenceLabel ? ' (확신도 ' + f.confidenceLabel + ')' : '');
         },
 
@@ -4226,17 +4292,36 @@ function halley() {
          * LLM이 틀렸다는 뜻은 아니다. 일치할 때도 한 줄 남긴다: 아무 말이 없으면
          * 비교를 안 한 것인지 일치한 것인지 알 수 없다.
          */
+        /**
+         * 규칙 기반 계산은 뭐라 했는가 (설계 I249).
+         *
+         * <p><b>AI 가 판단을 보류했을 때도 말합니다.</b> 전에는 그때 이 문장을 통째로
+         * 건너뛰었는데, 하필 <b>그때가 가장 궁금한 순간</b>입니다 — AI 가 못 정했으면
+         * 다른 셈은 뭐라 했는지 보고 싶습니다.
+         *
+         * <p>기준은 {@code llmDirection}(AI 가 스스로 낸 결론)입니다.
+         * {@code direction} 은 규칙까지 거친 <b>최종</b> 결론이라, 그걸로 "AI 모델은…"
+         * 이라고 쓰면 <b>우리가 정한 것을 AI 가 말한 것처럼</b> 적게 됩니다.
+         */
         forecastCompareNote() {
             const d = this.forecastDetail;
-            if (!d || !d.codeDirection || d.direction === 'UNCERTAIN') {
+            if (!d || !d.codeDirection) {
                 return '';
             }
-            if (d.agreed) {
+            const code = this.DIRECTION_LABEL[d.codeDirection] || d.codeDirection;
+            const said = d.llmDirection;
+            // 옛 전망에는 llmDirection 이 없다 — 없는 것을 지어내지 않는다
+            if (!said) {
+                return `규칙 기반 계산은 ${code}였습니다.`;
+            }
+            if (said !== 'UP' && said !== 'DOWN') {
+                return `AI 모델은 판단을 보류했습니다. 규칙 기반 계산은 ${code}였습니다.`;
+            }
+            if (said === d.codeDirection) {
                 return '규칙 기반 계산도 같은 방향입니다.';
             }
-            const label = { UP: '상승', DOWN: '하락', FLAT: '횡보', UNCERTAIN: '판단 보류' };
-            return `AI 모델은 ${d.directionLabel}을 예측했지만 `
-                + `규칙 기반 계산은 ${label[d.codeDirection] || d.codeDirection}였음을 참고하십시오.`;
+            return `AI 모델은 ${this.DIRECTION_LABEL[said]}을 예측했지만 `
+                + `규칙 기반 계산은 ${code}였음을 참고하십시오.`;
         },
 
         /**

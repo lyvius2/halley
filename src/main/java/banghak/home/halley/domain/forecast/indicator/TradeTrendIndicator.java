@@ -30,6 +30,17 @@ public class TradeTrendIndicator implements PriceIndicator {
     /** 앞뒤로 비교할 구간의 길이(개월). 3개월이면 계절성에 덜 흔들린다. */
     private static final int WINDOW_MONTHS = 3;
     /**
+     * 3개월로 표본이 안 차면 여기까지 넓혀 본다 (설계 I252).
+     *
+     * <p><b>작은 단지가 늘 판단 보류였습니다.</b> 345세대 단지의 한 평형은 1년에
+     * 8건쯤 팔립니다 — 3개월 창에 3건은 채우기 어렵습니다. 그렇다고 표본 기준을
+     * 낮추면 <b>2건짜리 중앙값</b>을 추세라 부르게 되어 [I130]의 취지가 무너집니다.
+     *
+     * <p>기준을 낮추는 대신 <b>기간을 늘립니다.</b> "표본이 얇으니 더 긴 기간을
+     * 본다"는 정직한 대응이고, 넓혔다는 사실은 근거 문장에 적힙니다.
+     */
+    private static final int WIDE_WINDOW_MONTHS = 6;
+    /**
      * 이보다 표본이 적으면 <b>판단하지 않습니다.</b> 한 단지 한 면적대의 3개월 거래는
      * 흔히 3~10건입니다. 2건으로 낸 중앙값은 중앙값이라 부를 수 없습니다.
      */
@@ -56,24 +67,43 @@ public class TradeTrendIndicator implements PriceIndicator {
 
     @Override
     public Optional<PriceFactor> evaluate(ForecastInput input) {
-        final TradeStat recent = calculator.medianOf(input.property(), input.monthlyTrades(),
-                input.baseMonth(), 0, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
-        final TradeStat previous = calculator.medianOf(input.property(), input.monthlyTrades(),
-                input.baseMonth(), WINDOW_MONTHS, WINDOW_MONTHS, REPORTING_LAG_MONTHS);
-
-        if (recent.count() < MIN_SAMPLES || previous.count() < MIN_SAMPLES) {
-            // 표본이 얇으면 내지 않습니다. 억지로 방향을 주면 없는 신호를 만듭니다
+        // 3개월로 되면 그대로, 안 되면 6개월로 넓혀 한 번 더 본다 (설계 I252)
+        final Window window = widestThatFits(input);
+        if (window == null) {
+            // 넓혀도 표본이 얇으면 내지 않습니다. 억지로 방향을 주면 없는 신호를 만듭니다
             return Optional.empty();
         }
-        final BigDecimal change = recent.median()
-                .subtract(previous.median())
-                .divide(previous.median(), 6, RoundingMode.HALF_UP);
+        final BigDecimal change = window.recent().median()
+                .subtract(window.previous().median())
+                .divide(window.previous().median(), 6, RoundingMode.HALF_UP);
 
         return Optional.of(new PriceFactor(
                 "실거래 추세",
                 directionOf(change),
                 FactorWeight.HIGH,
-                evidence(recent, previous, change)));
+                evidence(window, change)));
+    }
+
+    /**
+     * 표본이 차는 <b>가장 좁은</b> 창을 고른다 (설계 I252).
+     *
+     * <p>좁을수록 최근을 잘 비춥니다. 3개월로 되면 굳이 넓히지 않습니다.
+     */
+    private Window widestThatFits(ForecastInput input) {
+        for (final int months : new int[]{WINDOW_MONTHS, WIDE_WINDOW_MONTHS}) {
+            final TradeStat recent = calculator.medianOf(input.property(), input.monthlyTrades(),
+                    input.baseMonth(), 0, months, REPORTING_LAG_MONTHS);
+            final TradeStat previous = calculator.medianOf(input.property(), input.monthlyTrades(),
+                    input.baseMonth(), months, months, REPORTING_LAG_MONTHS);
+            if (recent.count() >= MIN_SAMPLES && previous.count() >= MIN_SAMPLES) {
+                return new Window(months, recent, previous);
+            }
+        }
+        return null;
+    }
+
+    /** 어느 길이의 창으로 쟀는가. <b>넓혔다면 근거 문장이 그렇게 말한다</b> (설계 I252) */
+    private record Window(int months, TradeStat recent, TradeStat previous) {
     }
 
     private ForecastDirection directionOf(BigDecimal change) {
@@ -90,13 +120,16 @@ public class TradeTrendIndicator implements PriceIndicator {
      * 근거 문장. <b>표본 수를 반드시 넣습니다</b> — 3건으로 낸 판단과 30건으로 낸 판단은
      * 다르고, 사용자가 그것을 알아야 합니다.
      */
-    private String evidence(TradeStat recent, TradeStat previous, BigDecimal change) {
-        return String.format("직전 %d개월 중앙값 %s → 최근 %d개월 %s (%s%.1f%%, 표본 %d건 → %d건)",
-                WINDOW_MONTHS, WonFormat.of(previous.median().longValue()),
-                WINDOW_MONTHS, WonFormat.of(recent.median().longValue()),
+    private String evidence(Window window, BigDecimal change) {
+        final String widened = window.months() > WINDOW_MONTHS
+                ? " · 거래가 드물어 창을 넓혀 쟀습니다"
+                : "";
+        return String.format("직전 %d개월 중앙값 %s → 최근 %d개월 %s (%s%.1f%%, 표본 %d건 → %d건)%s",
+                window.months(), WonFormat.of(window.previous().median().longValue()),
+                window.months(), WonFormat.of(window.recent().median().longValue()),
                 change.signum() >= 0 ? "+" : "",
                 change.multiply(BigDecimal.valueOf(100)).doubleValue(),
-                previous.count(), recent.count());
+                window.previous().count(), window.recent().count(), widened);
     }
 
 

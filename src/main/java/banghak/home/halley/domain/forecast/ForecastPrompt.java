@@ -48,6 +48,8 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
             - evidence에는 위에 주어진 숫자만 인용하세요. 없는 숫자를 지어내지 마세요.
             - evidence는 한 문장, summary는 두세 문장으로 줄이세요. 길게 쓰면 답이 잘립니다.
             - 지표들이 서로 다른 방향을 가리키면 그 사실을 summary에 밝히고 confidence를 낮추세요.
+            - `※` 로 시작하는 줄은 지표가 아니라 왜 그 지표가 빠졌는지에 대한 메모입니다.
+              그 사실을 caveats에 옮기되, 거기 적힌 건수를 근거 삼아 방향을 정하지 마세요.
             - caveats에는 이 판단이 보지 못한 것을 적으세요. 정책 변화와 개별 단지의 수급은 알 수 없습니다.
             - 이것은 예측이며 틀릴 수 있습니다. 단정적인 표현을 쓰지 마세요.
             """;
@@ -57,6 +59,19 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
      *                보여 주면 모델이 끌려가 두 예측이 독립이 아니게 됩니다 (설계 4.5)
      */
     public static ForecastPrompt of(Property property, List<PriceFactor> factors, int horizonMonths) {
+        return of(property, factors, horizonMonths, null, null);
+    }
+
+    /**
+     * @param gapNote       실거래 지표가 <b>왜</b> 빠졌는지 (설계 I253). 없으면 null.
+     *                      이유를 안 알려 주면 모델이 <b>"인근 실거래 비교 자료가 없습니다"</b>
+     *                      처럼 <b>지어낸 추측</b>을 씁니다 — 실제로 그랬습니다
+     * @param yearlyMedians 5년이 어떤 모양으로 움직였는가 (설계 I255). 없으면 null.
+     *                      <b>지표가 아니라 읽을 재료</b>입니다 — 같은 +7.6% 라도
+     *                      꾸준히 오른 것과 올랐다 꺾인 것은 다른 이야기입니다
+     */
+    public static ForecastPrompt of(Property property, List<PriceFactor> factors,
+                                    int horizonMonths, String gapNote, String yearlyMedians) {
         final StringJoiner sb = new StringJoiner("\n");
         sb.add("[매물]");
         sb.add("단지명: " + text(property.name()));
@@ -79,6 +94,15 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
                 sb.add(String.format("- %s (%s) : %s",
                         factor.name(), factor.weight().label(), factor.evidence()));
             }
+        }
+        if (yearlyMedians != null && !yearlyMedians.isBlank()) {
+            sb.add("");
+            sb.add("[연도별 실거래 중앙값]  ※ 방향을 세는 지표가 아니라 흐름을 보는 자료다");
+            sb.add(yearlyMedians);
+        }
+        if (gapNote != null && !gapNote.isBlank()) {
+            // `※` 로 시작하는 줄은 지표가 아니라 메모다 — 시스템 프롬프트가 그렇게 못 박는다
+            sb.add("※ " + gapNote);
         }
         final String user = sb.toString();
         return new ForecastPrompt(String.format(SYSTEM, horizonMonths), user, numbersIn(user));

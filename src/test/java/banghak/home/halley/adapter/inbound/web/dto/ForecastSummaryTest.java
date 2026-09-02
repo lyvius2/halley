@@ -29,7 +29,7 @@ class ForecastSummaryTest {
         final PriceForecast uncertain = new PriceForecast(1L, 1L,
                 new PriceOutlook(ForecastDirection.UNCERTAIN, ForecastConfidence.LOW, 12,
                         List.of(), List.of()),
-                ForecastDirection.UNCERTAIN, "hash", "claude", Instant.now());
+                null, ForecastDirection.UNCERTAIN, "hash", "claude", Instant.now());
 
         final ForecastSummary summary = ForecastSummary.from(uncertain, false);
 
@@ -43,7 +43,7 @@ class ForecastSummaryTest {
         final PriceForecast stored = new PriceForecast(1L, 1L,
                 new PriceOutlook(ForecastDirection.UP, ForecastConfidence.HIGH, 12,
                         List.of(), List.of()),
-                ForecastDirection.UP, "hash", "claude", Instant.now());
+                null, ForecastDirection.UP, "hash", "claude", Instant.now());
 
         // 낸 적이 있는데 지금 또 돌고 있을 수 있다 (월간 재계산 · 다시 분석)
         assertThat(ForecastSummary.from(stored, true).stored()).isTrue();

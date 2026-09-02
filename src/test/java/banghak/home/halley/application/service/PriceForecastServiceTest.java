@@ -143,6 +143,89 @@ class PriceForecastServiceTest {
         assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.DOWN);
     }
 
+    /**
+     * <b>AI 가 방향을 말했으면 그대로 따릅니다</b> (설계 I249).
+     *
+     * <p>지표를 세면 하락인데 AI 는 상승이라 했습니다. 결론은 <b>상승</b>입니다 —
+     * 우리가 세는 것은 AI 가 <b>방향을 안 말했을 때</b>뿐입니다.
+     */
+    @Test
+    @DisplayName("AI 가 방향을 말하면 지표와 달라도 그대로 따른다 (설계 I249)")
+    void followsTheModelWhenItCommits() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UP","confidence":"HIGH",
+                 "factors":[
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"},
+                   {"name":"전세가율","effect":"DOWN","weight":"MEDIUM","evidence":"전세가율이 낮습니다"},
+                   {"name":"장기 추세","effect":"UP","weight":"MEDIUM","evidence":"완만히 올랐습니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction()).isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection())
+                .as("AI 가 뭐라 했는지 따로 남겨야 '유력'을 가릴 수 있다")
+                .isEqualTo(ForecastDirection.UP);
+    }
+
+    /**
+     * <b>AI 가 판단을 보류하면 우리가 셉니다</b> (설계 I249).
+     *
+     * <p>실제로 겪은 화면입니다 — 지표는 ▲▼▼▲ 인데 결론만 판단 보류였습니다.
+     * 세어 보면 2:2 동수이고, <b>동수면 상승</b>입니다.
+     */
+    @Test
+    @DisplayName("AI 가 보류하면 지표를 세어 정한다 — 동수면 상승 (설계 I249)")
+    void countsWhenTheModelAbstains() {
+        stub(new AtomicReference<>(), """
+                {"direction":"UNCERTAIN","confidence":"LOW",
+                 "factors":[
+                   {"name":"장기 가격 추세","effect":"UP","weight":"MEDIUM","evidence":"완만히 올랐습니다"},
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"},
+                   {"name":"낮은 전세가율","effect":"DOWN","weight":"MEDIUM","evidence":"전세가율이 낮습니다"},
+                   {"name":"정비 기대","effect":"UP","weight":"LOW","evidence":"노후 대단지입니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction())
+                .as("무게로 세면 하락(4:3)이지만 머릿수로는 2:2 동수다")
+                .isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection()).isEqualTo(ForecastDirection.UNCERTAIN);
+        assertThat(verdict.conclusion().confidence())
+                .as("우리가 대신 정했으면 확신도를 낮춘다")
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+    }
+
+    /**
+     * <b>유지도 "방향을 말한 것"이 아닙니다</b> (설계 I248 · I249).
+     *
+     * <p>규칙 1에서 <b>유지 = 판단 보류</b>로 합쳤습니다. 그러니 AI 가 `FLAT` 을 내도
+     * 우리가 셉니다 — 파서가 AI 의 "모르겠다"를 `FLAT` 으로 바꿔 넣고 있어([I247])
+     * `FLAT` 은 이미 <b>모름의 하치장</b>입니다.
+     */
+    @Test
+    @DisplayName("AI 가 유지라 해도 지표를 센다 — 유지는 방향을 말한 것이 아니다 (설계 I249)")
+    void countsWhenTheModelSaysFlat() {
+        stub(new AtomicReference<>(), """
+                {"direction":"FLAT","confidence":"HIGH",
+                 "factors":[
+                   {"name":"장기 추세","effect":"UP","weight":"MEDIUM","evidence":"올랐습니다"},
+                   {"name":"실거래 추세","effect":"UP","weight":"HIGH","evidence":"오릅니다"},
+                   {"name":"금리 국면","effect":"DOWN","weight":"MEDIUM","evidence":"금리가 오릅니다"}],
+                 "summary":"","caveats":[]}""");
+
+        final var verdict = service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+        assertThat(verdict.conclusion().direction())
+                .as("유지를 결론으로 받아들이면 판단 보류가 다시 쌓인다")
+                .isEqualTo(ForecastDirection.UP);
+        assertThat(verdict.llmDirection()).isEqualTo(ForecastDirection.FLAT);
+        assertThat(verdict.conclusion().confidence())
+                .as("우리가 대신 정했으면 확신도를 낮춘다")
+                .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
+    }
+
     @Test
     @DisplayName("실거래 표본이 없으면 지표를 세어 말하되 확신도는 낮춘다 (설계 I234)")
     void fallsBackToAMajorityReadWhenSamplesTooFew() {
@@ -161,8 +244,8 @@ class PriceForecastServiceTest {
         assertThat(verdict.conclusion().confidence())
                 .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
         assertThat(verdict.conclusion().caveats())
-                .anyMatch(c -> c.contains("표본이 3건 미만"))
-                .anyMatch(c -> c.contains("확신이 있어서가 아닙니다"));
+                .anyMatch(c -> c.contains("실거래 지표를 넣지 못했습니다"))
+                .anyMatch(c -> c.contains("여러 달에 흩어져 있습니다"));
     }
 
     /**
@@ -232,7 +315,8 @@ class PriceForecastServiceTest {
         // 그건 이 매물의 실거래가 아니다 — 방향은 말하되 <b>확신도는 LOW</b> 다
         assertThat(verdict.conclusion().confidence())
                 .isEqualTo(banghak.home.halley.domain.forecast.ForecastConfidence.LOW);
-        assertThat(verdict.conclusion().caveats()).anyMatch(c -> c.contains("표본이 3건 미만"));
+        assertThat(verdict.conclusion().caveats())
+                .anyMatch(c -> c.contains("실거래 지표를 넣지 못했습니다"));
     }
 
     @Test
@@ -277,8 +361,8 @@ class PriceForecastServiceTest {
         final var outlook = PriceOutlook.uncertain(12, List.of());
         final var prompt = ForecastPrompt.of(property(), List.of(), 12);
 
-        final var failed = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, false);
-        final var answered = new PriceForecastService.ForecastVerdict(outlook, outlook, prompt, true);
+        final var failed = new PriceForecastService.ForecastVerdict(outlook, outlook, null, prompt, false);
+        final var answered = new PriceForecastService.ForecastVerdict(outlook, outlook, null, prompt, true);
 
         // then — 프롬프트가 있다고 해시를 남기면 안 된다. 그 둘은 다른 얘기다
         assertThat(PriceForecastService.hashToStore(failed)).isNull();
@@ -290,12 +374,34 @@ class PriceForecastServiceTest {
         assertThat(PriceForecastService.modelToStore(answered, "claude")).isEqualTo("claude");
     }
 
+    /**
+     * <b>규칙을 고치면 해시가 달라져야 합니다</b> (설계 I250).
+     *
+     * <p>[I59]의 "같은 입력이면 다시 안 묻는다"가 <b>입력이 같아도 규칙이 바뀌면
+     * 다시 내야 한다</b>는 경우를 못 가렸습니다. 프롬프트만 해싱하면 판정 규칙을
+     * 아무리 고쳐도 해시가 같아, <b>새 판정을 계산해 놓고 버립니다.</b>
+     */
+    @Test
+    @DisplayName("해시에 판정 규칙 판 번호가 섞여 있다 (설계 I250)")
+    void hashCarriesTheRulesVersion() {
+        final var outlook = PriceOutlook.uncertain(12, List.of());
+        final var prompt = ForecastPrompt.of(property(), List.of(), 12);
+        final var verdict = new PriceForecastService.ForecastVerdict(
+                outlook, outlook, ForecastDirection.UP, prompt, true);
+
+        final String hash = PriceForecastService.hashToStore(verdict);
+
+        assertThat(hash)
+                .as("프롬프트만 해싱하면 규칙을 고쳐도 옛 결론이 그대로 남는다")
+                .isNotEqualTo(PriceForecastService.sha256(prompt.full()));
+    }
+
     @Test
     @DisplayName("아예 묻지 않았어도 해시는 없다 — 프롬프트 자체가 없다")
     void noHashWhenNeverAsked() {
         final var outlook = PriceOutlook.uncertain(12, List.of());
         assertThat(PriceForecastService.hashToStore(
-                new PriceForecastService.ForecastVerdict(outlook, outlook, null, false))).isNull();
+                new PriceForecastService.ForecastVerdict(outlook, outlook, null, null, false))).isNull();
     }
 
     // ── 도우미 ─────────────────────────────────────────────
@@ -323,18 +429,21 @@ class PriceForecastServiceTest {
      * 그래야 LLM을 부르고 안전장치가 도는지 볼 수 있다.
      */
     /**
-     * 장기 표본은 넉넉한데 <b>최근 석 달만</b> 한산한 경우 (설계 I151).
+     * 장기 표본은 넉넉한데 <b>최근 반년만</b> 한산한 경우 (설계 I151 · I252).
      *
-     * <p>실거래 추세(3개월 창)는 안 나오고 장기 추세(12개월 창 둘)는 나온다 —
+     * <p>실거래 추세는 안 나오고 장기 추세(12개월 창 둘)는 나온다 —
      * 이것이 §2.2-A 를 좁게 구현했을 때 애꿎게 덮이던 자리다.
+     *
+     * <p><b>여섯 달을 비웁니다.</b> 석 달만 비우면 [I252]에서 창을 6개월로 넓혀
+     * 실거래 추세가 나와 버려, 이 테스트가 보려던 상태가 안 만들어집니다.
      */
     private ForecastInput longTermOnlyInput() {
         final List<MonthlyTrades> months = new ArrayList<>();
         for (int m = 61; m >= 1; m--) {
-            // 최근 3개월(1·2·3개월 전)에 1 + 1 + 0 = 2건만. 나머지 달은 3건씩
+            // 최근 6개월에 1 + 1 = 2건만. 나머지 달은 3건씩
             final int count = switch (m) {
                 case 1, 2 -> 1;
-                case 3 -> 0;
+                case 3, 4, 5, 6 -> 0;
                 default -> 3;
             };
             // 4년에 걸쳐 오른다 — 장기 추세가 UP 을 낸다

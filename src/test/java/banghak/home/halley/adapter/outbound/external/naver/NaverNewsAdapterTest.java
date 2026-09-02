@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.outbound.external.naver;
 
+import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.domain.news.NewsArticle;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -7,8 +8,11 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 @DisplayName("네이버 뉴스 어댑터 (설계 I137)")
@@ -30,8 +34,16 @@ class NaverNewsAdapterTest {
                "description":"…","pubDate":"Sun, 03 May 2026 14:30:00 +0900"}]}
             """;
 
+    /** 늘 비어 있는 캐시 — 담아 두기가 이 테스트들이 보는 것을 가리지 않게 한다 */
+    private CachePort missingCache() {
+        final CachePort cache = mock(CachePort.class);
+        given(cache.get(any(), any())).willReturn(Optional.empty());
+        return cache;
+    }
+
     private NaverNewsAdapter adapter(String id, String secret) {
-        return new NaverNewsAdapter(mock(NaverSearchFeignClient.class), objectMapper, id, secret);
+        return new NaverNewsAdapter(mock(NaverSearchFeignClient.class), objectMapper,
+                missingCache(), id, secret);
     }
 
     @Test
@@ -79,9 +91,9 @@ class NaverNewsAdapterTest {
         final NaverSearchFeignClient boom = (a, b, c, d, e) -> {
             throw new AssertionError("불리면 안 된다");
         };
-        assertThat(new NaverNewsAdapter(boom, objectMapper, "", "s").search("동탄", 10)).isEmpty();
-        assertThat(new NaverNewsAdapter(boom, objectMapper, "i", "").search("동탄", 10)).isEmpty();
-        assertThat(new NaverNewsAdapter(boom, objectMapper, "i", "s").search("  ", 10)).isEmpty();
+        assertThat(new NaverNewsAdapter(boom, objectMapper, missingCache(), "", "s").search("동탄", 10)).isEmpty();
+        assertThat(new NaverNewsAdapter(boom, objectMapper, missingCache(), "i", "").search("동탄", 10)).isEmpty();
+        assertThat(new NaverNewsAdapter(boom, objectMapper, missingCache(), "i", "s").search("  ", 10)).isEmpty();
     }
 
     @Test
@@ -93,7 +105,7 @@ class NaverNewsAdapterTest {
             return BODY;
         };
 
-        new NaverNewsAdapter(client, objectMapper, "i", "s").search("동탄역", 10);
+        new NaverNewsAdapter(client, objectMapper, missingCache(), "i", "s").search("동탄역", 10);
 
         assertThat(sort[0]).isEqualTo("date");
     }

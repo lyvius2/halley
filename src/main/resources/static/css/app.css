@@ -1157,6 +1157,15 @@ tr.dragging { opacity: .5; background: var(--line2); }
     cursor: pointer;
     flex: 0 0 auto;
 }
+/* AI 와 지표 셈이 따로 같은 결론에 닿았다 (설계 I249). 결론 옆에 작게 붙는다 —
+   크게 쓰면 그것부터 읽히고, 유력은 결론이 아니라 결론에 대한 말이다 */
+.forecast-strong {
+    margin-left: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink3);
+    letter-spacing: -.2px;
+}
 .forecast-arrow.up   { color: #d4342c; }
 .forecast-arrow.down { color: #1f5fbf; }
 .forecast-arrow.flat { color: var(--ink2); }
