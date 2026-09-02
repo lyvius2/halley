@@ -72,6 +72,35 @@ public class VirtualThreadGate {
         }
     }
 
+    /**
+     * 맡겨 놓고 <b>기다리지 않는다</b> (설계 I262).
+     *
+     * <p>{@link #runAll} 은 이름 그대로 <b>전부 끝날 때까지 붙잡습니다.</b> 그런데
+     * [I259]에서 "화면은 기다리지 않는다"고 써 놓고 그 함수를 불렀습니다 — 요청 하나가
+     * 12개월치를 다 받을 때까지 붙잡혀 있다가, 그러고 나서 "받아 오는 중입니다"라고
+     * 답했습니다. <b>기다리지 않으려면 기다리지 않는 함수가 있어야 합니다.</b>
+     *
+     * <p>결과도 예외도 돌려주지 않습니다. 맡기는 쪽이 스스로 기록해야 합니다.
+     */
+    public void detach(Runnable task) {
+        Thread.ofVirtual().name(name + "-detached", 0).start(() -> {
+            try {
+                permits.acquire();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+            try {
+                task.run();
+            } catch (RuntimeException e) {
+                // 아무도 안 보고 있다. 여기서 안 남기면 <b>조용히 사라진다</b>
+                log.warn("Detached task failed. gate={}, cause={}", name, e.toString(), e);
+            } finally {
+                permits.release();
+            }
+        });
+    }
+
     private <T> T call(Callable<T> task) throws Exception {
         // 자리를 잡은 뒤에 부른다. 가상 스레드는 여기서 멈춰도 운반 스레드를 붙잡지 않는다
         permits.acquire();
