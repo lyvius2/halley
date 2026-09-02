@@ -373,6 +373,28 @@ class PriceForecastServiceTest {
         assertThat(PriceForecastService.modelToStore(answered, "claude")).isEqualTo("claude");
     }
 
+    /**
+     * <b>규칙을 고치면 해시가 달라져야 합니다</b> (설계 I250).
+     *
+     * <p>[I59]의 "같은 입력이면 다시 안 묻는다"가 <b>입력이 같아도 규칙이 바뀌면
+     * 다시 내야 한다</b>는 경우를 못 가렸습니다. 프롬프트만 해싱하면 판정 규칙을
+     * 아무리 고쳐도 해시가 같아, <b>새 판정을 계산해 놓고 버립니다.</b>
+     */
+    @Test
+    @DisplayName("해시에 판정 규칙 판 번호가 섞여 있다 (설계 I250)")
+    void hashCarriesTheRulesVersion() {
+        final var outlook = PriceOutlook.uncertain(12, List.of());
+        final var prompt = ForecastPrompt.of(property(), List.of(), 12);
+        final var verdict = new PriceForecastService.ForecastVerdict(
+                outlook, outlook, ForecastDirection.UP, prompt, true);
+
+        final String hash = PriceForecastService.hashToStore(verdict);
+
+        assertThat(hash)
+                .as("프롬프트만 해싱하면 규칙을 고쳐도 옛 결론이 그대로 남는다")
+                .isNotEqualTo(PriceForecastService.sha256(prompt.full()));
+    }
+
     @Test
     @DisplayName("아예 묻지 않았어도 해시는 없다 — 프롬프트 자체가 없다")
     void noHashWhenNeverAsked() {

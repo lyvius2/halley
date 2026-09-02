@@ -4110,7 +4110,10 @@ function halley() {
             if (!f || f.running) {
                 return false;
             }
-            return !f.stored || f.direction === 'UNCERTAIN';
+            // 유지 = 판단 보류다 (설계 I248). 둘 다 "방향을 못 정한 것"이니
+            // 둘 다 다시 시킬 수 있어야 한다 — 하나만 열어 두면 같은 상태인데
+            // 어떤 것은 눌리고 어떤 것은 안 눌린다
+            return !f.stored || f.direction === 'UNCERTAIN' || f.direction === 'FLAT';
         },
 
         forecastPriceTitle(scored) {

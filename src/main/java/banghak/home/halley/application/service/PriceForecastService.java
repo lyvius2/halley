@@ -173,6 +173,24 @@ public class PriceForecastService {
     }
 
     /**
+     * 판정 규칙 판 번호 (설계 I250).
+     *
+     * <p><b>규칙을 고치면 이 값을 올립니다.</b> 그러면 해시가 달라져 전부 다시 냅니다.
+     *
+     * <p>[I59]의 "같은 입력이면 다시 안 묻는다"는 <b>입력이 같아도 규칙이 바뀌면
+     * 다시 내야 한다</b>는 경우를 못 가렸습니다. [I234]에서 다수결을 넣고,
+     * [I248]에서 셈법을 다시 짜고, [I249]에서 AI 우선을 넣었는데 — 지표가 그대로면
+     * 프롬프트도 그대로라 해시가 같았고, <b>새 판정을 계산해 놓고 버렸습니다.</b>
+     * 그래서 화면은 몇 번을 고쳐도 옛 결론 그대로였습니다.
+     *
+     * <p>채점이 {@code scoreVersion} 으로 푼 문제와 같습니다([I85]).
+     *
+     * <p><b>프롬프트를 고칠 때는 안 올려도 됩니다</b> — 그건 해시가 이미 잡습니다.
+     * 올릴 때는 <b>지표를 읽는 방식이나 결론을 정하는 방식</b>이 바뀌었을 때입니다.
+     */
+    private static final String VERDICT_RULES_VERSION = "I249";
+
+    /**
      * 저장할 프롬프트 해시 (설계 I145).
      *
      * <p><b>답을 받았을 때만 남깁니다.</b> 실패한 호출에 해시를 붙이면 다음 호출이
@@ -182,7 +200,7 @@ public class PriceForecastService {
      * 400을 맞아도, 답이 읽히지 않아도 프롬프트는 남습니다.
      */
     static String hashToStore(ForecastVerdict verdict) {
-        return verdict.llmAnswered() ? sha256(verdict.prompt().full()) : null;
+        return verdict.llmAnswered() ? sha256(VERDICT_RULES_VERSION + "\n" + verdict.prompt().full()) : null;
     }
 
     /**
@@ -265,7 +283,7 @@ public class PriceForecastService {
                 ledger);
     }
 
-    private static String sha256(String value) {
+    static String sha256(String value) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8)));
