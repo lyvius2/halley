@@ -349,28 +349,60 @@ HALLEY_CACHE_REFERENCE_ENABLED=true   docker compose up -d halley
 
 ### 5.2 커넥션이 마르는가 — §4.1 의 400:10
 
-코드를 안 고치고 HikariCP 가 30초마다 찍게 합니다.
+**아무것도 안 하셔도 됩니다.** 감시가 앱 안에서 돕니다 (설계 I243).
+
+```
+ENRICHMENT_MAX_CONCURRENCY: 400   보정이 동시에 400개
+maximum-pool-size: 10             커넥션은 10개
+connection-timeout: 3000          3초 안에 못 받으면 실패
+```
+
+보정은 외부 API 대기가 대부분이라 커넥션을 잠깐만 쥡니다 — **아마** 문제없습니다.
+마르면 그 보정은 3초 뒤 실패하고, **실패한 보정은 로그만 남깁니다.**
+사용자 눈에는 <b>"왜 얘만 채점이 안 됐지"</b> 로 보입니다.
+
+#### 볼 것
+
+`ConnectionPoolWatch` 가 1초마다 보고, **줄 선 것이 셋을 넘을 때만** 말합니다.
+
+```
+WARN  Connection pool is running dry - enrichment may start failing at the 3s timeout.
+      waiting=7, active=10, total=10. Lower ENRICHMENT_MAX_CONCURRENCY before raising the pool.
+```
+
+그리고 매일 새벽 5시에, **볼 것이 있을 때만** 최고치를 남깁니다.
+
+```
+INFO  Connection pool high-water mark since the last report: waiting=7, active=10, total=10
+```
+
+| 로그 | 뜻 | 할 일 |
+|---|---|---|
+| 아무것도 없다 | 줄 선 적이 없거나 둘 이하 | **아무것도 안 합니다** |
+| high-water 만 가끔 | 스쳤지만 위험선 아래 | 그대로 둡니다 |
+| WARN 이 반복 | 실제로 마르고 있음 | `ENRICHMENT_MAX_CONCURRENCY` 를 400 → 50 |
+
+> **풀부터 늘리지 마십시오.** 400개가 동시에 DB 를 두드리는 것이 정상인지부터
+> 물어야 합니다. 그 400은 <b>외부 API 동시 호출 상한</b>으로 잡은 값이지([I108])
+> DB 를 생각하고 정한 값이 아닙니다.
+
+#### 왜 HikariCP 의 DEBUG 로그를 안 쓰나
+
+처음엔 코드를 안 고쳐도 되는 그쪽을 권했습니다. **틀린 권고였습니다.**
 
 ```yaml
 logging:
   level:
-    com.zaxxer.hikari.pool.HikariPool: DEBUG
+    com.zaxxer.hikari.pool.HikariPool: DEBUG   # 30초마다 찍는다
 ```
 
-```
-Pool stats (total=10, active=1, idle=9, waiting=0)
-                                            ^^^^^^^ 이것만 봅니다
-```
+**보정 폭주는 몇 초짜리입니다.** 두 샘플 사이에 일어나면 통째로 안 보이고,
+그러면 하루 내내 `waiting=0` 만 보고 <b>"문제없다"고 잘못 결론</b>냅니다.
+못 본 것을 없었던 것으로 읽는 것 — 이 프로젝트가 반복해서 겪은 실패입니다
+([I219] 10건만 받고 있었다).
 
-**매물을 여러 건 한꺼번에 등록하면서** 봅니다 — 보정 400개가 도는 순간입니다.
-
-| `waiting` | 할 일 |
-|---|---|
-| 늘 0 | **아무것도 안 합니다.** 400:10 은 문제가 아니었습니다 |
-| 가끔 1~2 | 그대로 둡니다. 잠깐 줄 서는 것은 정상입니다 |
-| 꾸준히 3 이상 | `ENRICHMENT_MAX_CONCURRENCY` 를 <b>먼저</b> 낮춥니다 (400 → 50). 풀을 늘리는 것은 그다음입니다 |
-
-> **풀부터 늘리지 마십시오.** 400개가 동시에 DB 를 두드리는 것이 정상인지부터 물어야 합니다.
+1초로 봅니다. `connection-timeout` 이 3초라 **1초를 못 넘기는 대기는 애초에
+아무도 못 죽입니다** — 해가 될 수 있는 것은 전부 걸립니다.
 
 ### 5.3 느린 쿼리가 남아 있는가
 
