@@ -40,15 +40,15 @@ import java.util.function.Supplier;
  * 이 클래스를 쓸 때 운영의 Redis 는 실제로 죽어 있었습니다 — 그 상태에서도 채점과
  * 대출 계산은 돌았습니다. Redis 컨테이너를 내려도 마찬가지여야 합니다.
  *
- * <h4>이득이 줄었습니다 (설계 I242)</h4>
+ * <h4>DB 가 가까워져도 씁니다 (설계 I242)</h4>
  *
- * <p>PostgreSQL·Redis 가 <b>앱과 같은 EC2 안 Docker</b> 로 왔습니다. 14행짜리 표를
- * Postgres 에 묻는 것과 Redis 에 묻고 JSON 을 푸는 것이 <b>이제 비슷합니다</b> —
- * 이 캐시를 정당화하던 "왕복 20ms"가 사라졌습니다.
+ * <p>PostgreSQL·Redis 가 <b>앱과 같은 EC2 안 Docker</b> 로 오면서 왕복이 20ms 에서
+ * 1ms 아래로 내려갔습니다. <b>그렇다고 걷어낼 이유는 되지 않습니다</b> — 왕복이
+ * 싸졌다고 해서 사람이 안 건드리는 표를 요청마다 다시 물을 이유가 생기지는 않습니다.
  *
- * <p>걷어내지 않은 것은 <b>아직 재지 않았기</b> 때문입니다. 무효화는 촘촘하고
- * (쓰기마다 · 커밋 뒤 한 번 더) 실패해도 값은 오므로 위험하지는 않습니다.
- * {@code ADJUST_CACHE.md} §5의 측정 뒤에 남길지 정합니다.
+ * <p>다만 나중에 "느린 게 캐시 탓인가"를 물을 때 가를 수 있어야 하므로
+ * {@code halley.cache.reference.enabled} 로 껐다 켤 수 있습니다. <b>기본은 켜짐</b>이고,
+ * 꺼도 답은 같습니다.
  */
 @Slf4j
 @Component
@@ -70,14 +70,17 @@ public class ReferenceDataCache {
     private final ObjectMapper objectMapper;
 
     /**
-     * 담아 두기를 끌 수 있게 한다 (설계 I242).
+     * 담아 두기를 끌 수 있게 한다 (설계 I242). <b>기본은 켜짐입니다.</b>
      *
-     * <p>DB 가 같은 호스트로 온 뒤 <b>이 캐시가 실제로 얼마나 버는지 모릅니다.</b>
-     * 켠 채로만 재면 비교할 것이 없습니다 — 같은 빌드로 껐다 켜며 재야
-     * 남길지 걷어낼지 정할 수 있습니다({@code ADJUST_CACHE.md} §5).
+     * <p>끄는 것은 <b>재거나 의심할 때</b>뿐입니다 — "느린 게 캐시 탓인가"는
+     * 켠 채로만 재면 가를 수 없습니다({@code ADJUST_CACHE.md} §5.1).
      *
      * <p>꺼도 <b>동작은 같습니다.</b> 늘 원본에서 읽을 뿐입니다 — 무효화가 없으니
      * 낡은 값이 나올 일도 없습니다.
+     *
+     * <p>값은 {@code application.yaml} 에 {@code ${HALLEY_CACHE_REFERENCE_ENABLED:true}}
+     * 로 <b>적혀 있습니다.</b> 여기 {@code @Value} 에만 두면 grep 으로 안 잡혀
+     * <b>문서에만 있는 스위치</b>가 됩니다 — 실제로 한 번 그랬습니다.
      */
     private final boolean enabled;
 

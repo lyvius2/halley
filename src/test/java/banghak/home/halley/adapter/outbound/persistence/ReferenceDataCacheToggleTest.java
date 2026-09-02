@@ -22,6 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>끈 쪽은 <b>느리기만 하고 답은 같아야</b> 합니다. 껐더니 값이 달라지면
  * 비교 자체가 무의미합니다.
+ *
+ * <p><b>기본은 켜짐입니다.</b> 캐시를 걷어낼 이유는 없습니다 — 왕복이 싸졌다고
+ * 사람이 안 건드리는 표를 요청마다 다시 물을 이유가 생기는 것은 아닙니다.
+ *
+ * <p>스위치가 <b>실제로 꽂혀 있는지</b>는 {@link ReferenceDataCacheWiringTest} 가 봅니다.
+ * 여기서는 클래스를 직접 만들어 보므로, {@code @Value} 의 키를 틀려도 안 걸립니다.
  */
 @DisplayName("기준 정보 캐시 켜고 끄기 (설계 I242)")
 class ReferenceDataCacheToggleTest {

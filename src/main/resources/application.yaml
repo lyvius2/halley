@@ -268,6 +268,12 @@ enrichment:
   # 거절되지 않고 자리가 날 때까지 기다린다
   max-concurrency: ${ENRICHMENT_MAX_CONCURRENCY:400}
 
+halley:
+  cache:
+    reference:
+      # 기준 정보 캐시 (설계 I239). 끄면 늘 원본에서 읽는다 — 답은 같다
+      enabled: ${HALLEY_CACHE_REFERENCE_ENABLED:true}
+
 membership:
   sign-up:
     open: ${MEMBERSHIP_SIGN_UP_OPEN:true}
