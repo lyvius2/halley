@@ -8,6 +8,7 @@ import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.ComplexMatch;
+import banghak.home.halley.domain.property.JibunAddress;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceDealType;
 import banghak.home.halley.domain.property.ReferenceSource;
@@ -27,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -112,7 +114,7 @@ public class ReferenceTransactionService {
                     ? legalDongCode
                     : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null));
         }
-        // 화면은 기다리지 않는다. 다음에 열면 채워져 있다
+        // 화면은 기다리지 않는다. <b>받아 오는 중이라고 말하고</b> 화면이 다시 묻는다 (설계 I259)
         gate.runAll(List.of(() -> {
             try {
                 collect(property, legalDongCode, null);
@@ -122,7 +124,8 @@ public class ReferenceTransactionService {
             }
             return null;
         }));
-        return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, null);
+        return ReferenceCardResponse.looking(property.priceDeposit(), lookbackMonths,
+                legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null));
     }
 
     /**
@@ -207,6 +210,10 @@ public class ReferenceTransactionService {
 
         // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
         cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
+        // <b>무엇과 무엇을 비교했는지</b> 남긴다 (설계 I260).
+        // "0건 맞음"만으로는 이름이 다른 건지, 동·번지가 안 온 건지, 우리 주소를
+        // 못 읽은 건지 알 수 없다 — 실제로 그것 때문에 원인을 못 짚었다
+        logSamples(property, trades);
         log.info("No reference trades matched. propertyId={}, name={}, areaM2={}, fetched={}, "
                         + "nameMatched={}, otherAreas={}",
                 propertyId, property.name(), property.areaExclusiveM2(), trades.size(),
@@ -277,6 +284,28 @@ public class ReferenceTransactionService {
         return diff / property.areaExclusiveM2().doubleValue() <= AREA_TOLERANCE;
     }
 
+    /**
+     * 왜 하나도 안 맞았는지 <b>실물을 보여 준다</b> (설계 I260).
+     *
+     * <p>수만 세는 로그로는 원인을 못 짚습니다. 우리가 읽은 주소와, 국토부가 준
+     * 거래 몇 건의 <b>이름·동·번지</b>를 같이 남깁니다 — 같은 동의 것을 먼저 보여
+     * 줍니다. 동이 다른 것은 어차피 남입니다.
+     */
+    private void logSamples(Property property, List<ReferenceTrade> trades) {
+        final Optional<JibunAddress> mine = JibunAddress.of(property.addressJibun());
+        final List<ReferenceTrade> sameDong = trades.stream()
+                .filter(t -> mine.isPresent() && t.lot().map(mine.get()::sameDong).orElse(false))
+                .toList();
+        final List<ReferenceTrade> samples = sameDong.isEmpty() ? trades : sameDong;
+        log.info("Reference match diagnostics. propertyId={}, myAddress={}, myLot={}, "
+                        + "sameDongCount={}, samples=[{}]",
+                property.id(), property.addressJibun(), mine.orElse(null), sameDong.size(),
+                samples.stream().limit(5)
+                        .map(t -> String.format("%s|%s %s|%s", t.apartmentName(),
+                                t.legalDong(), t.jibun(), t.areaM2()))
+                        .collect(Collectors.joining(" · ")));
+    }
+
     private ReferenceCardResponse toCard(Property property, List<ReferenceTransaction> transactions,
                                          String lawdCd) {
         return toCard(property, transactions, lawdCd, transactions.size(), transactions.size(), false);
@@ -292,13 +321,13 @@ public class ReferenceTransactionService {
         final Long asking = property.priceDeposit();
         if (isComputeGapRate(asking, list)) {
             return new ReferenceCardResponse(list, asking, null, null, lookbackMonths, lawdCd,
-                    fetched, nameMatched, areaMismatch);
+                    fetched, nameMatched, areaMismatch, false);
         }
         final long latest = list.getFirst().price();
         final BigDecimal gap = BigDecimal.valueOf((asking - latest) * 100.0 / latest).setScale(1, RoundingMode.HALF_UP);
         // 다른 평형과 견준 괴리는 뜻이 없다 (설계 I232)
         return new ReferenceCardResponse(list, asking, areaMismatch ? null : gap, null,
-                lookbackMonths, lawdCd, fetched, nameMatched, areaMismatch);
+                lookbackMonths, lawdCd, fetched, nameMatched, areaMismatch, false);
     }
 
     private static boolean isComputeGapRate(Long asking, List<ReferenceTransactionResponse> list) {
