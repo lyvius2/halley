@@ -73,6 +73,56 @@ class MinistryErrorResponseTest {
                 .isNull();
     }
 
+    /**
+     * <b>실물이 이렇습니다</b> (설계 I258).
+     *
+     * <pre>
+     * resultCode=000, resultMsg=OK
+     * </pre>
+     *
+     * <p>[I251]에서 정상 코드를 {@code 00}·{@code 0}·{@code INFO-000} 으로 잡았는데
+     * <b>{@code 000} 은 목록에 없었습니다.</b> 그래서 <b>정상 응답을 전부 버리고</b>
+     * 있었습니다 — 아무 데이터도 안 쌓였습니다.
+     *
+     * <p>실물을 안 보고 코드 이름을 추측한 것이 원인입니다.
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"000", "00", "0", "0000", "INFO-000", "INFO-00"})
+    @DisplayName("0으로만 이뤄진 코드는 정상이다 — 실물은 000 이었다")
+    void treatsAllZeroCodesAsSuccess(String code) {
+        // <b>totalCount 를 일부러 뺍니다.</b> 넣으면 그 그물에 걸려 통과해 버려
+        // <b>코드 규칙을 재지 못합니다</b> — 처음에 그렇게 짰다가 돌연변이가 살아남았습니다
+        final String noTotalCount = """
+                <response><header>
+                  <resultCode>%s</resultCode><resultMsg>OK</resultMsg>
+                </header><body><items/></body></response>
+                """.formatted(code);
+
+        assertThat(adapter(noTotalCount).fetchTrades("11290", "202608"))
+                .as("정상인데 버리면 아무 데이터도 안 쌓인다")
+                .isNotNull();
+    }
+
+    /**
+     * 코드 이름을 열거하는 방식은 <b>한 번 틀렸습니다</b> (설계 I258).
+     * 못 맞혀도 <b>본문이 왔으면 정상</b>으로 봅니다 — 오류 응답에는 body 가 없습니다.
+     */
+    @Test
+    @DisplayName("모르는 코드라도 본문이 왔으면 저장한다")
+    void trustsARealBodyOverAnUnknownCode() {
+        final String unknownButReal = """
+                <response><header>
+                  <resultCode>NORMAL-SERVICE</resultCode><resultMsg>정상</resultMsg>
+                </header><body><items>
+                  <item><aptNm>송산</aptNm><excluUseAr>58.59</excluUseAr>
+                        <dealAmount> 70,000</dealAmount><dealYear>2026</dealYear>
+                        <dealMonth>7</dealMonth><dealDay>14</dealDay><floor>18</floor></item>
+                </items><totalCount>1</totalCount></body></response>
+                """;
+
+        assertThat(adapter(unknownButReal).fetchTrades("11290", "202607")).hasSize(1);
+    }
+
     @Test
     @DisplayName("정상인데 0건이면 0건으로 저장한다 — 그건 실패가 아니다")
     void keepsAGenuineZero() {
