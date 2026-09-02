@@ -2,6 +2,15 @@
 
 > **최종 갱신**: 2026-09-02 · 실측 기반.
 
+> ## ⚠️ 이 문서의 전제가 바뀌었습니다 (2026-09-02 · 설계 I242)
+>
+> PostgreSQL·Redis 를 **앱과 같은 EC2 안 Docker** 로 옮겼습니다. 아래 숫자와 권고 중
+> **왕복 20ms · 무료 등급 `max_connections` · "Redis 가 죽어 있다"** 를 전제로 한
+> 부분은 <b>더는 맞지 않습니다.</b> 해당 절에 표시해 두었습니다.
+>
+> **구조에 관한 결론(§1 N+1 제거)은 그대로입니다** — 왕복이 빨라져도
+> `1 + 매물 수`는 잘못된 구조이고, 빨라진 만큼 안 보일 뿐입니다.
+
 > **N+1 제거(§1)는 적용했습니다**(I124 — 3건 28회 → 8회).
 > **§2.1(기준 정보 캐시)도 적용했습니다**(I239). 다만 그 전에 <b>N+1이 다시 생겨 있었고</b>,
 > 그것부터 걷어냈습니다(I238 — 매물 6건에 `criterion_weight` 7회).
@@ -55,7 +64,11 @@
 | `editVersionStore.current` | 2 | Redis (지금은 실패 → 폴백) |
 
 **매물 1건당 약 9회.** 매물 10건이면 90회입니다.
-무료 클라우드 PostgreSQL의 왕복 지연을 20ms로 잡으면 **1.8초**입니다.
+
+> **[I242]** 이 20ms 는 <b>무료 클라우드 PostgreSQL</b> 기준이었습니다. 같은 EC2 안
+> Docker 로 옮긴 지금은 <b>0.1~1ms</b> 입니다 — 1.8초가 아니라 100ms 안쪽입니다.
+> **그래도 고친 것은 옳습니다.** 왕복 횟수가 매물 수에 비례하는 구조는 그대로였고,
+> 빨라진 것은 <b>그 잘못이 안 보이게</b> 만들 뿐입니다.
 
 > `othersAverage`와 `othersCount`는 <b>완전히 같은 쿼리를 두 번</b> 던지고 있었습니다.
 > `property_score`도 `ensureScored`와 `buildFromPersisted`가 각각 읽었습니다.
@@ -75,8 +88,11 @@
 풀이 기본 10이고 운영 DB는 이미 슬롯이 빠듯해(`remaining connection slots…`)
 동시성을 올리면 <b>대기가 늘어납니다.</b> 횟수를 줄이는 편이 언제나 낫습니다.
 
-남은 8개를 병렬로 던지는 것은 이론상 가능하지만, 8회 × 20ms = 160ms를 40ms로 줄이는
-대신 커넥션 4개를 동시에 잡습니다. **재 보고 나서 판단할 일이지 지금 할 일은 아닙니다.**
+남은 8개를 병렬로 던지는 것은 이론상 가능하지만, 커넥션을 동시에 여럿 잡습니다.
+**재 보고 나서 판단할 일이지 지금 할 일은 아닙니다.**
+
+> **[I242]** 8회 × 20ms = 160ms 라고 적었던 것이 이제 <b>8회 × 1ms 미만 = 10ms 안쪽</b>
+> 입니다. **병렬화할 이유가 사실상 사라졌습니다.**
 
 ---
 
@@ -151,7 +167,13 @@ public interface CachePort {
 §1에서 걷어낸 것을 [I199]에서 정렬을 넣으며 다시 만든 것입니다.
 
 **캐시를 먼저 얹었다면 N+1은 그대로 남은 채 숫자만 좋아졌을 것입니다.**
-§3대로 운영의 Redis는 지금도 죽어 있습니다 — 캐시가 없는 상태가 곧 현실입니다.
+그때 §3대로 운영의 Redis는 죽어 있었습니다 — 캐시가 없는 상태가 곧 현실이었습니다.
+
+> **[I242]** Redis 는 살아났고 DB 도 같은 호스트로 왔습니다. **이 캐시(§2.1)의
+> 이득은 그만큼 줄었습니다** — 14행짜리 표를 Postgres 에 묻는 것과 Redis 에 묻고
+> JSON 을 푸는 것이 이제 비슷합니다. §5에서 <b>재고 나서</b> 남길지 정합니다.
+> 무효화는 촘촘히 짜 두었으니(쓰기마다 · 커밋 뒤 한 번 더) 그대로 두어도 위험하지는
+> 않습니다.
 
 ##### 재는 테스트에서도 캐시를 꺼야 했습니다
 
@@ -189,39 +211,61 @@ N+1 테스트에는 <b>아무것도 담지 않는 캐시</b>를 물렸습니다.
 
 ---
 
-## 3. Redis가 지금 죽어 있습니다
+## 3. ~~Redis가 지금 죽어 있습니다~~ → 살아났습니다 (2026-09-02 · I242)
 
 ```
 RedisEditVersionStore : Redis edit-version read failed. cause=Unable to connect to Redis
 ```
 
-**캐시를 더 얹기 전에 이것부터 살려야 합니다.** 지금 상태로 캐시를 늘리면
-매 요청이 <b>Redis 연결 실패를 기다렸다가</b> DB로 폴백합니다 — 더 느려집니다.
+**해결됐습니다.** Redis 를 앱과 같은 EC2 안 Docker 로 올렸습니다.
 
-폴백 자체는 설계대로입니다(2.1.1). 다만 **연결 실패가 반복될 때 잠시 시도를 멈추는**
-차단기(circuit breaker)가 없으면, 죽은 Redis가 오히려 지연을 만듭니다.
+다만 **차단기(circuit breaker)가 없다는 지적은 그대로 유효합니다.** 지금은 같은
+호스트라 연결 실패가 즉시 나지만(원격일 때의 타임아웃 대기가 아님), 컨테이너를
+내리면 여전히 매 요청이 실패를 한 번씩 겪습니다. 폴백이 도니 기능은 살아 있고,
+**지연이 눈에 띄면 그때 넣을 일입니다.**
 
 ---
 
 ## 4. 캐시가 아닌 것들 — 같이 봐야 합니다
 
-### 4.1 커넥션 풀
+### 4.1 커넥션 풀 — **권고가 뒤집혔습니다** (2026-09-02 · I242)
 
-`application-live.yaml`에 Hikari 설정이 **없습니다** → 기본값 10.
-`remaining connection slots are reserved for SUPERUSER` 오류가 났던 것을 보면
-DB 쪽 여유가 빠듯합니다. 풀이 마르면 쿼리가 빠르든 말든 <b>대기</b>합니다.
+전에는 **5로 줄이라**고 적었습니다. 근거는 이것이었습니다.
+
+> ~~무료 등급은 `max_connections`가 20~30인 경우가 많습니다. **늘리는 게 아니라
+> 줄이는 방향**입니다.~~
+
+**자체 호스팅 Docker 에는 그 제약이 없습니다.** `max_connections` 기본값이 100 이고
+직접 조절합니다. `remaining connection slots are reserved for SUPERUSER` 는
+무료 등급의 증상이었습니다.
 
 ```yaml
-spring:
-  datasource:
-    hikari:
-      maximum-pool-size: 5      # DB max_connections 에 맞춰 낮춘다
-      minimum-idle: 1
-      connection-timeout: 3000  # 오래 매달리지 말고 빨리 실패
+maximum-pool-size: ${DB_POOL_MAX:10}    # vCPU 2 기준
+minimum-idle: 1
+connection-timeout: 3000
 ```
 
-> 무료 등급은 `max_connections`가 20~30인 경우가 많습니다. 앱 인스턴스 수 × 풀 크기가
-> 그 안에 들어와야 합니다. **늘리는 게 아니라 줄이는 방향**입니다.
+기준은 HikariCP 공식 `(vCPU × 2) + 디스크` 입니다. 다만 **Postgres 가 앱과 같은 코어를
+나눠 씁니다** — 전용 DB 호스트가 아니므로 공식값 <b>위로 가지 않습니다.</b>
+
+| vCPU | 권장 |
+|---|---|
+| 2 | **10** |
+| 4 | 12~16 |
+
+**더 늘리는 것은 손해입니다.** 쿼리가 1ms 아래라 커넥션 하나가 초당 수천 번 돕니다 —
+이 규모에서 10은 남아돕니다. 늘리면 연결당 메모리(5~10MB)와 문맥 전환만 늘어납니다.
+
+#### 진짜 물릴 자리는 따로 있습니다
+
+```
+ENRICHMENT_MAX_CONCURRENCY: 400
+connection-timeout: 3000
+```
+
+**보정 400개가 동시에 도는데 커넥션은 10개입니다.** 보정은 외부 API 대기가 대부분이라
+커넥션을 오래 쥐지 않지만, 매물을 한꺼번에 등록하면 몰릴 수 있습니다.
+**§5의 측정으로 확인할 일**이지 지금 손댈 일은 아닙니다 — 몰린 적이 없으면 그대로 둡니다.
 
 ### 4.2 인덱스
 
@@ -261,3 +305,96 @@ logging:
 
 목록을 한 번 부르고 쿼리 수를 세면 위 추정이 맞는지 바로 알 수 있습니다.
 아니라면 이 문서의 우선순위도 다시 잡아야 합니다.
+
+---
+
+## 5. 이제 무엇을 재야 하나 (2026-09-02 · 설계 I242)
+
+**DB·Redis 가 같은 EC2 안 Docker 로 왔습니다.** 이 문서의 숫자는 모두 그 전 것입니다.
+아래는 <b>새 환경에서 다시 재는 절차</b>입니다. 앱에 의존성을 더하지 않고 됩니다.
+
+### 5.1 §2.1 캐시가 실제로 버는가 — **가장 먼저**
+
+`ReferenceDataCache` 를 <b>같은 빌드에서</b> 껐다 켤 수 있습니다.
+
+```bash
+# 끈 채로
+HALLEY_CACHE_REFERENCE_ENABLED=false  docker compose up -d halley
+for i in $(seq 1 30); do
+  curl -s -o /dev/null -b cookie.txt \
+    -w '%{time_total}\n' 'http://localhost:8080/api/properties?page=0&size=30'
+done | sort -n | awk '{a[NR]=$1} END {print "중앙값", a[int(NR/2)], "최대", a[NR]}'
+
+# 켠 채로 (기본값)
+HALLEY_CACHE_REFERENCE_ENABLED=true   docker compose up -d halley
+# 같은 명령 반복
+```
+
+> **첫 요청은 버립니다.** 캐시를 채우는 값이라 둘을 견줄 수 없습니다.
+
+**판단 기준**
+
+| 차이 | 결론 |
+|---|---|
+| 중앙값 차이가 **10ms 미만** | **걷어냅니다.** 낡은 값이 나올 위험만 남습니다 |
+| 10~30ms | 남기되 `system_config`(10분)만 남기고 나머지는 걷어내는 것을 봅니다 |
+| 30ms 이상 | 그대로 둡니다 |
+
+지금 예상은 <b>10ms 미만</b>입니다 — 14행짜리 표 다섯 개고, Postgres 가 옆에 있습니다.
+
+### 5.2 커넥션이 마르는가 — §4.1 의 400:10
+
+코드를 안 고치고 HikariCP 가 30초마다 찍게 합니다.
+
+```yaml
+logging:
+  level:
+    com.zaxxer.hikari.pool.HikariPool: DEBUG
+```
+
+```
+Pool stats (total=10, active=1, idle=9, waiting=0)
+                                            ^^^^^^^ 이것만 봅니다
+```
+
+**매물을 여러 건 한꺼번에 등록하면서** 봅니다 — 보정 400개가 도는 순간입니다.
+
+| `waiting` | 할 일 |
+|---|---|
+| 늘 0 | **아무것도 안 합니다.** 400:10 은 문제가 아니었습니다 |
+| 가끔 1~2 | 그대로 둡니다. 잠깐 줄 서는 것은 정상입니다 |
+| 꾸준히 3 이상 | `ENRICHMENT_MAX_CONCURRENCY` 를 <b>먼저</b> 낮춥니다 (400 → 50). 풀을 늘리는 것은 그다음입니다 |
+
+> **풀부터 늘리지 마십시오.** 400개가 동시에 DB 를 두드리는 것이 정상인지부터 물어야 합니다.
+
+### 5.3 느린 쿼리가 남아 있는가
+
+```sql
+CREATE EXTENSION IF NOT EXISTS pg_stat_statements;   -- 컨테이너에 한 번만
+SELECT calls, round(mean_exec_time::numeric, 2) AS ms, round(total_exec_time::numeric) AS total,
+       left(query, 80) AS q
+  FROM pg_stat_statements
+ ORDER BY total_exec_time DESC
+ LIMIT 15;
+```
+
+`shared_preload_libraries = pg_stat_statements` 가 필요합니다 (컨테이너 재시작).
+
+**`calls` 가 요청 수보다 훨씬 크면** 아직 N+1 이 남아 있다는 뜻입니다 — [I238] 에서
+`criterion_weight` 를 잡았지만 다른 표에도 있을 수 있습니다.
+
+### 5.4 인덱스 (§4.2 확인)
+
+```sql
+SELECT relname, seq_scan, idx_scan, n_live_tup
+  FROM pg_stat_user_tables
+ WHERE seq_scan > idx_scan AND n_live_tup > 100
+ ORDER BY seq_scan DESC;
+```
+
+행 수가 적으면 순차 탐색이 더 빠르므로, **행이 많은데 순차 탐색만 도는 표**만 봅니다.
+
+### 5.5 잰 뒤에 이 문서를 고칠 것
+
+이 문서의 첫 판이 "매물당 46개"라고 <b>틀린 숫자</b>를 적었던 이유는 **재지 않고
+세었기** 때문입니다. 위를 돌린 뒤에는 <b>실제 숫자로</b> §1·§2 를 다시 쓰십시오.

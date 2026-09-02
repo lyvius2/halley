@@ -2,6 +2,7 @@ package banghak.home.halley.adapter.outbound.persistence;
 
 import banghak.home.halley.application.port.out.cache.CachePort;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
@@ -36,8 +37,18 @@ import java.util.function.Supplier;
  * <h4>실패해도 값은 옵니다</h4>
  *
  * <p>캐시를 못 읽거나 못 쓰는 것은 <b>느려질 뿐</b>이지 기능이 죽을 일이 아닙니다.
- * 지금 운영의 Redis 는 실제로 죽어 있습니다({@code ADJUST_CACHE.md} §3) — 그 상태에서도
- * 채점과 대출 계산은 돌아야 합니다.
+ * 이 클래스를 쓸 때 운영의 Redis 는 실제로 죽어 있었습니다 — 그 상태에서도 채점과
+ * 대출 계산은 돌았습니다. Redis 컨테이너를 내려도 마찬가지여야 합니다.
+ *
+ * <h4>이득이 줄었습니다 (설계 I242)</h4>
+ *
+ * <p>PostgreSQL·Redis 가 <b>앱과 같은 EC2 안 Docker</b> 로 왔습니다. 14행짜리 표를
+ * Postgres 에 묻는 것과 Redis 에 묻고 JSON 을 푸는 것이 <b>이제 비슷합니다</b> —
+ * 이 캐시를 정당화하던 "왕복 20ms"가 사라졌습니다.
+ *
+ * <p>걷어내지 않은 것은 <b>아직 재지 않았기</b> 때문입니다. 무효화는 촘촘하고
+ * (쓰기마다 · 커밋 뒤 한 번 더) 실패해도 값은 오므로 위험하지는 않습니다.
+ * {@code ADJUST_CACHE.md} §5의 측정 뒤에 남길지 정합니다.
  */
 @Slf4j
 @Component
@@ -58,13 +69,30 @@ public class ReferenceDataCache {
     private final CachePort cache;
     private final ObjectMapper objectMapper;
 
-    public ReferenceDataCache(CachePort cache, ObjectMapper objectMapper) {
+    /**
+     * 담아 두기를 끌 수 있게 한다 (설계 I242).
+     *
+     * <p>DB 가 같은 호스트로 온 뒤 <b>이 캐시가 실제로 얼마나 버는지 모릅니다.</b>
+     * 켠 채로만 재면 비교할 것이 없습니다 — 같은 빌드로 껐다 켜며 재야
+     * 남길지 걷어낼지 정할 수 있습니다({@code ADJUST_CACHE.md} §5).
+     *
+     * <p>꺼도 <b>동작은 같습니다.</b> 늘 원본에서 읽을 뿐입니다 — 무효화가 없으니
+     * 낡은 값이 나올 일도 없습니다.
+     */
+    private final boolean enabled;
+
+    public ReferenceDataCache(CachePort cache, ObjectMapper objectMapper,
+                              @Value("${halley.cache.reference.enabled:true}") boolean enabled) {
         this.cache = cache;
         this.objectMapper = objectMapper;
+        this.enabled = enabled;
     }
 
     /** 담아 둔 것이 있으면 그것을, 없으면 읽어서 담는다. */
     <T> T get(String namespace, String key, TypeReference<T> type, Supplier<T> load) {
+        if (!enabled) {
+            return load.get();
+        }
         final Optional<String> cached = read(namespace, key);
         if (cached.isPresent()) {
             try {
