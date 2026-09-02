@@ -4018,6 +4018,24 @@ function halley() {
             return this.arrowOf(f.direction);
         },
 
+        /**
+         * 모달이 <b>결론으로 내세우는 말</b> (설계 I247).
+         *
+         * <p><b>상승·하락만 이름을 갖습니다.</b> 그 외에는 "판단 보류"입니다 —
+         * `유지`는 <b>올라가지도 내려가지도 않는다고 단언하는 말</b>인데,
+         * 요인 다수결이 그쪽으로 기울었다는 것과 <b>그렇게 될 것이라 말하는 것</b>은
+         * 다릅니다([I234]에서 다수결로 바꾸며 이 구분을 잃었습니다).
+         *
+         * <p><b>저장된 값은 그대로 `FLAT` 입니다.</b> 화면에서만 그렇게 부릅니다 —
+         * 도메인에서 `FLAT` 과 `UNCERTAIN` 을 합쳐 버리면 사후 검증(구현 10)이
+         * <b>"유지를 맞혔다"와 "판단을 안 했다"를 구분하지 못합니다.</b>
+         */
+        forecastVerdictLabel(direction, directionLabel) {
+            return (direction === 'UP' || direction === 'DOWN')
+                ? directionLabel
+                : '판단 보류';
+        },
+
         arrowOf(direction) {
             switch (direction) {
                 case 'UP': return '▲';
@@ -4149,6 +4167,15 @@ function halley() {
             }
         },
 
+        /**
+         * 방향 이름. <b>서버의 `ForecastDirection` 과 같은 말을 씁니다</b> (설계 I247).
+         *
+         * <p>규칙 기반 예측(`codeDirection`)은 요약에 라벨이 실려 오지 않아 여기서
+         * 붙입니다. 그래서 <b>이 표가 서버와 어긋나면 같은 방향을 두 이름으로</b>
+         * 부르게 됩니다 — 실제로 한 번 그랬습니다.
+         */
+        DIRECTION_LABEL: { UP: '상승', DOWN: '하락', FLAT: '유지', UNCERTAIN: '판단 보류' },
+
         forecastTitle(scored) {
             const f = scored?.forecast;
             if (!f) {
@@ -4228,9 +4255,11 @@ function halley() {
             if (d.agreed) {
                 return '규칙 기반 계산도 같은 방향입니다.';
             }
-            const label = { UP: '상승', DOWN: '하락', FLAT: '횡보', UNCERTAIN: '판단 보류' };
+            // 라벨 표가 두 벌이었습니다 (설계 I247). 서버가 `유지`로 바꾼 뒤에도
+            // 여기만 `횡보`로 남아 <b>같은 방향을 두 이름으로</b> 부르고 있었습니다
             return `AI 모델은 ${d.directionLabel}을 예측했지만 `
-                + `규칙 기반 계산은 ${label[d.codeDirection] || d.codeDirection}였음을 참고하십시오.`;
+                + `규칙 기반 계산은 ${this.DIRECTION_LABEL[d.codeDirection] || d.codeDirection}였음을 `
+                + '참고하십시오.';
         },
 
         /**
