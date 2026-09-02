@@ -91,7 +91,11 @@ class PropertyApiIntegrationTest {
         // then
         mockMvc.perform(get("/api/properties").session(session))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[?(@.property.name == '한빛아파트')]").isNotEmpty());
+                .andExpect(jsonPath("$.items[?(@.property.name == '한빛아파트')]").isNotEmpty())
+                // 목록은 쪽으로 온다 (설계 I240)
+                .andExpect(jsonPath("$.total").value(1))
+                .andExpect(jsonPath("$.size").value(30))
+                .andExpect(jsonPath("$.hasNext").value(false));
 
         mockMvc.perform(get("/api/properties/" + id).session(session))
                 .andExpect(status().isOk())

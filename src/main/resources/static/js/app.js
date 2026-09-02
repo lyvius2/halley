@@ -68,6 +68,10 @@ function emptyUserForm() {
 
 /** 비교 우위 분석 최소 매물 수 — 서버(ComparativeAnalysisService.MIN_PROPERTIES)와 같아야 한다. */
 const COMPARE_MIN_PROPERTIES = 4;
+/** 목록 한 쪽의 크기 (설계 I240). 서버의 기본값과 같아야 한다 */
+const PAGE_SIZE = 30;
+/** 목록 바닥에서 이만큼 남으면 다음 쪽을 부른다 — 다 내려간 뒤에 부르면 끊겨 보인다 */
+const INFINITE_SCROLL_MARGIN_PX = 400;
 
 /** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
 /**
@@ -100,12 +104,35 @@ function halley() {
         view: 'list',
         mobileTab: 'map',
         dealTypeFilter: 'ALL',
-        /** 목록 정렬 (설계 I221). 기본은 '아직 안 가 본 곳 · 추천점수 순' */
-        sortKey: 'default',
+        /**
+         * 목록 정렬 (설계 I221 → I240).
+         *
+         * <p><b>줄 세우기는 서버가 합니다.</b> 30건씩 잘라 받으므로, 받은 것 안에서
+         * 줄 세우면 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다.
+         */
+        sortKey: 'DEFAULT',
         sortOpen: false,
+        /** 화면이 '모두 불러왔습니다'를 언제 띄울지 판단하는 데 쓴다 (설계 I240) */
+        PAGE_SIZE,
+        /** 지금까지 받아 온 쪽들 (설계 I240). 전체가 아니다 */
         properties: [],
         scoreWatchTimer: null,
-        visibleProperties: [],
+        _scrollObserver: null,
+        /** 다음에 받을 쪽 번호 */
+        propertyPage: 0,
+        /** 거른 뒤의 전체 건수 — 서버가 세어 준다. 화면이 다시 세면 규칙이 두 벌이 된다 */
+        propertyTotal: 0,
+        propertyHasNext: false,
+        loadingMore: false,
+        /** 치워 둔 매물이 몇 건인가 (설계 I241). 아카이빙 탭의 뱃지 */
+        archivedTotal: 0,
+        /**
+         * 지도와 임장 플래너가 쓰는 <b>전체</b> 목록 (설계 I240).
+         *
+         * <p>목록은 잘려 오지만 지도는 전부 찍어야 합니다 — 잘린 것으로 그리면
+         * <b>매물이 사라진 것처럼</b> 보입니다.
+         */
+        pins: [],
         users: [],
         soldOutRecent: [],
         showSoldOutAlert: false,
@@ -403,6 +430,8 @@ function halley() {
                     await this.checkSoldOutAlert();
                     // 등록 직후에는 채점이 비어 있고 보정·AI가 끝나며 채워진다 (설계 I85)
                     this.startScoreWatch();
+                    // 바닥에 닿으면 다음 쪽을 부른다 (설계 I240)
+                    this.startInfiniteScroll();
                     // 주소로 들어왔으면 그 화면을 연다 (설계 I188).
                     // 목록을 받은 뒤여야 매물 상세를 열 수 있다
                     this.applyRoute();
@@ -612,12 +641,23 @@ function halley() {
             this.setView(entry ? entry[0] : 'list');
         },
 
-        /** 목록에서 매물을 찾는다. 아직 안 받았으면 받아 온 뒤 찾는다. */
+        /**
+         * 매물 하나를 찾는다 (설계 I240).
+         *
+         * <p>목록이 30건씩 잘려 오므로 <b>받은 쪽에 없다고 없는 매물이 아닙니다.</b>
+         * 그럴 때 조용히 null 을 주면 지도에서 누른 매물이 <b>아무 반응도 없이</b>
+         * 사라집니다 — 상세를 직접 받아 옵니다.
+         */
         async findProperty(id) {
             if ((this.properties || []).length === 0) {
                 await this.loadProperties();
             }
-            return this.properties.find(x => x.property.id === id) || null;
+            const loaded = this.properties.find(x => x.property.id === id);
+            if (loaded) {
+                return loaded;
+            }
+            const { ok, body } = await this.request('/api/properties/' + id);
+            return ok && body ? body : null;
         },
 
         /** 링크로 들어온 매물 상세를 연다. 목록이 아직 없으면 받아 온 뒤 연다. */
@@ -1452,7 +1492,8 @@ function halley() {
         // ── 비교 우위 분석 (설계 I61) ─────────────────
         /** 분석 대상은 판매완료·작성 중을 뺀 매물이다 — 서버의 판정과 같은 기준을 화면에서도 쓴다. */
         comparableCount() {
-            return this.properties.filter(r => r.property.active && !r.property.isDraft).length;
+            // 받은 쪽만 세면 4건이 넘는데도 "부족합니다"가 뜬다 (설계 I240)
+            return this.pins.filter(p => p.active && !p.draft).length;
         },
 
         canCompare() {
@@ -2324,7 +2365,9 @@ function halley() {
             this.sessionExpiresAt = null;
             this.users = [];
             this.properties = [];
-            this.visibleProperties = [];
+            this.pins = [];
+            this.propertyTotal = 0;
+            this.propertyHasNext = false;
             this.weights = [];
             this.view = 'list';
             this.dealTypeFilter = 'ALL';
@@ -2401,15 +2444,88 @@ function halley() {
             this.showSessionWarn = false;
         },
 
+        /** 목록 URL 한 곳에서만 만든다 — 첫 쪽과 다음 쪽이 다른 조건으로 가면 순서가 어긋난다 */
+        /** 지금 아카이빙 탭을 보고 있는가 (설계 I241) */
+        get archiveTab() {
+            return this.dealTypeFilter === 'ARCHIVE';
+        },
+
+        /** 지금 보고 있는 탭을 조건으로 옮긴다 — 목록·지도·판 번호가 <b>같은 것</b>을 봐야 한다 */
+        listFilterParams() {
+            const params = new URLSearchParams();
+            if (this.archiveTab) {
+                params.set('archived', 'true');
+            } else if (this.dealTypeFilter !== 'ALL') {
+                params.set('dealType', this.dealTypeFilter);
+            }
+            return params;
+        },
+
+        listFilterQuery() {
+            const q = this.listFilterParams().toString();
+            return q ? '?' + q : '';
+        },
+
+        propertiesUrl(page) {
+            const params = this.listFilterParams();
+            params.set('sort', this.sortKey);
+            params.set('page', page);
+            params.set('size', PAGE_SIZE);
+            return '/api/properties?' + params.toString();
+        },
+
+        /** 첫 쪽부터 다시 받는다 (설계 I240). 정렬·필터가 바뀌면 이어 붙이면 안 된다 */
         async loadProperties() {
-            const url = '/api/properties'
-                + (this.dealTypeFilter !== 'ALL' ? '?dealType=' + this.dealTypeFilter : '');
+            this.propertyPage = 0;
             // 목록이 오기 전에는 '등록된 매물이 없습니다'가 떠서 정말 없는 줄 알았다 (설계 I122)
-            const { ok, body } = await this.withLoading('properties', () => this.request(url));
+            const { ok, body } = await this.withLoading('properties',
+                () => this.request(this.propertiesUrl(0)));
+            if (ok && body) {
+                this.properties = body.items || [];
+                this.propertyTotal = body.total || 0;
+                this.propertyHasNext = !!body.hasNext;
+                this.archivedTotal = body.archivedTotal || 0;
+            }
+            // 지도는 잘리기 전을 본다 — 목록과 따로 받는다 (설계 I240)
+            await this.loadPins();
+            this.renderMap();
+        },
+
+        /**
+         * 다음 쪽을 이어 붙인다 (설계 I240).
+         *
+         * <p><b>겹쳐 붙지 않게</b> 이미 있는 id 는 버립니다. 뒤에서 채점이 끝나
+         * 순서가 조금 바뀌면([I85]) 같은 매물이 두 쪽에 걸릴 수 있습니다 —
+         * 그때 그냥 이어 붙이면 <b>화면에 두 번</b> 나옵니다.
+         */
+        async loadMoreProperties() {
+            if (this.loadingMore || !this.propertyHasNext) {
+                return;
+            }
+            this.loadingMore = true;
+            try {
+                const next = this.propertyPage + 1;
+                const { ok, body } = await this.request(this.propertiesUrl(next));
+                if (!ok || !body) {
+                    return;
+                }
+                const seen = new Set(this.properties.map(r => r.property.id));
+                const fresh = (body.items || []).filter(r => !seen.has(r.property.id));
+                this.properties = [...this.properties, ...fresh];
+                this.propertyPage = next;
+                this.propertyTotal = body.total || 0;
+                this.propertyHasNext = !!body.hasNext;
+                this.archivedTotal = body.archivedTotal || 0;
+            } finally {
+                this.loadingMore = false;
+            }
+        },
+
+        /** 지도·임장 플래너가 쓰는 전체 목록 (설계 I240). */
+        async loadPins() {
+            const { ok, body } = await this.request('/api/properties/pins' + this.listFilterQuery());
             if (ok) {
-                this.properties = body || [];
-                this.applySoldOutFilter();
-                this.renderMap();
+                this.pins = body || [];
             }
         },
 
@@ -2422,6 +2538,33 @@ function halley() {
          * 탭이 가려져 있으면 쉬었다가, 돌아올 때 한 번 맞춘다. 안 보이는 화면을 위해
          * 계속 물어볼 이유가 없다.
          */
+        /**
+         * 바닥이 보이면 다음 쪽을 부른다 (설계 I240).
+         *
+         * <p><b>{@code IntersectionObserver} 로 봅니다.</b> 스크롤 위치를 재려면
+         * 어디가 스크롤되는지 알아야 하는데, 이 화면은 <b>넓을 때는 목록 칸이,
+         * 좁을 때는 창 자체가</b> 스크롤됩니다(`.list-panel { overflow: visible }`).
+         * 두 경우를 손으로 가르면 한쪽이 반드시 어긋납니다.
+         *
+         * <p>감시점은 <b>늘 자리에 둡니다.</b> 더 없을 때 감춰 버리면
+         * ({@code display:none}) 관찰이 풀려, 다시 생겨도 <b>안 걸립니다.</b>
+         */
+        startInfiniteScroll() {
+            if (this._scrollObserver || typeof IntersectionObserver === 'undefined') {
+                return;
+            }
+            const sentinel = document.getElementById('list-sentinel');
+            if (!sentinel) {
+                return;
+            }
+            this._scrollObserver = new IntersectionObserver(entries => {
+                if (entries.some(e => e.isIntersecting)) {
+                    this.loadMoreProperties();
+                }
+            }, { rootMargin: INFINITE_SCROLL_MARGIN_PX + 'px' });
+            this._scrollObserver.observe(sentinel);
+        },
+
         startScoreWatch() {
             if (this.scoreWatchTimer) {
                 return;
@@ -2438,15 +2581,21 @@ function halley() {
             if (document.hidden || !this.session.authenticated || this.properties.length === 0) {
                 return;
             }
-            const { ok, body } = await this.request('/api/properties/score-versions');
+            // 목록과 <b>같은 조건</b>으로 묻는다 (설계 I241). 다른 것을 세면
+            // 개수가 늘 어긋나 3초마다 목록을 다시 받는다
+            const { ok, body } = await this.request(
+                '/api/properties/score-versions' + this.listFilterQuery());
             if (!ok || !body) {
                 return;
             }
             const latest = new Map(body.map(v => [v.propertyId, v.scoreVersion]));
             const changed = this.properties.some(
                 r => latest.has(r.property.id) && latest.get(r.property.id) !== r.scoreVersion);
-            // 매물이 늘거나 줄어도 목록을 다시 받아야 한다
-            if (changed || latest.size !== this.properties.length) {
+            // 매물이 늘거나 줄어도 목록을 다시 받아야 한다.
+            // 받은 쪽 수가 아니라 <b>전체 건수</b>와 견준다 (설계 I240) — 30건씩 받는
+            // 동안에는 `properties.length` 가 전체와 다른 것이 정상이라, 그대로 두면
+            // 3초마다 목록을 다시 받는다
+            if (changed || latest.size !== this.propertyTotal) {
                 await this.loadProperties();
                 if (this.detailItem) {
                     this.syncDetailItem();
@@ -2466,31 +2615,25 @@ function halley() {
         },
 
         /**
-         * 보이는 목록을 다시 짠다 (설계 I221).
+         * 줄 세우기를 <b>서버로 넘겼다</b> (설계 I240).
          *
-         * <p>판매완료 숨김을 <b>없앴습니다.</b> 생존 확인 배치를 걷어낸 뒤([I157])
-         * 그 값을 갱신하는 것이 아무것도 없어, "판매완료"는 <b>누군가 손으로 바꾼
-         * 것</b>일 뿐입니다. 자동으로 붙지 않는 표시로 목록을 가리면
-         * <b>매물이 사라진 것처럼</b> 보입니다.
-         */
-        applySoldOutFilter() {
-            this.visibleProperties = this.sortProperties(this.properties);
-        },
-
-        /**
-         * 무엇으로 줄 세울까 (설계 I221).
+         * <p>[I221]에서는 여기서 세웠습니다. 목록이 통째로 왔으니 그때는 맞았습니다.
+         * 30건씩 잘라 받는 지금은 <b>받은 것 안에서만</b> 세우게 되어,
+         * 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다.
          *
-         * <p><b>화면에서 정합니다.</b> 목록에 필요한 값은 이미 전부 실려 있고
-         * (총점·가격·면적·항목별 점수), <b>임장 여부는 서버가 목록에 담지 않습니다</b> —
-         * 사람마다 다른 값이라 담으면 캐시가 사람마다 갈립니다. 화면이 들고 있는
-         * `itinVisited`(I197)와 맞춰 세우는 편이 맞습니다.
+         * <p>{@code applySoldOutFilter}·{@code sortProperties}·{@code criterionScore} 를
+         * 지웠습니다. <b>같은 규칙이 두 곳에 있으면 반드시 어긋납니다</b>
+         * (I230·I232·I237).
+         *
+         * <p>값은 서버의 {@code PropertySort} 와 <b>같은 이름</b>을 씁니다 — 화면에서
+         * 'default', 서버에서 'DEFAULT' 로 두면 옮기는 표가 또 하나 생깁니다.
          */
         SORTS: [
-            { key: 'default', label: '기본 (임장 전 · 추천점수)' },
-            { key: 'price', label: '매매가 낮은 순' },
-            { key: 'area', label: '전용면적 넓은 순' },
-            { key: 'score', label: '추천점수 높은 순' },
-            { key: 'commute', label: '직주근접 좋은 순' }
+            { key: 'DEFAULT', label: '기본 (임장 전 · 추천점수)' },
+            { key: 'PRICE', label: '매매가 낮은 순' },
+            { key: 'AREA', label: '전용면적 넓은 순' },
+            { key: 'SCORE', label: '추천점수 높은 순' },
+            { key: 'COMMUTE', label: '직주근접 좋은 순' }
         ],
 
         sortLabel() {
@@ -2498,48 +2641,11 @@ function halley() {
             return found ? found.label : this.SORTS[0].label;
         },
 
-        setSort(key) {
+        /** 정렬이 바뀌면 <b>첫 쪽부터</b> 다시 받는다 — 받은 것만 다시 세우면 전체 순서가 아니다 */
+        async setSort(key) {
             this.sortKey = key;
             this.sortOpen = false;
-            this.applySoldOutFilter();
-            this.renderMap();
-        },
-
-        /**
-         * 아직 안 잰 것은 <b>맨 뒤</b>로 (설계 I221).
-         *
-         * <p>등록 직후에는 점수도 직주근접도 없습니다([I220]). 그걸 0으로 보면
-         * <b>"나쁜 매물"로 줄 세워집니다</b> — 아직 모르는 것과 나쁜 것은 다릅니다.
-         */
-        sortProperties(rows) {
-            const list = [...rows];
-            const num = (v) => (v == null || v === '' ? null : Number(v));
-            const desc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : b - a);
-            const asc = (a, b) => (a == null && b == null ? 0 : a == null ? 1 : b == null ? -1 : a - b);
-            const byName = (x, y) => String(x.property.name || '')
-                .localeCompare(String(y.property.name || ''), 'ko');
-
-            const compare = {
-                // 아직 안 가 본 곳이 먼저, 그 안에서 추천점수가 높은 순
-                default: (x, y) => {
-                    const gone = (this.isVisited(x.property.id) ? 1 : 0) - (this.isVisited(y.property.id) ? 1 : 0);
-                    return gone !== 0 ? gone : desc(num(x.totalScore), num(y.totalScore));
-                },
-                price: (x, y) => asc(num(x.property.priceDeposit), num(y.property.priceDeposit)),
-                area: (x, y) => desc(num(x.property.areaExclusiveM2), num(y.property.areaExclusiveM2)),
-                score: (x, y) => desc(num(x.totalScore), num(y.totalScore)),
-                commute: (x, y) => desc(this.criterionScore(x, 'COMMUTE'), this.criterionScore(y, 'COMMUTE'))
-            }[this.sortKey] || (() => 0);
-
-            // 같은 값이면 이름순 — 새로고침마다 순서가 흔들리면 눈이 못 따라간다
-            list.sort((x, y) => compare(x, y) || byName(x, y));
-            return list;
-        },
-
-        /** 항목 하나의 점수. 아직 없으면 null — 0이 아니다 (설계 I221). */
-        criterionScore(scored, code) {
-            const found = (scored.scores || []).find(s => s.code === code);
-            return found && found.effectiveScore != null ? Number(found.effectiveScore) : null;
+            await this.loadProperties();
         },
 
         async setDealTypeFilter(filter) {
@@ -2561,6 +2667,39 @@ function halley() {
 
         closeSoldOutAlert() {
             this.showSoldOutAlert = false;
+        },
+
+        /**
+         * 안 볼 매물을 치워 둔다 (설계 I241).
+         *
+         * <p><b>지우는 것과 다릅니다.</b> 코멘트도 채점도 실거래 이력도 그대로 남고,
+         * 아카이빙 탭에서 그대로 보입니다 — 언제든 되돌립니다. 삭제는 되돌릴 수 없어
+         * "일단 안 보이게"에 쓸 수 없었고, 그래서 <b>안 볼 매물이 목록에 계속</b>
+         * 있었습니다.
+         */
+        archiveProperty(item) {
+            this.askConfirm('아카이빙',
+                `'${item.property.name}' 매물을 아카이빙할까요?\n목록에서는 사라지고 아카이빙 탭에 남습니다.`,
+                () => this.setListingStatus(item.property.id, 'ARCHIVED'));
+        },
+
+        /** 치워 둔 것을 되돌린다 — 묻지 않는다. 되돌리는 일은 되돌릴 수 있다 (설계 I241) */
+        unarchiveProperty(item) {
+            this.setListingStatus(item.property.id, 'ACTIVE');
+        },
+
+        async setListingStatus(id, listingStatus) {
+            const { ok } = await this.request(`/api/properties/${id}/status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ listingStatus })
+            }).catch(() => ({ ok: false }));
+            if (!ok) {
+                this.error = '상태를 바꾸지 못했습니다';
+                return;
+            }
+            // 목록에서 빠지거나 들어오므로 첫 쪽부터 다시 받는다 (설계 I240)
+            await this.loadProperties();
         },
 
         restoreListing(item) {
@@ -2882,8 +3021,14 @@ function halley() {
             this.itinVisited = visited
                 ? [...this.itinVisited.filter(id => id !== propertyId), propertyId]
                 : this.itinVisited.filter(id => id !== propertyId);
-            // 기본 정렬은 임장 여부로 가른다 (설계 I221) — 체크가 바뀌면 순서도 바뀐다
-            this.applySoldOutFilter();
+            // 지도에 흐린 표시가 바로 반영되도록 지도용 목록도 맞춰 둔다 (설계 I240).
+            // 다음 목록 요청 때 서버 값으로 덮이지만, 그 사이에 어긋나 보이면 안 된다
+            this.pins = this.pins.map(p => p.id === propertyId ? { ...p, visited } : p);
+            // 기본 정렬은 임장 여부로 가른다 (설계 I221) — 체크가 바뀌면 순서도 바뀐다.
+            // 줄 세우는 것은 서버라 다시 받는다 (설계 I240)
+            if (this.sortKey === 'DEFAULT') {
+                this.loadProperties();
+            }
         },
 
         /**
@@ -2899,18 +3044,18 @@ function halley() {
          *
          * <p><b>내 점수로 봅니다</b>(`myScore`). 그룹 평균으로 보면 남이 다녀온 곳이
          * 내 목록에서 뒤로 밀립니다 — 정작 나는 안 가 봤는데요([I118]과 같은 가름).
+         *
+         * <p><b>판단은 서버가 합니다</b>(설계 I240). 목록이 30건씩 잘려 오므로
+         * 여기서 `properties` 를 뒤지면 <b>아직 안 받은 매물은 안 가 본 것</b>이
+         * 됩니다 — 지도에서 흐리게 칠해야 할 것이 안 칠해집니다.
+         * 전체를 담은 `pins` 를 봅니다.
          */
         isVisited(propertyId) {
             if (this.itinVisited.includes(propertyId)) {
                 return true;
             }
-            const scored = this.properties.find(x => x.property.id === propertyId);
-            return this.scoredComfort(scored);
-        },
-
-        /** 내가 쾌적함을 매겼는가 — 그룹 평균이 아니라 내 점수다 (설계 I118). */
-        scoredComfort(scored) {
-            return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
+            const pin = this.pins.find(p => p.id === propertyId);
+            return !!(pin && pin.visited);
         },
 
         /**
@@ -2921,7 +3066,8 @@ function halley() {
          * 아무 일이 안 일어나면 <b>고장으로 보입니다.</b>
          */
         visitedByComfort(propertyId) {
-            return this.scoredComfort(this.properties.find(x => x.property.id === propertyId));
+            const pin = this.pins.find(p => p.id === propertyId);
+            return !!(pin && pin.visitedByComfort);
         },
 
         /** 가 본 곳을 서버에서 받아 온다 — 새로고침해도, 다른 기기에서도 남는다. */
@@ -2930,14 +3076,15 @@ function halley() {
                 .catch(() => ({ ok: false }));
             if (ok && Array.isArray(body)) {
                 this.itinVisited = body;
-                // 목록이 이미 그려져 있으면 순서를 다시 잡는다 (설계 I224)
-                if (this.properties.length > 0) {
-                    this.applySoldOutFilter();
-                }
             }
         },
 
+        /** 아직 안 받은 쪽의 매물일 수 있다 — 전체를 담은 `pins` 를 먼저 본다 (설계 I240) */
         propertyName(id) {
+            const pin = this.pins.find(p => p.id === id);
+            if (pin) {
+                return pin.name;
+            }
             const item = this.properties.find(x => x.property.id === id);
             return item ? item.property.name : '#' + id;
         },
@@ -4106,7 +4253,9 @@ function halley() {
          * 그게 맞습니다 — 내가 안 가 봤으니까요. 말로 적어 둡니다.
          */
         visitedTitle(scored) {
-            return this.scoredComfort(scored)
+            // 카드에 실린 내 점수를 그대로 본다 — 카드가 보인다는 것은 이미 받았다는 뜻이다
+            const mine = (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
+            return mine
                 ? '내가 공간의 쾌적함을 매겼습니다 — 다녀온 곳입니다'
                 : '구성원 중 누군가 공간의 쾌적함을 매겼습니다';
         },
@@ -4438,13 +4587,13 @@ function halley() {
             }
             Object.values(this.markers).forEach(m => m.setMap(null));
             this.markers = {};
-            const coords = this.visibleProperties.filter(r => r.property.lat && r.property.lng);
-            coords.forEach(r => {
-                const p = r.property;
+            // 목록은 30건씩 잘려 오지만 지도는 전부 찍는다 (설계 I240)
+            const coords = this.pins.filter(p => p.lat && p.lng);
+            coords.forEach(p => {
                 const position = new kakao.maps.LatLng(p.lat, p.lng);
                 const overlay = new kakao.maps.CustomOverlay({
                     position,
-                    content: this.markerContent(r),
+                    content: this.markerContent(p),
                     yAnchor: 1,
                     clickable: true
                 });
@@ -4458,10 +4607,7 @@ function halley() {
             });
             if (coords.length > 0) {
                 const bounds = new kakao.maps.LatLngBounds();
-                coords.forEach(r => {
-                    const p = r.property;
-                    bounds.extend(new kakao.maps.LatLng(p.lat, p.lng));
-                });
+                coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
             }
         },
@@ -4472,8 +4618,8 @@ function halley() {
          * <p>문자열이 아니라 <b>요소</b>를 돌려줍니다 — 클릭을 걸어야 하고,
          * 단지명이 그대로 들어가므로 <b>HTML 로 조립하면 안 됩니다.</b>
          */
-        markerContent(scored) {
-            const p = scored.property;
+        /** 지도용 얇은 매물 하나를 받는다 (설계 I240) — 채점까지 붙은 목록이 아니다 */
+        markerContent(p) {
             const jeonse = p.dealType === 'JEONSE';
 
             const box = document.createElement('div');
@@ -4514,10 +4660,18 @@ function halley() {
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            const item = this.visibleProperties.find(x => x.property.id === id);
+            // 아직 안 받은 쪽의 매물일 수 있다 (설계 I240) — 지도는 전부 찍기 때문이다.
+            // 그때는 상세를 받아서 연다. 눌렀는데 아무 일도 안 일어나면 고장으로 보인다
+            const item = this.properties.find(x => x.property.id === id);
             if (item) {
                 this.openRoadview(item);
+                return;
             }
+            this.findProperty(id).then(found => {
+                if (found) {
+                    this.openRoadview(found);
+                }
+            });
         },
 
         openRoadview(item) {

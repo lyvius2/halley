@@ -168,6 +168,16 @@ h2 { font-family: 'Noto Serif KR', serif; font-size: 20px; font-weight: 700; }
 
 /* ── 매물 카드 ───────────────────────────────────── */
 .property-list { display: grid; gap: 10px; }
+/* 무한 스크롤의 감시점 (설계 I240). 늘 자리에 있어야 관찰이 걸린다 —
+   숨기면 다음 쪽을 영영 안 부른다 */
+.list-sentinel {
+    min-height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11.5px;
+    color: var(--ink3);
+}
 .property-card {
     border: 1px solid var(--line);
     background: var(--card);
@@ -212,7 +222,11 @@ h2 { font-family: 'Noto Serif KR', serif; font-size: 20px; font-weight: 700; }
     margin-top: 10px;
     padding-top: 8px;
     border-top: 1px solid var(--line2);
+    flex-wrap: wrap;
 }
+/* 되돌릴 수 없는 것만 맨 오른쪽으로 떼어 둔다 (설계 I241) —
+   나머지 링크와 붙어 있으면 손이 미끄러진다 */
+.property-card-actions .act-last { margin-left: auto; }
 .btn-link {
     font-family: inherit;
     font-size: 11px;
@@ -474,6 +488,24 @@ input[type=checkbox], input[type=radio] {
 }
 .deal-tabs button:hover { border-color: var(--ocean); color: var(--ocean); }
 .deal-tabs button.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+/* 아카이빙 탭 뱃지 (설계 I241). 노란색 — 지운 것이 아니라 <b>치워 둔 것</b>이라는 표시다 */
+.tab-archive { display: inline-flex; align-items: center; gap: 6px; }
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: #f0b429;
+    color: #3d2c00;
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 1;
+}
+/* 켜진 탭 위에서도 노란색이 죽지 않게 */
+.deal-tabs button.on .tab-badge { background: #ffc94d; color: #3d2c00; }
 
 .property-card.sold { opacity: .55; }
 .property-card.sold .property-card-name { text-decoration: line-through; }
