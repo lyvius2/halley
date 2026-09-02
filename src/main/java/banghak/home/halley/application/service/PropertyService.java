@@ -41,6 +41,7 @@ public class PropertyService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final UserRepository userRepository;
     private final AgentService agentService;
+    private final ComplexService complexService;
     private final EditVersionStore editVersionStore;
     private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
@@ -49,6 +50,7 @@ public class PropertyService {
                                   PropertyRepository propertyRepository,
                            UserRepository userRepository,
                            AgentService agentService,
+                           ComplexService complexService,
                            EditVersionStore editVersionStore,
                            GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
@@ -56,6 +58,7 @@ public class PropertyService {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.agentService = agentService;
+        this.complexService = complexService;
         this.editVersionStore = editVersionStore;
         this.geoService = geoService;
         this.eventPublisher = eventPublisher;
@@ -159,6 +162,8 @@ public class PropertyService {
                 groupId, nickname,
                 currentUserId(),
                 Instant.now()));
+        // 매물이 어느 단지에 속하는지 적어 둔다 (설계 I266) — 실거래는 단지에 붙는다
+        complexService.attach(saved);
         agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         editVersionStore.bump(versionKey(saved.id()));
@@ -225,6 +230,8 @@ public class PropertyService {
                 existing.groupId(), existing.createdByNickname(),
                 existing.createdBy(),
                 existing.createdAt()));
+        // 이름이나 주소를 고치면 <b>단지가 바뀔 수 있다</b> (설계 I266)
+        complexService.attach(updated);
         agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
         // 바뀐 게 있으면 AI에게 다시 묻는다 (설계 I113). 면적·층·가격·주차가 그대로

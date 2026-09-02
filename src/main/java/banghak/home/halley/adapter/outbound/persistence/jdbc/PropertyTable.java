@@ -23,6 +23,7 @@ public final class PropertyTable {
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<String> NAME = field(name(T, "name"), String.class);
     public static final Field<String> DONG_HO = field(name(T, "dong_ho"), String.class);
+    public static final Field<Long> COMPLEX_ID = field(name(T, "complex_id"), Long.class);
     public static final Field<String> DEAL_TYPE = field(name(T, "deal_type"), String.class);
     public static final Field<Long> PRICE_DEPOSIT = field(name(T, "price_deposit"), Long.class);
     public static final Field<Integer> MAINTENANCE_FEE = field(name(T, "maintenance_fee"), Integer.class);

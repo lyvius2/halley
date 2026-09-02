@@ -131,14 +131,25 @@ class ReferenceLookbackTest {
         final banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository saved =
                 org.mockito.Mockito.mock(
                         banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository.class);
-        org.mockito.Mockito.when(saved.findByPropertyId(11L)).thenReturn(List.of());
+        org.mockito.Mockito.when(saved.findByComplexAndArea(
+                        org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyDouble()))
+                .thenReturn(List.of());
+
+        // 실거래는 단지에 붙는다 (설계 I266) — 이 테스트는 조회 개월 수만 본다
+        final ComplexService complexes = org.mockito.Mockito.mock(ComplexService.class);
+        org.mockito.Mockito.when(complexes.of(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(new banghak.home.halley.domain.property.Complex(
+                        7L, "key", "석관신동아파밀리에", "서울 성북구 석관동 123",
+                        null, null, java.time.Instant.now()));
 
         final LegalDongCodeService codes = org.mockito.Mockito.mock(LegalDongCodeService.class);
         org.mockito.Mockito.when(codes.deriveSigunguCode(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of("11290"));
 
         return new ReferenceTransactionService(null, properties, saved, port, codes, 12,
-                new banghak.home.halley.config.VirtualThreadGate("test", 4), cache);
+                new banghak.home.halley.config.VirtualThreadGate("test", 4), complexes, cache);
     }
 
     private banghak.home.halley.domain.property.Property sampleProperty() {
@@ -158,7 +169,7 @@ class ReferenceLookbackTest {
             throws Exception {
         final ReferenceTransactionService service = new ReferenceTransactionService(
                 null, null, null, port, null, 24,
-                new banghak.home.halley.config.VirtualThreadGate("test", 4), null);
+                new banghak.home.halley.config.VirtualThreadGate("test", 4), null, null);
         final Method method = ReferenceTransactionService.class
                 .getDeclaredMethod("fetchMonths", String.class, String.class, boolean.class);
         method.setAccessible(true);

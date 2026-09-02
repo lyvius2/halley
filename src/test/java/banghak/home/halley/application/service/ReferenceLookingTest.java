@@ -56,6 +56,14 @@ class ReferenceLookingTest {
     static final AtomicInteger CALLS = new AtomicInteger();
     /** 세워 두면 국토부 호출이 <b>여기서 멈춰 선다</b> — "지금 받아 오는 중"을 만든다. */
     static volatile CountDownLatch HOLD;
+    /**
+     * 시험마다 <b>다른 단지</b>를 쓴다 (설계 I266).
+     *
+     * <p>실거래 캐시는 이제 매물이 아니라 <b>단지와 평형</b>에 붙습니다. 이름과
+     * 주소가 같으면 앞 시험이 남긴 헛걸음 표시를 <b>그대로 물려받습니다</b> —
+     * 그게 이 변경이 노린 것이고, 그래서 시험은 서로 갈라 놓아야 합니다.
+     */
+    private static final AtomicInteger COMPLEX_SEQ = new AtomicInteger();
 
     @TestConfiguration
     static class NoMatchConfig {
@@ -225,7 +233,7 @@ class ReferenceLookingTest {
 
     private PropertyRequest request(String name) {
         return new PropertyRequest(
-                name, null, DealType.SALE, 800_000_000L, null,
+                name + COMPLEX_SEQ.incrementAndGet(), null, DealType.SALE, 800_000_000L, null,
                 null, "서울시 성북구 정릉동 1037", null, null,
                 null, new BigDecimal("84.9"), null, 5, null, null,
                 null, null, 2020, null, null,

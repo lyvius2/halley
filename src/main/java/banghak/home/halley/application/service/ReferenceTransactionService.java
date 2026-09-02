@@ -7,6 +7,7 @@ import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepo
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.config.exception.NotFoundListingsException;
+import banghak.home.halley.domain.property.Complex;
 import banghak.home.halley.domain.property.ComplexMatch;
 import banghak.home.halley.domain.property.JibunAddress;
 import banghak.home.halley.domain.property.Property;
@@ -64,6 +65,8 @@ public class ReferenceTransactionService {
     /** 배경 조회를 다른 보정과 같은 줄에 세운다 (설계 I108). */
     private final banghak.home.halley.config.VirtualThreadGate gate;
     private final CachePort cache;
+    /** 실거래는 매물이 아니라 <b>단지와 평형</b>에 붙는다 (설계 I266). */
+    private final ComplexService complexService;
 
     /**
      * 헛걸음을 기억해 두는 시간 (설계 I219).
@@ -98,6 +101,7 @@ public class ReferenceTransactionService {
                                        @Value("${ministry.reference.lookback-months:12}")
                                        int lookbackMonths,
                                        banghak.home.halley.config.VirtualThreadGate gate,
+                                       ComplexService complexService,
                                        CachePort cache) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
@@ -106,6 +110,7 @@ public class ReferenceTransactionService {
         this.legalDongCodeService = legalDongCodeService;
         this.lookbackMonths = lookbackMonths;
         this.gate = gate;
+        this.complexService = complexService;
         this.cache = cache;
     }
 
@@ -124,7 +129,8 @@ public class ReferenceTransactionService {
         if (dealMonth != null && !dealMonth.isBlank()) {
             return collect(property, legalDongCode, dealMonth);
         }
-        final List<ReferenceTransaction> stored = referenceTransactionRepository.findByPropertyId(propertyId);
+        final Complex complex = complexService.of(property);
+        final List<ReferenceTransaction> stored = storedFor(complex, property);
         if (!stored.isEmpty()) {
             // 저장된 것을 돌려줄 때도 무엇으로 물었는지 함께 말한다 (설계 I227)
             return toCard(property, stored, blankToNull(legalDongCode) != null
@@ -136,7 +142,9 @@ public class ReferenceTransactionService {
         // 못 찾은 매물은 저장될 것이 영영 없으니 <b>프로그래스바가 영원히 돕니다</b> —
         // 실제로 한 시간을 돌았습니다. 헛걸음 표시가 그 사실을 이미 알고 있었는데
         // 이 길만 그것을 안 봤습니다. 아래 호출은 국토부를 부르지 않고 곧바로 답합니다
-        final String miss = String.valueOf(propertyId);
+        // <b>매물이 아니라 단지와 평형이 열쇠다 (설계 I266).</b> 같은 단지 같은
+        // 평형을 여러 건 등록해도 국토부는 한 번만 부른다
+        final String miss = lookupKey(complex, property);
         if (cache.get(CachePort.REFERENCE_MISS, miss).isPresent()) {
             return collect(property, legalDongCode, null);
         }
@@ -175,7 +183,7 @@ public class ReferenceTransactionService {
         propertyRepository.findById(propertyId).ifPresent(property -> {
             // 등록 직후 상세를 열면 <b>같은 조회가 두 벌</b> 돕니다 (설계 I262).
             // 여기도 같은 표시를 세워 화면 쪽이 기다리게 합니다
-            final String key = String.valueOf(propertyId);
+            final String key = lookupKey(complexService.of(property), property);
             cache.put(CachePort.REFERENCE_LOOKING, key, "1", LOOKING_TTL);
             try {
                 collect(property, null, null);
@@ -195,14 +203,15 @@ public class ReferenceTransactionService {
                 ? legalDongCode
                 : legalDongCodeService.deriveSigunguCode(property.addressJibun()).orElse(null);
 
-        final List<ReferenceTransaction> cached = referenceTransactionRepository.findByPropertyId(propertyId);
+        final Complex complex = complexService.of(property);
+        final List<ReferenceTransaction> cached = storedFor(complex, property);
         if (!cached.isEmpty()) {
             return toCard(property, cached, lawdCd);
         }
         // <b>못 찾은 것도 결과입니다 (설계 I219).</b> 저장할 거래가 없다고 아무것도
         // 남기지 않으면, 상세를 열 때마다 12개월치를 다시 받아 옵니다 —
         // 실제로 그러고 있었습니다. 사용자가 특정 달을 물을 때는 무시합니다
-        if (dealMonth == null && cache.get(CachePort.REFERENCE_MISS, String.valueOf(propertyId)).isPresent()) {
+        if (dealMonth == null && cache.get(CachePort.REFERENCE_MISS, lookupKey(complex, property)).isPresent()) {
             log.debug("Skipping ministry lookup - nothing matched recently. propertyId={}", propertyId);
             return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
         }
@@ -215,7 +224,7 @@ public class ReferenceTransactionService {
             // <b>여기도 끝난 것이다 (설계 I262).</b> 예전에는 아무 자국을 안 남기고
             // 돌아섰습니다 — 화면은 "받아 오는 중"인 채로 <b>영영 멈추지 않았습니다.</b>
             // 다만 이건 자료가 없는 게 아니라 <b>사전이 아직 없는 것</b>이라 짧게 기억합니다
-            cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", BLOCKED_TTL);
+            cache.put(CachePort.REFERENCE_MISS, lookupKey(complex, property), "1", BLOCKED_TTL);
             log.info("Skipping ministry lookup - legal dong code not found. propertyId={}, jibunAddress={}",
                     propertyId, property.addressJibun());
             return ReferenceCardResponse.notLookedUp(property.priceDeposit(), lookbackMonths, lawdCd);
@@ -233,7 +242,7 @@ public class ReferenceTransactionService {
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(MAX_SAVED)
                 .map(trade -> referenceTransactionRepository.save(new ReferenceTransaction(
-                        null, propertyId, ReferenceDealType.TRADE, trade.contractDate(),
+                        null, complex.id(), ReferenceDealType.TRADE, trade.contractDate(),
                         trade.dealAmount(), trade.areaM2(), trade.floorNo(),
                         ReferenceSource.MINISTRY_TRADE, Instant.now())))
                 .toList();
@@ -252,13 +261,13 @@ public class ReferenceTransactionService {
                 .sorted(Comparator.comparing(ReferenceTrade::contractDate, Comparator.nullsLast(Comparator.reverseOrder())))
                 .limit(MAX_SAVED)
                 .map(trade -> new ReferenceTransaction(
-                        null, propertyId, ReferenceDealType.TRADE, trade.contractDate(),
+                        null, complex.id(), ReferenceDealType.TRADE, trade.contractDate(),
                         trade.dealAmount(), trade.areaM2(), trade.floorNo(),
                         ReferenceSource.MINISTRY_TRADE, Instant.now()))
                 .toList();
 
         // 헛걸음을 기억한다 (설계 I219) — 다음 상세에서 12개월치를 또 받지 않는다
-        cache.put(CachePort.REFERENCE_MISS, String.valueOf(propertyId), "1", MISS_TTL);
+        cache.put(CachePort.REFERENCE_MISS, lookupKey(complex, property), "1", MISS_TTL);
         // <b>무엇과 무엇을 비교했는지</b> 남긴다 (설계 I260).
         // "0건 맞음"만으로는 이름이 다른 건지, 동·번지가 안 온 건지, 우리 주소를
         // 못 읽은 건지 알 수 없다 — 실제로 그것 때문에 원인을 못 짚었다
@@ -316,6 +325,30 @@ public class ReferenceTransactionService {
      * <p>단지명을 확인할 수 없을 때만 면적으로 폴백합니다. <b>이름이 다르면 제외</b>합니다 —
      * 참고 카드가 비는 것이 남의 단지 가격을 이 매물 것처럼 보여주는 것보다 낫습니다.
      */
+    /**
+     * 이 매물이 볼 실거래 (설계 I266).
+     *
+     * <p>단지가 같고 <b>평형이 비슷하면</b> 같은 자료를 봅니다. 102동과 104동이
+     * 같은 84.9㎡라면 국토부를 두 번 부를 이유가 없습니다.
+     */
+    private List<ReferenceTransaction> storedFor(Complex complex, Property property) {
+        return referenceTransactionRepository.findByComplexAndArea(
+                complex.id(), property.areaExclusiveM2(), AREA_TOLERANCE);
+    }
+
+    /**
+     * 캐시의 열쇠 — <b>단지와 평형</b> (설계 I266).
+     *
+     * <p>매물 번호로 두면 같은 단지 같은 평형을 새로 등록할 때마다 헛걸음을
+     * 처음부터 다시 겪습니다. 알아낸 것은 <b>단지의 성질</b>이지 매물의 성질이 아닙니다.
+     */
+    private static String lookupKey(Complex complex, Property property) {
+        final BigDecimal area = property.areaExclusiveM2();
+        return complex.id() + "@" + (area == null
+                ? "?"
+                : area.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString());
+    }
+
     private boolean matches(Property property, ReferenceTrade trade) {
         // 규칙은 `ComplexName` 하나다 (설계 I230) — 전망과 다르게 정규화하다 갈라졌다
         final boolean nameKnown = ComplexMatch.same(

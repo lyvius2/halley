@@ -36,6 +36,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DEAL_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DIRECTION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DONG_HO;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.COMPLEX_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_BAND;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_NO;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_RAW;
@@ -148,6 +149,19 @@ public class PropertyRepository {
                         .fetchOne())
                 .component1();
         return findById(id).orElseThrow();
+    }
+
+    /**
+     * 단지 번호만 따로 적는다 (설계 I266).
+     *
+     * <p>{@code Property} 레코드에 칸을 더하지 않기로 했으므로(55칸) 이 값만
+     * 따로 씁니다. 매물의 다른 값은 건드리지 않습니다.
+     */
+    public void setComplexId(Long propertyId, Long complexId) {
+        dsl.update(TABLE)
+                .set(COMPLEX_ID, complexId)
+                .where(ID.eq(propertyId))
+                .execute();
     }
 
     public Property update(Property property) {

@@ -35,9 +35,11 @@ class PropertyServiceGeocodeTest {
     private final AgentService agentService = mock(AgentService.class);
     private final PropertyAccessGuard propertyAccessGuard = mock(PropertyAccessGuard.class);
 
+    private final ComplexService complexService = mock(ComplexService.class);
+
     private final PropertyService propertyService = new PropertyService(
             propertyAccessGuard, propertyRepository, userRepository, agentService,
-            editVersionStore, geoService, eventPublisher);
+            complexService, editVersionStore, geoService, eventPublisher);
 
     @BeforeEach
     void stubGroup() {
