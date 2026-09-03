@@ -10,7 +10,9 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -21,12 +23,9 @@ public class SystemConfigBootstrap implements ApplicationRunner {
 
     /**
      * AI를 쓰는 자리마다 모델을 따로 고른다 (설계 I267).
-     *
-     * <p><b>값을 비워 둡니다.</b> 비어 있으면 {@code llm.claude.model} 을 씁니다 —
-     * 여기에 지금의 기본값을 박아 두면, 나중에 배포로 기본을 바꿔도
-     * <b>DB에 남은 옛 이름이 이깁니다.</b>
+     * 값은 비워 둔다 — 기본값을 박아 두면 나중에 배포로 기본을 바꿔도 DB 값이 이긴다.
      */
-    private static final List<Seed> LLM_SEEDS = java.util.Arrays.stream(LlmFeature.values())
+    private static final List<Seed> LLM_SEEDS = Arrays.stream(LlmFeature.values())
             .map(f -> new Seed(f.configKey(), "", ConfigValueType.STRING, ConfigCategory.LLM,
                     f.label() + " — " + f.description()))
             .toList();
@@ -52,17 +51,14 @@ public class SystemConfigBootstrap implements ApplicationRunner {
     }
 
     /**
-     * <b>키 하나씩</b> 본다 (설계 I267).
-     *
-     * <p>예전에는 표가 비었을 때만 심었습니다. 그래서 <b>이미 돌고 있는 곳에는
-     * 새 설정이 영영 안 들어갔습니다</b> — 항목을 더해도 운영에서는 안 보입니다.
-     * 이미 있는 것은 건드리지 않으므로 사람이 고른 값을 덮지 않습니다.
+     * 키 하나씩 본다 (설계 I267) — 표가 비었을 때만 심으면 이미 돌고 있는 곳엔
+     * 새 설정이 영영 안 들어간다. 이미 있는 값은 안 건드린다.
      */
     @Override
     public void run(ApplicationArguments args) {
         removeObsolete();
         int seeded = 0;
-        for (final Seed seed : java.util.stream.Stream.concat(DEFAULTS.stream(), LLM_SEEDS.stream()).toList()) {
+        for (final Seed seed : Stream.concat(DEFAULTS.stream(), LLM_SEEDS.stream()).toList()) {
             if (systemConfigRepository.findById(seed.key()).isPresent()) {
                 continue;
             }

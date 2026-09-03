@@ -58,12 +58,7 @@ public class AdminSettingsController {
         this.llmModelService = llmModelService;
     }
 
-    /**
-     * AI 모델 설정 (설계 I267).
-     *
-     * <p>자리 넷과 고를 수 있는 모델을 <b>한 번에</b> 보냅니다 — 화면이 두 번
-     * 물으면 목록이 늦게 와서 드롭다운이 잠깐 빈 채로 보입니다.
-     */
+    /** AI 모델 설정 (설계 I267). 자리 넷과 고를 수 있는 모델을 한 번에 보낸다. */
     @GetMapping("/llm-models")
     public LlmModelSettingsResponse llmModels() {
         return LlmModelSettingsResponse.of(llmModelService.current(), llmModelService.available());

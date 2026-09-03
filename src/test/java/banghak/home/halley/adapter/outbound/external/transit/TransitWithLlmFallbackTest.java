@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
 import banghak.home.halley.adapter.outbound.external.odsay.OdsayTransitAdapter;
+import banghak.home.halley.application.service.LlmModelService;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.config.exception.TransitQuotaExceededException;
 import banghak.home.halley.domain.llm.LlmMessage;
@@ -17,6 +18,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -426,9 +428,9 @@ class TransitWithLlmFallbackTest {
     }
 
     /** 이 시험은 <b>모델을 안 고른</b> 상태를 본다 — 그러면 어댑터가 기본을 쓴다 (설계 I267). */
-    private static banghak.home.halley.application.service.LlmModelService llmModels() {
-        final var models = mock(banghak.home.halley.application.service.LlmModelService.class);
-        when(models.modelFor(org.mockito.ArgumentMatchers.any())).thenReturn(null);
+    private static LlmModelService llmModels() {
+        final var models = mock(LlmModelService.class);
+        when(models.modelFor(any())).thenReturn(null);
         return models;
     }
 }

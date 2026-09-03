@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.UpdateLlmModelRequest;
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
+import banghak.home.halley.config.exception.InvalidLlmModelSettingException;
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.ClaudeModelsPort;
 import banghak.home.halley.domain.llm.LlmFeature;
@@ -22,11 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * 자리마다 모델을 따로 고른다 (설계 I267).
- *
- * <p>지금까지는 환경변수 하나가 전부라 <b>바꾸려면 배포</b>해야 했습니다.
- */
+/** 자리마다 모델을 따로 고른다 (설계 I267). */
 @SpringBootTest
 @ActiveProfiles("local")
 @DisplayName("AI 모델 설정 (설계 I267)")
@@ -90,7 +87,7 @@ class LlmModelSettingTest {
         assertThatThrownBy(() -> llmModelService.update(List.of(new UpdateLlmModelRequest(
                 LlmFeature.RECOMMENDATION.configKey(), "claude-지어낸-이름"))))
                 .as("아무 문자열이나 받으면 그 자리의 AI가 조용히 죽는다")
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidLlmModelSettingException.class);
     }
 
     @Test
@@ -99,7 +96,7 @@ class LlmModelSettingTest {
         assertThatThrownBy(() -> llmModelService.update(List.of(
                 new UpdateLlmModelRequest("loan.regulation.profile", "claude-opus-5"))))
                 .as("임의의 설정 키를 고칠 수 있으면 규제 파라미터까지 바뀐다")
-                .isInstanceOf(IllegalArgumentException.class);
+                .isInstanceOf(InvalidLlmModelSettingException.class);
         assertThat(systemConfigRepository.findById("loan.regulation.profile")
                 .orElseThrow().configValue())
                 .isEqualTo("2025-10-15");

@@ -1,6 +1,8 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.application.service.LlmModelService;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.itinerary.TransitLeg;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
@@ -101,11 +103,11 @@ public class LlmTransitEstimator {
     private final LlmPort llmPort;
     private final ObjectMapper objectMapper;
     /** 이 자리에 쓸 모델을 <b>부를 때마다 물어본다</b> (설계 I267) — 붙박이가 아니다. */
-    private final banghak.home.halley.application.service.LlmModelService llmModelService;
+    private final LlmModelService llmModelService;
 
     public LlmTransitEstimator(LlmPort llmPort,
                                ObjectMapper objectMapper,
-                               banghak.home.halley.application.service.LlmModelService llmModelService) {
+                               LlmModelService llmModelService) {
         this.llmPort = llmPort;
         this.objectMapper = objectMapper;
         this.llmModelService = llmModelService;
@@ -151,7 +153,7 @@ public class LlmTransitEstimator {
         final LlmMessage message = LlmMessage.deterministic(
                 SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
                 blankToNull(llmModelService.modelFor(
-                        banghak.home.halley.domain.llm.LlmFeature.COMMUTE_ESTIMATE)));
+                        LlmFeature.COMMUTE_ESTIMATE)));
 
         LlmResult answer = llmPort.complete(message);
         if (retryable(answer)) {

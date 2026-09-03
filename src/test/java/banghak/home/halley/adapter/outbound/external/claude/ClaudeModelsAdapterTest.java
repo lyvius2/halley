@@ -15,12 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 모델 목록은 <b>이틀에 한 번</b>만 묻는다 (설계 I267).
- *
- * <p>관리자가 설정 화면을 열 때마다 Anthropic 에 묻는 것은 값이 아깝습니다 —
- * 모델 종류는 자주 바뀌지 않습니다.
- */
+/** 모델 목록은 이틀에 한 번만 묻는다 (설계 I267). */
 @DisplayName("Claude 모델 목록 (설계 I267)")
 class ClaudeModelsAdapterTest {
 

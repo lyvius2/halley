@@ -13,22 +13,14 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Anthropic 의 모델 목록 (설계 I267).
- *
- * <p><b>48시간 담아 둡니다.</b> 모델 종류는 자주 바뀌지 않는데, 관리자가 설정 화면을
- * 열 때마다 물으면 값이 아깝습니다.
- *
- * <p>못 받으면 <b>빈 목록</b>을 돌려줍니다 — 예외로 올리면 설정 화면 전체가 죽습니다.
- * 그때 화면은 <b>지금 쓰는 모델만</b> 보여 줍니다.
- */
+/** Anthropic 의 모델 목록 — 48시간 담아 두고, 못 받으면 예외 없이 빈 목록을 돌려준다 (설계 I267). */
 @Slf4j
 @Component
 public class ClaudeModelsAdapter implements ClaudeModelsPort {
 
     private static final String API_VERSION = "2023-06-01";
     private static final String CACHE_KEY = "claude";
-    /** 목록의 수명 (설계 I267). 종류가 자주 바뀌지 않아 이틀이면 넉넉하다. */
+    /** 목록의 수명 — 종류가 자주 바뀌지 않아 이틀이면 넉넉하다. */
     private static final Duration TTL = Duration.ofHours(48);
     /** Anthropic 이 한 번에 주는 최대치. */
     private static final int LIMIT = 100;
