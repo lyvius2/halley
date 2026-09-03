@@ -8282,6 +8282,51 @@ kakao.maps.load(() => {
 
 ---
 
+### I275b. 옮긴 지 몇 초 만에 <b>제자리로 돌아갔다</b> · **[확정 — 구현됨]** · [I275] 후속
+
+I275(지도가 없어 첫 클릭을 놓치는 문제)를 배포한 뒤에도 증상이 남았습니다.
+가리키는 곳이 신내역에서 청량리역으로 <b>바뀌기까지</b> 했습니다.
+
+#### `renderMarkers` 는 부를 때마다 전체 범위로 되돌아갔다
+
+```js
+if (coords.length > 0) {
+    const bounds = new kakao.maps.LatLngBounds();
+    coords.forEach(p => bounds.extend(...));
+    this.map.setBounds(bounds);   // ← 조건 없이 매번
+}
+```
+
+`renderMarkers` 는 `renderMap` 을 거쳐 <b>25곳 넘게</b>에서 다시 불립니다.
+그중 하나가 [I261]의 3초 간격 점수 감시(`checkScoreVersions`)입니다 —
+등록 직후 배경 채점이 끝나며 점수 버전이 바뀌면 목록을 다시 받고, 그때마다
+지도가 <b>전체 범위로 재조정</b>됐습니다.
+
+**카드를 눌러 옮긴 지 몇 초 만에 조용히 처음 자리로 돌아간 것**입니다.
+"다시 눌러야 움직인다"는 인상은 여기서 왔습니다 — 실은 다시 옮겨졌다가
+다시 밀려난 것이었습니다. 가리키는 landmark 가 매번 달랐던 것도 설명됩니다 —
+그 시점의 pin 구성에 따라 전체 범위의 중심이 달라집니다.
+
+#### 지금 보고 있는 매물이 있으면 다시 안 맞춘다
+
+```js
+const stayingOnFocused = this.activePropertyId != null
+        && coords.some(p => p.id === this.activePropertyId);
+if (coords.length > 0 && !stayingOnFocused) { ... }
+```
+
+`activePropertyId` 는 카드 강조에 이미 쓰이던 값입니다([템플릿] `:class="{active: ...}"`)
+— 사람이 지금 보고 있다고 화면이 이미 표시하던 것을, 지도도 같은 뜻으로 씁니다.
+그 매물이 목록에서 빠지면(필터 전환 등) 자연히 다시 범위를 맞춥니다.
+
+#### 검증
+
+이 브랜치에는 아직 [I276]의 JS 시험 도구가 없어(별도 PR), 카카오 SDK 를
+흉내 낸 Node 스크립트로 <b>클릭 → 배경 재조회 재현 → 범위 유지 확인</b>을
+했고, 고침을 되돌려 실제로 재현되는 것도 확인했습니다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```

@@ -4884,7 +4884,14 @@ function halley() {
                 }
                 this.markers[p.id] = overlay;
             });
-            if (coords.length > 0) {
+            // <b>지금 보고 있는 매물이 있으면 범위를 다시 안 맞춘다</b> (설계 I275).
+            // renderMarkers 는 3초 간격 점수 감시([I261])를 포함해 수십 곳에서 다시
+            // 불립니다 — 예전에는 부를 때마다 전체 범위로 되돌아가, 카드를 눌러
+            // 옮긴 지 몇 초 만에 조용히 처음 자리로 돌아갔습니다. "다시 눌러야 움직인다"는
+            // 그래서가 아니라 <b>다시 옮겨졌다가 다시 밀려난 것</b>이었습니다
+            const stayingOnFocused = this.activePropertyId != null
+                    && coords.some(p => p.id === this.activePropertyId);
+            if (coords.length > 0 && !stayingOnFocused) {
                 const bounds = new kakao.maps.LatLngBounds();
                 coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
