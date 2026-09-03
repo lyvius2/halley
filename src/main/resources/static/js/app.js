@@ -301,6 +301,15 @@ function halley() {
         map: null,
         markers: {},
         activePropertyId: null,
+        /**
+         * 지도가 준비되기 전에 누른 매물 (설계 I275).
+         *
+         * <p>처음 접속해서 곧바로 카드를 누르면 <b>지도가 아직 없습니다</b> —
+         * 카카오 SDK 로딩이 비동기입니다. 예전에는 그 클릭을 조용히 버렸습니다 —
+         * 지도가 뒤늦게 뜨면 전체 매물 범위로만 잡히고, 눌렀던 매물로는 안 갔습니다.
+         * 다시 눌러야만 옮겨졌습니다.
+         */
+        pendingFocus: null,
         showRoadview: false,
         roadviewProperty: null,
         roadviewState: 'loading',
@@ -4806,6 +4815,13 @@ function halley() {
             kakao.maps.load(() => {
                 this.initMapIfNeeded();
                 this.renderMarkers();
+                // 지도가 없어 미뤄 둔 클릭이 있으면 이제 옮긴다 (설계 I275) —
+                // renderMarkers 의 전체 범위 맞추기보다 <b>뒤에</b> 와야 이긴다
+                if (this.pendingFocus) {
+                    const target = this.pendingFocus;
+                    this.pendingFocus = null;
+                    this.focusProperty(target);
+                }
             });
         },
 
@@ -4921,10 +4937,22 @@ function halley() {
             return box;
         },
 
+        /**
+         * 지도를 이 매물로 옮긴다.
+         *
+         * <p><b>지도가 아직 준비되지 않았으면 기억해 둔다</b> (설계 I275) — 지도가
+         * 뜨는 대로 이어서 옮긴다. 조용히 버리면 처음 누른 클릭은 사라지고,
+         * 다시 눌러야만 움직이는 것처럼 보인다.
+         */
         focusProperty(item) {
             const p = item.property;
             this.activePropertyId = p.id;
-            if (!this.map || !p.lat || !p.lng) {
+            if (!this.map) {
+                this.pendingFocus = p.lat && p.lng ? item : null;
+                return;
+            }
+            this.pendingFocus = null;
+            if (!p.lat || !p.lng) {
                 return;
             }
             const position = new kakao.maps.LatLng(p.lat, p.lng);

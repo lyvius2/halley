@@ -8213,6 +8213,75 @@ CircuitBreaker 'claude-llm' is OPEN and does not permit further calls
 
 ---
 
+### I275. 첫 클릭이 지도를 못 옮겼다 · **[확정 — 구현됨]**
+
+처음 접속해서 매물 카드를 누르면 지도가 **매물 위치가 아니라 신내역 인근**을
+가리켰습니다. 같은 카드를 <b>다시</b> 누르면 그제서야 제자리로 옮겨졌습니다.
+
+#### 카카오 SDK 로딩은 비동기다
+
+```js
+renderMap() {
+    kakao.maps.load(() => {
+        this.initMapIfNeeded();   // 여기서 this.map 이 생긴다
+        this.renderMarkers();
+    });
+}
+```
+
+첫 방문에서 `loadProperties()` 가 `renderMap()` 을 부르지만, 그 안의
+`kakao.maps.load` 콜백은 <b>SDK 가 다 실릴 때까지</b> 기다립니다. 그동안
+`this.map` 은 <b>여전히 null</b> 입니다.
+
+#### 그 사이에 누른 클릭은 조용히 버려졌다
+
+```js
+focusProperty(item) {
+    if (!this.map || !p.lat || !p.lng) {
+        return;     // ← 아무 자국도 안 남기고 사라진다
+    }
+    ...
+}
+```
+
+**끝난 일도 아니고 실패한 일도 아닙니다.** 아무것도 안 남기고 그냥 없어졌습니다.
+[I262]에서 배경 조회가, [I219]에서 실거래 조회가 겪은 것과 같은 모양입니다 —
+**"아직 준비 안 됐다"를 자국도 없이 버리면, 그다음 사람은 그 클릭이 있었는지도
+모릅니다.**
+
+그 직후 SDK 로딩이 끝나면 `initMapIfNeeded` 가 기본 좌표(서울시청)로 지도를
+만들고, `renderMarkers` 가 <b>전체 매물 범위</b>로 bounds 를 맞춥니다 — 그
+범위의 중심이 우연히 신내역 인근이었을 뿐, <b>지도 로직이 신내역을 가리킨
+적은 없습니다.</b> 다시 누르면 이번엔 `this.map` 이 있으니 정상 동작합니다.
+
+#### 고친 것
+
+지도가 없으면 클릭을 <b>기억해 둡니다</b>(`pendingFocus`). 지도가 뜨는 순간
+(`renderMap` 의 콜백 안, `renderMarkers` 의 범위 맞추기 <b>다음</b>) 그 클릭을
+이어서 적용합니다 — 범위 맞추기가 먼저 그려도 매물로 옮기는 것이 <b>마지막에
+이깁니다.</b>
+
+```js
+kakao.maps.load(() => {
+    this.initMapIfNeeded();
+    this.renderMarkers();
+    if (this.pendingFocus) {
+        const target = this.pendingFocus;
+        this.pendingFocus = null;
+        this.focusProperty(target);
+    }
+});
+```
+
+#### 검증
+
+이 저장소에 아직 JS 시험 도구가 없어(과거 세션 요약 참고), 카카오 SDK 를
+최소로 흉내 낸 Node 스크립트로 **재현 → 고침 확인 → 되돌려서 재현되는지**
+셋 다 확인했습니다. 고치기 전 코드로는 `pendingFocus` 가 안 남고 `panTo` 도
+안 불렸습니다 — 증상 그대로였습니다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```
