@@ -299,7 +299,7 @@
                                            :title="isVisited(p.id) ? '이미 다녀온 곳입니다' : ''">
                                         <input type="checkbox" :checked="itinProperties.includes(p.id)"
                                                @change="toggleItineraryProperty(p.id)">
-                                        <span x-text="p.name"></span>
+                                        <span x-text="propertyTitle(p)"></span>
                                         <small x-show="isVisited(p.id)" class="itin-check-done">다녀옴</small>
                                         <small x-text="fmtWon(p.priceDeposit)"></small>
                                     </label>
@@ -1119,7 +1119,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">중개인</span>
-            <h3 x-text="agentProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(agentProperty?.property)"></h3>
             <p>이 매물을 담당하는 중개인을 연결합니다. 대표(1순위) 중개인은 1명입니다.</p>
         </div>
         <div class="card table-wrap">
@@ -1178,7 +1178,7 @@
         <button class="modal-close" @click="closePhotoModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">이미지</span>
-            <h3 x-text="photoProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(photoProperty?.property)"></h3>
             <p>업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
         </div>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
@@ -1944,7 +1944,7 @@
         <button class="modal-close" @click="closeScoreModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">평가 채점</span>
-            <h3 x-text="scoreProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(scoreProperty?.property)"></h3>
             <p>자동으로 계산되지 않은 항목은 직접 점수를 넣을 수 있습니다. 입력한 값은 자동 점수보다 우선합니다.</p>
         </div>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
@@ -2047,7 +2047,7 @@
     <div class="modal-card modal-wide">
         <div class="modal-head">
             <span class="modal-kicker">최근 실거래</span>
-            <h3 x-text="refProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(refProperty?.property)"></h3>
             <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
         </div>
         <div class="form-grid">
@@ -2118,7 +2118,7 @@
         <button class="modal-close" @click="closeLoanModal()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">대출 한도</span>
-            <h3 x-text="loanProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(loanProperty?.property)"></h3>
             <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
@@ -2384,7 +2384,7 @@
         <button class="modal-close" @click="closeForecast()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">가격 전망</span>
-            <h3 x-text="forecastProperty ? forecastProperty.property.name : ''"></h3>
+            <h3 x-text="forecastProperty ? propertyTitle(forecastProperty.property) : ''"></h3>
         </div>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
         <div class="progress-strip" x-show="isLoading('forecast')" x-cloak>
@@ -2481,7 +2481,7 @@
         <button class="modal-close" @click="closeComments()">×</button>
         <div class="modal-head">
             <span class="modal-kicker">코멘트</span>
-            <h3 x-text="commentProperty?.property?.name"></h3>
+            <h3 x-text="propertyTitle(commentProperty?.property)"></h3>
             <p>이 매물에 대한 각자의 생각을 남깁니다. 한 사람당 한 건이며 언제든 고쳐 쓸 수 있습니다.</p>
         </div>
         <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
@@ -2640,7 +2640,7 @@
     </div>
     <div class="rv-top" x-show="roadviewProperty">
         <div class="rv-info">
-            <span class="rv-name" x-text="roadviewProperty?.name"></span>
+            <span class="rv-name" x-text="propertyTitle(roadviewProperty)"></span>
             <span class="rv-meta">
                 <span class="badge" :class="roadviewProperty ? dealBadge(roadviewProperty.dealType) : ''" x-text="roadviewProperty ? dealLabel(roadviewProperty.dealType) : ''"></span>
                 <span x-text="roadviewProperty ? fmtWon(roadviewProperty.priceDeposit) : ''"></span>
