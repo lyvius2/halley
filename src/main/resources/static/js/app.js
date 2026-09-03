@@ -301,6 +301,15 @@ function halley() {
         map: null,
         markers: {},
         activePropertyId: null,
+        /**
+         * 지도가 준비되기 전에 누른 매물 (설계 I275).
+         *
+         * <p>처음 접속해서 곧바로 카드를 누르면 <b>지도가 아직 없습니다</b> —
+         * 카카오 SDK 로딩이 비동기입니다. 예전에는 그 클릭을 조용히 버렸습니다 —
+         * 지도가 뒤늦게 뜨면 전체 매물 범위로만 잡히고, 눌렀던 매물로는 안 갔습니다.
+         * 다시 눌러야만 옮겨졌습니다.
+         */
+        pendingFocus: null,
         showRoadview: false,
         roadviewProperty: null,
         roadviewState: 'loading',
@@ -4806,6 +4815,13 @@ function halley() {
             kakao.maps.load(() => {
                 this.initMapIfNeeded();
                 this.renderMarkers();
+                // 지도가 없어 미뤄 둔 클릭이 있으면 이제 옮긴다 (설계 I275) —
+                // renderMarkers 의 전체 범위 맞추기보다 <b>뒤에</b> 와야 이긴다
+                if (this.pendingFocus) {
+                    const target = this.pendingFocus;
+                    this.pendingFocus = null;
+                    this.focusProperty(target);
+                }
             });
         },
 
@@ -4868,7 +4884,14 @@ function halley() {
                 }
                 this.markers[p.id] = overlay;
             });
-            if (coords.length > 0) {
+            // <b>지금 보고 있는 매물이 있으면 범위를 다시 안 맞춘다</b> (설계 I275).
+            // renderMarkers 는 3초 간격 점수 감시([I261])를 포함해 수십 곳에서 다시
+            // 불립니다 — 예전에는 부를 때마다 전체 범위로 되돌아가, 카드를 눌러
+            // 옮긴 지 몇 초 만에 조용히 처음 자리로 돌아갔습니다. "다시 눌러야 움직인다"는
+            // 그래서가 아니라 <b>다시 옮겨졌다가 다시 밀려난 것</b>이었습니다
+            const stayingOnFocused = this.activePropertyId != null
+                    && coords.some(p => p.id === this.activePropertyId);
+            if (coords.length > 0 && !stayingOnFocused) {
                 const bounds = new kakao.maps.LatLngBounds();
                 coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
@@ -4921,14 +4944,32 @@ function halley() {
             return box;
         },
 
+        /**
+         * 지도를 이 매물로 옮긴다.
+         *
+         * <p><b>지도가 아직 준비되지 않았으면 기억해 둔다</b> (설계 I275) — 지도가
+         * 뜨는 대로 이어서 옮긴다. 조용히 버리면 처음 누른 클릭은 사라지고,
+         * 다시 눌러야만 움직이는 것처럼 보인다.
+         */
         focusProperty(item) {
             const p = item.property;
             this.activePropertyId = p.id;
-            if (!this.map || !p.lat || !p.lng) {
+            if (!this.map) {
+                this.pendingFocus = p.lat && p.lng ? item : null;
                 return;
             }
+            this.pendingFocus = null;
+            if (!p.lat || !p.lng) {
+                return;
+            }
+            // <b>panTo 뒤에 setLevel 을 바로 부르면 안 된다</b> (설계 I275).
+            // panTo 는 애니메이션이라 몇백 ms 동안 중심이 옮겨 가는 도중인데, 그 자리에서
+            // setLevel 을 부르면 SDK 가 <b>그 순간의(아직 옛 자리인) 중심</b>을 기준으로
+            // 다시 그려 애니메이션을 끊습니다 — 줌은 바뀌지만 중심은 옛 자리에 남습니다.
+            // panTo·setBounds·setCenter 호출을 실제로 가로채 재서 확인했습니다.
+            // setCenter 는 애니메이션이 없어 이 경합이 없습니다
             const position = new kakao.maps.LatLng(p.lat, p.lng);
-            this.map.panTo(position);
+            this.map.setCenter(position);
             this.map.setLevel(4);
         },
 
