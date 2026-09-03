@@ -1,11 +1,15 @@
 package banghak.home.halley.application.service;
 
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
+import banghak.home.halley.config.VirtualThreadGate;
+import banghak.home.halley.domain.property.Complex;
+import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.time.Instant;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -140,20 +144,20 @@ class ReferenceLookbackTest {
         // 실거래는 단지에 붙는다 (설계 I266) — 이 테스트는 조회 개월 수만 본다
         final ComplexService complexes = org.mockito.Mockito.mock(ComplexService.class);
         org.mockito.Mockito.when(complexes.of(org.mockito.ArgumentMatchers.any()))
-                .thenReturn(new banghak.home.halley.domain.property.Complex(
+                .thenReturn(new Complex(
                         7L, "key", "석관신동아파밀리에", "서울 성북구 석관동 123",
-                        null, null, java.time.Instant.now()));
+                        null, null, Instant.now()));
 
         final LegalDongCodeService codes = org.mockito.Mockito.mock(LegalDongCodeService.class);
         org.mockito.Mockito.when(codes.deriveSigunguCode(org.mockito.ArgumentMatchers.any()))
                 .thenReturn(java.util.Optional.of("11290"));
 
         return new ReferenceTransactionService(null, properties, saved, port, codes, 12,
-                new banghak.home.halley.config.VirtualThreadGate("test", 4), complexes, cache);
+                new VirtualThreadGate("test", 4), complexes, cache);
     }
 
-    private banghak.home.halley.domain.property.Property sampleProperty() {
-        return new banghak.home.halley.domain.property.Property(
+    private Property sampleProperty() {
+        return new Property(
                 11L, "석관신동아파밀리에", null,
                 banghak.home.halley.domain.property.DealType.SALE, 800_000_000L, null,
                 null, "서울 성북구 석관동 123", new java.math.BigDecimal("37.60"),
@@ -169,7 +173,7 @@ class ReferenceLookbackTest {
             throws Exception {
         final ReferenceTransactionService service = new ReferenceTransactionService(
                 null, null, null, port, null, 24,
-                new banghak.home.halley.config.VirtualThreadGate("test", 4), null, null);
+                new VirtualThreadGate("test", 4), null, null);
         final Method method = ReferenceTransactionService.class
                 .getDeclaredMethod("fetchMonths", String.class, String.class, boolean.class);
         method.setAccessible(true);

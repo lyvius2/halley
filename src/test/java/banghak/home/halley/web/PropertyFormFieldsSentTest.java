@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -14,15 +15,7 @@ import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * <b>폼에 있는 칸이 서버로 가고 있는가</b> (설계 I269).
- *
- * <p>이 저장소에서 두 번 겪었습니다. 파서가 `102동`을 읽고 화면도 보여 주는데
- * {@code buildPasteRequest} 가 그것을 <b>payload 에 안 담아</b> DB 는 늘 NULL
- * 이었습니다([I265]). 칸을 고쳐도 안 바뀌면 사람은 <b>서버 탓</b>을 합니다.
- *
- * <p>빌드 단계가 없어 이런 누락은 <b>아무 데서도 안 걸립니다.</b> 여기서 봅니다.
- */
+/** 폼에 있는 칸이 서버로 가고 있는가 (설계 I269) — [I265]에서 이 누락을 겪었다. */
 @DisplayName("폼의 칸이 요청에 실리는가 (설계 I269)")
 class PropertyFormFieldsSentTest {
 
@@ -85,7 +78,7 @@ class PropertyFormFieldsSentTest {
     private static List<String> keysOf(String block, int indent) {
         final Matcher matcher = Pattern.compile(
                 "^ {" + indent + "}([a-zA-Z_$][\\w$]*)\\s*:", Pattern.MULTILINE).matcher(block);
-        final List<String> keys = new java.util.ArrayList<>();
+        final List<String> keys = new ArrayList<>();
         while (matcher.find()) {
             keys.add(matcher.group(1));
         }

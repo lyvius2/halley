@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -210,7 +211,7 @@ public class PropertyService {
                 request.schoolName(),
                 request.schoolWalkMinutes(),
                 request.schoolName() == null || request.schoolName().isBlank() ? null
-                        : java.util.Objects.equals(request.schoolName(), existing.schoolName())
+                        : Objects.equals(request.schoolName(), existing.schoolName())
                         ? existing.schoolSource() : SchoolSource.PASTE,
                 existing.pnu(),
                 existing.officialPrice(),
@@ -350,16 +351,11 @@ public class PropertyService {
     }
 
     /**
-     * 고칠 때는 <b>동이 바뀌었는지</b>를 본다 (설계 I269).
-     *
-     * <p>수정 폼은 좌표 칸을 늘 채워 보냅니다. 그래서 {@link #resolveCoordinates} 는
-     * 그 값을 그대로 씁니다 — 102동을 104동으로 고쳐도 <b>핀이 안 움직입니다.</b>
-     *
-     * <p>다시 찾아보는 것은 <b>사람이 좌표를 안 건드렸을 때뿐</b>입니다. 손으로 찍어
-     * 놓은 자리를 동 이름 때문에 옮겨 버리면 안 됩니다.
+     * 동이 바뀌었을 때만 좌표를 다시 찾는다 (설계 I269) — 사람이 좌표를 직접 손댔으면
+     * 그대로 둔다. {@link #resolveCoordinates} 는 요청에 좌표가 있으면 그대로 쓴다.
      */
     private Coordinates resolveCoordinatesForUpdate(Property existing, PropertyRequest request) {
-        final boolean buildingChanged = !java.util.Objects.equals(
+        final boolean buildingChanged = !Objects.equals(
                 blankToNull(existing.dongHo()), blankToNull(request.dongHo()));
         if (!buildingChanged || movedByHand(existing, request)) {
             return resolveCoordinates(request);
@@ -393,14 +389,8 @@ public class PropertyService {
     }
 
     /**
-     * 같은 단지라도 <b>동이 다르면 자리가 다르다</b> (설계 I268).
-     *
-     * <p>주소검색은 동을 무시해 단지 대표점 하나만 줍니다 — 102동과 104동이
-     * <b>정확히 같은 좌표</b>가 되어 지도에서 포개졌습니다. 장소검색으로 동을 물으면
-     * 실제 건물 좌표가 옵니다(재 보니 45m 떨어져 있었습니다).
-     *
-     * <p>못 찾으면 <b>단지 좌표를 그대로</b> 씁니다. 지어낸 자리로 밀어 놓는 것보다
-     * 겹쳐 있는 편이 낫습니다 — 겹친 것은 화면이 벌려서 보여 줍니다.
+     * 같은 단지라도 동이 다르면 자리가 다르다 (설계 I268) — 주소검색은 동을 무시하지만
+     * 장소검색은 건물 좌표를 준다. 못 찾으면 단지 좌표를 그대로 쓴다.
      */
     private Coordinates refineToBuilding(PropertyRequest request, Coordinates base) {
         return geoService.geocodeBuilding(request.name(), request.dongHo(), base.lat(), base.lng())

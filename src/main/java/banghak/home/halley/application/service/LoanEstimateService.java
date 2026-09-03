@@ -66,12 +66,7 @@ public class LoanEstimateService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final ComplexService complexService;
-    /**
-     * 실거래를 고를 때의 면적 허용 범위 (설계 I266).
-     *
-     * <p><b>담아 둘 때와 찾을 때가 같아야 합니다.</b> 다르면 담아 놓고 못 찾습니다 —
-     * {@code ReferenceTransactionService} 가 같은 값을 씁니다.
-     */
+    /** 실거래를 고를 때의 면적 허용 범위 — {@code ReferenceTransactionService} 와 같은 값이어야 한다. */
     static final double REFERENCE_AREA_TOLERANCE = 0.15;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
@@ -330,13 +325,12 @@ public class LoanEstimateService {
      * 담보가치를 매길 재료 — 이 매물의 최근 실거래가. 이미 수집해 둔 캐시만 읽고 국토부를 부르지 않는다
      * (대출 계산이 외부 API 지연에 묶이면 안 된다).
      */
-    private List<TradeSample> tradeSamples(banghak.home.halley.domain.property.Property property) {
-        // 실거래는 매물이 아니라 <b>단지와 평형</b>에 붙는다 (설계 I266).
-        // 단지가 아직 없으면 받아 온 적이 없다는 뜻이다 — 여기서 만들지 않는다
+    private List<TradeSample> tradeSamples(Property property) {
+        // 실거래는 단지·평형에 붙는다 (설계 I266) — 단지가 없으면 받아 온 적이 없다는 뜻이다
         return complexService.find(property)
                 .map(c -> referenceTransactionRepository.findByComplexAndArea(
                         c.id(), property.areaExclusiveM2(), REFERENCE_AREA_TOLERANCE))
-                .orElseGet(java.util.List::of).stream()
+                .orElseGet(List::of).stream()
                 .filter(t -> t.price() != null && t.price() > 0)
                 .map(t -> new TradeSample(t.price(), t.areaM2(), t.contractDate()))
                 .toList();

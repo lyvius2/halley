@@ -6,6 +6,7 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.adapter.outbound.persistence.ReferenceTransactionRepository;
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.Complex;
 import banghak.home.halley.domain.property.ComplexMatch;
@@ -63,7 +64,7 @@ public class ReferenceTransactionService {
      */
     private final int lookbackMonths;
     /** 배경 조회를 다른 보정과 같은 줄에 세운다 (설계 I108). */
-    private final banghak.home.halley.config.VirtualThreadGate gate;
+    private final VirtualThreadGate gate;
     private final CachePort cache;
     /** 실거래는 매물이 아니라 <b>단지와 평형</b>에 붙는다 (설계 I266). */
     private final ComplexService complexService;
@@ -100,7 +101,7 @@ public class ReferenceTransactionService {
                                        LegalDongCodeService legalDongCodeService,
                                        @Value("${ministry.reference.lookback-months:12}")
                                        int lookbackMonths,
-                                       banghak.home.halley.config.VirtualThreadGate gate,
+                                       VirtualThreadGate gate,
                                        ComplexService complexService,
                                        CachePort cache) {
         this.propertyAccessGuard = propertyAccessGuard;
@@ -312,43 +313,21 @@ public class ReferenceTransactionService {
         return value == null || value.isBlank() ? null : value;
     }
 
-    /**
-     * 참고 대상 판정 — <b>같은 단지의 같은 면적대</b>여야 한다 (설계 I71).
-     *
-     * <p>예전에는 면적만 맞으면 받아들였습니다. 그러면 <b>같은 법정동의 다른 단지</b> 거래가
-     * 통째로 섞입니다. 실측(대치동 84㎡)에서 21억·20.5억과 함께 9.85억·13억이 들어왔습니다 —
-     * 이 값들로 담보가치를 매기면 크게 틀어집니다.
-     *
-     * <p>단지명은 표기가 흔들립니다(`은마` / `은마아파트` / `은마아파트(테스트)`). 괄호·`아파트`·
-     * 공백을 걷어내고 <b>한쪽이 다른 쪽을 품는지</b>로 봅니다. 두 글자 미만은 우연히 걸리므로 뺍니다.
-     *
-     * <p>단지명을 확인할 수 없을 때만 면적으로 폴백합니다. <b>이름이 다르면 제외</b>합니다 —
-     * 참고 카드가 비는 것이 남의 단지 가격을 이 매물 것처럼 보여주는 것보다 낫습니다.
-     */
-    /**
-     * 이 매물이 볼 실거래 (설계 I266).
-     *
-     * <p>단지가 같고 <b>평형이 비슷하면</b> 같은 자료를 봅니다. 102동과 104동이
-     * 같은 84.9㎡라면 국토부를 두 번 부를 이유가 없습니다.
-     */
+    /** 이 매물이 볼 실거래 (설계 I266) — 단지가 같고 평형이 비슷하면 같은 자료를 본다. */
     private List<ReferenceTransaction> storedFor(Complex complex, Property property) {
         return referenceTransactionRepository.findByComplexAndArea(
                 complex.id(), property.areaExclusiveM2(), AREA_TOLERANCE);
     }
 
-    /**
-     * 캐시의 열쇠 — <b>단지와 평형</b> (설계 I266).
-     *
-     * <p>매물 번호로 두면 같은 단지 같은 평형을 새로 등록할 때마다 헛걸음을
-     * 처음부터 다시 겪습니다. 알아낸 것은 <b>단지의 성질</b>이지 매물의 성질이 아닙니다.
-     */
+    /** 캐시의 열쇠 — 단지와 평형 (설계 I266). 알아낸 것은 단지의 성질이지 매물의 성질이 아니다. */
     private static String lookupKey(Complex complex, Property property) {
         final BigDecimal area = property.areaExclusiveM2();
         return complex.id() + "@" + (area == null
                 ? "?"
-                : area.setScale(0, java.math.RoundingMode.HALF_UP).toPlainString());
+                : area.setScale(0, RoundingMode.HALF_UP).toPlainString());
     }
 
+    /** 참고 대상 판정 — 같은 단지의 같은 면적대여야 한다 (설계 I71). 이름을 확인할 수 없을 때만 면적으로 폴백한다. */
     private boolean matches(Property property, ReferenceTrade trade) {
         // 규칙은 `ComplexName` 하나다 (설계 I230) — 전망과 다르게 정규화하다 갈라졌다
         final boolean nameKnown = ComplexMatch.same(

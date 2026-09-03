@@ -17,14 +17,8 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.TABLE;
 
 /**
- * 이미 있는 매물에 단지를 달아 준다 (설계 I266).
- *
- * <p><b>SQL 로 못 합니다.</b> 단지 열쇠는 {@code ComplexName.normalize} 가 만듭니다 —
- * 괄호 안을 버리고 `아파트`를 지우고 공백·가운뎃점을 없앱니다. 그걸 SQL 로 옮겨 쓰면
- * <b>같은 규칙이 두 벌</b>이 되고, 이 저장소가 [I230]에서 겪은 그대로 갈라집니다.
- *
- * <p>그래서 자바가 합니다. 이미 달린 매물은 건드리지 않으므로 <b>여러 번 돌려도
- * 같습니다.</b>
+ * 이미 있는 매물에 단지를 달아 준다 (설계 I266). 단지 열쇠 생성 규칙이 자바(`ComplexName`)에
+ * 있어 SQL 로는 못 한다. 이미 달린 매물은 안 건드리므로 여러 번 돌려도 같다.
  */
 @Slf4j
 @Component

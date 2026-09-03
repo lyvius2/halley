@@ -9,6 +9,7 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.external.MinistryReferencePort;
 import banghak.home.halley.domain.geo.LegalDongCode;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.ReferenceTrade;
 import banghak.home.halley.support.GroupTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -193,8 +194,8 @@ class ComplexSharedReferenceTest {
         return false;
     }
 
-    private banghak.home.halley.domain.property.Property property(PropertyResponse response) {
-        return new banghak.home.halley.domain.property.Property(
+    private Property property(PropertyResponse response) {
+        return new Property(
                 response.id(), response.name(), null, null, null, null,
                 null, response.addressJibun(), null, null, null, null,
                 null, null, null, null, null, null, null, null, null, null, null, null, null,

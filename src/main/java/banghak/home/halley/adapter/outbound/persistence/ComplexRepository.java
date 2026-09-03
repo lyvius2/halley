@@ -42,12 +42,8 @@ public class ComplexRepository {
     }
 
     /**
-     * 없으면 만들고, 있으면 그것을 돌려준다.
-     *
-     * <p><b>동시에 두 매물이 같은 단지를 만들 수 있습니다.</b> 등록은 배경 보정과
-     * 함께 도는 데다, 사람 둘이 같은 단지를 나란히 넣기도 합니다.
-     * 유일 인덱스가 막아 주므로, 부딪히면 <b>다시 찾아</b> 돌려줍니다 —
-     * 미리 잠그는 것보다 싸고, 놓치는 경우가 없습니다.
+     * 없으면 만들고, 있으면 그것을 돌려준다. 동시에 두 매물이 같은 단지를 만들 수 있어,
+     * 유일 인덱스에 부딪히면 다시 찾아 돌려준다 — 미리 잠그는 것보다 싸다.
      */
     public Complex findOrCreate(String matchKey, Complex candidate) {
         final Optional<Complex> existing = findByMatchKey(matchKey);
