@@ -4476,11 +4476,23 @@ function halley() {
          * 그게 맞습니다 — 내가 안 가 봤으니까요. 말로 적어 둡니다.
          */
         visitedTitle(scored) {
-            // 카드에 실린 내 점수를 그대로 본다 — 카드가 보인다는 것은 이미 받았다는 뜻이다
-            const mine = (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
-            return mine
+            return this.scoredComfort(scored)
                 ? '내가 공간의 쾌적함을 매겼습니다 — 다녀온 곳입니다'
                 : '구성원 중 누군가 공간의 쾌적함을 매겼습니다';
+        },
+
+        /**
+         * <b>내가</b> 쾌적함을 매겼는가 (설계 I264).
+         *
+         * <p>화면이 이 이름을 부르는데 <b>함수가 없었습니다.</b> 카드마다
+         * `scoredComfort is not defined` 가 났고, 배지 색이 늘 남의 것으로 보였습니다.
+         *
+         * <p>같은 규칙이 {@link #visitedTitle} 안에 <b>또 한 벌</b> 있었습니다.
+         * 두 벌이면 언젠가 어긋납니다 — 여기 하나만 둡니다.
+         */
+        scoredComfort(scored) {
+            // 카드에 실린 내 점수를 그대로 본다 — 카드가 보인다는 것은 이미 받았다는 뜻이다
+            return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
         },
 
         /**
