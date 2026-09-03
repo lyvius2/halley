@@ -149,6 +149,9 @@ function halley() {
         pins: [],
         users: [],
         soldOutRecent: [],
+        // 경로를 아예 못 냈다 (설계 I274)
+        showItinUnavailable: false,
+        itinUnavailableMessage: '',
         showSoldOutAlert: false,
         soldOutAlertShown: false,
         showLoanModal: false,
@@ -3118,6 +3121,17 @@ function halley() {
                     })
                 });
                 if (ok) {
+                    // <b>구간을 하나도 못 받았으면 결과가 아니다 (설계 I274).</b>
+                    // 순서는 모두 같은 값(못 감)으로 매긴 것이라 <b>아무 뜻이 없고</b>,
+                    // 그걸 늘어놓으면 사람은 계산된 동선으로 읽는다
+                    if (body?.status === 'UNAVAILABLE') {
+                        // 판단은 <b>서버가</b> 한다 (설계 I274) — 화면이 따로 세면
+                        // 규칙이 두 벌이 되고, 이 저장소는 그때마다 갈렸다
+                        this.clearItineraryResult();
+                        this.itinUnavailableMessage = body.message;
+                        this.showItinUnavailable = true;
+                        return;
+                    }
                     this.itinResult = body;
                     this.saveItineraryDraft();
                     this.renderItinerary();
@@ -3561,6 +3575,10 @@ function halley() {
             const m = minutes % 60;
             const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
             return days > 0 ? `${clock} (+${days}일)` : clock;
+        },
+
+        closeItinUnavailable() {
+            this.showItinUnavailable = false;
         },
 
         /** 이 구간에 걸리는 시간 — <b>못 받았으면 그렇다고 말한다</b> (설계 I270). */
@@ -4143,6 +4161,8 @@ function halley() {
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
+                // 이 목록에 없으면 <b>배경을 눌렀을 때 엉뚱한 모달이 닫힌다</b> (설계 I274)
+                ['showItinUnavailable', () => this.closeItinUnavailable()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
                 ['showUsers', () => this.closeUsers()],
                 ['showSettings', () => this.closeSettings()],

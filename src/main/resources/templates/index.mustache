@@ -374,9 +374,12 @@
                                                             <span x-text="legStepText(step)"></span>
                                                         </div>
                                                     </template>
-                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도 -->
+                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도.
+                                                         <b>시간마저 못 받았으면 이 줄을 안 그린다</b> (설계 I270) —
+                                                         "약 null분" 이 그것이었다 -->
                                                     <div class="itin-step is-road"
-                                                         x-show="!(legFor(i).steps || []).length">
+                                                         x-show="!(legFor(i).steps || []).length
+                                                                 && legFor(i).minutes != null">
                                                         <span class="itin-step-ic">🚗</span>
                                                         <span x-text="'약 ' + legFor(i).minutes + '분'"></span>
                                                     </div>
@@ -2621,6 +2624,23 @@
         </div>
         <div class="paste-actions">
             <button class="btn btn-primary" @click="closeSoldOutAlert()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- 경로를 아예 못 낸 경우 (설계 I274).
+     구간 하나도 못 받았으면 순서도 뜻이 없다 — 결과를 보여 주는 대신 말한다 -->
+<div class="modal" x-show="showItinUnavailable" x-cloak>
+    <div class="modal-backdrop" @click="closeItinUnavailable()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">알림</span>
+            <h3>최적 경로를 산출하지 못했습니다</h3>
+        </div>
+        <!-- 문구는 <b>서버가 준 것</b>을 그대로 (설계 I274). 화면에 또 적으면 두 벌이 된다 -->
+        <p class="itin-unavailable" x-text="itinUnavailableMessage"></p>
+        <div class="paste-actions">
+            <button class="btn btn-primary" @click="closeItinUnavailable()">확인</button>
         </div>
     </div>
 </div>

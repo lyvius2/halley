@@ -171,7 +171,7 @@ public class ItineraryService {
                 log.info("Some legs have no travel time. total={}, unknown={}, mode={}",
                         legs.size(), unknown, mode);
             }
-            return new OptimizeItineraryResponse(order, totalMinutes(legs), legs, unknown);
+            return OptimizeItineraryResponse.of(order, totalMinutes(legs), legs, unknown);
         } finally {
             // 요청 스레드는 재사용된다 — 안 지우면 다음 사람이 남의 길을 본다
             transitMemo.remove();

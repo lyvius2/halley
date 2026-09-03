@@ -123,6 +123,8 @@ class TransitFallbackStormTest {
         assertThat(response.legs()).isNotEmpty()
                 .allSatisfy(leg -> assertThat(leg.minutes()).isNull());
         assertThat(response.unknownLegs()).isEqualTo(response.legs().size());
+        assertThat(response.status())
+                .isEqualTo(OptimizeItineraryResponse.Status.UNAVAILABLE);
     }
 
     private PropertyRequest request(String name, BigDecimal lat, BigDecimal lng) {

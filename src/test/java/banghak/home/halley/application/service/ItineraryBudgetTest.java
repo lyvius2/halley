@@ -157,6 +157,11 @@ class ItineraryBudgetTest {
         assertThat(response.unknownLegs())
                 .as("몇 구간을 못 받았는지 화면이 말할 수 있어야 한다")
                 .isEqualTo(response.legs().size());
+        // 하나도 못 받았으면 <b>순서마저 뜻이 없다</b> — 늘어놓지 말고 말해야 한다 (설계 I274)
+        assertThat(response.status())
+                .as("결과가 아닌 것을 결과로 내놓으면 사람은 계산된 동선으로 읽는다")
+                .isEqualTo(OptimizeItineraryResponse.Status.UNAVAILABLE);
+        assertThat(response.message()).contains("내일 다시 시도");
     }
 
     @Test
@@ -165,6 +170,8 @@ class ItineraryBudgetTest {
         final OptimizeItineraryResponse response = itineraryService.optimize(optimizeRequest());
 
         assertThat(response.unknownLegs()).isZero();
+        assertThat(response.status()).isEqualTo(OptimizeItineraryResponse.Status.OK);
+        assertThat(response.message()).as("멀쩡할 때 경고 문구가 실리면 안 된다").isNull();
         assertThat(response.totalMinutes())
                 .as("구간 %d개 × 10분", response.legs().size())
                 .isEqualTo(response.legs().size() * 10);
