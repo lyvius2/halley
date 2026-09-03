@@ -12,6 +12,7 @@
 ![Kakao Map](https://img.shields.io/badge/Kakao%20Map-SDK-FFCD00?logo=kakao&logoColor=black)
 ![Claude](https://img.shields.io/badge/AI-Claude-D97757?logo=claude&logoColor=white)
 ![DeepSeek](https://img.shields.io/badge/Scaffolding-DeepSeek%20V4%20Flash-4D6BFE?logo=deepseek&logoColor=white)
+[![Codex Audit](https://img.shields.io/badge/Codex-Audit%20in%20progress-000000?logo=openai&logoColor=white)](docs/ARCHITECTURE_SERVICE_AUDIT_2026-09-03.md)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
 **같은 집을 함께 찾는 사람들을 위한 매물 비교·평가 도구입니다.**
