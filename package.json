@@ -1,0 +1,12 @@
+{
+  "name": "halley-web-tests",
+  "private": true,
+  "type": "commonjs",
+  "description": "app.js 를 실제로 실행해 재는 시험 (설계 I276). 빌드 산출물에는 들어가지 않는다 — 화면은 여전히 빌드 단계 없는 Mustache + Alpine 이다.",
+  "scripts": {
+    "test": "node --test src/test/js/**/*.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0"
+  }
+}

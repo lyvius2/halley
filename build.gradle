@@ -63,3 +63,17 @@ tasks.named('test') {
             .withPropertyName('ddlFiles')
             .withPathSensitivity(PathSensitivity.RELATIVE)
 }
+
+// app.js 시험 (설계 I276) — test/check/build 에는 안 묶는다, Node 없는 배포 환경도 있다
+tasks.register('jsInstall', Exec) {
+    inputs.file('package.json')
+    outputs.dir('node_modules')
+    commandLine 'npm', 'install', '--no-audit', '--no-fund'
+}
+
+tasks.register('jsTest', Exec) {
+    dependsOn tasks.named('jsInstall')
+    inputs.dir('src/test/js')
+    inputs.dir('src/main/resources/static/js')
+    commandLine 'npm', 'test'
+}

@@ -8213,6 +8213,58 @@ CircuitBreaker 'claude-llm' is OPEN and does not permit further calls
 
 ---
 
+### I276. 화면(app.js)에도 시험을 둔다 · **[확정 — 구현됨]**
+
+지금까지 `app.js` 의 버그는 전부 **사람이 화면을 보고서야** 알았습니다 —
+[I264]의 `scoredComfort`, [I275]의 첫 클릭 무시. Java 쪽 `TemplateCallsExistTest`
+같은 검사는 <b>텍스트</b>로 "이름이 있는가"만 보고, <b>뜻이 맞는가</b>는 못 봅니다.
+
+#### 무엇을 도입했나
+
+Node 내장 시험기(`node --test`)와 `jsdom` 하나뿐입니다. Jest 같은 프레임워크를
+더하지 않았습니다 — Node 22에 이미 있는 것으로 충분했습니다.
+
+```
+src/test/js/
+  support/
+    harness.js      ← 진짜 app.js·alpine.min.js 를 jsdom 위에서 그대로 돌린다
+    kakaoStub.js     ← 카카오맵 SDK 를 부르는 모양만 흉내 낸다
+  scoredComfort.test.js
+  modalStack.test.js
+  itineraryDisplay.test.js
+```
+
+#### 사본이 아니라 진짜 파일을 돈다
+
+`harness.js` 는 `src/main/resources/static/js/app.js` 와 `vendor/alpine.min.js` 를
+<b>파일 그대로</b> 읽어 jsdom 창 안에서 실행합니다. 손으로 옮겨 적으면 시험이
+지키는 것은 사본이지 화면이 실제로 도는 코드가 아닙니다.
+
+#### 카카오맵 SDK 는 흉내만 낸다
+
+실물은 브라우저에서 도메인 키로만 뜹니다. `kakaoStub.js` 는 <b>그려지는지</b>가
+아니라 <b>우리 코드가 SDK 를 올바른 순서·값으로 부르는지</b>만 봅니다 —
+[I275]를 고치며 쓴 즉석 스크립트를 정식으로 옮긴 것입니다.
+
+#### `test`·`build` 에는 안 묶는다
+
+```groovy
+tasks.register('jsTest', Exec) { ... }   // ← test/check/build 의 dependsOn 이 아니다
+```
+
+배포 빌드가 Node 없는 환경에서 돌 수 있습니다. 거기 묶으면 그 빌드가
+<b>Node 부재만으로</b> 실패합니다. 손으로 `./gradlew jsTest` 를 부릅니다 —
+화면은 여전히 빌드 단계 없는 Mustache + Alpine 입니다(AGENTS.md).
+
+#### 첫 세 시험은 이미 있는 코드를 겨냥했다
+
+새 기능이 아니라 [I264]·[I270]·[I274] — **이미 고쳐 놓은 버그**를 다시 겨냥해
+셋을 썼습니다. 되돌려서(그 고침을 지우고) 재현되는지 하나씩 확인했습니다 —
+`scoredComfort` 를 지우면, `showItinUnavailable` 등록을 빼면, `!= null` 을
+truthy 검사로 바꾸면 각각 다른 시험이 잡습니다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```
