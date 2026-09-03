@@ -1805,6 +1805,11 @@
                 <label class="span2">매물명
                     <input type="text" x-model="propertyForm.name" placeholder="예: 한빛아파트" required>
                 </label>
+                <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I269).
+                     지도 좌표도 이 값으로 갈린다 (설계 I268) -->
+                <label class="span2">동/호
+                    <input type="text" x-model="propertyForm.dongHo" placeholder="예: 102동 1503호">
+                </label>
                 <label>거래유형
                     <select x-model="propertyForm.dealType">
                         <option value="SALE">매매</option>

@@ -149,6 +149,57 @@ class BuildingCoordinateTest {
         assertThat(noDong.lat()).isEqualByComparingTo(BASE_LAT);
     }
 
+    @Test
+    @DisplayName("동을 고치면 핀도 옮겨 간다 (설계 I269)")
+    void movesThePinWhenTheBuildingIsEdited() {
+        final PropertyResponse created = propertyService.create(request("102동"));
+        assertThat(created.lat()).isEqualByComparingTo("37.60146161");
+
+        // 수정 폼은 좌표 칸을 그대로 실어 보낸다 — 그래서 예전에는 핀이 안 움직였다
+        final PropertyResponse edited = propertyService.update(created.id(),
+                withCoordinates("104동", created.lat(), created.lng()), null);
+
+        assertThat(edited.lat())
+                .as("동을 고쳤는데 핀이 그대로면 같은 자리에 두 매물이 겹친다")
+                .isEqualByComparingTo("37.60153734");
+        assertThat(edited.lng()).isEqualByComparingTo("127.01037873");
+    }
+
+    @Test
+    @DisplayName("사람이 찍은 좌표는 동을 고쳐도 지키다")
+    void keepsCoordinatesTheUserMovedByHand() {
+        final PropertyResponse created = propertyService.create(request("102동"));
+
+        // 좌표를 손으로 고쳐 놓았다. 동 이름 때문에 그 뜻을 뒤집으면 안 된다
+        final PropertyResponse edited = propertyService.update(created.id(),
+                withCoordinates("104동", new BigDecimal("37.70000000"), new BigDecimal("127.20000000")),
+                null);
+
+        assertThat(edited.lat()).isEqualByComparingTo("37.70000000");
+        assertThat(edited.lng()).isEqualByComparingTo("127.20000000");
+    }
+
+    @Test
+    @DisplayName("동을 안 고쳤으면 좌표를 다시 찾지 않는다")
+    void leavesCoordinatesAloneWhenTheBuildingIsUnchanged() {
+        final PropertyResponse created = propertyService.create(request("102동"));
+
+        final PropertyResponse edited = propertyService.update(created.id(),
+                withCoordinates("102동", created.lat(), created.lng()), null);
+
+        assertThat(edited.lat()).isEqualByComparingTo(created.lat());
+    }
+
+    private PropertyRequest withCoordinates(String dongHo, BigDecimal lat, BigDecimal lng) {
+        return new PropertyRequest(
+                "한화포레나정릉", dongHo, DealType.SALE, 800_000_000L, null,
+                null, "서울시 성북구 정릉동 1037", lat, lng,
+                null, new BigDecimal("84.9"), null, 5, null, null,
+                null, null, 2020, null, null,
+                null, null, null, 3, null, null, null, null, null, null, null, null, null,
+                null, null, null);
+    }
+
     private PropertyRequest request(String dongHo) {
         return new PropertyRequest(
                 "한화포레나정릉", dongHo, DealType.SALE, 800_000_000L, null,

@@ -174,7 +174,7 @@ public class PropertyService {
         validate(request);
         final Property existing = propertyAccessGuard.require(id);
         checkEditVersion(id, editVersion);
-        final Coordinates coords = resolveCoordinates(request);
+        final Coordinates coords = resolveCoordinatesForUpdate(existing, request);
         final Property updated = propertyRepository.update(new Property(
                 existing.id(),
                 request.name(),
@@ -347,6 +347,49 @@ public class PropertyService {
         }
         final Coordinates base = new Coordinates(geo.get().lat(), geo.get().lng());
         return refineToBuilding(request, base);
+    }
+
+    /**
+     * 고칠 때는 <b>동이 바뀌었는지</b>를 본다 (설계 I269).
+     *
+     * <p>수정 폼은 좌표 칸을 늘 채워 보냅니다. 그래서 {@link #resolveCoordinates} 는
+     * 그 값을 그대로 씁니다 — 102동을 104동으로 고쳐도 <b>핀이 안 움직입니다.</b>
+     *
+     * <p>다시 찾아보는 것은 <b>사람이 좌표를 안 건드렸을 때뿐</b>입니다. 손으로 찍어
+     * 놓은 자리를 동 이름 때문에 옮겨 버리면 안 됩니다.
+     */
+    private Coordinates resolveCoordinatesForUpdate(Property existing, PropertyRequest request) {
+        final boolean buildingChanged = !java.util.Objects.equals(
+                blankToNull(existing.dongHo()), blankToNull(request.dongHo()));
+        if (!buildingChanged || movedByHand(existing, request)) {
+            return resolveCoordinates(request);
+        }
+        final Coordinates base = existing.lat() == null || existing.lng() == null
+                ? resolveCoordinates(new PropertyRequest(
+                        request.name(), null, request.dealType(), request.priceDeposit(), null,
+                        request.addressRoad(), request.addressJibun(), null, null,
+                        null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null))
+                : new Coordinates(existing.lat(), existing.lng());
+        if (base.lat() == null || base.lng() == null) {
+            return base;
+        }
+        return refineToBuilding(request, base);
+    }
+
+    /** 사람이 좌표를 직접 고쳤는가 — 그랬다면 그 뜻을 존중한다. */
+    private static boolean movedByHand(Property existing, PropertyRequest request) {
+        if (request.lat() == null || request.lng() == null) {
+            return false;
+        }
+        return existing.lat() == null || existing.lng() == null
+                || existing.lat().compareTo(request.lat()) != 0
+                || existing.lng().compareTo(request.lng()) != 0;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

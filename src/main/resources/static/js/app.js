@@ -25,6 +25,7 @@ function emptyPropertyForm() {
     return {
         id: null,
         name: '',
+        dongHo: '',
         dealType: 'SALE',
         priceDeposit: '',
         maintenanceFee: '',
@@ -3857,6 +3858,9 @@ function halley() {
             this.propertyForm = {
                 id: p.id,
                 name: p.name || '',
+                // 폼에 칸이 생겼으므로 carry 에서 뺐다 (설계 I269) — 양쪽에 두면
+                // carry 가 폼 값을 덮어써서 고쳐도 안 바뀐다 (설계 I160 에서 겪은 그대로)
+                dongHo: p.dongHo || '',
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
@@ -3882,7 +3886,6 @@ function halley() {
                 editVersion: p.editVersion ?? null,
                 // 폼에 칸이 없는 값들. 손대지 않고 그대로 돌려보낸다 (설계 I113)
                 carry: {
-                    dongHo: p.dongHo ?? null,
                     floorRaw: p.floorRaw ?? null,
                     floorBand: p.floorBand ?? null,
                     roomBath: p.roomBath ?? null,
@@ -3954,6 +3957,7 @@ function halley() {
                 // 이게 없으면 수정할 때마다 주차·방/욕실·난방·중개보수가 조용히 지워졌다
                 ...(this.propertyForm.carry || {}),
                 name: this.propertyForm.name,
+                dongHo: this.propertyForm.dongHo || null,
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
