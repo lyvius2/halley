@@ -10,8 +10,16 @@ import static banghak.home.halley.adapter.outbound.external.FallbackCause.descri
 @Component
 public class KakaoDirectionsFallbackFactory implements FallbackFactory<KakaoDirectionsFeignClient> {
 
+    private final DirectionsQuota quota;
+
+    public KakaoDirectionsFallbackFactory(DirectionsQuota quota) {
+        this.quota = quota;
+    }
+
     @Override
     public KakaoDirectionsFeignClient create(Throwable cause) {
+        // 한도 때문이면 <b>그날은 더 부르지 않는다</b> (설계 I270)
+        quota.recordIfExhausted(cause);
         return new KakaoDirectionsFeignClient() {
 
             @Override

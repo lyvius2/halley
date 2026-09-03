@@ -1,6 +1,5 @@
 package banghak.home.halley.adapter.outbound.external.kakao;
 
-import banghak.home.halley.application.port.out.external.KakaoDirectionsPort;
 import banghak.home.halley.config.exception.GeoSearchFailedException;
 import banghak.home.halley.config.exception.KakaoApiKeyMissingException;
 import banghak.home.halley.domain.itinerary.DriveRoute;
@@ -20,7 +19,12 @@ import java.util.Map;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-public class KakaoDirectionsAdapter implements KakaoDirectionsPort {
+/**
+ * <p><b>포트를 직접 구현하지 않습니다 (설계 I272).</b> 담아 두기({@link CachingDirections})가
+ * 포트이고 이것을 감쌉니다 — {@code TransitWithLlmFallback} 이 ODsay 를 감싸는 것과
+ * 같은 모양입니다. 둘 다 포트이면 시험이 갈아 끼우는 대역과 우선 빈이 부딪힙니다.
+ */
+public class KakaoDirectionsAdapter {
 
     /** 이보다 짧은 도로는 안 적는다 — 골목까지 늘어놓으면 큰길이 안 보인다 (설계 I193). */
     private static final int MIN_ROAD_METERS = 300;
@@ -28,22 +32,29 @@ public class KakaoDirectionsAdapter implements KakaoDirectionsPort {
     private final KakaoDirectionsFeignClient client;
     private final String restKey;
     private final ObjectMapper objectMapper;
+    private final DirectionsQuota quota;
 
     public KakaoDirectionsAdapter(KakaoDirectionsFeignClient client,
                                   @Value("${kakao.rest-key:}") String restKey,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  DirectionsQuota quota) {
         this.client = client;
         this.restKey = restKey;
         this.objectMapper = objectMapper;
+        this.quota = quota;
     }
 
     /** 카카오가 받는 출발 시각 꼴. */
     private static final DateTimeFormatter DEPART_AT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
-    @Override
     public DriveRoute findRoute(double fromLng, double fromLat, double toLng, double toLat,
                                 LocalDateTime departAt) {
         if (restKey == null || restKey.isBlank()) {
+            return DriveRoute.missing();
+        }
+        // 하루치를 다 썼으면 <b>부르지 않는다</b> (설계 I270).
+        // 던져 봐야 400 이 오고, 차단기만 여닫힌다
+        if (quota.exhausted()) {
             return DriveRoute.missing();
         }
         final String origin = fromLng + "," + fromLat;

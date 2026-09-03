@@ -149,6 +149,9 @@ function halley() {
         pins: [],
         users: [],
         soldOutRecent: [],
+        // 경로를 아예 못 냈다 (설계 I274)
+        showItinUnavailable: false,
+        itinUnavailableMessage: '',
         showSoldOutAlert: false,
         soldOutAlertShown: false,
         showLoanModal: false,
@@ -3118,6 +3121,17 @@ function halley() {
                     })
                 });
                 if (ok) {
+                    // <b>구간을 하나도 못 받았으면 결과가 아니다 (설계 I274).</b>
+                    // 순서는 모두 같은 값(못 감)으로 매긴 것이라 <b>아무 뜻이 없고</b>,
+                    // 그걸 늘어놓으면 사람은 계산된 동선으로 읽는다
+                    if (body?.status === 'UNAVAILABLE') {
+                        // 판단은 <b>서버가</b> 한다 (설계 I274) — 화면이 따로 세면
+                        // 규칙이 두 벌이 되고, 이 저장소는 그때마다 갈렸다
+                        this.clearItineraryResult();
+                        this.itinUnavailableMessage = body.message;
+                        this.showItinUnavailable = true;
+                        return;
+                    }
                     this.itinResult = body;
                     this.saveItineraryDraft();
                     this.renderItinerary();
@@ -3532,12 +3546,24 @@ function halley() {
          * <p>화면에서 계산하는 이유는 <b>출발시각·체류시간을 바꾸면 바로 보여야</b>
          * 하기 때문입니다. 서버에 다시 물으면 그때마다 왕복입니다.
          */
+        /**
+         * 몇 시에 닿는가 — <b>앞 구간을 다 알아야 말할 수 있다</b> (설계 I270).
+         *
+         * <p>이동시간을 못 받은 구간이 앞에 하나라도 있으면 도착 시각은
+         * <b>알 수 없습니다.</b> 예전에는 그것을 999분으로 세어 `06:39 (+1일)`
+         * 같은 값을 내놓았습니다 — 그럴듯해서 아무도 의심하지 않습니다.
+         *
+         * @returns 모르면 null. 화면은 그때 아무것도 안 보여 준다
+         */
         arrivalAt(index) {
             const start = String(this.itinWindowStart || '09:00').split(':');
             const stay = Number(this.itinStay) || 0;
             let minutes = Number(start[0]) * 60 + Number(start[1]);
             for (let i = 0; i <= index; i++) {
                 const leg = this.legFor(i);
+                if (leg && leg.minutes == null) {
+                    return null;
+                }
                 minutes += leg ? leg.minutes : 0;
                 if (i < index) {
                     minutes += stay;
@@ -3549,6 +3575,28 @@ function halley() {
             const m = minutes % 60;
             const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
             return days > 0 ? `${clock} (+${days}일)` : clock;
+        },
+
+        closeItinUnavailable() {
+            this.showItinUnavailable = false;
+        },
+
+        /** 이 구간에 걸리는 시간 — <b>못 받았으면 그렇다고 말한다</b> (설계 I270). */
+        legMinutesLabel(leg) {
+            return leg && leg.minutes != null ? `${leg.minutes}분` : '이동시간 미확인';
+        },
+
+        /**
+         * 합계를 <b>믿을 수 있는가</b> (설계 I270).
+         *
+         * <p>못 받은 구간이 있으면 합계는 그만큼 빠진 값입니다. 그 사실을 안 적으면
+         * 사람은 그 수를 <b>전체 이동시간</b>으로 읽습니다.
+         */
+        itinTotalNote() {
+            const unknown = this.itinResult?.unknownLegs || 0;
+            return unknown > 0
+                ? `구간 ${unknown}개는 이동시간을 받지 못했습니다 — 합계에 빠져 있습니다`
+                : '';
         },
 
         /** 몇 번째 매물로 가는 구간인가 (설계 I192). 순서와 구간은 같은 자리다. */
@@ -4113,6 +4161,8 @@ function halley() {
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
+                // 이 목록에 없으면 <b>배경을 눌렀을 때 엉뚱한 모달이 닫힌다</b> (설계 I274)
+                ['showItinUnavailable', () => this.closeItinUnavailable()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
                 ['showUsers', () => this.closeUsers()],
                 ['showSettings', () => this.closeSettings()],
