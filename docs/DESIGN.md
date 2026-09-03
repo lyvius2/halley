@@ -8213,6 +8213,162 @@ CircuitBreaker 'claude-llm' is OPEN and does not permit further calls
 
 ---
 
+### I275. 첫 클릭이 지도를 못 옮겼다 · **[확정 — 구현됨]**
+
+처음 접속해서 매물 카드를 누르면 지도가 **매물 위치가 아니라 신내역 인근**을
+가리켰습니다. 같은 카드를 <b>다시</b> 누르면 그제서야 제자리로 옮겨졌습니다.
+
+#### 카카오 SDK 로딩은 비동기다
+
+```js
+renderMap() {
+    kakao.maps.load(() => {
+        this.initMapIfNeeded();   // 여기서 this.map 이 생긴다
+        this.renderMarkers();
+    });
+}
+```
+
+첫 방문에서 `loadProperties()` 가 `renderMap()` 을 부르지만, 그 안의
+`kakao.maps.load` 콜백은 <b>SDK 가 다 실릴 때까지</b> 기다립니다. 그동안
+`this.map` 은 <b>여전히 null</b> 입니다.
+
+#### 그 사이에 누른 클릭은 조용히 버려졌다
+
+```js
+focusProperty(item) {
+    if (!this.map || !p.lat || !p.lng) {
+        return;     // ← 아무 자국도 안 남기고 사라진다
+    }
+    ...
+}
+```
+
+**끝난 일도 아니고 실패한 일도 아닙니다.** 아무것도 안 남기고 그냥 없어졌습니다.
+[I262]에서 배경 조회가, [I219]에서 실거래 조회가 겪은 것과 같은 모양입니다 —
+**"아직 준비 안 됐다"를 자국도 없이 버리면, 그다음 사람은 그 클릭이 있었는지도
+모릅니다.**
+
+그 직후 SDK 로딩이 끝나면 `initMapIfNeeded` 가 기본 좌표(서울시청)로 지도를
+만들고, `renderMarkers` 가 <b>전체 매물 범위</b>로 bounds 를 맞춥니다 — 그
+범위의 중심이 우연히 신내역 인근이었을 뿐, <b>지도 로직이 신내역을 가리킨
+적은 없습니다.</b> 다시 누르면 이번엔 `this.map` 이 있으니 정상 동작합니다.
+
+#### 고친 것
+
+지도가 없으면 클릭을 <b>기억해 둡니다</b>(`pendingFocus`). 지도가 뜨는 순간
+(`renderMap` 의 콜백 안, `renderMarkers` 의 범위 맞추기 <b>다음</b>) 그 클릭을
+이어서 적용합니다 — 범위 맞추기가 먼저 그려도 매물로 옮기는 것이 <b>마지막에
+이깁니다.</b>
+
+```js
+kakao.maps.load(() => {
+    this.initMapIfNeeded();
+    this.renderMarkers();
+    if (this.pendingFocus) {
+        const target = this.pendingFocus;
+        this.pendingFocus = null;
+        this.focusProperty(target);
+    }
+});
+```
+
+#### 검증
+
+이 저장소에 아직 JS 시험 도구가 없어(과거 세션 요약 참고), 카카오 SDK 를
+최소로 흉내 낸 Node 스크립트로 **재현 → 고침 확인 → 되돌려서 재현되는지**
+셋 다 확인했습니다. 고치기 전 코드로는 `pendingFocus` 가 안 남고 `panTo` 도
+안 불렸습니다 — 증상 그대로였습니다.
+
+---
+
+### I275b. 옮긴 지 몇 초 만에 <b>제자리로 돌아갔다</b> · **[확정 — 구현됨]** · [I275] 후속
+
+I275(지도가 없어 첫 클릭을 놓치는 문제)를 배포한 뒤에도 증상이 남았습니다.
+가리키는 곳이 신내역에서 청량리역으로 <b>바뀌기까지</b> 했습니다.
+
+#### `renderMarkers` 는 부를 때마다 전체 범위로 되돌아갔다
+
+```js
+if (coords.length > 0) {
+    const bounds = new kakao.maps.LatLngBounds();
+    coords.forEach(p => bounds.extend(...));
+    this.map.setBounds(bounds);   // ← 조건 없이 매번
+}
+```
+
+`renderMarkers` 는 `renderMap` 을 거쳐 <b>25곳 넘게</b>에서 다시 불립니다.
+그중 하나가 [I261]의 3초 간격 점수 감시(`checkScoreVersions`)입니다 —
+등록 직후 배경 채점이 끝나며 점수 버전이 바뀌면 목록을 다시 받고, 그때마다
+지도가 <b>전체 범위로 재조정</b>됐습니다.
+
+**카드를 눌러 옮긴 지 몇 초 만에 조용히 처음 자리로 돌아간 것**입니다.
+"다시 눌러야 움직인다"는 인상은 여기서 왔습니다 — 실은 다시 옮겨졌다가
+다시 밀려난 것이었습니다. 가리키는 landmark 가 매번 달랐던 것도 설명됩니다 —
+그 시점의 pin 구성에 따라 전체 범위의 중심이 달라집니다.
+
+#### 지금 보고 있는 매물이 있으면 다시 안 맞춘다
+
+```js
+const stayingOnFocused = this.activePropertyId != null
+        && coords.some(p => p.id === this.activePropertyId);
+if (coords.length > 0 && !stayingOnFocused) { ... }
+```
+
+`activePropertyId` 는 카드 강조에 이미 쓰이던 값입니다([템플릿] `:class="{active: ...}"`)
+— 사람이 지금 보고 있다고 화면이 이미 표시하던 것을, 지도도 같은 뜻으로 씁니다.
+그 매물이 목록에서 빠지면(필터 전환 등) 자연히 다시 범위를 맞춥니다.
+
+#### 검증
+
+이 브랜치에는 아직 [I276]의 JS 시험 도구가 없어(별도 PR), 카카오 SDK 를
+흉내 낸 Node 스크립트로 <b>클릭 → 배경 재조회 재현 → 범위 유지 확인</b>을
+했고, 고침을 되돌려 실제로 재현되는 것도 확인했습니다.
+
+---
+
+### I275c. `panTo` 는 불렸는데 지도가 안 옮겨졌다 · **[확정 — 구현됨]** · [I275] 후속
+
+I275b(범위 재조정 억제)를 배포한 뒤에도 증상이 남았습니다. 이번엔 **실제 SDK 호출을
+가로채 재서** 확인했습니다.
+
+```
+[map call] panTo [37.60752984, 127.0535683]   ← 정확한 좌표, 딱 한 번
+(이후 5초 동안 setBounds·setCenter 호출 없음)
+```
+
+`panTo` 는 <b>정확한 좌표로 정확히 한 번</b> 불렸습니다. 그런데 지도는 여전히 다른
+곳(청량리역 인근)에 있었습니다 — 범위 재조정이 나중에 끼어든 게 아니었습니다.
+
+#### 원인 — `panTo` 바로 다음 줄의 `setLevel`
+
+```js
+this.map.panTo(position);
+this.map.setLevel(4);   // ← 바로 다음 줄
+```
+
+`panTo` 는 <b>애니메이션</b>입니다 — 몇백 ms 동안 중심이 옛 자리에서 새 자리로
+움직입니다. 그 직후 같은 틱에서 `setLevel` 을 부르면, SDK 가 <b>그 순간의(아직
+애니메이션 중이라 옛 자리인) 중심</b>을 기준으로 다시 그립니다 — 줌 레벨은 바로
+반영되지만 중심은 애니메이션이 끊겨 옛 자리에 남습니다.
+
+<b>줌은 이미 level 4(좁은 화면)로 와 있는데 중심은 옛 자리</b>라는 조합이,
+사용자가 본 "좁게 확대되어 있는데 엉뚱한 곳"과 정확히 들어맞습니다.
+
+#### 고친 것
+
+`panTo` 대신 `setCenter` 를 씁니다 — 애니메이션이 없어 곧바로 이어지는
+`setLevel` 과 경합하지 않습니다.
+
+#### 검증
+
+`kakao.maps.Map.prototype.panTo/setBounds/setCenter` 를 실제 배포 환경에서
+가로채 호출 로그를 남기는 방식으로 좁혔습니다 — 처음 두 가설(범위 재조정,
+서로 다른 좌표 소스)은 데이터로 반증됐고, 세 번째(애니메이션 경합)가 남았습니다.
+**아직 사용자 재배포 확인 전입니다.**
+
+---
+
 ### I276. 화면(app.js)에도 시험을 둔다 · **[확정 — 구현됨]**
 
 지금까지 `app.js` 의 버그는 전부 **사람이 화면을 보고서야** 알았습니다 —
