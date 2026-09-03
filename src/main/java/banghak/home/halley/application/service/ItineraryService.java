@@ -12,6 +12,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ItineraryDraft;
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.StartLocationCache;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.itinerary.StartLocation;
 import banghak.home.halley.domain.itinerary.DriveRoute;
 import banghak.home.halley.domain.itinerary.ItineraryOptimizer;
@@ -20,10 +21,14 @@ import banghak.home.halley.domain.itinerary.TravelCostMatrix;
 import banghak.home.halley.domain.itinerary.TravelMode;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.TransitResult;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -38,7 +43,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@lombok.extern.slf4j.Slf4j
+@Slf4j
 @Service
 public class ItineraryService {
 
@@ -51,8 +56,7 @@ public class ItineraryService {
      * <p>행렬을 만들며 받은 `TransitResult` 를 구간 안내에서 다시 씁니다 —
      * 안 그러면 <b>같은 구간을 두 번 부릅니다.</b> 요청마다 비웁니다.
      */
-    private final ThreadLocal<Map<String, TransitResult>> transitMemo =
-            ThreadLocal.withInitial(HashMap::new);
+    private final ThreadLocal<Map<String, TransitResult>> transitMemo = ThreadLocal.withInitial(HashMap::new);
     /**
      * 자동차 길도 <b>한 번의 계산 안에서만</b> 기억한다 (설계 I263).
      *
@@ -62,8 +66,7 @@ public class ItineraryService {
      * <p>{@code travelTimeCache} 에 담지 않는 이유는 <b>출발 시각에 따라 답이 다르기</b>
      * 때문입니다 (설계 I196) — 화요일 14시와 일요일 14시는 다른 길입니다.
      */
-    private final ThreadLocal<Map<String, DriveRoute>> driveMemo =
-            ThreadLocal.withInitial(java.util.concurrent.ConcurrentHashMap::new);
+    private final ThreadLocal<Map<String, DriveRoute>> driveMemo = ThreadLocal.withInitial(java.util.concurrent.ConcurrentHashMap::new);
     private static final int UNREACHABLE_MINUTES = 999;
 
     private final PropertyRepository propertyRepository;
@@ -76,14 +79,14 @@ public class ItineraryService {
 
     private final StartLocationCache startLocationCache;
     private final CachePort cache;
-    private final tools.jackson.databind.ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
     /** 구간들을 한꺼번에 받아 두는 자리 (설계 I263). */
-    private final banghak.home.halley.config.VirtualThreadGate gate;
+    private final VirtualThreadGate gate;
     /** 미리 받아 두기에 쓸 수 있는 시간 (설계 I263). */
     private final java.time.Duration prewarmBudget;
 
     public ItineraryService(PropertyAccessGuard propertyAccessGuard,
-                                  PropertyRepository propertyRepository,
+                            PropertyRepository propertyRepository,
                             PropertyVisitRepository propertyVisitRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
                             OdsayTransitPort odsayTransitPort,
@@ -91,11 +94,9 @@ public class ItineraryService {
                             ItineraryOptimizer optimizer,
                             StartLocationCache startLocationCache,
                             CachePort cache,
-                            tools.jackson.databind.ObjectMapper objectMapper,
-                            @org.springframework.beans.factory.annotation.Qualifier("itineraryGate")
-                            banghak.home.halley.config.VirtualThreadGate gate,
-                            @org.springframework.beans.factory.annotation.Value(
-                                    "${itinerary.prewarm-budget-seconds:20}") long prewarmBudgetSeconds) {
+                            ObjectMapper objectMapper,
+                            @Qualifier("itineraryGate") VirtualThreadGate gate,
+                            @Value("${itinerary.prewarm-budget-seconds:20}") long prewarmBudgetSeconds) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyVisitRepository = propertyVisitRepository;
