@@ -2,6 +2,7 @@ package banghak.home.halley.application.service;
 
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryRequest;
 import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
+import banghak.home.halley.adapter.inbound.web.dto.OptimizeItineraryResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
@@ -56,6 +57,9 @@ class ItineraryBudgetTest {
 
     static final List<String> CALLS = java.util.Collections.synchronizedList(new ArrayList<>());
 
+    /** 길찾기를 아예 못 받는 상태를 만든다 (설계 I270). */
+    static volatile boolean ROUTES_UNAVAILABLE = false;
+
     @TestConfiguration
     static class SlowDirections {
 
@@ -63,6 +67,10 @@ class ItineraryBudgetTest {
         @Primary
         KakaoDirectionsPort kakaoDirectionsPort() {
             return (fromLng, fromLat, toLng, toLat, departAt) -> {
+                if (ROUTES_UNAVAILABLE) {
+                    // 하루 한도가 끝났을 때 어댑터가 돌려주는 것
+                    return DriveRoute.missing();
+                }
                 // 출발 시각까지 물음의 일부다 (설계 I196) — 같은 좌표라도 시각이 다르면 다른 질문이다
                 CALLS.add(String.format("%.6f,%.6f>%.6f,%.6f@%s",
                         fromLng, fromLat, toLng, toLat, departAt));
@@ -86,6 +94,7 @@ class ItineraryBudgetTest {
     @BeforeEach
     void setUp() {
         CALLS.clear();
+        ROUTES_UNAVAILABLE = false;
         GroupTestSupport.loginAsGroupMember(userGroupRepository, userRepository);
         ids.clear();
         for (int i = 0; i < 5; i++) {
@@ -126,6 +135,39 @@ class ItineraryBudgetTest {
         assertThat(CALLS)
                 .as("길찾기 %d회 중 서로 다른 물음은 %d개뿐이다", CALLS.size(), distinct.size())
                 .hasSameSizeAs(distinct);
+    }
+
+    @Test
+    @DisplayName("이동시간을 못 받으면 999분이라 하지 않는다")
+    void doesNotCallUnknownTravelTimeNineHundredNinetyNine() {
+        // given — 카카오 하루 한도가 끝났다. 운영에서 실제로 이렇게 됐다
+        ROUTES_UNAVAILABLE = true;
+
+        // when
+        final OptimizeItineraryResponse response = itineraryService.optimize(optimizeRequest());
+
+        // then — 화면은 "999분"이라 말했고 합계는 3996분이라는 지어낸 수였다
+        assertThat(response.legs())
+                .as("모르는 것은 모른다고 해야 한다")
+                .isNotEmpty()
+                .allSatisfy(leg -> assertThat(leg.minutes()).isNull());
+        assertThat(response.totalMinutes())
+                .as("모르는 것을 더하면 합계가 거짓이 된다")
+                .isZero();
+        assertThat(response.unknownLegs())
+                .as("몇 구간을 못 받았는지 화면이 말할 수 있어야 한다")
+                .isEqualTo(response.legs().size());
+    }
+
+    @Test
+    @DisplayName("받은 구간만 합계에 넣는다")
+    void sumsOnlyWhatItKnows() {
+        final OptimizeItineraryResponse response = itineraryService.optimize(optimizeRequest());
+
+        assertThat(response.unknownLegs()).isZero();
+        assertThat(response.totalMinutes())
+                .as("구간 %d개 × 10분", response.legs().size())
+                .isEqualTo(response.legs().size() * 10);
     }
 
     private OptimizeItineraryRequest optimizeRequest() {

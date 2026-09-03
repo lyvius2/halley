@@ -28,13 +28,16 @@ public class KakaoDirectionsAdapter implements KakaoDirectionsPort {
     private final KakaoDirectionsFeignClient client;
     private final String restKey;
     private final ObjectMapper objectMapper;
+    private final DirectionsQuota quota;
 
     public KakaoDirectionsAdapter(KakaoDirectionsFeignClient client,
                                   @Value("${kakao.rest-key:}") String restKey,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  DirectionsQuota quota) {
         this.client = client;
         this.restKey = restKey;
         this.objectMapper = objectMapper;
+        this.quota = quota;
     }
 
     /** 카카오가 받는 출발 시각 꼴. */
@@ -44,6 +47,11 @@ public class KakaoDirectionsAdapter implements KakaoDirectionsPort {
     public DriveRoute findRoute(double fromLng, double fromLat, double toLng, double toLat,
                                 LocalDateTime departAt) {
         if (restKey == null || restKey.isBlank()) {
+            return DriveRoute.missing();
+        }
+        // 하루치를 다 썼으면 <b>부르지 않는다</b> (설계 I270).
+        // 던져 봐야 400 이 오고, 차단기만 여닫힌다
+        if (quota.exhausted()) {
             return DriveRoute.missing();
         }
         final String origin = fromLng + "," + fromLat;

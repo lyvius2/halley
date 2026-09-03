@@ -318,6 +318,8 @@
                         <template x-if="itinResult">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
+                                <!-- 합계를 믿을 수 있는지 함께 말한다 (설계 I270) -->
+                                <p class="itin-warn" x-show="itinTotalNote()" x-text="itinTotalNote()"></p>
 
                                 <!-- 지도 색이 무엇을 뜻하는지 (설계 I195).
                                      범례가 없으면 빨간 선이 정체인지 다른 노선인지 알 수 없다 -->
@@ -343,7 +345,7 @@
                                                 <span class="itin-num" x-text="i + 1"></span>
                                                 <span x-text="propertyName(id)"></span>
                                                 <!-- 몇 시에 닿는지 (설계 I194) -->
-                                                <span class="itin-time" x-show="legFor(i)"
+                                                <span class="itin-time" x-show="legFor(i) && arrivalAt(i)"
                                                       x-text="arrivalAt(i) + ' 도착'"></span>
                                                 <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
                                                 <!-- 쾌적함으로 켜진 것은 못 끈다 (설계 I228).
@@ -364,7 +366,7 @@
                                                 <div class="itin-route-legs">
                                                     <div class="itin-leg-head">
                                                         <span x-text="legTitle(legFor(i))"></span>
-                                                        <b x-text="legFor(i).minutes + '분'"></b>
+                                                        <b x-text="legMinutesLabel(legFor(i))"></b>
                                                     </div>
                                                     <template x-for="(step, j) in (legFor(i).steps || [])" :key="j">
                                                         <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">

@@ -163,9 +163,15 @@ public class ItineraryService {
             final TravelCostMatrix matrix =
                     buildMatrix(properties, request.startLat(), request.startLng(), mode, departAt);
             final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
-            return new OptimizeItineraryResponse(order, totalMinutes(order, matrix),
-                    legsOf(order, properties, request.startLat(), request.startLng(), mode,
-                            departAt, request.stayMinutes() == null ? 25 : request.stayMinutes()));
+            final List<ItineraryLegResponse> legs = legsOf(order, properties,
+                    request.startLat(), request.startLng(), mode, departAt,
+                    request.stayMinutes() == null ? 25 : request.stayMinutes());
+            final int unknown = (int) legs.stream().filter(leg -> leg.minutes() == null).count();
+            if (unknown > 0) {
+                log.info("Some legs have no travel time. total={}, unknown={}, mode={}",
+                        legs.size(), unknown, mode);
+            }
+            return new OptimizeItineraryResponse(order, totalMinutes(legs), legs, unknown);
         } finally {
             // 요청 스레드는 재사용된다 — 안 지우면 다음 사람이 남의 길을 본다
             transitMemo.remove();
@@ -249,8 +255,10 @@ public class ItineraryService {
             }
             final ItineraryLegResponse leg = legOf(fromId, to, fromLng, fromLat, mode, departAt);
             legs.add(leg);
-            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다
-            if (departAt != null) {
+            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다.
+            // <b>못 받은 구간은 못 미룬다 (설계 I270).</b> 예전에는 999분을 더해
+            // 뒤 구간을 <b>하루 뒤의 길</b>로 물었다 — 화면의 `(+1일)` 이 그것이었다
+            if (departAt != null && leg.minutes() != null) {
                 departAt = departAt.plusMinutes((long) leg.minutes() + stayMinutes);
             }
             fromId = toId;
@@ -266,8 +274,10 @@ public class ItineraryService {
         final double toLat = to.lat().doubleValue();
         if (mode == TravelMode.DRIVING) {
             final DriveRoute route = drive(fromLng, fromLat, toLng, toLat, departAt);
+            // <b>모르는 것은 모른다고 한다 (설계 I270).</b> 999를 넣었더니 화면이
+            // "999분"이라고 말했고, 합계는 3996분이라는 지어낸 숫자가 됐다
             return ItineraryLegResponse.of(fromId, to.id(),
-                    route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES,
+                    route.isComputed() ? route.durationMinutes() : null,
                     route.roads(), route.path());
         }
         final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
@@ -275,7 +285,7 @@ public class ItineraryService {
                 ? remembered
                 : odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
         return ItineraryLegResponse.of(fromId, to.id(),
-                transit.isComputed() ? transit.totalMinutes() : UNREACHABLE_MINUTES,
+                transit.isComputed() ? transit.totalMinutes() : null,
                 transit.legs(), odsayTransitPort.findLane(transit.mapObj()));
     }
 
@@ -333,14 +343,18 @@ public class ItineraryService {
         };
     }
 
-    private int totalMinutes(List<Long> order, TravelCostMatrix matrix) {
-        int total = 0;
-        long previous = DEPOT_ID;
-        for (final Long id : order) {
-            total += matrix.minutes(previous, id);
-            previous = id;
-        }
-        return total;
+    /**
+     * <b>아는 것만 더한다</b> (설계 I270).
+     *
+     * <p>예전에는 못 받은 구간마다 999를 더해 <b>3996분</b> 같은 수를 내놓았습니다.
+     * 그 수는 아무 뜻이 없는데 화면은 「예상 이동시간 합계」라고 불렀습니다.
+     */
+    private static int totalMinutes(List<ItineraryLegResponse> legs) {
+        return legs.stream()
+                .map(ItineraryLegResponse::minutes)
+                .filter(java.util.Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
     }
 
     private int travelTime(double fromLng, double fromLat, double toLng, double toLat, TravelMode mode,

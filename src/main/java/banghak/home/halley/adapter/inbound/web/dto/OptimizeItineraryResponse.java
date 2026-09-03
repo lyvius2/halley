@@ -10,10 +10,18 @@ import java.util.List;
 public record OptimizeItineraryResponse(
         List<Long> orderedPropertyIds,
         int totalMinutes,
-        List<ItineraryLegResponse> legs
+        List<ItineraryLegResponse> legs,
+        /**
+         * 이동시간을 <b>못 받은</b> 구간 수 (설계 I270).
+         *
+         * <p>0이 아니면 합계는 <b>그만큼 빠진 값</b>입니다. 화면이 그 사실을 말해야
+         * 합니다 — 예전에는 못 받은 구간마다 999분을 더해 놓고 「예상 이동시간
+         * 합계」라고 불렀습니다.
+         */
+        int unknownLegs
 ) {
 
     public static OptimizeItineraryResponse empty() {
-        return new OptimizeItineraryResponse(List.of(), 0, List.of());
+        return new OptimizeItineraryResponse(List.of(), 0, List.of(), 0);
     }
 }
