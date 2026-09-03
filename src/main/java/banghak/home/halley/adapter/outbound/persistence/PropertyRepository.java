@@ -164,6 +164,20 @@ public class PropertyRepository {
                 .execute();
     }
 
+    /**
+     * 좌표만 따로 적는다 (설계 I268).
+     *
+     * <p>동을 가려 받은 건물 좌표로 바꿔 줄 때 씁니다. 매물의 다른 값은
+     * 건드리지 않습니다 — 사람이 고친 값을 덮으면 안 됩니다.
+     */
+    public void setCoordinates(Long propertyId, java.math.BigDecimal lat, java.math.BigDecimal lng) {
+        dsl.update(TABLE)
+                .set(LAT, lat)
+                .set(LNG, lng)
+                .where(ID.eq(propertyId))
+                .execute();
+    }
+
     public Property update(Property property) {
         dsl.update(TABLE)
                 .set(NAME, property.name())

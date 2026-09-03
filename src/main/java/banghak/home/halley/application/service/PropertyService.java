@@ -345,7 +345,24 @@ public class PropertyService {
             log.warn("Geocoding failed - saving property without coordinates. address={}", address);
             return new Coordinates(null, null);
         }
-        return new Coordinates(geo.get().lat(), geo.get().lng());
+        final Coordinates base = new Coordinates(geo.get().lat(), geo.get().lng());
+        return refineToBuilding(request, base);
+    }
+
+    /**
+     * 같은 단지라도 <b>동이 다르면 자리가 다르다</b> (설계 I268).
+     *
+     * <p>주소검색은 동을 무시해 단지 대표점 하나만 줍니다 — 102동과 104동이
+     * <b>정확히 같은 좌표</b>가 되어 지도에서 포개졌습니다. 장소검색으로 동을 물으면
+     * 실제 건물 좌표가 옵니다(재 보니 45m 떨어져 있었습니다).
+     *
+     * <p>못 찾으면 <b>단지 좌표를 그대로</b> 씁니다. 지어낸 자리로 밀어 놓는 것보다
+     * 겹쳐 있는 편이 낫습니다 — 겹친 것은 화면이 벌려서 보여 줍니다.
+     */
+    private Coordinates refineToBuilding(PropertyRequest request, Coordinates base) {
+        return geoService.geocodeBuilding(request.name(), request.dongHo(), base.lat(), base.lng())
+                .map(found -> new Coordinates(found.lat(), found.lng()))
+                .orElse(base);
     }
 
     private static String firstNonBlank(String... values) {
