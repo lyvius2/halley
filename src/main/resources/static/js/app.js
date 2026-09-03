@@ -4962,8 +4962,14 @@ function halley() {
             if (!p.lat || !p.lng) {
                 return;
             }
+            // <b>panTo 뒤에 setLevel 을 바로 부르면 안 된다</b> (설계 I275).
+            // panTo 는 애니메이션이라 몇백 ms 동안 중심이 옮겨 가는 도중인데, 그 자리에서
+            // setLevel 을 부르면 SDK 가 <b>그 순간의(아직 옛 자리인) 중심</b>을 기준으로
+            // 다시 그려 애니메이션을 끊습니다 — 줌은 바뀌지만 중심은 옛 자리에 남습니다.
+            // panTo·setBounds·setCenter 호출을 실제로 가로채 재서 확인했습니다.
+            // setCenter 는 애니메이션이 없어 이 경합이 없습니다
             const position = new kakao.maps.LatLng(p.lat, p.lng);
-            this.map.panTo(position);
+            this.map.setCenter(position);
             this.map.setLevel(4);
         },
 
