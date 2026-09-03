@@ -51,3 +51,6 @@ src/test/resources/fixtures/
 .env
 .env.*
 !.env.example
+
+### JS 시험 도구 (설계 I276) ###
+node_modules/

@@ -9,6 +9,7 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 ./gradlew test                 # 단위 테스트
 ./gradlew test --tests "*Scoring*"   # 특정 테스트만
 ./gradlew build                # 전체 빌드 (테스트 포함)
+./gradlew jsTest                # 화면(app.js) 시험 — Node 필요, test/build 에는 안 묶여 있다
 ```
 
 로컬 실행 전 `docker compose up -d`로 PostgreSQL·Redis 기동 (`compose.yaml` 참조).
@@ -43,6 +44,19 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 ## 디렉터리 컨벤션
 
 `docs/DESIGN.md`(이 설계서) 17장 부록의 패키지 구조를 따른다. 새 패키지를 만들기 전 기존 구조에 맞는 위치가 있는지 먼저 확인.
+
+## 화면(app.js) 시험 (설계 I276)
+
+- `src/test/js/` 에 둔다. `node --test` (Node 내장 시험기)로 돌린다 — 별도 프레임워크를 더하지 않는다.
+- **손으로 옮겨 적은 사본이 아니라 실제 파일**을 실행한다. `src/test/js/support/harness.js` 가
+  `src/main/resources/static/js/{vendor/alpine.min.js,app.js}` 를 jsdom 위에서 그대로 읽어 돈다.
+- 카카오맵 JS SDK 는 `src/test/js/support/kakaoStub.js` 로 <b>부르는 모양만</b> 흉내 낸다 —
+  실물은 브라우저에서 도메인 키로만 뜬다.
+- `./gradlew jsTest` 로 돌린다. **`test`·`build` 에는 안 묶는다** — 배포 빌드가 Node 없는
+  환경에서 돌 수 있고, 화면은 여전히 빌드 단계 없는 Mustache + Alpine 이 원칙이다.
+- app.js 를 고쳤으면(버그 수정·새 함수) **해당 시험을 함께 추가**한다. Java 쪽의
+  `TemplateCallsExistTest`·`PropertyFormFieldsSentTest`·`PropertyNameRenderTest` 는
+  텍스트로 "이름이 있는가"만 본다 — **뜻이 맞는가**는 여기서 봐야 한다.
 
 ## 코딩 규칙
 
