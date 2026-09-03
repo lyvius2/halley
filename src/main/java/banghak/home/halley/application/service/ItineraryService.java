@@ -367,6 +367,13 @@ public class ItineraryService {
         if (cached != null) {
             return cached;
         }
+        // <b>이 요청에서 이미 물어본 자리는 다시 안 묻는다 (설계 I271).</b>
+        // 최적화기는 같은 쌍을 <b>여러 번</b> 물어봅니다 — 매물 넷에 52번이 나갔습니다.
+        // 못 받은 것도 기억에 있으므로, 한 번의 실패가 구간 수만큼 늘어나지 않습니다
+        final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
+        if (remembered != null) {
+            return remembered.isComputed() ? remembered.totalMinutes() : UNREACHABLE_MINUTES;
+        }
         final TransitResult transit = odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
         // 구간 안내를 만들 때 다시 부르지 않도록 기억해 둔다 (설계 I176).
         // 이 호출 한 번 안에서만 유효하다 — 행렬을 만들며 이미 받은 것을 그대로 쓴다
@@ -413,7 +420,8 @@ public class ItineraryService {
         if (pending.isEmpty()) {
             return;
         }
-        odsayTransitPort.findTransitBatch(pending).forEach((key, transit) -> {
+        final Map<String, TransitResult> answered = odsayTransitPort.findTransitBatch(pending);
+        answered.forEach((key, transit) -> {
             // 구간 안내에서 다시 부르지 않도록 기억해 둔다 (설계 I176)
             transitMemo.get().put(key, transit);
             if (transit.isComputed()) {
@@ -421,6 +429,12 @@ public class ItineraryService {
                 travelTimeCache.put(TravelMode.TRANSIT, c[0], c[1], c[2], c[3], transit.totalMinutes());
             }
         });
+        // <b>못 받은 것도 기억한다 (설계 I271).</b> 안 그러면 구간 안내가 그 자리를
+        // 하나씩 다시 물어, 한 번 실패한 것이 <b>구간 수만큼</b> 늘어납니다 —
+        // ODsay 한도가 끝난 날 LLM 이 구간마다 60초씩 붙잡혔습니다
+        pending.keySet().stream()
+                .filter(key -> !answered.containsKey(key))
+                .forEach(key -> transitMemo.get().put(key, TransitResult.missing()));
     }
 
     /**
