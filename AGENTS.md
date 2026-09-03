@@ -26,7 +26,7 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 ## 절대 규칙
 
 - **매물 데이터는 네이버 붙여넣기 텍스트 파싱으로만 등록한다.** 네이버 서버를 크롤링하는 코드(Jsoup으로 `fin.land.naver.com`/`new.land.naver.com` fetch 등)를 작성하지 말 것 — 등록 경로는 파싱뿐이며, 크롤링은 오직 "생존 확인 배치"(설계서 12장)에서만 허용된다.
-- **채점 로직에 LLM 호출을 넣지 않는다.** 모든 채점은 결정론적 규칙(`scoring/criterion/*Scorer`)이어야 하며, 이유를 코드로 설명할 수 있어야 한다.
+- **채점 로직에 LLM 호출을 넣지 않는다.** 모든 채점은 결정론적 규칙(`scoring/criterion/*Scorer`)이어야 하며, 이유를 코드로 설명할 수 있어야 한다. 단, **ODsay 장애·할당량 소진 시 LLM이 대중교통 소요시간을 추정하고, 그 추정값을 `CommuteScorer`의 확정 산식에 입력해 `COMMUTE` 점수를 계산하는 것은 허용한다.** 이 경우 결과가 LLM 추정임을 출처로 명시하고, ODsay가 다시 사용 가능해지면 실제 경로 기반 값으로 교체할 수 있어야 한다. LLM이 `COMMUTE` 점수 자체나 그 밖의 결정론적 기준 점수를 직접 산출하는 것은 허용하지 않는다.
 - **가격 채점(`PriceScorer`)은 호가 기준.** KB시세(`kb_price`)는 대출 계산에만 쓰고 채점식에 넣지 말 것.
 - **국토부 실거래가는 참고 표기 전용.** `PRICE` 채점식에 절대 반영하지 말 것 (설계서 5.5).
 - 매매/전세는 **별도 순위표**로 유지한다. 통합 정렬 로직을 만들지 말 것.
@@ -56,6 +56,8 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 - **Collection 첫 요소는 `.get(0)` 대신 `.getFirst()`를 사용한다.**
 - **테스트 예외 검증은 `catchThrowableOfType()`(deprecated) 대신 JUnit `assertThrows()`를 사용한다.**
 - **Jackson JSON 노드 값 추출은 `.asText()` 대신 `.asString()`을 사용한다.**
+- **소스코드에 설계 문서 내용을 발췌하거나, 의도가 설계 문서의 어느 부분에 정의되어 있다는 식의 과도한 주석을 넣지 않는다.** 소스코드만으로 의도를 파악하기 어려운 변수값이나 처리 로직에만 그 이유를 간략히 주석으로 남긴다.
+- **패키지명을 모두 포함한 클래스명(Fully Qualified Class Name)을 코드에 직접 쓰지 않는다.** 이름 충돌 등 불가피한 경우가 아니라면 `import` 또는 `import static`을 사용한다.
 - **객체 생성은 Factory Pattern을 적극적으로 활용한다.** 생성 로직이 복잡하거나 여러 곳에서 같은 방식으로 만들어질 때 팩토리 메서드/팩토리 클래스로 캡슐화한다.
 - **외부 API 호출은 OpenFeign `@FeignClient`로 선언하고, 각 FeignClient마다 `FallbackFactory` 클래스를 반드시 구현한다.** 타임아웃·서킷브레이커 임계값은 API별로 다르게 설정한다.
 - **애플리케이션 예외는 원인을 근거로 명명한 CustomException을 만들어 던진다.** 범용 `ApiException`으로 처리하지 않는다. 예: 매물이 없으면 `RuntimeException`을 상속한 `NotFoundListingsException`을 사용한다.
