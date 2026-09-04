@@ -8,6 +8,7 @@ import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.ListingVerdict;
 import banghak.home.halley.domain.property.SourceType;
@@ -307,6 +308,67 @@ class PropertyServiceTest {
         return events.stream(PropertyInsightChanged.class)
                 .filter(e -> e.kind() == PropertyInsightChanged.Kind.EDIT)
                 .toList();
+    }
+
+    /**
+     * 층이 밴드로 적힌 매물도 저장되고 되돌아오는가 (설계 I286).
+     *
+     * <p>네이버가 저층을 감추면 `저/15층` 처럼 옵니다. 화면은 층을 <b>글자 그대로</b>
+     * 보내고 서버가 숫자와 밴드로 가릅니다 — 예전에는 숫자만 받아 <b>그 매물의 층이
+     * 통째로 사라졌습니다.</b>
+     */
+    @Test
+    @DisplayName("밴드(저)로 적은 층도 저장되고 그대로 돌아온다 (설계 I286)")
+    void savesABandFloor() {
+        // given — 화면이 보내는 그대로: floorRaw 에 `저`
+        final PropertyRequest base = request("저층매물", DealType.SALE, 500_000_000L);
+        final PropertyRequest withBand = withFloor(base, "저", 15);
+
+        // when
+        final PropertyResponse created = propertyService.create(withBand);
+
+        // then
+        assertThat(created.floorBand()).isEqualTo(FloorBand.LOW);
+        assertThat(created.floorNo()).as("밴드로 적힌 층에는 층수가 없다").isNull();
+        assertThat(created.floorTotal()).isEqualTo(15);
+    }
+
+    @Test
+    @DisplayName("숫자로 적은 층은 층수로 저장된다 — 밴드가 붙지 않는다")
+    void savesANumericFloor() {
+        // given
+        final PropertyRequest base = request("숫자층매물", DealType.SALE, 500_000_000L);
+
+        // when
+        final PropertyResponse created = propertyService.create(withFloor(base, "3", 21));
+
+        // then
+        assertThat(created.floorNo()).isEqualTo(3);
+        assertThat(created.floorBand()).isNull();
+        assertThat(created.floorTotal()).isEqualTo(21);
+    }
+
+    @Test
+    @DisplayName("층에 뜻 없는 글자를 넣으면 되돌려보낸다")
+    void rejectsMeaninglessFloorText() {
+        // given
+        final PropertyRequest base = request("이상한층", DealType.SALE, 500_000_000L);
+
+        // when / then
+        assertThrows(InvalidPropertyRequestException.class,
+                () -> propertyService.create(withFloor(base, "옥탑", 15)));
+    }
+
+    /** 층만 갈아 끼운 요청. 나머지는 base 그대로다. */
+    private PropertyRequest withFloor(PropertyRequest base, String floorRaw, Integer floorTotal) {
+        return new PropertyRequest(
+                base.name(), base.dongHo(), base.dealType(), base.priceDeposit(),
+                base.maintenanceFee(), base.addressRoad(), base.addressJibun(), base.lat(), base.lng(),
+                base.areaSupplyM2(), base.areaExclusiveM2(), floorRaw, null, floorTotal,
+                null, base.roomBath(), base.direction(), base.approvalYear(), base.moveInType(),
+                base.moveInDate(), base.parkingPerHousehold(), base.totalHouseholds(), base.heatingType(),
+                base.buildingCount(), base.kbPrice(), null, null, null, null, null, null, null, null,
+                null, null, null);
     }
 
     private PropertyRequest request(String name, DealType dealType, Long priceDeposit) {

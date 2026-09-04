@@ -14,6 +14,7 @@ import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.port.out.cache.EditVersionStore;
 import banghak.home.halley.config.HalleyUserDetails;
 import banghak.home.halley.config.exception.ConcurrentEditException;
+import banghak.home.halley.domain.property.FloorValue;
 import banghak.home.halley.domain.property.ListingStatus;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.property.SchoolSource;
@@ -127,10 +128,10 @@ public class PropertyService {
                 coords.lng(),
                 request.areaSupplyM2(),
                 request.areaExclusiveM2(),
-                request.floorRaw(),
-                request.floorNo(),
+                floorOf(request).raw(),
+                floorOf(request).floorNo(),
                 request.floorTotal(),
-                request.floorBand(),
+                floorOf(request).band(),
                 request.roomBath(),
                 request.direction(),
                 request.approvalYear(),
@@ -189,10 +190,10 @@ public class PropertyService {
                 coords.lng(),
                 request.areaSupplyM2(),
                 request.areaExclusiveM2(),
-                request.floorRaw(),
-                request.floorNo(),
+                floorOf(request).raw(),
+                floorOf(request).floorNo(),
                 request.floorTotal(),
-                request.floorBand(),
+                floorOf(request).band(),
                 request.roomBath(),
                 request.direction(),
                 request.approvalYear(),
@@ -294,9 +295,31 @@ public class PropertyService {
         return trimmed;
     }
 
+    /**
+     * 층을 가른다 (설계 I286).
+     *
+     * <p>화면은 층을 <b>글자 그대로</b> 보냅니다 — `3` 또는 `저`. 여기서 숫자와 밴드로
+     * 나눠 담습니다. 가르는 규칙이 화면에도 있으면 언젠가 한쪽이 어긋납니다.
+     *
+     * <p>{@code floorRaw} 가 없으면 <b>보내 준 값을 그대로 씁니다</b> — 예전 화면이나
+     * 다른 경로가 {@code floorNo}·{@code floorBand} 를 직접 보내도 지금처럼 동작합니다.
+     */
+    private FloorValue floorOf(PropertyRequest request) {
+        return FloorValue.of(request.floorRaw())
+                .orElseGet(() -> new FloorValue(
+                        FloorValue.label(request.floorNo(), request.floorBand()),
+                        request.floorNo(),
+                        request.floorBand()));
+    }
+
     private void validate(PropertyRequest request) {
         if (request.dealType() == null) {
             throw new InvalidPropertyRequestException("거래유형은 필수입니다");
+        }
+        // 적을 수 있는 것은 숫자와 저·중·고 뿐이다 (설계 I286)
+        if (request.floorRaw() != null && !request.floorRaw().isBlank()
+                && !FloorValue.isValid(request.floorRaw())) {
+            throw new InvalidPropertyRequestException("층은 숫자 또는 저·중·고 로만 적을 수 있습니다");
         }
         if (request.name() == null || request.name().isBlank()) {
             throw new InvalidPropertyRequestException("매물명은 필수입니다");
