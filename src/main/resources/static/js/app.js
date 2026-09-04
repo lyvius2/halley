@@ -364,7 +364,7 @@ function halley() {
 
         async init() {
             this.guardNumberInputs();
-            this.watchModalClose();
+            this.watchModalOpen();
             this.restoreLoginId();
             // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
             window.addEventListener('popstate', () => {
@@ -4084,26 +4084,42 @@ function halley() {
         },
 
         /**
-         * 모달이 닫힐 때 그 안의 스크롤을 되돌린다 (설계 I183).
+         * 모달을 <b>열 때</b> 그 안의 스크롤을 맨 위로 되돌린다 (설계 I183 · I282).
          *
          * <p>모달은 `x-show`로 <b>숨겨질 뿐 사라지지 않습니다</b> — 스크롤 위치가 그대로
          * 남아, 다음에 열면 <b>중간부터 보입니다.</b>
          *
-         * <p>닫는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
-         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 닫혀도</b> 걸립니다.
+         * <p>처음에는 <b>닫힐 때</b> 되돌렸는데 듣지 않았습니다 (설계 I282).
+         * 그때는 이미 `display:none` 이라 상자가 없고, <b>안 그려진 요소에 넣은
+         * {@code scrollTop} 은 그냥 버려집니다.</b> 열려서 그려진 뒤에 넣어야 먹습니다.
+         *
+         * <p>여는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
+         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 열려도</b> 걸립니다.
+         * 열려 있는 채로 다른 `style` 이 바뀔 때는 건드리지 않습니다 — 보던 자리가
+         * 맨 위로 튑니다.
          */
-        watchModalClose() {
+        watchModalOpen() {
+            const hidden = new WeakSet();
+            const modals = document.querySelectorAll('.modal');
+            // 처음엔 다 닫혀 있다. 열리는 쪽으로 바뀌는 것만 잡으려고 표시해 둔다
+            modals.forEach(modal => hidden.add(modal));
             const observer = new MutationObserver(records => {
                 records.forEach(r => {
                     const modal = r.target;
                     if (modal.style.display === 'none') {
-                        modal.querySelectorAll('.modal-card').forEach(card => {
-                            card.scrollTop = 0;
-                        });
+                        hidden.add(modal);
+                        return;
                     }
+                    if (!hidden.has(modal)) {
+                        return;
+                    }
+                    hidden.delete(modal);
+                    modal.querySelectorAll('.modal-card').forEach(card => {
+                        card.scrollTop = 0;
+                    });
                 });
             });
-            document.querySelectorAll('.modal').forEach(modal => {
+            modals.forEach(modal => {
                 observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
             });
         },
