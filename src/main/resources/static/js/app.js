@@ -322,6 +322,14 @@ function halley() {
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
+        /**
+         * 지금 저장 중인 버튼 하나 (설계 I281).
+         *
+         * <p>{@code loading} 은 전역이라 하나를 누르면 <b>화면의 모든 버튼</b>이 같이
+         * 꺼졌다 켜집니다 — 설정 모달에서 "AI 모델 저장"을 눌렀는데 위의 "설정 저장"이
+         * 함께 깜빡였습니다. 누른 버튼만 잠급니다.
+         */
+        savingKey: null,
 
         /**
          * 로그인 전에 알아야 하는 설정 (설계 I95).
@@ -1403,6 +1411,7 @@ function halley() {
                 return;
             }
             this.loading = true;
+            this.savingKey = 'regParams';
             this.regError = null;
             try {
                 const { ok, body } = await this.request('/api/admin/regulations/params', {
@@ -1421,6 +1430,7 @@ function halley() {
                 this.regError = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+                this.savingKey = null;
             }
         },
 
@@ -4737,6 +4747,7 @@ function halley() {
 
         async saveLlmModels() {
             this.loading = true;
+            this.savingKey = 'llmModels';
             this.error = null;
             try {
                 const payload = (this.llmModels?.features || []).map(f => ({
@@ -4759,6 +4770,7 @@ function halley() {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+                this.savingKey = null;
             }
         },
 
@@ -4776,6 +4788,7 @@ function halley() {
 
         async saveSettings() {
             this.loading = true;
+            this.savingKey = 'settings';
             this.error = null;
             try {
                 const body = this.settings.map(s => ({
@@ -4796,6 +4809,7 @@ function halley() {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+                this.savingKey = null;
             }
         },
 

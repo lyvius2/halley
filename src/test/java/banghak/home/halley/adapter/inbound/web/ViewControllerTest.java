@@ -112,4 +112,24 @@ class ViewControllerTest {
                 .andExpect(content().string(
                         Matchers.containsString(":selected=\"m.id === llmForm[f.key]\"")));
     }
+
+    /**
+     * 저장 버튼은 <b>자기가 저장할 때만</b> 꺼지는가 (설계 I281).
+     *
+     * <p>전역 {@code loading} 에 묶으면 하나를 눌렀을 때 화면의 모든 버튼이 같이
+     * 꺼졌다 켜집니다 — "AI 모델 저장"을 눌렀는데 "설정 저장"이 함께 깜빡였습니다.
+     */
+    @Test
+    @DisplayName("설정 모달 저장 버튼은 누른 것만 잠근다 (설계 I281)")
+    void settingsSaveButtonsLockOnlyThemselves() throws Exception {
+        final String html = mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        for (final String key : new String[] { "settings", "llmModels", "regParams" }) {
+            if (!html.contains(":disabled=\"savingKey === '" + key + "'\"")) {
+                throw new AssertionError("저장 버튼이 전역 loading 에 묶여 있다: " + key);
+            }
+        }
+    }
 }
