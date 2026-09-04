@@ -86,6 +86,8 @@ public class ScoringService {
     private final PoiDataService poiDataService;
     private final CommuteDataService commuteDataService;
     private final EditVersionStore editVersionStore;
+    /** 채점·전망이 바뀐 것을 화면에 알리는 판 번호 (설계 I285) */
+    private final ScoreVersionPublisher scoreVersionPublisher;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
     private final ApplicationEventPublisher eventPublisher;
@@ -112,6 +114,7 @@ public class ScoringService {
                           PoiDataService poiDataService,
                           CommuteDataService commuteDataService,
                           EditVersionStore editVersionStore,
+                          ScoreVersionPublisher scoreVersionPublisher,
                           RegulationParamRepository regulationParamRepository,
                           SystemConfigRepository systemConfigRepository,
                           ScoringEngine scoringEngine,
@@ -132,6 +135,7 @@ public class ScoringService {
         this.poiDataService = poiDataService;
         this.commuteDataService = commuteDataService;
         this.editVersionStore = editVersionStore;
+        this.scoreVersionPublisher = scoreVersionPublisher;
         this.regulationParamRepository = regulationParamRepository;
         this.systemConfigRepository = systemConfigRepository;
         this.scoringEngine = scoringEngine;
@@ -476,8 +480,8 @@ public class ScoringService {
                         criterion.explanation(),
                         Instant.now()))
                 .toList());
-        // 화면이 바뀐 것을 알아채는 유일한 신호다 (설계 I85)
-        editVersionStore.bump(scoreVersionKey(property.id()));
+        // 화면이 바뀐 것을 알아채는 유일한 신호다 (설계 I85). 커밋한 뒤에 올린다 (설계 I285)
+        scoreVersionPublisher.bump(property.id());
         return toResponse(property, result, weights);
     }
 
@@ -523,7 +527,7 @@ public class ScoringService {
                 : null;
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property, batch),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property, batch)), total, views,
-                editVersionStore.current(scoreVersionKey(property.id())),
+                scoreVersionPublisher.current(property.id()),
                 // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
                 null);
     }
@@ -551,7 +555,7 @@ public class ScoringService {
                 .toList();
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
-                editVersionStore.current(scoreVersionKey(property.id())),
+                scoreVersionPublisher.current(property.id()),
                 // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
                 null);
     }
@@ -634,7 +638,7 @@ public class ScoringService {
         return new ScoredPropertyResponse(
                 PropertyResponse.from(property, nicknameOf(property),
                         editVersionStore.current(versionKey(property.id())), groupNameFor(property)),
-                null, List.of(), editVersionStore.current(scoreVersionKey(property.id())),
+                null, List.of(), scoreVersionPublisher.current(property.id()),
                 // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다 (설계 I136)
                 null);
     }
@@ -870,17 +874,6 @@ public class ScoringService {
     }
 
     /**
-     * 채점 결과의 판 번호 (설계 I85).
-     *
-     * <p>편집 버전(`property:`)과 <b>키를 나눕니다.</b> 매물 정보를 고치지 않아도 채점은
-     * 바뀝니다 — 보정이 끝나거나 AI 응답이 오면 바뀝니다. 한 키에 섞으면 화면이 "무엇이
-     * 바뀌었는지" 구분하지 못합니다.
-     */
-    private String scoreVersionKey(Long id) {
-        return "score:" + id;
-    }
-
-    /**
      * 매물별 채점 판 번호. 화면이 <b>목록 전체를 받지 않고</b> 바뀐 것만 알아내려고 씁니다.
      *
      * <p><b>목록과 같은 것을 세야 합니다</b> (설계 I241). `findAllIds()` 는 그룹도
@@ -894,7 +887,7 @@ public class ScoringService {
     public List<ScoreVersionResponse> scoreVersions(DealType dealType, boolean archived) {
         return visibleProperties(dealType, archived).stream()
                 .map(p -> new ScoreVersionResponse(p.id(),
-                        editVersionStore.current(scoreVersionKey(p.id()))))
+                        scoreVersionPublisher.current(p.id())))
                 .toList();
     }
 

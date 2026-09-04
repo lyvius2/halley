@@ -92,6 +92,8 @@ public class PriceForecastService {
             new banghak.home.halley.domain.forecast.indicator.YearlyMedians();
 
     private final LlmPort llmPort;
+    /** 전망이 끝난 것을 목록 화면에 알린다 (설계 I285) */
+    private final ScoreVersionPublisher scoreVersionPublisher;
     private final LlmModelService llmModelService;
     private final ForecastIndicatorFactory indicatorFactory;
     private final ForecastVerdictParser parser;
@@ -116,12 +118,14 @@ public class PriceForecastService {
                                 PriceForecastRepository forecastRepository,
                                 LegalDongCodeService legalDongCodeService,
                                 LlmJobCache jobCache,
+                                ScoreVersionPublisher scoreVersionPublisher,
                                 ObjectMapper objectMapper,
                                 @Value("${llm.enabled:true}") boolean enabled,
                                 LlmModelService llmModelService,
                                 @Value("${forecast.rate-lookback-months:24}") int rateLookbackMonths,
                                 @Value("${forecast.max-tokens:4000}") int maxTokens) {
         this.llmPort = llmPort;
+        this.scoreVersionPublisher = scoreVersionPublisher;
         this.llmModelService = llmModelService;
         this.indicatorFactory = indicatorFactory;
         this.parser = new ForecastVerdictParser(objectMapper);
@@ -178,6 +182,11 @@ public class PriceForecastService {
             // 성공이든 실패든 지운다 (설계 I109). 결과는 DB에 있고, 표시가 남으면
             // 화면이 영영 돕니다 — completed 를 따로 볼 이유가 없습니다
             jobCache.clear(jobKey(propertyId));
+            // 목록이 다시 받도록 판 번호를 올린다 (설계 I285).
+            // 전망은 채점보다 한참 뒤에 끝나는데 예전에는 아무 신호도 없어,
+            // 카드가 「분석 중」 표시(◌)에서 화살표로 <b>바뀌지 않았습니다.</b>
+            // 저장했든 그대로든 실패했든 `running` 표시가 풀린 것은 같으므로 여기서 올립니다
+            scoreVersionPublisher.bump(propertyId);
         }
     }
 

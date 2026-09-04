@@ -2758,11 +2758,16 @@ function halley() {
             const latest = new Map(body.map(v => [v.propertyId, v.scoreVersion]));
             const changed = this.properties.some(
                 r => latest.has(r.property.id) && latest.get(r.property.id) !== r.scoreVersion);
+            // 「분석 중」인 카드가 있으면 판 번호가 같아도 다시 받는다 (설계 I285).
+            // 번호만 믿으면, 번호는 새것인데 점수가 비어 있는 판을 한 번 붙든 순간
+            // <b>다시 바뀔 일이 없어</b> 그 카드는 영영 돌기만 한다.
+            // 기다리는 카드가 있을 때만, 그것도 [I284]의 유예 안에서만 그렇게 한다
+            const stillPending = this.properties.some(r => this.scoring(r));
             // 매물이 늘거나 줄어도 목록을 다시 받아야 한다.
             // 받은 쪽 수가 아니라 <b>전체 건수</b>와 견준다 (설계 I240) — 30건씩 받는
             // 동안에는 `properties.length` 가 전체와 다른 것이 정상이라, 그대로 두면
             // 3초마다 목록을 다시 받는다
-            if (changed || latest.size !== this.propertyTotal) {
+            if (changed || stillPending || latest.size !== this.propertyTotal) {
                 await this.loadProperties();
                 if (this.detailItem) {
                     this.syncDetailItem();
