@@ -1366,7 +1366,7 @@
             </div>
         </template>
         <p class="form-error" x-show="error" x-text="error"></p>
-        <button class="btn btn-primary" @click="saveSettings()" :disabled="loading">설정 저장</button>
+        <button class="btn btn-primary settings-save" @click="saveSettings()" :disabled="loading">설정 저장</button>
 
         <!-- AI 모델 (설계 I267). 자리마다 따로 고른다 — 성격이 서로 다르다 -->
         <div class="settings-section">
@@ -1403,7 +1403,7 @@
                             </tbody>
                         </table>
                     </div>
-                    <button class="btn btn-primary" @click="saveLlmModels()" :disabled="loading">AI 모델 저장</button>
+                    <button class="btn btn-primary settings-save" @click="saveLlmModels()" :disabled="loading">AI 모델 저장</button>
                 </div>
             </template>
         </div>
@@ -1450,7 +1450,7 @@
                 </table>
             </div>
             <p class="form-error" x-show="regError" x-text="regError"></p>
-            <button class="btn btn-primary" @click="saveRegParams()" :disabled="loading">규제 파라미터 저장</button>
+            <button class="btn btn-primary settings-save" @click="saveRegParams()" :disabled="loading">규제 파라미터 저장</button>
         </div>
 
         <!-- 규제지역 (설계 I68) -->

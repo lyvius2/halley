@@ -7996,10 +7996,17 @@ Anthropic 요청의 `"model"` 필드로 나가는 것도 기존 시험이 지킵
 
 #### 저장 버튼이 표에 붙어 있었다
 
-다른 저장 버튼들은 표 다음에 `<p class="form-error">` 가 하나씩 끼어 있는데,
-AI 모델 버튼만 `x-if` 로 카드와 버튼을 한 `<div>` 로 묶느라 그게 빠졌습니다.
-`.settings-section .card.table-wrap + .btn { margin-top: 12px; }` 를 추가했습니다 —
-다른 저장 버튼(`<p>` 가 있어 이 선택자에 안 걸리는 것들)에는 영향이 없습니다.
+처음에는 `<p class="form-error">` 가 없는 버튼(AI 모델 저장)만 문제라고 보고
+`.settings-section .card.table-wrap + .btn { margin-top: 12px; }` 로 인접 선택자를
+좁혀 고쳤습니다. 그런데 `<p class="form-error">` 를 가진 규제 파라미터 저장 버튼도
+똑같이 표에 붙어 있다는 신고가 다시 들어왔습니다 — 그 `<p>` 는 오류가 없을 때
+`x-show="false"` 로 숨겨져 있어(`display:none`), 존재해도 높이가 0이라 시각적
+여백을 전혀 만들지 않습니다. 인접 선택자로는 "바로 다음 형제"만 잡을 수 있어
+이 경우를 구조적으로 못 잡습니다.
+
+그래서 DOM 구조에 기대는 선택자를 버리고, 설정 모달의 저장 버튼 셋(설정 저장·
+AI 모델 저장·규제 파라미터 저장) 모두에 `settings-save` 클래스를 직접 붙이고
+`.settings-save { margin-top: 12px; }` 로 고쳤습니다.
 
 #### 요청 로그에 모델이 없었다
 
