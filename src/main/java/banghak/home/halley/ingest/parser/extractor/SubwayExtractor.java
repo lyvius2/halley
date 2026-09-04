@@ -33,10 +33,20 @@ public class SubwayExtractor implements FieldExtractor<String> {
     /**
      * 줄 <b>맨 앞</b>의 역 이름. 노선("1호선…")·거리("581m도보 9분") 줄은 안 걸린다.
      *
-     * <p>뒤에 도보시간이 붙어 오는 붙여넣기도 있어("독립문역 7분") 앞부분만 봅니다 —
-     * 시간은 {@code subwayMinutes} 가 따로 가지므로 이름에 섞지 않습니다.
+     * <p>뒤에 무엇이 붙어 오든 <b>역까지만</b> 끊습니다. 붙여넣기마다 모양이 다릅니다.
+     *
+     * <pre>
+     * 회기역                ← 이름만
+     * 마들역7호선            ← 노선이 공백 없이 붙는다
+     * 노원역4호선7호선        ← 여럿 붙기도 한다
+     * 독립문역 7분           ← 도보시간이 붙는다
+     * </pre>
+     *
+     * <p>탐욕 반복이라 <b>마지막 `역`</b>까지 잡습니다 — `동대문역사문화공원역` 처럼
+     * 이름 안에 `역`이 또 있어도 통째로 가져옵니다. 도보시간은 {@code subwayMinutes} 가
+     * 따로 가지므로 이름에 섞지 않습니다.
      */
-    private static final Pattern STATION = Pattern.compile("^([가-힣A-Za-z0-9·\\-]+역)(?:\\s|$)");
+    private static final Pattern STATION = Pattern.compile("^([가-힣A-Za-z0-9·\\-]+역)");
 
     private static final int SCAN_LINES = 12;
     private static final int MAX_STATIONS = 3;
