@@ -359,6 +359,40 @@ class PropertyServiceTest {
                 () -> propertyService.create(withFloor(base, "옥탑", 15)));
     }
 
+    @Test
+    @DisplayName("수정 화면에서 숫자 층을 밴드로 바꿔 저장할 수 있다 (설계 I286)")
+    void updatesANumericFloorToABand() {
+        // given — 3층으로 등록해 둔다
+        final PropertyRequest base = request("층수정매물", DealType.SALE, 500_000_000L);
+        final PropertyResponse created = propertyService.create(withFloor(base, "3", 21));
+        assertThat(created.floorNo()).isEqualTo(3);
+
+        // when — 수정 화면에서 `저` 로 고친다
+        final PropertyResponse updated =
+                propertyService.update(created.id(), withFloor(base, "저", 21), null);
+
+        // then
+        assertThat(updated.floorBand()).isEqualTo(FloorBand.LOW);
+        assertThat(updated.floorNo()).as("밴드로 바꾸면 층수는 지워진다").isNull();
+    }
+
+    @Test
+    @DisplayName("밴드로 저장된 매물을 숫자 층으로 되돌릴 수 있다")
+    void updatesABandBackToANumber() {
+        // given
+        final PropertyRequest base = request("층되돌리기", DealType.SALE, 500_000_000L);
+        final PropertyResponse created = propertyService.create(withFloor(base, "고", 15));
+        assertThat(created.floorBand()).isEqualTo(FloorBand.HIGH);
+
+        // when
+        final PropertyResponse updated =
+                propertyService.update(created.id(), withFloor(base, "9", 15), null);
+
+        // then
+        assertThat(updated.floorNo()).isEqualTo(9);
+        assertThat(updated.floorBand()).isNull();
+    }
+
     /** 층만 갈아 끼운 요청. 나머지는 base 그대로다. */
     private PropertyRequest withFloor(PropertyRequest base, String floorRaw, Integer floorTotal) {
         return new PropertyRequest(
