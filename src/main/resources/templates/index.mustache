@@ -177,7 +177,7 @@
                                         <span class="badge b-admin" x-show="r.property.isDraft">작성 중</span>
                                         <span class="badge b-off" x-show="r.property.listingStatus==='SOLD_OUT'">판매완료</span>
                                         <span x-text="r.property.addressRoad"></span>
-                                        <span x-show="r.property.floorNo" x-text="r.property.floorNo + '층'"></span>
+                                        <span x-show="floorLabel(r.property)" x-text="floorLabel(r.property)"></span>
                                         <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
                                         <!-- 등록 직후에는 점수가 없다 (설계 I220). 배경에서
@@ -1623,7 +1623,7 @@
                         <div class="m2-row"><span>주소</span><b x-text="detailItem.property.addressRoad || detailItem.property.addressJibun || '-'"></b></div>
                         <div class="m2-row"><span>공급면적</span><b x-text="fmtArea(detailItem.property.areaSupplyM2)"></b></div>
                         <div class="m2-row"><span>전용면적</span><b x-text="fmtArea(detailItem.property.areaExclusiveM2)"></b></div>
-                        <div class="m2-row"><span>층/총층</span><b x-text="detailItem.property.floorNo ? detailItem.property.floorNo + '/' + (detailItem.property.floorTotal || '?') + '층' : '-'"></b></div>
+                        <div class="m2-row"><span>층/총층</span><b x-text="floorLabel(detailItem.property) || '-'"></b></div>
                         <div class="m2-row"><span>방/욕실</span><b x-text="detailItem.property.roomBath || '-'"></b></div>
                         <div class="m2-row"><span>향</span><b x-text="detailItem.property.direction || '-'"></b></div>
                         <div class="m2-row"><span>난방</span><b x-text="detailItem.property.heatingType || '-'"></b></div>
@@ -1942,8 +1942,13 @@
                 <label>공급면적 (㎡)
                     <input type="number" step="0.01" min="0" x-model="propertyForm.areaSupplyM2" placeholder="112.0">
                 </label>
+                <!-- 층은 숫자만이 아니다 (설계 I286). 네이버가 저층을 감추면 `저/15층`
+                     처럼 밴드로 온다 — number 칸이면 그 값을 아예 못 적는다 -->
                 <label>층
-                    <input type="number" min="1" x-model="propertyForm.floorNo" placeholder="5">
+                    <input type="text" inputmode="text" maxlength="2"
+                           x-model="propertyForm.floorRaw"
+                           @input="propertyForm.floorRaw = floorInput($event)"
+                           placeholder="5 또는 저/중/고">
                 </label>
                 <label>총 층수
                     <input type="number" min="1" x-model="propertyForm.floorTotal" placeholder="12">

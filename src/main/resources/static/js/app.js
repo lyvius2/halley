@@ -49,7 +49,7 @@ function emptyPropertyForm() {
         lng: '',
         areaSupplyM2: '',
         areaExclusiveM2: '',
-        floorNo: '',
+        floorRaw: '',
         floorTotal: '',
         direction: '',
         approvalYear: '',
@@ -123,6 +123,21 @@ const REF_POLL_INTERVAL_MS = 3000;
 const REF_POLL_MAX_ATTEMPTS = 20;
 const FORECAST_POLL_INTERVAL_MS = 5000;
 const FORECAST_POLL_MAX_ATTEMPTS = 36;
+
+/**
+ * 저장된 매물에서 층 칸에 되살릴 글자 (설계 I286).
+ *
+ * <p>밴드로 저장된 매물은 {@code floorNo} 가 없고 {@code floorBand} 만 있습니다.
+ * 숫자만 되살리면 수정 화면에서 <b>층이 빈 칸으로 보이고</b>, 그대로 저장하면
+ * 원래 있던 값이 지워집니다.
+ */
+function floorText(p) {
+    const band = { LOW: '저', MID: '중', HIGH: '고' };
+    if (p?.floorBand) {
+        return band[p.floorBand] ?? '';
+    }
+    return p?.floorNo ?? '';
+}
 
 function emptyRegAreaForm() {
     return {
@@ -3862,7 +3877,7 @@ function halley() {
                 kbPrice: toNum(value('kbPrice')),
                 areaSupplyM2: toNum(value('areaSupplyM2')),
                 areaExclusiveM2: toNum(value('areaExclusiveM2')),
-                floorNo: toNum(floor[0]),
+                floorRaw: floor[0] || null,
                 floorTotal: toNum(floor[1]),
                 direction: value('direction') || null,
                 addressJibun: value('addressJibun') || null,
@@ -3956,7 +3971,8 @@ function halley() {
                 lng: p.lng ?? '',
                 areaSupplyM2: p.areaSupplyM2 ?? '',
                 areaExclusiveM2: p.areaExclusiveM2 ?? '',
-                floorNo: p.floorNo ?? '',
+                // 숫자든 밴드든 적힌 그대로 되살린다 (설계 I286)
+                floorRaw: floorText(p),
                 floorTotal: p.floorTotal ?? '',
                 direction: p.direction || '',
                 approvalYear: p.approvalYear ?? '',
@@ -3968,8 +3984,6 @@ function halley() {
                 editVersion: p.editVersion ?? null,
                 // 폼에 칸이 없는 값들. 손대지 않고 그대로 돌려보낸다 (설계 I113)
                 carry: {
-                    floorRaw: p.floorRaw ?? null,
-                    floorBand: p.floorBand ?? null,
                     roomBath: p.roomBath ?? null,
                     heatingType: p.heatingType ?? null,
                     brokerageFee: p.brokerageFee ?? null,
@@ -4051,7 +4065,8 @@ function halley() {
                 lng: toNum(this.propertyForm.lng),
                 areaSupplyM2: toNum(this.propertyForm.areaSupplyM2),
                 areaExclusiveM2: toNum(this.propertyForm.areaExclusiveM2),
-                floorNo: toNum(this.propertyForm.floorNo),
+                // 적힌 그대로 보낸다 — 숫자/밴드로 가르는 것은 서버가 한다 (설계 I286)
+                floorRaw: this.propertyForm.floorRaw || null,
                 floorTotal: toNum(this.propertyForm.floorTotal),
                 direction: this.propertyForm.direction || null,
                 approvalYear: toNum(this.propertyForm.approvalYear),
@@ -5349,6 +5364,33 @@ function halley() {
             const cleaned = String(e.target.value).replace(/[^0-9]/g, '');
             e.target.value = cleaned;
             return cleaned;
+        },
+
+        /**
+         * 층 칸에 들어갈 수 있는 것 (설계 I286).
+         *
+         * <p>숫자, 또는 <b>저·중·고 한 글자</b>입니다. 네이버가 저층을 감추면
+         * `저/15층` 처럼 밴드로 오는데, 숫자만 받으면 그 매물은 층을 적을 수가 없습니다.
+         *
+         * <p>섞어 쓸 수는 없습니다 — `저3` 같은 값은 뜻이 없으므로, 글자를 넣으면
+         * 그 글자 하나만 남깁니다.
+         */
+        floorInput(e) {
+            const raw = String(e.target.value);
+            const band = raw.match(/[저중고]/);
+            const cleaned = band ? band[0] : raw.replace(/[^0-9]/g, '');
+            e.target.value = cleaned;
+            return cleaned;
+        },
+
+        /** 층 표기 — `3층` · `저층`. 총 층수가 있으면 `3/12층` (설계 I286). */
+        floorLabel(p) {
+            const band = { LOW: '저', MID: '중', HIGH: '고' };
+            const here = p?.floorBand ? band[p.floorBand] : (p?.floorNo ?? null);
+            if (here == null || here === '') {
+                return '';
+            }
+            return p.floorTotal ? `${here}/${p.floorTotal}층` : `${here}층`;
         },
 
         moneyHint(value) {
