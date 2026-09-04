@@ -102,7 +102,7 @@ propertyId = propertyService.create(new PropertyRequest(
         assertThat(stub.messages).singleElement().satisfies(text -> {
             assertThat(text).contains("홍길동").contains("알림매물").contains("의견을 남겼습니다");
             assertThat(text).contains("> 채광이 아주 좋았습니다");
-            assertThat(text).endsWith("https://halley.example.com/properties/" + propertyId + "/comments");
+            assertThat(text).endsWith("https://halley.example.com/#/properties/" + propertyId + "/comments");
         });
     }
 
@@ -146,7 +146,7 @@ propertyId = propertyService.create(new PropertyRequest(
 
         assertThat(stub.messages).singleElement().satisfies(text -> {
             assertThat(text).contains("공간 쾌적함을 4점으로 평가했습니다 (5점 만점)");
-            assertThat(text).endsWith("https://halley.example.com/properties/" + propertyId + "/score");
+            assertThat(text).endsWith("https://halley.example.com/#/properties/" + propertyId + "/score");
         });
     }
 

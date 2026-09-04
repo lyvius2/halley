@@ -19,7 +19,7 @@ class KakaoRoutePathTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final KakaoDirectionsAdapter adapter =
-            new KakaoDirectionsAdapter(null, "key", objectMapper);
+            new KakaoDirectionsAdapter(null, "key", objectMapper, new DirectionsQuota());
 
     /** 도로 둘, 정체 상태가 다르다 — 색이 갈리는 자리다. */
     private static final String TWO_ROADS = """

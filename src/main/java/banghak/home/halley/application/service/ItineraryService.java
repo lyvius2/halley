@@ -12,6 +12,7 @@ import banghak.home.halley.adapter.inbound.web.dto.ItineraryDraft;
 import banghak.home.halley.application.port.out.cache.CachePort;
 import banghak.home.halley.application.port.out.cache.StartLocationCache;
 import banghak.home.halley.config.HalleyUserDetails;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.domain.itinerary.StartLocation;
 import banghak.home.halley.domain.itinerary.DriveRoute;
 import banghak.home.halley.domain.itinerary.ItineraryOptimizer;
@@ -20,10 +21,14 @@ import banghak.home.halley.domain.itinerary.TravelCostMatrix;
 import banghak.home.halley.domain.itinerary.TravelMode;
 import banghak.home.halley.domain.property.Property;
 import banghak.home.halley.domain.scoring.TransitResult;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -38,7 +43,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-@lombok.extern.slf4j.Slf4j
+@Slf4j
 @Service
 public class ItineraryService {
 
@@ -51,8 +56,17 @@ public class ItineraryService {
      * <p>행렬을 만들며 받은 `TransitResult` 를 구간 안내에서 다시 씁니다 —
      * 안 그러면 <b>같은 구간을 두 번 부릅니다.</b> 요청마다 비웁니다.
      */
-    private final ThreadLocal<Map<String, TransitResult>> transitMemo =
-            ThreadLocal.withInitial(HashMap::new);
+    private final ThreadLocal<Map<String, TransitResult>> transitMemo = ThreadLocal.withInitial(HashMap::new);
+    /**
+     * 자동차 길도 <b>한 번의 계산 안에서만</b> 기억한다 (설계 I263).
+     *
+     * <p>대중교통과 달리 자동차는 <b>아무 데도 담아 두지 않았습니다.</b> 행렬을 만들며
+     * 49번, 구간 안내에서 또 6번을 <b>같은 길에</b> 물었습니다.
+     *
+     * <p>{@code travelTimeCache} 에 담지 않는 이유는 <b>출발 시각에 따라 답이 다르기</b>
+     * 때문입니다 (설계 I196) — 화요일 14시와 일요일 14시는 다른 길입니다.
+     */
+    private final ThreadLocal<Map<String, DriveRoute>> driveMemo = ThreadLocal.withInitial(java.util.concurrent.ConcurrentHashMap::new);
     private static final int UNREACHABLE_MINUTES = 999;
 
     private final PropertyRepository propertyRepository;
@@ -65,10 +79,14 @@ public class ItineraryService {
 
     private final StartLocationCache startLocationCache;
     private final CachePort cache;
-    private final tools.jackson.databind.ObjectMapper objectMapper;
+    private final ObjectMapper objectMapper;
+    /** 구간들을 한꺼번에 받아 두는 자리 (설계 I263). */
+    private final VirtualThreadGate gate;
+    /** 미리 받아 두기에 쓸 수 있는 시간 (설계 I263). */
+    private final java.time.Duration prewarmBudget;
 
     public ItineraryService(PropertyAccessGuard propertyAccessGuard,
-                                  PropertyRepository propertyRepository,
+                            PropertyRepository propertyRepository,
                             PropertyVisitRepository propertyVisitRepository,
                             KakaoDirectionsPort kakaoDirectionsPort,
                             OdsayTransitPort odsayTransitPort,
@@ -76,7 +94,9 @@ public class ItineraryService {
                             ItineraryOptimizer optimizer,
                             StartLocationCache startLocationCache,
                             CachePort cache,
-                            tools.jackson.databind.ObjectMapper objectMapper) {
+                            ObjectMapper objectMapper,
+                            @Qualifier("itineraryGate") VirtualThreadGate gate,
+                            @Value("${itinerary.prewarm-budget-seconds:20}") long prewarmBudgetSeconds) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyVisitRepository = propertyVisitRepository;
@@ -87,6 +107,8 @@ public class ItineraryService {
         this.startLocationCache = startLocationCache;
         this.cache = cache;
         this.objectMapper = objectMapper;
+        this.gate = gate;
+        this.prewarmBudget = java.time.Duration.ofSeconds(prewarmBudgetSeconds);
     }
 
     /**
@@ -123,21 +145,77 @@ public class ItineraryService {
 
     public OptimizeItineraryResponse optimize(OptimizeItineraryRequest request) {
         transitMemo.get().clear();
-        final TravelMode mode = modeOf(request.travelMode());
-        final List<Property> properties = loadWithCoords(request.propertyIds());
-        if (properties.isEmpty()) {
-            return OptimizeItineraryResponse.empty();
+        driveMemo.get().clear();
+        try {
+            final TravelMode mode = modeOf(request.travelMode());
+            final List<Property> properties = loadWithCoords(request.propertyIds());
+            if (properties.isEmpty()) {
+                return OptimizeItineraryResponse.empty();
+            }
+            final LocalDateTime departAt = departAt(request.visitDate(), request.windowStart());
+            // <b>두 모드 다 미리 받아 둔다 (설계 I263).</b> 예전에는 대중교통만
+            // 미리 받고 자동차는 행렬을 만들며 <b>한 줄로</b> 49번을 불렀습니다
+            if (mode == TravelMode.TRANSIT) {
+                prewarmTransit(properties, request.startLat(), request.startLng());
+            } else {
+                prewarmDriving(properties, request.startLat(), request.startLng(), departAt);
+            }
+            final TravelCostMatrix matrix =
+                    buildMatrix(properties, request.startLat(), request.startLng(), mode, departAt);
+            final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
+            final List<ItineraryLegResponse> legs = legsOf(order, properties,
+                    request.startLat(), request.startLng(), mode, departAt,
+                    request.stayMinutes() == null ? 25 : request.stayMinutes());
+            final int unknown = (int) legs.stream().filter(leg -> leg.minutes() == null).count();
+            if (unknown > 0) {
+                log.info("Some legs have no travel time. total={}, unknown={}, mode={}",
+                        legs.size(), unknown, mode);
+            }
+            return OptimizeItineraryResponse.of(order, totalMinutes(legs), legs, unknown);
+        } finally {
+            // 요청 스레드는 재사용된다 — 안 지우면 다음 사람이 남의 길을 본다
+            transitMemo.remove();
+            driveMemo.remove();
         }
-        final LocalDateTime departAt = departAt(request.visitDate(), request.windowStart());
-        if (mode == TravelMode.TRANSIT) {
-            prewarmTransit(properties, request.startLat(), request.startLng());
+    }
+
+    /**
+     * 자동차 길을 미리, 한꺼번에 받아 둔다 (설계 I263).
+     *
+     * <p>매물 7개면 <b>49쌍</b>입니다. 카카오 읽기 제한이 6초이니 한 줄로 돌면
+     * 최악에 5분이고, 프록시는 60초에 끊습니다 — <b>504</b>가 그것이었습니다.
+     *
+     * <p>시간 안에 못 받은 것은 남겨 둡니다. 행렬이 그 자리를 다시 물어보고,
+     * 그때도 없으면 <b>못 간다고 답합니다</b> — 계산이 멈추는 것보다 낫습니다.
+     */
+    private void prewarmDriving(List<Property> properties, BigDecimal startLat, BigDecimal startLng,
+                                LocalDateTime departAt) {
+        final List<double[]> points = new ArrayList<>();
+        points.add(new double[]{startLng.doubleValue(), startLat.doubleValue()});
+        properties.forEach(p -> points.add(new double[]{p.lng().doubleValue(), p.lat().doubleValue()}));
+
+        // <b>맵을 미리 꺼내 둔다.</b> 작업은 다른 스레드에서 도는데 ThreadLocal 을
+        // 그 안에서 꺼내면 <b>스레드마다 빈 맵이 새로 생겨</b> 아무것도 안 담긴다
+        final Map<String, DriveRoute> memo = driveMemo.get();
+        final List<Runnable> tasks = new ArrayList<>();
+        for (int i = 0; i < points.size(); i++) {
+            // 도착이 출발지(0)인 구간은 안 쓴다 — 편도다
+            for (int j = 1; j < points.size(); j++) {
+                if (i == j) {
+                    continue;
+                }
+                final double[] a = points.get(i);
+                final double[] b = points.get(j);
+                final String key = driveKey(a[0], a[1], b[0], b[1], departAt);
+                tasks.add(() -> memo.put(key,
+                        kakaoDirectionsPort.findRoute(a[0], a[1], b[0], b[1], departAt)));
+            }
         }
-        final TravelCostMatrix matrix =
-                buildMatrix(properties, request.startLat(), request.startLng(), mode, departAt);
-        final List<Long> order = optimizer.optimize(DEPOT_ID, properties.stream().map(Property::id).toList(), matrix);
-        return new OptimizeItineraryResponse(order, totalMinutes(order, matrix),
-                legsOf(order, properties, request.startLat(), request.startLng(), mode,
-                        departAt, request.stayMinutes() == null ? 25 : request.stayMinutes()));
+        gate.runWithin(tasks, prewarmBudget);
+        if (memo.size() < tasks.size()) {
+            log.info("Drive legs not fully prewarmed within budget. asked={}, got={}",
+                    tasks.size(), memo.size());
+        }
     }
 
     /**
@@ -177,8 +255,10 @@ public class ItineraryService {
             }
             final ItineraryLegResponse leg = legOf(fromId, to, fromLng, fromLat, mode, departAt);
             legs.add(leg);
-            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다
-            if (departAt != null) {
+            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다.
+            // <b>못 받은 구간은 못 미룬다 (설계 I270).</b> 예전에는 999분을 더해
+            // 뒤 구간을 <b>하루 뒤의 길</b>로 물었다 — 화면의 `(+1일)` 이 그것이었다
+            if (departAt != null && leg.minutes() != null) {
                 departAt = departAt.plusMinutes((long) leg.minutes() + stayMinutes);
             }
             fromId = toId;
@@ -193,9 +273,11 @@ public class ItineraryService {
         final double toLng = to.lng().doubleValue();
         final double toLat = to.lat().doubleValue();
         if (mode == TravelMode.DRIVING) {
-            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt);
+            final DriveRoute route = drive(fromLng, fromLat, toLng, toLat, departAt);
+            // <b>모르는 것은 모른다고 한다 (설계 I270).</b> 999를 넣었더니 화면이
+            // "999분"이라고 말했고, 합계는 3996분이라는 지어낸 숫자가 됐다
             return ItineraryLegResponse.of(fromId, to.id(),
-                    route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES,
+                    route.isComputed() ? route.durationMinutes() : null,
                     route.roads(), route.path());
         }
         final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
@@ -203,7 +285,7 @@ public class ItineraryService {
                 ? remembered
                 : odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
         return ItineraryLegResponse.of(fromId, to.id(),
-                transit.isComputed() ? transit.totalMinutes() : UNREACHABLE_MINUTES,
+                transit.isComputed() ? transit.totalMinutes() : null,
                 transit.legs(), odsayTransitPort.findLane(transit.mapObj()));
     }
 
@@ -261,25 +343,36 @@ public class ItineraryService {
         };
     }
 
-    private int totalMinutes(List<Long> order, TravelCostMatrix matrix) {
-        int total = 0;
-        long previous = DEPOT_ID;
-        for (final Long id : order) {
-            total += matrix.minutes(previous, id);
-            previous = id;
-        }
-        return total;
+    /**
+     * <b>아는 것만 더한다</b> (설계 I270).
+     *
+     * <p>예전에는 못 받은 구간마다 999를 더해 <b>3996분</b> 같은 수를 내놓았습니다.
+     * 그 수는 아무 뜻이 없는데 화면은 「예상 이동시간 합계」라고 불렀습니다.
+     */
+    private static int totalMinutes(List<ItineraryLegResponse> legs) {
+        return legs.stream()
+                .map(ItineraryLegResponse::minutes)
+                .filter(java.util.Objects::nonNull)
+                .mapToInt(Integer::intValue)
+                .sum();
     }
 
     private int travelTime(double fromLng, double fromLat, double toLng, double toLat, TravelMode mode,
                            LocalDateTime departAt) {
         if (mode == TravelMode.DRIVING) {
-            final DriveRoute route = kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt);
+            final DriveRoute route = drive(fromLng, fromLat, toLng, toLat, departAt);
             return route.isComputed() ? route.durationMinutes() : UNREACHABLE_MINUTES;
         }
         final Integer cached = travelTimeCache.get(mode, fromLng, fromLat, toLng, toLat);
         if (cached != null) {
             return cached;
+        }
+        // <b>이 요청에서 이미 물어본 자리는 다시 안 묻는다 (설계 I271).</b>
+        // 최적화기는 같은 쌍을 <b>여러 번</b> 물어봅니다 — 매물 넷에 52번이 나갔습니다.
+        // 못 받은 것도 기억에 있으므로, 한 번의 실패가 구간 수만큼 늘어나지 않습니다
+        final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
+        if (remembered != null) {
+            return remembered.isComputed() ? remembered.totalMinutes() : UNREACHABLE_MINUTES;
         }
         final TransitResult transit = odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
         // 구간 안내를 만들 때 다시 부르지 않도록 기억해 둔다 (설계 I176).
@@ -327,7 +420,8 @@ public class ItineraryService {
         if (pending.isEmpty()) {
             return;
         }
-        odsayTransitPort.findTransitBatch(pending).forEach((key, transit) -> {
+        final Map<String, TransitResult> answered = odsayTransitPort.findTransitBatch(pending);
+        answered.forEach((key, transit) -> {
             // 구간 안내에서 다시 부르지 않도록 기억해 둔다 (설계 I176)
             transitMemo.get().put(key, transit);
             if (transit.isComputed()) {
@@ -335,6 +429,41 @@ public class ItineraryService {
                 travelTimeCache.put(TravelMode.TRANSIT, c[0], c[1], c[2], c[3], transit.totalMinutes());
             }
         });
+        // <b>못 받은 것도 기억한다 (설계 I271).</b> 안 그러면 구간 안내가 그 자리를
+        // 하나씩 다시 물어, 한 번 실패한 것이 <b>구간 수만큼</b> 늘어납니다 —
+        // ODsay 한도가 끝난 날 LLM 이 구간마다 60초씩 붙잡혔습니다
+        pending.keySet().stream()
+                .filter(key -> !answered.containsKey(key))
+                .forEach(key -> transitMemo.get().put(key, TransitResult.missing()));
+    }
+
+    /**
+     * 미리 받아 둔 자동차 길을 먼저 본다 (설계 I263).
+     *
+     * <p>같은 길을 행렬에서 한 번, 구간 안내에서 또 한 번 물었습니다.
+     * 대중교통은 {@code transitMemo} 로 이미 막아 두었는데(I176) <b>자동차만 빠져
+     * 있었습니다.</b>
+     */
+    private DriveRoute drive(double fromLng, double fromLat, double toLng, double toLat,
+                             LocalDateTime departAt) {
+        return driveMemo.get().computeIfAbsent(driveKey(fromLng, fromLat, toLng, toLat, departAt),
+                key -> kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt));
+    }
+
+    /**
+     * <b>출발 시각까지 열쇠에 넣는다 (설계 I263).</b>
+     *
+     * <p>좌표만으로 담아 두면 세 번째 매물이 <b>09시의 길</b>을 씁니다 — 실제로는
+     * 13시에 출발하는데도요. [I196]이 일부러 시각별로 묻게 해 둔 것을
+     * 담아 두기가 도로 지워 버립니다.
+     *
+     * <p>그래서 미리 받아 두기는 <b>행렬에만</b> 듣습니다. 순서를 정할 때는 모두
+     * 같은 시각을 쓰기 때문입니다. 구간 안내는 시각이 저마다라 다시 묻습니다 —
+     * 그건 {@code n-1}번이라 감당할 만합니다.
+     */
+    private static String driveKey(double fromLng, double fromLat, double toLng, double toLat,
+                                   LocalDateTime departAt) {
+        return legKey(fromLng, fromLat, toLng, toLat) + "@" + departAt;
     }
 
     /** 좌표 넷을 하나의 열쇠로. 소수점 여섯 자리면 1m 안쪽이라 같은 지점으로 봐도 된다. */

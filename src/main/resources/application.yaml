@@ -277,6 +277,22 @@ enrichment:
   # 거절되지 않고 자리가 날 때까지 기다린다
   max-concurrency: ${ENRICHMENT_MAX_CONCURRENCY:400}
 
+itinerary:
+  # 임장 경로 계산 (설계 I263).
+  # 매물 n개면 구간이 n^2 쌍이다 — 다섯이면 25, 일곱이면 49.
+  # 예전에는 이것을 한 줄로 물어 504(Gateway Timeout)가 났다
+  max-concurrency: ${ITINERARY_MAX_CONCURRENCY:8}
+  # 미리 받아 두기에 쓸 수 있는 시간(초). 프록시가 끊는 시각보다 넉넉히 짧아야 한다 —
+  # 넘어가면 남은 구간은 못 받은 채로 두고 계산을 이어간다
+  prewarm-budget-seconds: ${ITINERARY_PREWARM_BUDGET_SECONDS:20}
+  # 대중교통 구간을 ODsay 에 물을 때의 상한(초). 넘으면 남은 것은 LLM 추정으로 넘긴다 (설계 I210)
+  transit-budget-seconds: ${ITINERARY_TRANSIT_BUDGET_SECONDS:20}
+  # 한 번 받은 자가용 길을 담아 두는 시간(시) (설계 I272).
+  # 열쇠는 좌표 넷 + 출발 시각이라 요일·시간대별로 따로 담긴다 (설계 I196).
+  # 담아 두지 않으면 「경로 계산」을 누를 때마다 49건이 나가고, 한도가 있는 API 는
+  # 그것으로 하루가 끝난다 — 실제로 그렇게 끝났다 (설계 I270)
+  route-cache-hours: ${ITINERARY_ROUTE_CACHE_HOURS:24}
+
 halley:
   cache:
     reference:

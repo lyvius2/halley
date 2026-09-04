@@ -27,26 +27,23 @@ class ViewControllerTest {
     private MockMvc mockMvc;
 
     /**
-     * 모달 주소로 들어와도 앱이 뜬다 (설계 I198).
+     * 주소가 <b>서버로 오지 않는다</b> (설계 I244).
      *
-     * <p><b>`ViewController` 의 매핑 목록이 이 일을 하는 것이 아닙니다.</b>
-     * `SpaRoutingFilter` 가 API·정적파일이 아닌 GET 을 전부 `/` 로 넘깁니다 —
-     * 매핑 목록은 <b>어떤 주소가 있는지 적어 둔 것</b>이지 동작의 근거가 아닙니다.
-     * 그래서 여기서는 뷰 이름이 아니라 <b>200 이 오는지</b>를 봅니다. Slack 링크를
-     * 눌렀을 때 화면이 뜨느냐가 실제 계약입니다.
+     * <p>화면·모달 주소를 {@code #} 뒤로 옮겼습니다. 브라우저는 {@code #} 뒤를 서버에
+     * 보내지 않으므로, 어떤 화면을 열든 <b>요청은 `/` 하나</b>입니다.
+     *
+     * <p>전에는 여기서 주소 스물여섯 개가 셸을 돌려주는지 봤습니다. 그 목록은
+     * {@code app.js} 의 {@code ROUTES} 와 <b>같은 것을 두 번 적은 것</b>이었고,
+     * 이제 한 곳에만 있습니다.
+     *
+     * <p><b>옛 링크는 그대로 열립니다.</b> {@code SpaRoutingFilter} 가 API·정적파일이
+     * 아닌 GET 을 전부 셸로 넘기므로, 이미 나간 {@code /properties/12/score} 도
+     * 200 을 받습니다 — 다만 {@code #} 가 비어 있어 <b>목록이 열립니다.</b>
      */
     @ParameterizedTest
-    @ValueSource(strings = {
-            "/properties", "/properties/new", "/properties/paste", "/properties/12",
-            "/properties/12/score", "/properties/12/loan", "/properties/12/comments",
-            "/properties/12/transactions", "/properties/12/edit", "/properties/12/forecast",
-            "/properties/12/photos", "/properties/12/photos/3", "/properties/12/agents",
-            "/properties/12/roadview", "/properties/12/paste",
-            "/itinerary", "/me", "/group", "/weights",
-            "/users", "/users/new", "/users/7/edit", "/compare", "/password", "/signup", "/settings"
-    })
-    @DisplayName("모달 주소로 직접 들어와도 셸을 돌려준다 (설계 I198)")
-    void modalPathsReturnTheShell(String path) throws Exception {
+    @ValueSource(strings = { "/properties/12/score", "/list", "/tour-plan" })
+    @DisplayName("옛 주소로 들어와도 셸을 돌려준다 — 열리는 화면은 다르다 (설계 I244)")
+    void staleDeepLinksStillReturnTheShell(String path) throws Exception {
         mockMvc.perform(get(path))
                 .andExpect(status().isOk())
                 .andExpect(forwardedUrl("/"));

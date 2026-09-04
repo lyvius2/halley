@@ -1,8 +1,10 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
+import banghak.home.halley.adapter.outbound.external.claude.LlmAvailability;
 import banghak.home.halley.adapter.outbound.external.odsay.OdsayTransitAdapter;
 import banghak.home.halley.application.service.LlmModelService;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.config.exception.TransitQuotaExceededException;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
@@ -79,8 +81,11 @@ class TransitWithLlmFallbackTest {
     }
 
     private TransitWithLlmFallback fallback() {
+        // 게이트는 진짜를 쓴다 — 동시에 도는 것까지 그대로 재려는 것이다 (설계 I263)
         return new TransitWithLlmFallback(odsay,
-                new LlmTransitEstimator(llmPort(), objectMapper, llmModels()));
+                new LlmTransitEstimator(llmPort(), objectMapper, llmModels(),
+                        new LlmAvailability()),
+                new VirtualThreadGate("test", 8), 20);
     }
 
     @BeforeEach

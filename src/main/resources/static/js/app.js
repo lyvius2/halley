@@ -15,6 +15,20 @@ let routeApplying = false;
 let routeQueued = false;
 let routeTarget = null;
 
+/**
+ * 주소는 `#` 뒤에 둔다 (설계 I244).
+ *
+ * <p>`#` 뒤는 <b>서버로 가지 않습니다.</b> 그래서 어느 화면을 열든 요청은 늘 `/`
+ * 하나이고, 서버는 주소 목록을 알 필요가 없습니다 — `spring-ai-ops` 와 같은 방식입니다.
+ *
+ * <p>비어 있으면 <b>목록</b>입니다. 처음 들어온 사람에게 `#/list` 를 억지로 붙이지
+ * 않습니다 — 아무것도 안 한 사람의 주소는 깨끗한 편이 낫습니다.
+ */
+function currentHashPath() {
+    const raw = decodeURIComponent(window.location.hash.slice(1));
+    return raw.startsWith('/') ? raw : '/list';
+}
+
 function todayIso() {
     const now = new Date();
     const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
@@ -149,6 +163,9 @@ function halley() {
         pins: [],
         users: [],
         soldOutRecent: [],
+        // 경로를 아예 못 냈다 (설계 I274)
+        showItinUnavailable: false,
+        itinUnavailableMessage: '',
         showSoldOutAlert: false,
         soldOutAlertShown: false,
         showLoanModal: false,
@@ -287,6 +304,15 @@ function halley() {
         map: null,
         markers: {},
         activePropertyId: null,
+        /**
+         * 지도가 준비되기 전에 누른 매물 (설계 I275).
+         *
+         * <p>처음 접속해서 곧바로 카드를 누르면 <b>지도가 아직 없습니다</b> —
+         * 카카오 SDK 로딩이 비동기입니다. 예전에는 그 클릭을 조용히 버렸습니다 —
+         * 지도가 뒤늦게 뜨면 전체 매물 범위로만 잡히고, 눌렀던 매물로는 안 갔습니다.
+         * 다시 눌러야만 옮겨졌습니다.
+         */
+        pendingFocus: null,
         showRoadview: false,
         roadviewProperty: null,
         roadviewState: 'loading',
@@ -366,15 +392,19 @@ function halley() {
             this.guardNumberInputs();
             this.watchModalOpen();
             this.restoreLoginId();
-            // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다
-            window.addEventListener('popstate', () => {
+            // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다.
+            // `hashchange` 가 아니라 `popstate` 를 듣습니다 — 우리가 `pushState` 로
+            // 밀기 때문입니다. 주소창에 직접 쳐 넣는 경우까지 받으려면 둘 다 듣습니다 (I244)
+            const onNavigate = () => {
                 if (this.session.authenticated) {
                     routeApplying = true;
                     this.closeAllModals();
                     routeApplying = false;
                     this.applyRoute();
                 }
-            });
+            };
+            window.addEventListener('popstate', onNavigate);
+            window.addEventListener('hashchange', onNavigate);
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
                 if (this.map) {
@@ -471,81 +501,52 @@ function halley() {
         },
 
         /**
-         * 화면마다 주소를 둔다 (설계 I188).
+         * 화면마다 주소를 둔다 (설계 I188 → I244).
          *
-         * <p>SPA 라도 <b>지금 보는 것을 링크로 건넬 수 있어야</b> 합니다 —
-         * Slack 알림에서 그 매물로 바로 가는 것이 그것 때문입니다(I189).
+         * <p>SPA 라도 <b>지금 보는 것을 링크로 건넬 수 있어야</b> 합니다.
+         *
+         * <p><b>둘만 남겼습니다</b>(I244). 내 정보·그룹·가중치는 남에게 건넬 화면이
+         * 아닙니다 — 주소가 있으면 <b>관리할 것만 늘어납니다.</b>
          */
         ROUTES: {
-            list: '/properties',
-            itinerary: '/itinerary',
-            me: '/me',
-            group: '/group',
-            weights: '/weights'
+            list: '/list',
+            itinerary: '/tour-plan'
         },
 
         /**
-         * 모달에도 주소를 준다 (설계 I198).
+         * 주소를 갖는 모달 (설계 I198 → I244).
          *
-         * <p>화면에만 주소가 있었습니다. 그래서 <b>Slack 이 "누가 공간 쾌적함을 채점했다"</b>
-         * 고 알려도 링크는 매물 첫 화면으로만 갔습니다 — 거기서 다시 찾아 들어가야 했습니다.
+         * <p><b>열일곱에서 셋으로 줄였습니다.</b> 모달마다 주소를 준 것은
+         * "Slack 이 알린 그 자리로 바로" 가 목적이었는데([I201]), 실제로 알림이
+         * 가리키는 곳은 <b>코멘트와 채점뿐</b>입니다. 나머지 열넷은
+         * <b>아무도 링크로 건넨 적이 없습니다.</b>
+         *
+         * <p>주소가 있으면 그만큼 지켜야 합니다 — 열고, 닫고, 되돌아오고, 딥링크로
+         * 들어오는 네 경로가 모달마다 생깁니다. <b>쓰지 않는 것을 지키는 것은
+         * 비용만 남습니다.</b>
          *
          * <p><b>순서가 곧 우선순위입니다.</b> 겹쳐 뜬 모달은 맨 위의 주소를 씁니다.
-         * 위에서부터 훑어 처음 열려 있는 것을 고릅니다.
-         *
-         * <p>`prop` 이 있으면 매물에 딸린 모달이라 `/properties/{id}/…` 가 되고,
-         * 없으면 전역 주소입니다. `open` 은 그 주소로 <b>들어왔을 때</b> 어떻게 여는가입니다.
-         *
-         * <p>강제 모달(로그인·비밀번호 변경·프로필 확인·세션 경고)과 잠깐 뜨는 것
-         * (메뉴·확인창·판매완료 알림)은 <b>일부러 뺐습니다.</b> 링크로 건넬 것이 아니고,
-         * 주소로 들어올 수 있으면 안 되는 것도 있습니다.
          */
         MODAL_ROUTES: [
-            { key: 'photo', flag: 'photoViewerIndex', prop: 'photoProperty',
-              suffix: i => `/photos/${i}`,
-              open(app, item, n) { return app.openPhotoModal(item).then(() => app.openPhotoViewer(Number(n))); } },
-            { key: 'photos', flag: 'showPhotoModal', prop: 'photoProperty', suffix: () => '/photos',
-              open: (app, item) => app.openPhotoModal(item) },
-            { key: 'score', flag: 'showScoreModal', prop: 'scoreProperty', suffix: () => '/score',
+            { key: 'score', flag: 'showScoreModal', prop: 'scoreProperty', suffix: 'score',
               open: (app, item) => app.openScoreModal(item) },
-            { key: 'loan', flag: 'showLoanModal', prop: 'loanProperty', suffix: () => '/loan',
+            { key: 'loan', flag: 'showLoanModal', prop: 'loanProperty', suffix: 'loan',
               open: (app, item) => app.openLoanModal(item) },
-            { key: 'transactions', flag: 'showRefModal', prop: 'refProperty', suffix: () => '/transactions',
-              open: (app, item) => app.openRefModal(item) },
-            { key: 'comments', flag: 'showComments', prop: 'commentProperty', suffix: () => '/comments',
-              open: (app, item) => app.openComments(item) },
-            { key: 'forecast', flag: 'showForecast', prop: 'forecastProperty', suffix: () => '/forecast',
-              open: (app, item) => app.openForecast(item) },
-            { key: 'agents', flag: 'showAgentModal', prop: 'agentProperty', suffix: () => '/agents',
-              open: (app, item) => app.openAgentModal(item) },
-            { key: 'roadview', flag: 'showRoadview', prop: 'roadviewProperty', suffix: () => '/roadview',
-              open: (app, item) => app.openRoadview(item) },
-            { key: 'edit', flag: 'showPropertyForm', suffix: () => '/edit',
-              path: app => app.propertyForm.id ? `/properties/${app.propertyForm.id}/edit` : '/properties/new',
-              open: (app, item) => (item ? app.openEditProperty(item) : app.openAddProperty()) },
-            { key: 'paste', flag: 'showPasteModal', suffix: () => '/paste',
-              path: app => app.pasteDraftId ? `/properties/${app.pasteDraftId}/paste` : '/properties/paste',
-              open: (app, item) => app.openPasteModal(item) },
-            { key: 'compare', flag: 'showCompare', path: () => '/compare',
-              open: app => app.openCompare() },
-            { key: 'userForm', flag: 'showUserForm',
-              path: app => app.userForm.id ? `/users/${app.userForm.id}/edit` : '/users/new' },
-            { key: 'password', flag: 'showChangePw', path: () => '/password',
-              open: app => app.openChangePw() },
-            { key: 'signup', flag: 'showSignUp', path: () => '/signup' },
-            { key: 'users', flag: 'showUsers', path: () => '/users',
-              open: app => app.openUsers() },
-            { key: 'settings', flag: 'showSettings', path: () => '/settings',
-              open: app => app.openSettings() }
+            { key: 'comments', flag: 'showComments', prop: 'commentProperty', suffix: 'comments',
+              open: (app, item) => app.openComments(item) }
         ],
 
         /**
          * 지금 열려 있는 것을 주소로 옮긴다 (설계 I198).
          *
-         * <p><b>여는 함수마다 주소를 밀지 않습니다.</b> 모달이 스물 몇 개인데 각각에
-         * 넣으면 반드시 하나를 빠뜨리고, 닫는 쪽은 더 그렇습니다. 상태를 지켜보다가
-         * <b>바뀔 때마다 지금 상태에서 주소를 다시 계산</b>합니다 — 어느 경로로 열리고
-         * 닫혀도 맞습니다.
+         * <p><b>여는 함수마다 주소를 밀지 않습니다.</b> 상태를 지켜보다가 바뀔 때마다
+         * <b>지금 상태에서 주소를 다시 계산</b>합니다 — 어느 경로로 열리고 닫혀도
+         * 맞습니다. 셋으로 줄어든 뒤에도 이 방식을 지킵니다: 여는 자리와 닫는 자리를
+         * 세면 <b>여덟 곳</b>이고, 그중 하나만 빠뜨려도 <b>주소가 조용히 어긋납니다.</b>
+         *
+         * <p><b>모달을 닫으면 화면 주소로 돌아갑니다</b>(I244). 채점을 닫으면
+         * `#/properties/12`, 상세까지 닫으면 `#/list` 입니다 — 주소는 늘
+         * <b>지금 보이는 것</b>을 가리킵니다.
          */
         currentPath() {
             // <b>먼저 전부 읽습니다.</b> 찾자마자 끊으면 뒤쪽 플래그를 안 읽게 되고,
@@ -553,28 +554,20 @@ function halley() {
             // 안 바뀝니다</b> (설계 I211)
             let chosen = null;
             for (const route of this.MODAL_ROUTES) {
-                // photoViewerIndex 는 0도 '열림'이다. null 은 닫힌 것인데
-                // `null >= 0` 이 true 라 그냥 비교하면 안 열린 뷰어가 열린 것으로 읽힌다
-                const open = route.flag === 'photoViewerIndex'
-                    ? Number.isInteger(this[route.flag]) && this[route.flag] >= 0
-                    : this[route.flag] === true;
-                if (open && chosen === null) {
+                if (this[route.flag] === true && chosen === null) {
                     chosen = route;
                 }
             }
             const detail = this.detailItem;
             const base = (this.showM2 && detail)
                 ? `/properties/${detail.property.id}`
-                : (this.ROUTES[this.view] || '/properties');
+                : (this.ROUTES[this.view] || this.ROUTES.list);
             if (chosen === null) {
                 return base;
             }
-            if (chosen.path) {
-                return chosen.path(this);
-            }
             const id = this[chosen.prop]?.property?.id ?? this[chosen.prop]?.id;
             // 어느 매물인지 모르면 주소를 지어내지 않는다 — 열 수 없는 링크가 된다
-            return id == null ? base : `/properties/${id}${chosen.suffix(this[chosen.flag])}`;
+            return id == null ? base : `/properties/${id}/${chosen.suffix}`;
         },
 
         /**
@@ -607,8 +600,8 @@ function halley() {
 
         /** 주소만 바꾼다. 화면은 이미 바뀐 뒤다 — 뒤로 가기를 위해 기록만 남긴다. */
         pushRoute(path) {
-            if (window.location.pathname !== path) {
-                window.history.pushState({}, '', path);
+            if (currentHashPath() !== path) {
+                window.history.pushState({}, '', '#' + path);
             }
         },
 
@@ -619,7 +612,7 @@ function halley() {
          * <b>화면을 바꾸되 주소는 다시 밀지 않습니다</b> — 그러면 기록이 두 번 쌓입니다.
          */
         async applyRoute() {
-            const path = window.location.pathname;
+            const path = currentHashPath();
             // 여는 사이에 주소를 다시 밀면 기록이 겹친다 (설계 I198)
             routeApplying = true;
             try {
@@ -630,17 +623,18 @@ function halley() {
         },
 
         async openRoute(path) {
-            // 매물에 딸린 모달: /properties/{id}/{key}[/{n}]
-            const scoped = path.match(/^\/properties\/(\d+)\/([a-z]+)(?:\/(\d+))?$/);
+            // 매물에 딸린 모달: /properties/{id}/{key}
+            const scoped = path.match(/^\/properties\/(\d+)\/([a-z]+)$/);
             if (scoped) {
                 this.view = 'list';
                 const item = await this.findProperty(Number(scoped[1]));
                 const route = this.MODAL_ROUTES.find(r => r.key === scoped[2]);
-                if (item && route && route.open) {
-                    await route.open(this, item, scoped[3]);
+                if (item && route) {
+                    await route.open(this, item);
                     return;
                 }
-                // 없는 매물이거나 모르는 주소면 상세라도 연다 — 빈 화면보다 낫다
+                // 없는 매물이거나 모르는 주소면 상세라도 연다 — 빈 화면보다 낫다.
+                // 주소를 뺀 모달(실거래·전망·사진…)의 옛 링크가 여기로 옵니다 (설계 I244)
                 if (item) {
                     this.openDetail(item);
                 }
@@ -650,18 +644,6 @@ function halley() {
             if (detail) {
                 this.view = 'list';
                 await this.openDetailById(Number(detail[1]));
-                return;
-            }
-            const global = this.MODAL_ROUTES.find(
-                r => r.path && r.open && !r.prop && r.path(this) === path);
-            if (global) {
-                this.view = 'list';
-                await global.open(this);
-                return;
-            }
-            if (path === '/properties/new' || path === '/properties/paste') {
-                this.view = 'list';
-                (path.endsWith('new') ? this.openAddProperty() : this.openPasteModal(null));
                 return;
             }
             const entry = Object.entries(this.ROUTES).find(([, p]) => p === path);
@@ -3147,6 +3129,17 @@ function halley() {
                     })
                 });
                 if (ok) {
+                    // <b>구간을 하나도 못 받았으면 결과가 아니다 (설계 I274).</b>
+                    // 순서는 모두 같은 값(못 감)으로 매긴 것이라 <b>아무 뜻이 없고</b>,
+                    // 그걸 늘어놓으면 사람은 계산된 동선으로 읽는다
+                    if (body?.status === 'UNAVAILABLE') {
+                        // 판단은 <b>서버가</b> 한다 (설계 I274) — 화면이 따로 세면
+                        // 규칙이 두 벌이 되고, 이 저장소는 그때마다 갈렸다
+                        this.clearItineraryResult();
+                        this.itinUnavailableMessage = body.message;
+                        this.showItinUnavailable = true;
+                        return;
+                    }
                     this.itinResult = body;
                     this.saveItineraryDraft();
                     this.renderItinerary();
@@ -3561,12 +3554,24 @@ function halley() {
          * <p>화면에서 계산하는 이유는 <b>출발시각·체류시간을 바꾸면 바로 보여야</b>
          * 하기 때문입니다. 서버에 다시 물으면 그때마다 왕복입니다.
          */
+        /**
+         * 몇 시에 닿는가 — <b>앞 구간을 다 알아야 말할 수 있다</b> (설계 I270).
+         *
+         * <p>이동시간을 못 받은 구간이 앞에 하나라도 있으면 도착 시각은
+         * <b>알 수 없습니다.</b> 예전에는 그것을 999분으로 세어 `06:39 (+1일)`
+         * 같은 값을 내놓았습니다 — 그럴듯해서 아무도 의심하지 않습니다.
+         *
+         * @returns 모르면 null. 화면은 그때 아무것도 안 보여 준다
+         */
         arrivalAt(index) {
             const start = String(this.itinWindowStart || '09:00').split(':');
             const stay = Number(this.itinStay) || 0;
             let minutes = Number(start[0]) * 60 + Number(start[1]);
             for (let i = 0; i <= index; i++) {
                 const leg = this.legFor(i);
+                if (leg && leg.minutes == null) {
+                    return null;
+                }
                 minutes += leg ? leg.minutes : 0;
                 if (i < index) {
                     minutes += stay;
@@ -3578,6 +3583,28 @@ function halley() {
             const m = minutes % 60;
             const clock = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
             return days > 0 ? `${clock} (+${days}일)` : clock;
+        },
+
+        closeItinUnavailable() {
+            this.showItinUnavailable = false;
+        },
+
+        /** 이 구간에 걸리는 시간 — <b>못 받았으면 그렇다고 말한다</b> (설계 I270). */
+        legMinutesLabel(leg) {
+            return leg && leg.minutes != null ? `${leg.minutes}분` : '이동시간 미확인';
+        },
+
+        /**
+         * 합계를 <b>믿을 수 있는가</b> (설계 I270).
+         *
+         * <p>못 받은 구간이 있으면 합계는 그만큼 빠진 값입니다. 그 사실을 안 적으면
+         * 사람은 그 수를 <b>전체 이동시간</b>으로 읽습니다.
+         */
+        itinTotalNote() {
+            const unknown = this.itinResult?.unknownLegs || 0;
+            return unknown > 0
+                ? `구간 ${unknown}개는 이동시간을 받지 못했습니다 — 합계에 빠져 있습니다`
+                : '';
         },
 
         /** 몇 번째 매물로 가는 구간인가 (설계 I192). 순서와 구간은 같은 자리다. */
@@ -4158,6 +4185,8 @@ function halley() {
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
+                // 이 목록에 없으면 <b>배경을 눌렀을 때 엉뚱한 모달이 닫힌다</b> (설계 I274)
+                ['showItinUnavailable', () => this.closeItinUnavailable()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
                 ['showUsers', () => this.closeUsers()],
                 ['showSettings', () => this.closeSettings()],
@@ -4521,11 +4550,23 @@ function halley() {
          * 그게 맞습니다 — 내가 안 가 봤으니까요. 말로 적어 둡니다.
          */
         visitedTitle(scored) {
-            // 카드에 실린 내 점수를 그대로 본다 — 카드가 보인다는 것은 이미 받았다는 뜻이다
-            const mine = (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
-            return mine
+            return this.scoredComfort(scored)
                 ? '내가 공간의 쾌적함을 매겼습니다 — 다녀온 곳입니다'
                 : '구성원 중 누군가 공간의 쾌적함을 매겼습니다';
+        },
+
+        /**
+         * <b>내가</b> 쾌적함을 매겼는가 (설계 I264).
+         *
+         * <p>화면이 이 이름을 부르는데 <b>함수가 없었습니다.</b> 카드마다
+         * `scoredComfort is not defined` 가 났고, 배지 색이 늘 남의 것으로 보였습니다.
+         *
+         * <p>같은 규칙이 {@link #visitedTitle} 안에 <b>또 한 벌</b> 있었습니다.
+         * 두 벌이면 언젠가 어긋납니다 — 여기 하나만 둡니다.
+         */
+        scoredComfort(scored) {
+            // 카드에 실린 내 점수를 그대로 본다 — 카드가 보인다는 것은 이미 받았다는 뜻이다
+            return (scored?.scores || []).some(s => s.code === 'COMFORT' && s.myScore != null);
         },
 
         /**
@@ -4887,6 +4928,13 @@ function halley() {
             kakao.maps.load(() => {
                 this.initMapIfNeeded();
                 this.renderMarkers();
+                // 지도가 없어 미뤄 둔 클릭이 있으면 이제 옮긴다 (설계 I275) —
+                // renderMarkers 의 전체 범위 맞추기보다 <b>뒤에</b> 와야 이긴다
+                if (this.pendingFocus) {
+                    const target = this.pendingFocus;
+                    this.pendingFocus = null;
+                    this.focusProperty(target);
+                }
             });
         },
 
@@ -4949,7 +4997,14 @@ function halley() {
                 }
                 this.markers[p.id] = overlay;
             });
-            if (coords.length > 0) {
+            // <b>지금 보고 있는 매물이 있으면 범위를 다시 안 맞춘다</b> (설계 I275).
+            // renderMarkers 는 3초 간격 점수 감시([I261])를 포함해 수십 곳에서 다시
+            // 불립니다 — 예전에는 부를 때마다 전체 범위로 되돌아가, 카드를 눌러
+            // 옮긴 지 몇 초 만에 조용히 처음 자리로 돌아갔습니다. "다시 눌러야 움직인다"는
+            // 그래서가 아니라 <b>다시 옮겨졌다가 다시 밀려난 것</b>이었습니다
+            const stayingOnFocused = this.activePropertyId != null
+                    && coords.some(p => p.id === this.activePropertyId);
+            if (coords.length > 0 && !stayingOnFocused) {
                 const bounds = new kakao.maps.LatLngBounds();
                 coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
@@ -5002,14 +5057,32 @@ function halley() {
             return box;
         },
 
+        /**
+         * 지도를 이 매물로 옮긴다.
+         *
+         * <p><b>지도가 아직 준비되지 않았으면 기억해 둔다</b> (설계 I275) — 지도가
+         * 뜨는 대로 이어서 옮긴다. 조용히 버리면 처음 누른 클릭은 사라지고,
+         * 다시 눌러야만 움직이는 것처럼 보인다.
+         */
         focusProperty(item) {
             const p = item.property;
             this.activePropertyId = p.id;
-            if (!this.map || !p.lat || !p.lng) {
+            if (!this.map) {
+                this.pendingFocus = p.lat && p.lng ? item : null;
                 return;
             }
+            this.pendingFocus = null;
+            if (!p.lat || !p.lng) {
+                return;
+            }
+            // <b>panTo 뒤에 setLevel 을 바로 부르면 안 된다</b> (설계 I275).
+            // panTo 는 애니메이션이라 몇백 ms 동안 중심이 옮겨 가는 도중인데, 그 자리에서
+            // setLevel 을 부르면 SDK 가 <b>그 순간의(아직 옛 자리인) 중심</b>을 기준으로
+            // 다시 그려 애니메이션을 끊습니다 — 줌은 바뀌지만 중심은 옛 자리에 남습니다.
+            // panTo·setBounds·setCenter 호출을 실제로 가로채 재서 확인했습니다.
+            // setCenter 는 애니메이션이 없어 이 경합이 없습니다
             const position = new kakao.maps.LatLng(p.lat, p.lng);
-            this.map.panTo(position);
+            this.map.setCenter(position);
             this.map.setLevel(4);
         },
 

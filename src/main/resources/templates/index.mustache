@@ -318,6 +318,8 @@
                         <template x-if="itinResult">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
+                                <!-- 합계를 믿을 수 있는지 함께 말한다 (설계 I270) -->
+                                <p class="itin-warn" x-show="itinTotalNote()" x-text="itinTotalNote()"></p>
 
                                 <!-- 지도 색이 무엇을 뜻하는지 (설계 I195).
                                      범례가 없으면 빨간 선이 정체인지 다른 노선인지 알 수 없다 -->
@@ -343,7 +345,7 @@
                                                 <span class="itin-num" x-text="i + 1"></span>
                                                 <span x-text="propertyName(id)"></span>
                                                 <!-- 몇 시에 닿는지 (설계 I194) -->
-                                                <span class="itin-time" x-show="legFor(i)"
+                                                <span class="itin-time" x-show="legFor(i) && arrivalAt(i)"
                                                       x-text="arrivalAt(i) + ' 도착'"></span>
                                                 <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
                                                 <!-- 쾌적함으로 켜진 것은 못 끈다 (설계 I228).
@@ -364,7 +366,7 @@
                                                 <div class="itin-route-legs">
                                                     <div class="itin-leg-head">
                                                         <span x-text="legTitle(legFor(i))"></span>
-                                                        <b x-text="legFor(i).minutes + '분'"></b>
+                                                        <b x-text="legMinutesLabel(legFor(i))"></b>
                                                     </div>
                                                     <template x-for="(step, j) in (legFor(i).steps || [])" :key="j">
                                                         <div class="itin-step" :class="'is-' + step.kind.toLowerCase()">
@@ -372,9 +374,12 @@
                                                             <span x-text="legStepText(step)"></span>
                                                         </div>
                                                     </template>
-                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도 -->
+                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도.
+                                                         <b>시간마저 못 받았으면 이 줄을 안 그린다</b> (설계 I270) —
+                                                         "약 null분" 이 그것이었다 -->
                                                     <div class="itin-step is-road"
-                                                         x-show="!(legFor(i).steps || []).length">
+                                                         x-show="!(legFor(i).steps || []).length
+                                                                 && legFor(i).minutes != null">
                                                         <span class="itin-step-ic">🚗</span>
                                                         <span x-text="'약 ' + legFor(i).minutes + '분'"></span>
                                                     </div>
@@ -2666,6 +2671,23 @@
         </div>
         <div class="paste-actions">
             <button class="btn btn-primary" @click="closeSoldOutAlert()">확인</button>
+        </div>
+    </div>
+</div>
+
+<!-- 경로를 아예 못 낸 경우 (설계 I274).
+     구간 하나도 못 받았으면 순서도 뜻이 없다 — 결과를 보여 주는 대신 말한다 -->
+<div class="modal" x-show="showItinUnavailable" x-cloak>
+    <div class="modal-backdrop" @click="closeItinUnavailable()"></div>
+    <div class="modal-card">
+        <div class="modal-head">
+            <span class="modal-kicker">알림</span>
+            <h3>최적 경로를 산출하지 못했습니다</h3>
+        </div>
+        <!-- 문구는 <b>서버가 준 것</b>을 그대로 (설계 I274). 화면에 또 적으면 두 벌이 된다 -->
+        <p class="itin-unavailable" x-text="itinUnavailableMessage"></p>
+        <div class="paste-actions">
+            <button class="btn btn-primary" @click="closeItinUnavailable()">확인</button>
         </div>
     </div>
 </div>

@@ -51,7 +51,7 @@ class FallbackFactoryLoggingTest {
         final Throwable cause = new IllegalStateException("timeout");
 
         // when · then — 폴백은 호출부에 예외를 전파하지 않는다
-        assertThat(new KakaoDirectionsFallbackFactory().create(cause)
+        assertThat(new KakaoDirectionsFallbackFactory(new banghak.home.halley.adapter.outbound.external.kakao.DirectionsQuota()).create(cause)
                 .directions("126.9,37.5", "127.0,37.4", "RECOMMEND")).isNull();
         assertThat(new OdsayTransitFallbackFactory().create(cause)
                 .findTransit("key", 126.9, 37.5, 127.0, 37.4)).isNull();

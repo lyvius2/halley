@@ -833,6 +833,10 @@ input[type=checkbox], input[type=radio] {
     font-size: 9.5px;
 }
 .m2-empty { font-size: 11.5px; color: var(--ink3); padding: 8px 0; }
+/* 합계를 믿을 수 있는지 (설계 I270) */
+.itin-warn { font-size: 11.5px; color: var(--ocean); margin: 2px 0 6px; }
+/* 경로를 아예 못 냈을 때 (설계 I274) */
+.itin-unavailable { font-size: 13px; line-height: 1.7; padding: 4px 0 12px; }
 /* 기다리다 지쳤을 때 사람이 직접 다시 묻는 자리 (설계 I262) */
 .link-btn {
     background: none; border: 0; padding: 0; margin-left: 6px;

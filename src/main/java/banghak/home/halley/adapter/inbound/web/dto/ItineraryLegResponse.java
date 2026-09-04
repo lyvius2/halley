@@ -10,7 +10,8 @@ import java.util.List;
  *
  * @param fromPropertyId 출발 매물. <b>null 이면 출발지</b>
  * @param toPropertyId   도착 매물
- * @param minutes        이 구간 소요 시간
+ * @param minutes        이 구간 소요 시간. <b>null 이면 못 받은 것</b>이다 (설계 I270) —
+ *                       예전에는 999를 넣어 화면이 "999분"이라고 말했다
  * @param steps          대중교통 상세. 자가용은 비어 있다
  * @param path           지도에 그릴 실제 선, <b>색이 갈리는 자리마다 끊어서</b> (설계 I195).
  *                       <b>비어 있으면 화면이 직선을 그린다</b>
@@ -18,7 +19,7 @@ import java.util.List;
 public record ItineraryLegResponse(
         Long fromPropertyId,
         Long toPropertyId,
-        int minutes,
+        Integer minutes,
         List<Step> steps,
         List<Segment> path
 ) {
@@ -44,7 +45,7 @@ public record ItineraryLegResponse(
     public record Point(double lat, double lng) {
     }
 
-    public static ItineraryLegResponse of(Long fromPropertyId, Long toPropertyId, int minutes,
+    public static ItineraryLegResponse of(Long fromPropertyId, Long toPropertyId, Integer minutes,
                                           List<TransitLeg> legs, RoutePath path) {
         return new ItineraryLegResponse(
                 fromPropertyId, toPropertyId, minutes,
