@@ -86,6 +86,14 @@ const PIN_Z = { visited: 1, fresh: 2, hover: 10 };
  * 보정과 AI 응답은 수 초~수십 초가 걸린다. 이보다 촘촘히 물어도 답이 달라지지 않는다.
  */
 const SCORE_WATCH_MS = 3000;
+/**
+ * 「분석 중」을 이만큼까지만 말한다 (설계 I284).
+ *
+ * <p>보정이 실패하면 점수가 영영 안 채워지는데, 그때도 카드는 계속 돌고 있었습니다.
+ * 보정·AI는 길어야 수십 초라 5분이면 넉넉합니다 — 이보다 오래됐는데 비어 있으면
+ * <b>기다리는 중이 아니라 못 낸 것</b>입니다.
+ */
+const SCORING_GRACE_MS = 5 * 60 * 1000;
 // 응답이 이보다 빨리 오면 진행 막대를 띄우지 않는다 — 번쩍임이 더 거슬린다 (설계 I115)
 const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
@@ -2071,16 +2079,29 @@ function halley() {
         },
 
         /**
-         * 아직 채점 전인가 (설계 I220).
+         * 아직 채점 전인가 (설계 I220 · I284).
          *
          * <p>등록 응답이 <b>보정을 기다리지 않고</b> 돌아오므로, 카드가 먼저 뜨고
          * 점수는 몇 초 뒤에 채워집니다. 그 사이를 <b>0점으로 보여 주면 안 됩니다</b> —
          * "나쁜 매물"과 "아직 안 잰 매물"은 다릅니다.
          *
          * <p>판 번호 감시(I85)가 3초마다 확인하다가 채워지면 목록을 다시 받습니다.
+         *
+         * <p><b>다만 영원히 기다리지는 않습니다 (설계 I284).</b> 보정이 끝내 실패하면
+         * 점수가 안 채워지는데, 그때 「분석 중」이 <b>며칠이고 돌았습니다.</b> 등록한 지
+         * {@code SCORING_GRACE_MS} 가 지나도 비어 있으면 <b>돌고 있는 것이 아닙니다</b> —
+         * 표시를 거둡니다. 언제 등록됐는지는 서버가 준 값으로 보므로 새로고침해도
+         * 되살아나지 않습니다.
          */
         scoring(scored) {
-            return !!scored && (scored.scores || []).length === 0;
+            if (!scored || (scored.scores || []).length > 0) {
+                return false;
+            }
+            const createdAt = Date.parse(scored.property?.createdAt ?? '');
+            if (Number.isNaN(createdAt)) {
+                return true;
+            }
+            return Date.now() - createdAt < SCORING_GRACE_MS;
         },
 
         /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */

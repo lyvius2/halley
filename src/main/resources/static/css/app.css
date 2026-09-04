@@ -2256,6 +2256,8 @@ tr.dragging { opacity: .5; background: var(--line2); }
 /* 아직 채점 전 (설계 I220) — 0점과 구분되어야 한다 */
 .score-pill.is-pending { background: var(--line2); color: var(--ink3); }
 .score-pill.is-pending i { font-style: normal; }
+/* 끝내 못 잰 매물 (설계 I284). 붉게 칠하면 "나쁜 점수"로 읽힌다 — 무채색이다 */
+.score-pill.is-unscored { background: var(--line2); color: var(--ink3); }
 .dot-spin {
     width: 8px; height: 8px; border-radius: 50%;
     border: 2px solid var(--ink3); border-top-color: transparent;

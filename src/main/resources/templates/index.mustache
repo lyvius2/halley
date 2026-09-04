@@ -185,8 +185,11 @@
                                         <span class="score-pill is-pending" x-show="scoring(r)">
                                             <i class="dot-spin"></i><i>분석 중</i>
                                         </span>
+                                        <!-- 못 잰 것을 <b>나쁜 점수처럼</b> 칠하지 않는다 (설계 I284).
+                                             점수가 없으면 붉은 score-low 가 아니라 무채색이다 -->
                                         <span class="score-pill" x-show="!scoring(r)"
-                                              :class="r.totalScore != null && r.totalScore >= 50 ? 'score-high' : 'score-low'">
+                                              :class="r.totalScore == null ? 'is-unscored'
+                                                      : (r.totalScore >= 50 ? 'score-high' : 'score-low')">
                                             <b x-text="fmtScore(r.totalScore)"></b><i>점</i>
                                         </span>
                                     </div>
