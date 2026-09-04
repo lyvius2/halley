@@ -1,6 +1,7 @@
 package banghak.home.halley.config;
 
 import banghak.home.halley.adapter.outbound.persistence.SystemConfigRepository;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.setting.ConfigCategory;
 import banghak.home.halley.domain.setting.ConfigValueType;
 import banghak.home.halley.domain.setting.SystemConfig;
@@ -9,7 +10,9 @@ import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Stream;
 
 @Slf4j
 @Component
@@ -17,6 +20,15 @@ public class SystemConfigBootstrap implements ApplicationRunner {
 
     private static final List<Seed> DEFAULTS = List.of(
             new Seed("loan.regulation.profile", "2025-10-15", ConfigValueType.STRING, ConfigCategory.LOAN, "규제 파라미터 세트"));
+
+    /**
+     * AI를 쓰는 자리마다 모델을 따로 고른다 (설계 I267).
+     * 값은 비워 둔다 — 기본값을 박아 두면 나중에 배포로 기본을 바꿔도 DB 값이 이긴다.
+     */
+    private static final List<Seed> LLM_SEEDS = Arrays.stream(LlmFeature.values())
+            .map(f -> new Seed(f.configKey(), "", ConfigValueType.STRING, ConfigCategory.LLM,
+                    f.label() + " — " + f.description()))
+            .toList();
     
     /**
      * 없앤 기능이 남긴 설정 (설계 I187).
@@ -38,18 +50,26 @@ public class SystemConfigBootstrap implements ApplicationRunner {
         this.systemConfigRepository = systemConfigRepository;
     }
 
+    /**
+     * 키 하나씩 본다 (설계 I267) — 표가 비었을 때만 심으면 이미 돌고 있는 곳엔
+     * 새 설정이 영영 안 들어간다. 이미 있는 값은 안 건드린다.
+     */
     @Override
     public void run(ApplicationArguments args) {
         removeObsolete();
-        if (!systemConfigRepository.findAll().isEmpty()) {
-            return;
-        }
-        for (final Seed seed : DEFAULTS) {
+        int seeded = 0;
+        for (final Seed seed : Stream.concat(DEFAULTS.stream(), LLM_SEEDS.stream()).toList()) {
+            if (systemConfigRepository.findById(seed.key()).isPresent()) {
+                continue;
+            }
             systemConfigRepository.save(new SystemConfig(
                     seed.key(), seed.value(), seed.valueType(), seed.category(),
                     seed.description(), false, null, null));
+            seeded++;
         }
-        log.info("Seeded {} system config entries.", DEFAULTS.size());
+        if (seeded > 0) {
+            log.info("Seeded {} system config entries.", seeded);
+        }
     }
 
     private void removeObsolete() {

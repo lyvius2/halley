@@ -158,7 +158,7 @@ class LlmRecommendationServiceTest {
         final AtomicInteger calls = new AtomicInteger();
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
-                port, recommendationRepository, jobCache, propertyRepository, userRepository,
+                port, llmModels(), recommendationRepository, jobCache, propertyRepository, userRepository,
                 poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
@@ -467,7 +467,7 @@ class LlmRecommendationServiceTest {
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
-                port, recommendationRepository, jobCache, propertyRepository, userRepository,
+                port, llmModels(), recommendationRepository, jobCache, propertyRepository, userRepository,
                 poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, true);
     }
 
@@ -518,5 +518,18 @@ class LlmRecommendationServiceTest {
                 "서울혜화초등학교", 6, null, null, null, null,
                 SourceType.PASTE, null, null, null, null, null,
                 false, ListingStatus.ACTIVE, true, null, 0, null, 7L, "테스터", 1L, Instant.now());
+    }
+
+    /**
+     * 자리마다 모델을 고르는 설정 (설계 I267) — 이 시험은 <b>모델을 안 고른</b> 상태로 본다.
+     *
+     * <p>{@code null} 이면 어댑터가 기본 모델을 씁니다. 여기서 특정 이름을 박아 두면
+     * 시험이 <b>설정이 아니라 그 이름</b>을 재게 됩니다.
+     */
+    private static LlmModelService llmModels() {
+        final LlmModelService models = org.mockito.Mockito.mock(LlmModelService.class);
+        org.mockito.Mockito.when(models.modelFor(org.mockito.ArgumentMatchers.any()))
+                .thenReturn(null);
+        return models;
     }
 }

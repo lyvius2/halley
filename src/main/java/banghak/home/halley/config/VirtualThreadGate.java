@@ -9,6 +9,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 서로 무관한 외부 호출을 가상 스레드로 한꺼번에 돌린다 (설계 I108).
@@ -99,6 +100,39 @@ public class VirtualThreadGate {
                 permits.release();
             }
         });
+    }
+
+    /**
+     * 정해진 시간 안에 끝나는 만큼만 돌린다 (설계 I263).
+     *
+     * <p>{@link #runAll} 은 <b>끝날 때까지</b> 기다립니다. 바깥 API가 느려지면
+     * 그만큼 요청이 붙잡히고, 프록시가 60초에 끊으면 <b>504</b>가 됩니다 —
+     * 임장 경로 계산에서 실제로 그랬습니다.
+     *
+     * <p>시간이 다 되면 <b>남은 것을 버립니다.</b> 무엇이 남았는지는 부르는 쪽이
+     * 압니다 — 채워졌는지 보고 대체 수단으로 넘기면 됩니다.
+     *
+     * <p>버릴 때 {@code shutdownNow} 로 끊고 <b>기다리지 않습니다.</b> 기다리면
+     * 시간을 정해 둔 뜻이 없어집니다.
+     */
+    public void runWithin(List<Runnable> tasks, java.time.Duration budget) {
+        if (tasks.isEmpty()) {
+            return;
+        }
+        final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+        try {
+            final List<Callable<Void>> callables = tasks.stream()
+                    .map(task -> (Callable<Void>) () -> call(() -> {
+                        task.run();
+                        return null;
+                    }))
+                    .toList();
+            executor.invokeAll(callables, Math.max(1, budget.toMillis()), TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private <T> T call(Callable<T> task) throws Exception {

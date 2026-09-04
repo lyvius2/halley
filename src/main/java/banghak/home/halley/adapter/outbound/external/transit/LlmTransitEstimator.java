@@ -1,12 +1,14 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
+import banghak.home.halley.adapter.outbound.external.claude.LlmAvailability;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.application.service.LlmModelService;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.itinerary.TransitLeg;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.scoring.TransitResult;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -100,18 +102,28 @@ public class LlmTransitEstimator {
 
     private final LlmPort llmPort;
     private final ObjectMapper objectMapper;
-    private final String model;
+    /** 이 자리에 쓸 모델을 <b>부를 때마다 물어본다</b> (설계 I267) — 붙박이가 아니다. */
+    private final LlmModelService llmModelService;
+
+    /** 차단기가 열려 있으면 <b>묻지도 않는다</b> (설계 I271). */
+    private final LlmAvailability availability;
 
     public LlmTransitEstimator(LlmPort llmPort,
                                ObjectMapper objectMapper,
-                               @Value("${transit.fallback.model:}") String model) {
+                               LlmModelService llmModelService,
+                               LlmAvailability availability) {
         this.llmPort = llmPort;
         this.objectMapper = objectMapper;
-        this.model = model;
+        this.llmModelService = llmModelService;
+        this.availability = availability;
     }
 
     public boolean isEnabled() {
         return llmPort.isEnabled();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** 좌표 넷으로 한 구간을 가리킨다. {@code id} 는 답을 되돌려 짝지을 열쇠다. */
@@ -128,8 +140,20 @@ public class LlmTransitEstimator {
         if (legs.isEmpty() || !isEnabled()) {
             return Map.of();
         }
+        // <b>차단기가 열려 있으면 시작도 안 한다 (설계 I271).</b> 예전에는 구간마다
+        // 물어 보고 실패하고 2초 쉬고 또 물어, 로그가 몇 분 동안 같은 줄로 찼습니다
+        if (availability.blocked()) {
+            log.info("Claude circuit is open - not estimating transit. legs={}", legs.size());
+            return Map.of();
+        }
         final Map<String, TransitResult> results = new LinkedHashMap<>();
         for (int from = 0; from < legs.size(); from += BATCH_SIZE) {
+            // 앞 묶음에서 차단을 만났으면 <b>남은 묶음은 안 묻는다</b>
+            if (availability.blocked()) {
+                log.info("Claude circuit opened mid-way - stopping. answered={}, asked={}",
+                        results.size(), legs.size());
+                break;
+            }
             final List<Leg> chunk = legs.subList(from, Math.min(from + BATCH_SIZE, legs.size()));
             results.putAll(askOnce(chunk));
         }
@@ -143,9 +167,11 @@ public class LlmTransitEstimator {
             user.append(String.format("id=%s 출발=(경도 %.6f, 위도 %.6f) 도착=(경도 %.6f, 위도 %.6f)%n",
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
+        // 자리마다 고른 모델을 쓴다 (설계 I267)
+        final String model = blankToNull(llmModelService.modelFor(LlmFeature.COMMUTE_ESTIMATE));
         final LlmMessage message = LlmMessage.deterministic(
-                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
-                model == null || model.isBlank() ? null : model);
+                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR, model);
+        log.info("Asking LLM for transit estimate. model={}, legs={}", model, legs.size());
 
         LlmResult answer = llmPort.complete(message);
         if (retryable(answer)) {
@@ -153,6 +179,7 @@ public class LlmTransitEstimator {
             sleep();
             answer = llmPort.complete(message);
         }
+        // 두 번째도 차단이면 <b>이 요청 안에서는 더 안 묻는다</b> (설계 I271)
         if (answer.failureCause() != null) {
             log.warn("LLM transit fallback failed. legs={}, cause={}", legs.size(), answer.failureCause());
             return Map.of();
@@ -169,8 +196,13 @@ public class LlmTransitEstimator {
      * <p><b>다른 실패는 다시 묻지 않습니다.</b> 키가 없거나 예산이 모자란 것은
      * 몇 번을 물어도 같은 답입니다 — 기다리는 시간만 버립니다.
      */
-    private static boolean retryable(LlmResult answer) {
-        return "call failed".equals(answer.failureCause());
+    /**
+     * <p><b>차단기가 열렸으면 다시 묻지 않습니다 (설계 I271).</b> 어댑터가 모든 실패를
+     * {@code "call failed"} 하나로 뭉개서, 예전에는 <b>차단된 것도 "붐빈다"로 읽고</b>
+     * 2초마다 다시 던졌습니다 — 성공할 리 없는 호출을 구간마다 몇 분씩 반복했습니다.
+     */
+    private boolean retryable(LlmResult answer) {
+        return "call failed".equals(answer.failureCause()) && !availability.blocked();
     }
 
     private static void sleep() {

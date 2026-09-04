@@ -15,7 +15,7 @@ class KakaoDirectionsAdapterTest {
     @DisplayName("카카오 Directions 응답에서 소요시간(분)·거리를 매핑한다")
     void parseSummary() throws Exception {
         // given
-        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "key", objectMapper);
+        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "key", objectMapper, new DirectionsQuota());
         final String json = """
                 {"routes":[{"summary":{"distance":1234,"duration":600,"tollFare":0,"fuelPrice":0},"path":[]}]}
                 """;
@@ -32,7 +32,7 @@ class KakaoDirectionsAdapterTest {
     @DisplayName("경로가 없으면 MISSING을 반환한다")
     void missingRoute() throws Exception {
         // given
-        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "key", objectMapper);
+        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "key", objectMapper, new DirectionsQuota());
         final String json = "{\"routes\":[]}";
 
         // when
@@ -46,7 +46,7 @@ class KakaoDirectionsAdapterTest {
     @DisplayName("REST 키가 없으면 호출하지 않고 MISSING을 반환한다")
     void blankKeyReturnsMissing() {
         // given
-        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "  ", objectMapper);
+        final KakaoDirectionsAdapter adapter = new KakaoDirectionsAdapter(null, "  ", objectMapper, new DirectionsQuota());
 
         // when
         final DriveRoute route = adapter.findRoute(126.9, 37.5, 127.0, 37.5, null);

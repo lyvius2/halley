@@ -84,6 +84,21 @@ public interface CachePort {
      */
     String NEWS = "news";
 
+    /** 쓸 수 있는 Claude 모델 목록 — 자주 안 바뀌므로 48시간 담아 둔다 (설계 I267). */
+    String LLM_MODELS = "llmmodels";
+
+    /**
+     * 자가용 길 하나 (설계 I272).
+     *
+     * <p>열쇠는 <b>좌표 넷과 출발 시각</b>입니다. 시각을 빼면 화요일 14시와 일요일
+     * 14시가 같은 길이 되어 [I196]이 무의미해집니다.
+     *
+     * <p>매물 일곱이면 한 번 계산에 <b>49쌍</b>입니다. 담아 두지 않으면 「경로 계산」을
+     * 누를 때마다 49건이 나가고, 한도가 있는 API는 그것으로 하루가 끝납니다 —
+     * 실제로 그렇게 끝났습니다([I270]).
+     */
+    String DRIVE_ROUTE = "driveroute";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);

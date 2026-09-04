@@ -37,9 +37,9 @@ class SlackMessageDecorationTest {
         final String text = notificationService.decorate(
                 NotificationEventType.PROPERTY_CREATED, 7L, ":house: 새 매물");
 
-        assertThat(text).contains("\n https://halley.example.com/properties/7".trim());
+        assertThat(text).contains("\n https://halley.example.com/#/properties/7".trim());
         // 끝의 슬래시가 겹치면 //properties 가 된다
-        assertThat(text).doesNotContain("com//properties");
+        assertThat(text).doesNotContain("com//#/properties");
     }
 
     /** 이미 없는 매물로 보내면 <b>404 를 여는 링크</b>가 된다. */
@@ -66,24 +66,31 @@ class SlackMessageDecorationTest {
      * <p>전에는 전부 매물 첫 화면으로 갔습니다 — "쾌적함을 평가했다"는 알림을 눌러도
      * 채점 화면까지 다시 찾아 들어가야 했습니다.
      */
+    /**
+     * 주소가 {@code #} 뒤로 갔다 (설계 I244).
+     *
+     * <p><b>이걸 안 바꾸면 링크를 눌러도 껍데기만 뜹니다.</b> 서버는 {@code #} 뒤를
+     * 못 보고, 앱은 {@code #} 가 비어 있으니 목록을 엽니다 — 알림을 누른 사람은
+     * <b>아무 일도 안 일어난 것</b>으로 봅니다.
+     */
     @Test
     @DisplayName("쾌적함 알림은 채점 화면으로 간다")
     void comfortLinksToScoreModal() {
         assertThat(notificationService.decorate(NotificationEventType.COMFORT_SCORED, 7L, "x"))
-                .contains("https://halley.example.com/properties/7/score");
+                .contains("https://halley.example.com/#/properties/7/score");
     }
 
     @Test
     @DisplayName("코멘트 알림은 코멘트 화면으로 간다")
     void commentLinksToCommentModal() {
         assertThat(notificationService.decorate(NotificationEventType.COMMENT_CREATED, 7L, "x"))
-                .contains("https://halley.example.com/properties/7/comments");
+                .contains("https://halley.example.com/#/properties/7/comments");
     }
 
     @Test
     @DisplayName("등록 알림은 매물 첫 화면으로 간다 — 특별히 열 모달이 없다")
     void createdLinksToDetail() {
         assertThat(notificationService.decorate(NotificationEventType.PROPERTY_CREATED, 7L, "x"))
-                .endsWith("https://halley.example.com/properties/7");
+                .endsWith("https://halley.example.com/#/properties/7");
     }
 }
