@@ -92,4 +92,24 @@ class ViewControllerTest {
                 .andExpect(content().string(Matchers.containsString("/js/app.js?v=")))
                 .andExpect(content().string(Matchers.containsString("/css/app.css?v=")));
     }
+
+    /**
+     * AI 모델 드롭다운이 저장된 값을 고른 채로 뜨는가 (설계 I280).
+     *
+     * <p><b>`x-model` 만으로는 안 됩니다.</b> `<option>` 은 `x-for` 로 나중에 붙는데,
+     * 그전에 `x-model` 이 값을 넣으면 맞는 항목이 없어 브라우저가 첫 항목
+     * ("기본 모델")을 고릅니다 — <b>저장은 됐는데 화면만 안 고른 것처럼</b> 보입니다.
+     * 실제로 그렇게 신고가 들어왔고, `:selected` 를 함께 걸어 고쳤습니다.
+     *
+     * <p>화면 동작을 Java 로 재현할 수는 없으니, <b>고친 표시가 남아 있는지</b>만
+     * 지킵니다. 지우면 같은 버그가 조용히 돌아옵니다.
+     */
+    @Test
+    @DisplayName("AI 모델 드롭다운은 저장된 값을 :selected 로도 표시한다 (설계 I280)")
+    void modelDropdownMarksTheSavedOptionSelected() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(
+                        Matchers.containsString(":selected=\"m.id === llmForm[f.key]\"")));
+    }
 }

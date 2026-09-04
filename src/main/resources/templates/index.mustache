@@ -1390,10 +1390,17 @@
                                     <td class="strong" x-text="f.label"></td>
                                     <td x-text="f.description"></td>
                                     <td>
+                                        <!--
+                                          :selected 를 함께 겁니다 (설계 I280).
+                                          x-model 만 두면 <option> 이 x-for 로 붙기 <b>전에</b> 값이
+                                          적용돼, 브라우저가 첫 항목("기본 모델")으로 되돌립니다 —
+                                          저장은 됐는데 화면만 안 고른 것처럼 보였습니다.
+                                        -->
                                         <select class="settings-input" x-model="llmForm[f.key]">
                                             <option value="">기본 모델</option>
                                             <template x-for="m in llmModels.models" :key="m.id">
                                                 <option :value="m.id"
+                                                        :selected="m.id === llmForm[f.key]"
                                                         x-text="m.displayName + (m.special ? ' *' : '')"></option>
                                             </template>
                                         </select>

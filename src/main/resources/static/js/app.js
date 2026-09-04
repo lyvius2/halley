@@ -731,9 +731,24 @@ function halley() {
             this.loadRegulations();
         },
 
+        /** 닫을 때 이 모달이 쓰던 것을 비운다 (설계 I112). 다음에 열면 openSettings 가 다시 읽는다. */
         closeSettings() {
             this.showSettings = false;
             this.error = null;
+            this.regError = null;
+            this.settings = [];
+            this.settingsForm = {};
+            this.llmModels = null;
+            this.llmForm = {};
+            this.notifications = [];
+            this.notifySettings = null;
+            this.regActiveProfile = '';
+            this.regProfiles = [];
+            this.regParams = [];
+            this.regParamForm = {};
+            this.regNewProfile = '';
+            this.regAreas = [];
+            this.regAreaForm = emptyRegAreaForm();
         },
 
         /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
@@ -4700,10 +4715,22 @@ function halley() {
                 this.llmModels = null;
                 return;
             }
+            this.applyLlmModels(body);
+        },
+
+        /**
+         * 받은 것을 화면 상태로 옮긴다 — 읽을 때도 저장한 뒤에도 <b>같은 길</b>을 쓴다.
+         *
+         * <p>목록에 없는 모델이 저장돼 있으면(Anthropic 이 내린 모델) 비웁니다. 그대로 두면
+         * 드롭다운은 "기본 모델"을 보여 주는데 상태에는 그 모델이 남아, 저장할 때
+         * "쓸 수 없는 모델입니다"가 뜹니다 — 고른 적도 없는 값 때문에.
+         */
+        applyLlmModels(body) {
             this.llmModels = body;
+            const known = new Set((body.models || []).map(m => m.id));
             const form = {};
             (body.features || []).forEach(f => {
-                form[f.key] = f.model || '';
+                form[f.key] = known.has(f.model) ? f.model : '';
             });
             this.llmForm = form;
         },
@@ -4722,7 +4749,9 @@ function halley() {
                     body: JSON.stringify(payload)
                 });
                 if (ok) {
-                    this.llmModels = body;
+                    // 서버가 돌려준 것으로 화면을 다시 맞춘다 — 보낸 값과 저장된 값이
+                    // 다를 수 있고(빈 값 → 기본 모델), 그때 화면만 옛 선택을 들고 있으면 안 된다
+                    this.applyLlmModels(body);
                 } else {
                     this.error = (body && body.message) || 'AI 모델 설정 저장에 실패했습니다';
                 }
