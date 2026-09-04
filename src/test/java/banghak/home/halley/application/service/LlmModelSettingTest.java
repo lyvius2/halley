@@ -59,11 +59,11 @@ class LlmModelSettingTest {
     }
 
     @Test
-    @DisplayName("아무것도 안 고르면 기본 모델을 쓴다")
+    @DisplayName("아무것도 안 고르면 기본 모델(Haiku)을 쓴다 (설계 I278 후속)")
     void fallsBackToTheDefault() {
         assertThat(llmModelService.modelFor(LlmFeature.RECOMMENDATION))
                 .as("빈 값을 그대로 실으면 400이 오고, 그 실패는 'AI가 답을 안 줬다'로 묻힌다")
-                .isNotBlank();
+                .isEqualTo("claude-haiku-4-5-20251001");
     }
 
     @Test

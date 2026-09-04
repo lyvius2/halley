@@ -8032,6 +8032,36 @@ Anthropic `/v1/models` 를 실제로 불러 봤습니다. 필드는 `type`·`id`
 
 ---
 
+### I279. 스키마 변경 없음 확인 · 기본 모델을 Haiku로 · **[확정 — 구현됨]** · [I267]·[I278] 후속
+
+#### DDL-repair.sql 을 다시 돌려야 하는가
+
+I267·I278 은 새 테이블을 만들지 않았습니다. 자리별 모델 선택값은 이미 있던
+`system_config` (key-value) 테이블에 `config_key`(자리 이름) / `config_value`
+(모델 id) 로 얹힐 뿐입니다 — `docs/DDL-repair.sql` 에 `system_config` 는 이미
+있고 이번에 컬럼도 안 늘었으니 **다시 돌릴 필요가 없습니다.**
+
+#### 모델을 안 골랐으면 무슨 일이 나는가
+
+`LlmModelService.modelFor(feature)` 가 `system_config` 를 찾아보고, 없거나
+빈 값이면 **바로 기본 모델로 대체합니다** — LLM 호출을 건너뛰지도, 오류를
+내지도 않습니다. 빈 문자열을 그대로 실으면 Anthropic API가 400을 돌려주고
+그 실패가 "AI가 답을 안 줬다"는 결과로 조용히 묻히기 때문에, 애초에 빈 값이
+호출까지 가지 않도록 여기서 막습니다.
+
+기본값은 `llm.claude.model`(환경변수 `LLM_CLAUDE_MODEL`) 딱 한 곳에서 옵니다.
+지금까지 `claude-opus-5` 였던 것을 **`claude-haiku-4-5-20251001`(Claude Haiku
+4.5)로 바꿨습니다** — 골라 둔 자리가 없을 때 무거운 모델을 쓸 이유가 적습니다
+([I210](#)의 "추정이라 무거운 모델을 쓸 이유가 적다"와 같은 논리). Anthropic
+`/v1/models` 를 실제로 불러 정확한 id를 확인했습니다.
+
+`ClaudeLlmAdapter` 에도 같은 기본값이 한 번 더 있습니다 — `LlmMessage.model()`
+이 비었을 때 쓰는 마지막 안전망이라 짝을 맞췄습니다. `LlmModelSettingTest`의
+"아무것도 안 고르면 기본 모델을 쓴다" 시험을 `isNotBlank()` 대신 정확한 id를
+비교하도록 강화해, 기본값이 슬쩍 바뀌어도 잡히게 했습니다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```

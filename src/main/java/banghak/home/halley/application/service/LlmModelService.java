@@ -32,7 +32,7 @@ public class LlmModelService {
 
     public LlmModelService(SystemConfigRepository systemConfigRepository,
                            ClaudeModelsPort claudeModelsPort,
-                           @Value("${llm.claude.model:claude-opus-5}") String defaultModel) {
+                           @Value("${llm.claude.model:claude-haiku-4-5-20251001}") String defaultModel) {
         this.systemConfigRepository = systemConfigRepository;
         this.claudeModelsPort = claudeModelsPort;
         this.defaultModel = defaultModel;
