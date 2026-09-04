@@ -12,6 +12,7 @@ import org.jooq.DSLContext;
 import org.jooq.Record;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -36,6 +37,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DEAL_TYPE;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DIRECTION;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.DONG_HO;
+import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.COMPLEX_ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_BAND;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_NO;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.FLOOR_RAW;
@@ -148,6 +150,33 @@ public class PropertyRepository {
                         .fetchOne())
                 .component1();
         return findById(id).orElseThrow();
+    }
+
+    /**
+     * 단지 번호만 따로 적는다 (설계 I266).
+     *
+     * <p>{@code Property} 레코드에 칸을 더하지 않기로 했으므로(55칸) 이 값만
+     * 따로 씁니다. 매물의 다른 값은 건드리지 않습니다.
+     */
+    public void setComplexId(Long propertyId, Long complexId) {
+        dsl.update(TABLE)
+                .set(COMPLEX_ID, complexId)
+                .where(ID.eq(propertyId))
+                .execute();
+    }
+
+    /**
+     * 좌표만 따로 적는다 (설계 I268).
+     *
+     * <p>동을 가려 받은 건물 좌표로 바꿔 줄 때 씁니다. 매물의 다른 값은
+     * 건드리지 않습니다 — 사람이 고친 값을 덮으면 안 됩니다.
+     */
+    public void setCoordinates(Long propertyId, BigDecimal lat, BigDecimal lng) {
+        dsl.update(TABLE)
+                .set(LAT, lat)
+                .set(LNG, lng)
+                .where(ID.eq(propertyId))
+                .execute();
     }
 
     public Property update(Property property) {

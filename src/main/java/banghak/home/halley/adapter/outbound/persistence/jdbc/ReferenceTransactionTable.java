@@ -21,7 +21,7 @@ public final class ReferenceTransactionTable {
     public static final Table<Record> TABLE = table(name(T));
 
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
-    public static final Field<Long> PROPERTY_ID = field(name(T, "property_id"), Long.class);
+    public static final Field<Long> COMPLEX_ID = field(name(T, "complex_id"), Long.class);
     public static final Field<String> DEAL_TYPE = field(name(T, "deal_type"), String.class);
     public static final Field<Date> CONTRACT_DATE = field(name(T, "contract_date"), SQLDataType.DATE);
     public static final Field<Long> PRICE = field(name(T, "price"), Long.class);

@@ -53,7 +53,8 @@ public class WonValueExtractor implements FieldExtractor<Long> {
                     return ParseResult.missing();
                 }
             }
-            final Long won = WonConverter.toWon(raw);
+            // 같은 줄에 붙어 온 값은 뒤에 군더더기가 따라온다 (설계 I283)
+            final Long won = nextLine ? WonConverter.toWon(raw) : WonConverter.leadingWon(raw);
             if (won != null) {
                 return ParseResult.of(won, label + ": " + raw);
             }

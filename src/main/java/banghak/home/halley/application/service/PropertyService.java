@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.Optional;
 
 @Slf4j
@@ -41,6 +42,7 @@ public class PropertyService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final UserRepository userRepository;
     private final AgentService agentService;
+    private final ComplexService complexService;
     private final EditVersionStore editVersionStore;
     private final GeoService geoService;
     private final ApplicationEventPublisher eventPublisher;
@@ -49,6 +51,7 @@ public class PropertyService {
                                   PropertyRepository propertyRepository,
                            UserRepository userRepository,
                            AgentService agentService,
+                           ComplexService complexService,
                            EditVersionStore editVersionStore,
                            GeoService geoService,
                            ApplicationEventPublisher eventPublisher) {
@@ -56,6 +59,7 @@ public class PropertyService {
         this.propertyRepository = propertyRepository;
         this.userRepository = userRepository;
         this.agentService = agentService;
+        this.complexService = complexService;
         this.editVersionStore = editVersionStore;
         this.geoService = geoService;
         this.eventPublisher = eventPublisher;
@@ -159,6 +163,8 @@ public class PropertyService {
                 groupId, nickname,
                 currentUserId(),
                 Instant.now()));
+        // 매물이 어느 단지에 속하는지 적어 둔다 (설계 I266) — 실거래는 단지에 붙는다
+        complexService.attach(saved);
         agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
         editVersionStore.bump(versionKey(saved.id()));
@@ -169,7 +175,7 @@ public class PropertyService {
         validate(request);
         final Property existing = propertyAccessGuard.require(id);
         checkEditVersion(id, editVersion);
-        final Coordinates coords = resolveCoordinates(request);
+        final Coordinates coords = resolveCoordinatesForUpdate(existing, request);
         final Property updated = propertyRepository.update(new Property(
                 existing.id(),
                 request.name(),
@@ -205,7 +211,7 @@ public class PropertyService {
                 request.schoolName(),
                 request.schoolWalkMinutes(),
                 request.schoolName() == null || request.schoolName().isBlank() ? null
-                        : java.util.Objects.equals(request.schoolName(), existing.schoolName())
+                        : Objects.equals(request.schoolName(), existing.schoolName())
                         ? existing.schoolSource() : SchoolSource.PASTE,
                 existing.pnu(),
                 existing.officialPrice(),
@@ -225,6 +231,8 @@ public class PropertyService {
                 existing.groupId(), existing.createdByNickname(),
                 existing.createdBy(),
                 existing.createdAt()));
+        // 이름이나 주소를 고치면 <b>단지가 바뀔 수 있다</b> (설계 I266)
+        complexService.attach(updated);
         agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
         // 바뀐 게 있으면 AI에게 다시 묻는다 (설계 I113). 면적·층·가격·주차가 그대로
@@ -338,7 +346,56 @@ public class PropertyService {
             log.warn("Geocoding failed - saving property without coordinates. address={}", address);
             return new Coordinates(null, null);
         }
-        return new Coordinates(geo.get().lat(), geo.get().lng());
+        final Coordinates base = new Coordinates(geo.get().lat(), geo.get().lng());
+        return refineToBuilding(request, base);
+    }
+
+    /**
+     * 동이 바뀌었을 때만 좌표를 다시 찾는다 (설계 I269) — 사람이 좌표를 직접 손댔으면
+     * 그대로 둔다. {@link #resolveCoordinates} 는 요청에 좌표가 있으면 그대로 쓴다.
+     */
+    private Coordinates resolveCoordinatesForUpdate(Property existing, PropertyRequest request) {
+        final boolean buildingChanged = !Objects.equals(
+                blankToNull(existing.dongHo()), blankToNull(request.dongHo()));
+        if (!buildingChanged || movedByHand(existing, request)) {
+            return resolveCoordinates(request);
+        }
+        final Coordinates base = existing.lat() == null || existing.lng() == null
+                ? resolveCoordinates(new PropertyRequest(
+                        request.name(), null, request.dealType(), request.priceDeposit(), null,
+                        request.addressRoad(), request.addressJibun(), null, null,
+                        null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null))
+                : new Coordinates(existing.lat(), existing.lng());
+        if (base.lat() == null || base.lng() == null) {
+            return base;
+        }
+        return refineToBuilding(request, base);
+    }
+
+    /** 사람이 좌표를 직접 고쳤는가 — 그랬다면 그 뜻을 존중한다. */
+    private static boolean movedByHand(Property existing, PropertyRequest request) {
+        if (request.lat() == null || request.lng() == null) {
+            return false;
+        }
+        return existing.lat() == null || existing.lng() == null
+                || existing.lat().compareTo(request.lat()) != 0
+                || existing.lng().compareTo(request.lng()) != 0;
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    /**
+     * 같은 단지라도 동이 다르면 자리가 다르다 (설계 I268) — 주소검색은 동을 무시하지만
+     * 장소검색은 건물 좌표를 준다. 못 찾으면 단지 좌표를 그대로 쓴다.
+     */
+    private Coordinates refineToBuilding(PropertyRequest request, Coordinates base) {
+        return geoService.geocodeBuilding(request.name(), request.dongHo(), base.lat(), base.lng())
+                .map(found -> new Coordinates(found.lat(), found.lng()))
+                .orElse(base);
     }
 
     private static String firstNonBlank(String... values) {

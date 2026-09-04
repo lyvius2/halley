@@ -13,8 +13,6 @@ import java.util.regex.Pattern;
  */
 public class NameExtractor implements FieldExtractor<String> {
 
-    private static final Pattern TITLE_DONGHO = Pattern.compile("(.+?)\\s+(\\d+동(?:\\s*\\d+호)?)$");
-
     @Override
     public String key() {
         return "name";
@@ -30,9 +28,6 @@ public class NameExtractor implements FieldExtractor<String> {
         if (first.isEmpty()) {
             return ParseResult.missing();
         }
-        final Matcher matcher = TITLE_DONGHO.matcher(first);
-        return matcher.matches()
-                ? ParseResult.of(matcher.group(1), "제목: " + first)
-                : ParseResult.of(first, "제목: " + first);
+        return ParseResult.of(ListingTitle.name(first), "제목: " + first);
     }
 }

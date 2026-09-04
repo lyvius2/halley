@@ -39,6 +39,7 @@ function emptyPropertyForm() {
     return {
         id: null,
         name: '',
+        dongHo: '',
         dealType: 'SALE',
         priceDeposit: '',
         maintenanceFee: '',
@@ -99,6 +100,14 @@ const PIN_Z = { visited: 1, fresh: 2, hover: 10 };
  * 보정과 AI 응답은 수 초~수십 초가 걸린다. 이보다 촘촘히 물어도 답이 달라지지 않는다.
  */
 const SCORE_WATCH_MS = 3000;
+/**
+ * 「분석 중」을 이만큼까지만 말한다 (설계 I284).
+ *
+ * <p>보정이 실패하면 점수가 영영 안 채워지는데, 그때도 카드는 계속 돌고 있었습니다.
+ * 보정·AI는 길어야 수십 초라 5분이면 넉넉합니다 — 이보다 오래됐는데 비어 있으면
+ * <b>기다리는 중이 아니라 못 낸 것</b>입니다.
+ */
+const SCORING_GRACE_MS = 5 * 60 * 1000;
 // 응답이 이보다 빨리 오면 진행 막대를 띄우지 않는다 — 번쩍임이 더 거슬린다 (설계 I115)
 const SHOW_LOADING_AFTER_MS = 250;
 const LLM_POLL_INTERVAL_MS = 2000;
@@ -2081,16 +2090,29 @@ function halley() {
         },
 
         /**
-         * 아직 채점 전인가 (설계 I220).
+         * 아직 채점 전인가 (설계 I220 · I284).
          *
          * <p>등록 응답이 <b>보정을 기다리지 않고</b> 돌아오므로, 카드가 먼저 뜨고
          * 점수는 몇 초 뒤에 채워집니다. 그 사이를 <b>0점으로 보여 주면 안 됩니다</b> —
          * "나쁜 매물"과 "아직 안 잰 매물"은 다릅니다.
          *
          * <p>판 번호 감시(I85)가 3초마다 확인하다가 채워지면 목록을 다시 받습니다.
+         *
+         * <p><b>다만 영원히 기다리지는 않습니다 (설계 I284).</b> 보정이 끝내 실패하면
+         * 점수가 안 채워지는데, 그때 「분석 중」이 <b>며칠이고 돌았습니다.</b> 등록한 지
+         * {@code SCORING_GRACE_MS} 가 지나도 비어 있으면 <b>돌고 있는 것이 아닙니다</b> —
+         * 표시를 거둡니다. 언제 등록됐는지는 서버가 준 값으로 보므로 새로고침해도
+         * 되살아나지 않습니다.
          */
         scoring(scored) {
-            return !!scored && (scored.scores || []).length === 0;
+            if (!scored || (scored.scores || []).length > 0) {
+                return false;
+            }
+            const createdAt = Date.parse(scored.property?.createdAt ?? '');
+            if (Number.isNaN(createdAt)) {
+                return true;
+            }
+            return Date.now() - createdAt < SCORING_GRACE_MS;
         },
 
         /** 상세에 뿌릴 평면도 — 매물당 한 장 (설계 I63). */
@@ -3827,6 +3849,9 @@ function halley() {
             }
             return {
                 name: value('name'),
+                // <b>파서가 읽은 것을 안 보내고 있었다 (설계 I265).</b> 화면에는
+                // '102동'이 멀쩡히 떴는데 payload 에서 빠져 DB 는 늘 NULL 이었다
+                dongHo: value('dongHo') || null,
                 dealType: dealCode,
                 priceDeposit: toNum(value('priceDeposit')),
                 kbPrice: toNum(value('kbPrice')),
@@ -3910,6 +3935,9 @@ function halley() {
             this.propertyForm = {
                 id: p.id,
                 name: p.name || '',
+                // 폼에 칸이 생겼으므로 carry 에서 뺐다 (설계 I269) — 양쪽에 두면
+                // carry 가 폼 값을 덮어써서 고쳐도 안 바뀐다 (설계 I160 에서 겪은 그대로)
+                dongHo: p.dongHo || '',
                 dealType: p.dealType || 'SALE',
                 priceDeposit: p.priceDeposit ?? '',
                 maintenanceFee: p.maintenanceFee ?? '',
@@ -3935,7 +3963,6 @@ function halley() {
                 editVersion: p.editVersion ?? null,
                 // 폼에 칸이 없는 값들. 손대지 않고 그대로 돌려보낸다 (설계 I113)
                 carry: {
-                    dongHo: p.dongHo ?? null,
                     floorRaw: p.floorRaw ?? null,
                     floorBand: p.floorBand ?? null,
                     roomBath: p.roomBath ?? null,
@@ -4007,6 +4034,7 @@ function halley() {
                 // 이게 없으면 수정할 때마다 주차·방/욕실·난방·중개보수가 조용히 지워졌다
                 ...(this.propertyForm.carry || {}),
                 name: this.propertyForm.name,
+                dongHo: this.propertyForm.dongHo || null,
                 dealType: this.propertyForm.dealType,
                 priceDeposit: toNum(this.propertyForm.priceDeposit),
                 maintenanceFee: toNum(this.propertyForm.maintenanceFee),
@@ -4536,6 +4564,20 @@ function halley() {
          * 쾌적함은 직접 가 보지 않으면 매길 수 없는 항목이라, 점수가 있다는 것은
          * 임장을 다녀왔다는 뜻이다. 따로 '다녀옴' 칸을 두면 사람이 또 눌러야 한다.
          */
+        /**
+         * 카드·상세·지도가 한 이름으로 부른다 (설계 I265).
+         *
+         * <p>같은 단지 매물을 여럿 담으면 <b>이름만으로는 구별이 안 됩니다.</b>
+         * 상세 모달만 동·호를 붙이고 있었고, 목록과 지도는 아니었습니다 —
+         * 같은 규칙이 두 벌이면 이렇게 갈립니다.
+         */
+        propertyTitle(property) {
+            if (!property) {
+                return '';
+            }
+            return property.dongHo ? `${property.name} ${property.dongHo}` : property.name;
+        },
+
         hasVisited(scored) {
             return (scored?.scores || []).some(
                 s => s.code === 'COMFORT' && s.effectiveScore != null);
@@ -4973,8 +5015,10 @@ function halley() {
             this.markers = {};
             // 목록은 30건씩 잘려 오지만 지도는 전부 찍는다 (설계 I240)
             const coords = this.pins.filter(p => p.lat && p.lng);
+            const spread = this.spreadOverlappingPins(coords);
             coords.forEach(p => {
-                const position = new kakao.maps.LatLng(p.lat, p.lng);
+                const at = spread[p.id];
+                const position = new kakao.maps.LatLng(at.lat, at.lng);
                 const base = this.pinZIndex(p);
                 const overlay = new kakao.maps.CustomOverlay({
                     position,
@@ -5009,6 +5053,49 @@ function halley() {
                 coords.forEach(p => bounds.extend(new kakao.maps.LatLng(p.lat, p.lng)));
                 this.map.setBounds(bounds);
             }
+        },
+
+        /**
+         * 같은 자리에 겹친 핀을 <b>둘러 앉힌다</b> (설계 I265).
+         *
+         * <p><b>마지막 수단입니다 (설계 I268).</b> 이제 동이 있으면 서버가 장소검색으로
+         * <b>실제 건물 좌표</b>를 받아 옵니다. 그래도 겹치는 경우가 남습니다 —
+         * 동을 모르거나(호만 있음), 카카오에 그 동이 없거나, 키가 없을 때입니다.
+         *
+         * <p>그때 <b>동의 위치를 아는 척하지 않습니다.</b> 겹친 것들을 작은 원으로
+         * 벌려 놓을 뿐이고, 반지름은 15m 남짓이라 단지 밖으로 나가지 않습니다.
+         * 벌려 놓지 않으면 <b>뒤엣것은 누를 수도 없습니다.</b>
+         *
+         * <p>순서는 동·호 이름으로 정합니다 — 목록이 다시 그려져도 <b>같은 핀이
+         * 같은 자리</b>에 있어야 합니다. 배열 순서로 하면 정렬을 바꿀 때마다 춤춥니다.
+         */
+        spreadOverlappingPins(coords) {
+            const RADIUS_DEG = 0.00014;   // 위도 1e-4 ≈ 11m
+            const groups = {};
+            coords.forEach(p => {
+                // 소수점 다섯 자리 ≈ 1m. 그 안이면 같은 자리로 본다
+                const key = `${Number(p.lat).toFixed(5)},${Number(p.lng).toFixed(5)}`;
+                (groups[key] = groups[key] || []).push(p);
+            });
+            const placed = {};
+            Object.values(groups).forEach(group => {
+                if (group.length === 1) {
+                    placed[group[0].id] = { lat: Number(group[0].lat), lng: Number(group[0].lng) };
+                    return;
+                }
+                const ordered = [...group].sort((a, b) =>
+                    String(a.dongHo || '').localeCompare(String(b.dongHo || ''), 'ko')
+                    || a.id - b.id);
+                ordered.forEach((p, i) => {
+                    const angle = (2 * Math.PI * i) / ordered.length;
+                    placed[p.id] = {
+                        lat: Number(p.lat) + RADIUS_DEG * Math.cos(angle),
+                        // 경도는 위도만큼 촘촘하지 않다 — 서울(37.5도)에서 약 1.26배 벌려야 같은 거리다
+                        lng: Number(p.lng) + RADIUS_DEG * Math.sin(angle) * 1.26
+                    };
+                });
+            });
+            return placed;
         },
 
         /**
@@ -5053,7 +5140,8 @@ function halley() {
 
             const tail = document.createElement('i');
             box.appendChild(tail);
-            box.title = p.name || '';
+            // 벌려 놓은 핀은 <b>어느 동인지 말해 줘야</b> 고를 수 있다 (설계 I265)
+            box.title = this.propertyTitle(p);
             return box;
         },
 

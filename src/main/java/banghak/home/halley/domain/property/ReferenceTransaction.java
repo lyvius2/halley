@@ -5,7 +5,8 @@ import java.time.LocalDate;
 
 public record ReferenceTransaction(
         Long id,
-        Long propertyId,
+        /** 매물이 아니라 <b>단지</b>에 붙는다 (설계 I266). */
+        Long complexId,
         ReferenceDealType dealType,
         LocalDate contractDate,
         Long price,

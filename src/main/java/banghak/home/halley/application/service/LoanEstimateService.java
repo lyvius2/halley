@@ -65,6 +65,9 @@ public class LoanEstimateService {
     private final PropertyRepository propertyRepository;
     private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
+    private final ComplexService complexService;
+    /** 실거래를 고를 때의 면적 허용 범위 — {@code ReferenceTransactionService} 와 같은 값이어야 한다. */
+    static final double REFERENCE_AREA_TOLERANCE = 0.15;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
     private final RegulationParamRepository regulationParamRepository;
@@ -86,6 +89,7 @@ public class LoanEstimateService {
                                RegulationNoticeService regulationNoticeService,
                                MarketRateService marketRateService,
                                UserDebtRepository userDebtRepository,
+                               ComplexService complexService,
                                ObjectMapper objectMapper) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
@@ -98,6 +102,7 @@ public class LoanEstimateService {
         this.regulationNoticeService = regulationNoticeService;
         this.marketRateService = marketRateService;
         this.userDebtRepository = userDebtRepository;
+        this.complexService = complexService;
         this.objectMapper = objectMapper;
     }
 
@@ -227,7 +232,7 @@ public class LoanEstimateService {
 
         // LTV는 호가가 아니라 담보가치에 매긴다 (설계 I64-1)
         final CollateralValuation collateral = CollateralValuator.estimate(
-                property.kbPrice(), tradeSamples(propertyId), property.areaExclusiveM2(),
+                property.kbPrice(), tradeSamples(property), property.areaExclusiveM2(),
                 property.officialPrice(), askingPrice, params.officialPriceRatio(), LocalDate.now());
 
         // 규제지역·주택 보유 수로 LTV 비율을 정한다 (설계 I66)
@@ -320,8 +325,12 @@ public class LoanEstimateService {
      * 담보가치를 매길 재료 — 이 매물의 최근 실거래가. 이미 수집해 둔 캐시만 읽고 국토부를 부르지 않는다
      * (대출 계산이 외부 API 지연에 묶이면 안 된다).
      */
-    private List<TradeSample> tradeSamples(Long propertyId) {
-        return referenceTransactionRepository.findByPropertyId(propertyId).stream()
+    private List<TradeSample> tradeSamples(Property property) {
+        // 실거래는 단지·평형에 붙는다 (설계 I266) — 단지가 없으면 받아 온 적이 없다는 뜻이다
+        return complexService.find(property)
+                .map(c -> referenceTransactionRepository.findByComplexAndArea(
+                        c.id(), property.areaExclusiveM2(), REFERENCE_AREA_TOLERANCE))
+                .orElseGet(List::of).stream()
                 .filter(t -> t.price() != null && t.price() > 0)
                 .map(t -> new TradeSample(t.price(), t.areaM2(), t.contractDate()))
                 .toList();

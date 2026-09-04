@@ -5,15 +5,11 @@ import banghak.home.halley.ingest.parser.ParseResult;
 import banghak.home.halley.ingest.parser.TextDocument;
 
 import java.util.Optional;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 동/호 — "동/호" 라벨이 있으면 그 값, 없으면 제목 첫 줄의 "N동(N호)" 부분.
  */
 public class DongHoExtractor implements FieldExtractor<String> {
-
-    private static final Pattern TITLE_DONGHO = Pattern.compile("(.+?)\\s+(\\d+동(?:\\s*\\d+호)?)$");
 
     @Override
     public String key() {
@@ -30,9 +26,8 @@ public class DongHoExtractor implements FieldExtractor<String> {
         if (first.isEmpty()) {
             return ParseResult.missing();
         }
-        final Matcher matcher = TITLE_DONGHO.matcher(first);
-        return matcher.matches()
-                ? ParseResult.of(matcher.group(2), "제목: " + first)
-                : ParseResult.missing();
+        return ListingTitle.dongHo(first)
+                .map(value -> ParseResult.of(value, "제목: " + first))
+                .orElseGet(ParseResult::missing);
     }
 }

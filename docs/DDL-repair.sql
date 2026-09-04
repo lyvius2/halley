@@ -872,3 +872,43 @@ SELECT COUNT(*) AS moved FROM property_visit;
 
 DROP TABLE IF EXISTS visit_plan_stop;
 DROP TABLE IF EXISTS property_visit_plan;
+
+-- ---------------------------------------------------------------------------
+-- 단지 (설계 I266) — 매물 위에 한 단계를 둔다
+--
+-- 지금까지 매물은 저마다 고유했고, 같은 단지의 102동과 104동은 아무 관계도 없는
+-- 남이었습니다. 그래서 국토부 실거래를 매물마다 받았습니다 — 같은 단지 같은
+-- 평형인데도요.
+--
+-- 순서가 중요합니다: 표를 만들고 → 열을 더하고 → 애플리케이션을 띄웁니다.
+-- 매물에 단지를 다는 일은 ComplexBackfill 이 기동할 때 합니다. SQL 로 하지
+-- 않는 이유는 단지 열쇠를 ComplexName.normalize 가 만들기 때문입니다 —
+-- 괄호 안을 버리고 '아파트'를 지웁니다. SQL 로 옮겨 쓰면 규칙이 두 벌이 됩니다.
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS complex (
+    id            BIGSERIAL PRIMARY KEY,
+    match_key     VARCHAR(300) NOT NULL UNIQUE,
+    name          VARCHAR(200) NOT NULL,
+    address_jibun VARCHAR(300),
+    lat           NUMERIC(10, 7),
+    lng           NUMERIC(10, 7),
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE property ADD COLUMN IF NOT EXISTS complex_id BIGINT REFERENCES complex (id);
+CREATE INDEX IF NOT EXISTS ix_property_complex ON property (complex_id);
+
+ALTER TABLE reference_transaction ADD COLUMN IF NOT EXISTS complex_id BIGINT REFERENCES complex (id);
+ALTER TABLE reference_transaction ALTER COLUMN property_id DROP NOT NULL;
+CREATE INDEX IF NOT EXISTS ix_reference_transaction_complex
+    ON reference_transaction (complex_id, area_m2);
+
+-- 옛 행은 옮기지 않고 <버립니다>. 국토부 실거래는 캐시라 다시 받으면 그만이고,
+-- 옮기려면 매물 → 단지 대응을 SQL 로 다시 만들어야 하는데 그 규칙이 자바에
+-- 있습니다. 다시 받는 값이 훨씬 쌉니다 — 단지당 12개월 한 번입니다.
+DELETE FROM reference_transaction WHERE complex_id IS NULL;
+
+-- 기동 후 확인: 단지가 만들어지고 매물에 붙었는가
+-- SELECT COUNT(*) AS complexes FROM complex;
+-- SELECT COUNT(*) AS unattached FROM property WHERE complex_id IS NULL;
