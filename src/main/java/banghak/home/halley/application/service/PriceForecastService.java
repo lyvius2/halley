@@ -351,18 +351,18 @@ public class PriceForecastService {
      * 해시가 같아 <b>영영 건너뛰었습니다.</b>
      */
     private Optional<PriceOutlook> ask(ForecastPrompt prompt, int horizon) {
-        log.info("Asking LLM for price forecast. knownNumbers={}, promptChars={}",
-                prompt.allowedNumbers().size(), prompt.user().length());
+        // 자리마다 고른 모델을 쓴다 (설계 I267) — 환경변수 하나로 묶여 있었다
+        final String model = llmModelService.modelFor(LlmFeature.PRICE_FORECAST);
+        log.info("Asking LLM for price forecast. model={}, knownNumbers={}, promptChars={}",
+                model, prompt.allowedNumbers().size(), prompt.user().length());
         log.debug("Forecast prompt.\n{}", prompt.user());
 
         final long askedAt = System.currentTimeMillis();
         // 판단 작업이라 흔들리면 안 된다 (설계 I127)
         final LlmResult result = llmPort.complete(
-                // 자리마다 고른 모델을 쓴다 (설계 I267) — 환경변수 하나로 묶여 있었다
-                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens,
-                        llmModelService.modelFor(LlmFeature.PRICE_FORECAST)));
-        log.info("LLM forecast responded. present={}, elapsedMs={}",
-                result.isPresent(), System.currentTimeMillis() - askedAt);
+                LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens, model));
+        log.info("LLM forecast responded. model={}, present={}, elapsedMs={}",
+                model, result.isPresent(), System.currentTimeMillis() - askedAt);
 
         if (!result.isPresent()) {
             log.warn("Forecast LLM unavailable - falling back to rule-based. cause={}",

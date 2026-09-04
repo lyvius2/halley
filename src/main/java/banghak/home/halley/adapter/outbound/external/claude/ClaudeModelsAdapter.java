@@ -71,7 +71,7 @@ public class ClaudeModelsAdapter implements ClaudeModelsPort {
                 if (id == null || id.isBlank()) {
                     continue;
                 }
-                models.add(new LlmModelOption(id, node.path("display_name").asString(id)));
+                models.add(LlmModelOption.of(id, node.path("display_name").asString(id)));
             }
             return List.copyOf(models);
         } catch (RuntimeException e) {

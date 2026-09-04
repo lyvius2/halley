@@ -91,7 +91,7 @@ public class LlmModelService {
         log.info("Claude model list unavailable - offering the models already in use.");
         final List<LlmModelOption> fallback = new ArrayList<>();
         current().values().stream().distinct()
-                .forEach(id -> fallback.add(new LlmModelOption(id, id)));
+                .forEach(id -> fallback.add(LlmModelOption.of(id, id)));
         return List.copyOf(fallback);
     }
 }

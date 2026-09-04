@@ -40,8 +40,8 @@ class LlmModelSettingTest {
             return () -> {
                 LIST_CALLS.incrementAndGet();
                 return List.of(
-                        new LlmModelOption("claude-opus-5", "Claude Opus 5"),
-                        new LlmModelOption("claude-haiku-4-5-20251001", "Claude Haiku 4.5"));
+                        LlmModelOption.of("claude-opus-5", "Claude Opus 5"),
+                        LlmModelOption.of("claude-haiku-4-5-20251001", "Claude Haiku 4.5"));
             };
         }
     }

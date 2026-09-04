@@ -150,10 +150,11 @@ public class LlmTransitEstimator {
             user.append(String.format("id=%s 출발=(경도 %.6f, 위도 %.6f) 도착=(경도 %.6f, 위도 %.6f)%n",
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
+        // 자리마다 고른 모델을 쓴다 (설계 I267)
+        final String model = blankToNull(llmModelService.modelFor(LlmFeature.COMMUTE_ESTIMATE));
         final LlmMessage message = LlmMessage.deterministic(
-                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
-                blankToNull(llmModelService.modelFor(
-                        LlmFeature.COMMUTE_ESTIMATE)));
+                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR, model);
+        log.info("Asking LLM for transit estimate. model={}, legs={}", model, legs.size());
 
         LlmResult answer = llmPort.complete(message);
         if (retryable(answer)) {

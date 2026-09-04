@@ -169,8 +169,11 @@ public class ComparativeAnalysisService {
         final LlmResult result;
         final List<Ranking> rankings;
         try {
-            result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS,
-                    llmModelService.modelFor(LlmFeature.COMPARATIVE)));
+            // 자리마다 고른 모델을 쓴다 (설계 I267)
+            final String model = llmModelService.modelFor(LlmFeature.COMPARATIVE);
+            log.info("Asking LLM for comparative analysis. model={}, targets={}, promptChars={}",
+                    model, targets.size(), prompt.length());
+            result = llmPort.complete(new LlmMessage(SYSTEM_PROMPT, prompt, MAX_TOKENS, model));
             if (!result.isPresent()) {
                 log.warn("Comparative analysis unavailable. cause={}", result.failureCause());
                 throw new LlmUnavailableException();
