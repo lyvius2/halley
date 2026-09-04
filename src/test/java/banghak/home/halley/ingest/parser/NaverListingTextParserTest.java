@@ -31,7 +31,9 @@ class NaverListingTextParserTest {
         assertThat(parsed.field("maintenanceFee").value()).isEqualTo(300_000);
         assertThat(parsed.field("roomBath").value()).isEqualTo("3/2");
         assertThat(parsed.field("heatingType").value()).isEqualTo("지역난방");
-        assertThat(parsed.field("subway").value()).isEqualTo("독립문역 7분");
+        // 역 이름만 담는다 (설계 I283). 도보시간은 subwayMinutes 가 따로 가지므로
+        // 이름에 섞지 않는다 — 예전에는 "독립문역 7분" 처럼 한 줄을 통째로 넣었다
+        assertThat(parsed.field("subway").value()).isEqualTo("독립문역");
         assertThat(parsed.field("subwayMinutes").value()).isEqualTo(7);
         assertThat(parsed.field("school").value()).isEqualTo("독립문초등학교");
         assertThat(parsed.field("schoolMinutes").value()).isEqualTo(5);

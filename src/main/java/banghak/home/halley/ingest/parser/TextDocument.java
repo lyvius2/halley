@@ -31,11 +31,38 @@ public final class TextDocument {
     }
 
     /**
-     * 라벨 라인의 다음 비어 있지 않은 라인 값을 반환한다. 네이버의 "라벨 \n 값" 구조에 대응.
+     * 라벨 뒤에 붙어 오는 화면 문구 (설계 I283).
+     *
+     * <p>네이버는 접기/펼치기 버튼 글자를 <b>라벨과 같은 줄에</b> 붙여 보냅니다 —
+     * `배정 초등학교상세내용 숨기기` 처럼. 라벨을 {@code equals} 로만 찾으면
+     * 이런 줄은 <b>영영 안 걸려</b> 그 블록이 통째로 빠집니다.
+     */
+    private static final List<String> LABEL_SUFFIXES = List.of(
+            "상세내용 숨기기", "상세내용 보기", "도움말 보기", "상세보기", "더보기", "도움말");
+
+    /** 이 줄이 그 라벨인가 — 뒤에 붙은 화면 문구는 떼고 본다 (설계 I283). */
+    private static boolean isLabel(String line, String label) {
+        final String trimmed = line.trim();
+        if (trimmed.equals(label)) {
+            return true;
+        }
+        if (!trimmed.startsWith(label)) {
+            return false;
+        }
+        final String rest = trimmed.substring(label.length()).trim();
+        return LABEL_SUFFIXES.contains(rest);
+    }
+
+    /**
+     * 라벨 <b>바로 다음</b> 줄을 값으로 읽는다. 네이버의 "라벨 \n 값" 구조에 대응.
+     *
+     * <p>사이가 비어 있으면 값이 아니라고 봅니다 — 빈 줄을 건너뛰며 찾으면
+     * <b>다음 절의 첫 줄</b>을 그 라벨의 값으로 집습니다. 여러 줄로 오는 블록
+     * (지하철·학교)은 {@link #linesAfterUntil} 로 읽습니다.
      */
     public Optional<String> valueAfter(String label) {
         for (int i = 0; i < lines.size() - 1; i++) {
-            if (lines.get(i).trim().equals(label)) {
+            if (isLabel(lines.get(i), label)) {
                 final String value = lines.get(i + 1).trim();
                 if (!value.isEmpty()) {
                     return Optional.of(value);
@@ -85,7 +112,7 @@ public final class TextDocument {
      */
     public List<String> linesAfterUntil(String label, Set<String> stopLabels, int maxLines) {
         for (int i = 0; i < lines.size() - 1; i++) {
-            if (lines.get(i).trim().equals(label)) {
+            if (isLabel(lines.get(i), label)) {
                 final List<String> result = new ArrayList<>();
                 for (int j = i + 1; j < lines.size() && result.size() < maxLines; j++) {
                     final String line = lines.get(j).trim();
@@ -108,7 +135,7 @@ public final class TextDocument {
      */
     public TextDocument after(String label) {
         for (int i = 0; i < lines.size(); i++) {
-            if (lines.get(i).trim().equals(label)) {
+            if (isLabel(lines.get(i), label)) {
                 return new TextDocument(String.join("\n", lines.subList(i + 1, lines.size())));
             }
         }

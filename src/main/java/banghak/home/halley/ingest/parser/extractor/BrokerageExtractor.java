@@ -38,7 +38,8 @@ public class BrokerageExtractor implements FieldExtractor<Object> {
                     .<ParseResult<Object>>map(v -> ParseResult.of(new BigDecimal(v), "상한 요율: " + v + "%"))
                     .orElseGet(ParseResult::missing);
         }
-        return section.firstMatch("^최대\\s*([\\d,억만원\\s]+?)\\s*\\(")
+        // 줄 앞의 들여쓰기를 허용한다 — 붙여넣기는 대개 공백이 붙어 온다 (설계 I283)
+        return section.firstMatch("^\\s*최대\\s*([\\d,억만원\\s]+?)\\s*\\(")
                 .map(String::trim)
                 .<ParseResult<Object>>map(raw -> ParseResult.of(WonConverter.toWon(raw), "중개 보수: 최대 " + raw))
                 .orElseGet(ParseResult::missing);
