@@ -7938,6 +7938,58 @@ return ReferenceCardResponse.looking(...);   // ← 저장된 게 없으면 무�
 
 ---
 
+### I277. 재배포했는데 화면이 안 바뀌었다 · **[확정 — 구현됨]**
+
+AI 모델 드롭다운이 "구현되지 않았다"는 신고가 왔습니다. 캡처를 보니 헤더가
+"LLM"이고 표가 <b>2열(항목/값)</b>인 <b>일반 설정 표</b>였습니다 — 제가 만든
+드롭다운 표(3열: 자리·하는 일·모델)가 아니었습니다.
+
+#### 코드는 이미 맞았다
+
+`settingCategories()` 의 `.filter(s => s.category !== 'LLM')` 과 전용
+"AI 모델" 절(드롭다운 포함)은 이 브랜치의 <b>첫 커밋부터</b> 있었습니다.
+그런데도 화면은 필터링 전의 옛 모습을 보이고 있었습니다.
+
+#### `/js/app.js` 에 버전이 없었다
+
+```html
+<script defer src="/js/app.js"></script>   ← 쿼리 없는 고정 주소
+```
+
+재배포해도 브라우저는 <b>같은 URL이면 캐시를 계속 씁니다.</b> 서버는 새
+코드인데 화면은 <b>이 세션에서 예전에 다른 브랜치를 보다가 캐시된</b> 옛
+`app.js` 를 그대로 썼습니다 — [I275]의 지도 버그를 진단할 때도 같은 종류의
+혼란을 겪었습니다(그때는 강력 새로고침으로 넘어갔을 뿐, 근본 원인을 안 고쳤습니다).
+
+#### 배포마다 바뀌는 값을 주소에 붙인다
+
+```java
+private final String assetVersion = String.valueOf(System.currentTimeMillis());
+```
+
+`ViewController` 가 기동 시각을 한 번 계산해 모델에 담고, `app.css`·`app.js`
+주소에 `?v=` 로 붙입니다. 재배포(재기동)마다 값이 바뀌어 브라우저가 새 파일로
+다시 받습니다. `vendor/alpine.min.js` 는 버전을 안 붙였습니다 — 거의 안
+바뀌는 파일이라 오래 캐시되는 편이 낫습니다.
+
+---
+
+### I267 후속. 저장한 모델이 실제 호출까지 이어지는가 · **[검증 — 확인됨]**
+
+`LlmModelService.modelFor()` 단위 시험은 이미 있었지만, 그건 "DB 값을
+읽어 오는가"만 봅니다. <b>관리자가 저장한 순간부터 다음 LLM 호출까지</b>
+전체 경로를 도는 시험을 새로 더했습니다 — `PriceForecastServiceTest`
+에서 실제로 모델을 하나 골라 저장하고, 그 값이 `LlmPort.complete()` 로
+넘어가는 `LlmMessage.model()` 에 그대로 실리는지 확인합니다.
+
+`llmModelService.modelFor(LlmFeature.PRICE_FORECAST)` 를 `null` 로
+바꿔 되돌려 보니 이 시험이 잡았습니다. 나머지 세 자리(추천도·비교 우위·
+직주근접 추정)도 같은 한 줄짜리 전달 패턴이라 코드로 확인했습니다 —
+`LlmMessage.model()` 이 `ClaudeLlmAdapter.requestBody()` 에서 실제
+Anthropic 요청의 `"model"` 필드로 나가는 것도 기존 시험이 지킵니다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```

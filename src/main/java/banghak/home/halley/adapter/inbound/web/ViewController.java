@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class ViewController {
 
     private final String kakaoJsKey;
+    /** 배포마다 바뀌는 값 (설계 I277) — 정적 파일 주소에 붙여 브라우저 캐시를 무효화한다. */
+    private final String assetVersion = String.valueOf(System.currentTimeMillis());
 
     public ViewController(@Value("${kakao.js-key:}") String kakaoJsKey) {
         this.kakaoJsKey = kakaoJsKey;
@@ -57,6 +59,7 @@ public class ViewController {
     })
     public String shell(Model model) {
         model.addAttribute("kakaoJsKey", kakaoJsKey);
+        model.addAttribute("assetVersion", assetVersion);
         return "index";
     }
 }

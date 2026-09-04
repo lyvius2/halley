@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -11,6 +12,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.model;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -73,5 +75,21 @@ class ViewControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(view().name("index"))
                 .andExpect(model().attributeExists("kakaoJsKey"));
+    }
+
+    /**
+     * app.js·app.css 주소에 배포마다 바뀌는 값이 붙어 있는가 (설계 I277).
+     *
+     * <p>버전이 없으면 재배포해도 브라우저가 예전 파일을 계속 쓴다 — 서버는
+     * 새 코드인데 화면은 옛 코드로 도는 채로 남는다.
+     */
+    @Test
+    @DisplayName("정적 파일 주소에 캐시 무효화용 버전이 붙는다")
+    void staticAssetsCarryACacheBustingVersion() throws Exception {
+        mockMvc.perform(get("/"))
+                .andExpect(status().isOk())
+                .andExpect(model().attributeExists("assetVersion"))
+                .andExpect(content().string(Matchers.containsString("/js/app.js?v=")))
+                .andExpect(content().string(Matchers.containsString("/css/app.css?v=")));
     }
 }
