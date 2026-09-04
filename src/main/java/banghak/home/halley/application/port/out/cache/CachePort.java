@@ -84,6 +84,9 @@ public interface CachePort {
      */
     String NEWS = "news";
 
+    /** 쓸 수 있는 Claude 모델 목록 — 자주 안 바뀌므로 48시간 담아 둔다 (설계 I267). */
+    String LLM_MODELS = "llmmodels";
+
     /**
      * 자가용 길 하나 (설계 I272).
      *

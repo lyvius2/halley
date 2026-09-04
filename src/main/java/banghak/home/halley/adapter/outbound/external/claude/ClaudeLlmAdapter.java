@@ -34,7 +34,7 @@ public class ClaudeLlmAdapter implements LlmPort {
     public ClaudeLlmAdapter(ClaudeFeignClient client,
                             ObjectMapper objectMapper,
                             @Value("${llm.claude.api-key:}") String apiKey,
-                            @Value("${llm.claude.model:claude-opus-5}") String model,
+                            @Value("${llm.claude.model:claude-haiku-4-5-20251001}") String model,
                             @Value("${llm.claude.send-temperature:false}") boolean sendTemperature) {
         this.client = client;
         this.objectMapper = objectMapper;

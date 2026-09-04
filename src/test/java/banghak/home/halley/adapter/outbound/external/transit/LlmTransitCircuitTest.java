@@ -2,6 +2,7 @@ package banghak.home.halley.adapter.outbound.external.transit;
 
 import banghak.home.halley.adapter.outbound.external.claude.LlmAvailability;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.application.service.LlmModelService;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
 import org.junit.jupiter.api.DisplayName;
@@ -12,6 +13,9 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * 열린 차단기에 <b>다시 던지지 않는다</b> (설계 I271).
@@ -84,7 +88,7 @@ class LlmTransitCircuitTest {
                 return LlmResult.failed("call failed");
             }
         };
-        final var estimator = new LlmTransitEstimator(port, new ObjectMapper(), "", availability);
+        final var estimator = new LlmTransitEstimator(port, new ObjectMapper(), llmModels(), availability);
 
         final List<LlmTransitEstimator.Leg> many = new java.util.ArrayList<>();
         for (int i = 0; i < 40; i++) {
@@ -116,6 +120,13 @@ class LlmTransitCircuitTest {
                 return LlmResult.failed("call failed");
             }
         };
-        return new LlmTransitEstimator(port, new ObjectMapper(), "", availability);
+        return new LlmTransitEstimator(port, new ObjectMapper(), llmModels(), availability);
+    }
+
+    /** 이 시험은 차단기만 본다 — 모델은 안 고른 셈 치고 기본값에 맡긴다 (설계 I267). */
+    private static LlmModelService llmModels() {
+        final var models = mock(LlmModelService.class);
+        when(models.modelFor(any())).thenReturn(null);
+        return models;
     }
 }

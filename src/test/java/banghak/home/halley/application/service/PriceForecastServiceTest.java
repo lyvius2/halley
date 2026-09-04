@@ -1,11 +1,14 @@
 package banghak.home.halley.application.service;
 
+import banghak.home.halley.adapter.inbound.web.dto.UpdateLlmModelRequest;
 import banghak.home.halley.domain.forecast.PriceOutlook;
 import banghak.home.halley.domain.forecast.ForecastPrompt;
 import banghak.home.halley.application.port.out.external.LlmPort;
 import banghak.home.halley.domain.forecast.ForecastDirection;
 import banghak.home.halley.domain.forecast.indicator.ForecastInput;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.llm.LlmMessage;
+import banghak.home.halley.domain.llm.LlmModelOption;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.ListingStatus;
@@ -45,6 +48,9 @@ class PriceForecastServiceTest {
     private PriceForecastService service;
 
     @Autowired
+    private LlmModelService llmModelService;
+
+    @Autowired
     private banghak.home.halley.adapter.outbound.persistence.PriceForecastRepository forecastRepository;
 
     @Autowired
@@ -55,6 +61,49 @@ class PriceForecastServiceTest {
 
     @Autowired
     private banghak.home.halley.adapter.outbound.persistence.UserRepository userRepository;
+
+    /**
+     * 관리자 화면에서 고른 모델이 <b>실제 요청</b>에 실리는가 (설계 I267).
+     *
+     * <p>{@code LlmModelService.modelFor()} 단위 시험은 이미 있지만, 그건
+     * "DB 값을 읽어 오는가"만 본다. 여기서는 <b>그 값이 진짜 LLM 호출까지</b>
+     * 이어지는지 — 관리자가 저장한 순간부터 다음 전망 호출까지 — 전체 경로를 본다.
+     */
+    @Test
+    @DisplayName("관리자가 고른 모델이 실제 LLM 호출에 실린다")
+    void savedModelReachesTheActualLlmCall() {
+        // given — 지금 설정과 다른 모델을 하나 고른다
+        final String before = llmModelService.modelFor(LlmFeature.PRICE_FORECAST);
+        final String chosen = llmModelService.available().stream()
+                .map(LlmModelOption::id)
+                .filter(id -> !id.equals(before))
+                .findFirst()
+                .orElseGet(() -> llmModelService.available().getFirst().id());
+        llmModelService.update(List.of(new UpdateLlmModelRequest(
+                LlmFeature.PRICE_FORECAST.configKey(), chosen)));
+
+        final AtomicReference<String> sentModel = new AtomicReference<>();
+        when(llmPort.isEnabled()).thenReturn(true);
+        when(llmPort.provider()).thenReturn("test");
+        when(llmPort.complete(any())).thenAnswer(inv -> {
+            sentModel.set(((LlmMessage) inv.getArgument(0)).model());
+            return LlmResult.of("""
+                    {"direction":"DOWN","confidence":"MEDIUM","factors":[],"summary":"","caveats":[]}""",
+                    "test-model");
+        });
+
+        try {
+            // when
+            service.forecast(input(1_210_000_000L, 1_140_000_000L));
+
+            // then
+            assertThat(sentModel.get()).as("저장한 모델이 실제 요청에 안 실렸다").isEqualTo(chosen);
+        } finally {
+            // 다른 시험에 영향이 안 가게 되돌린다
+            llmModelService.update(List.of(new UpdateLlmModelRequest(
+                    LlmFeature.PRICE_FORECAST.configKey(), before == null ? "" : before)));
+        }
+    }
 
     @Test
     @DisplayName("코드 예측을 LLM에 넘기지 않는다 — 넘기면 두 예측이 독립이 아니게 된다")

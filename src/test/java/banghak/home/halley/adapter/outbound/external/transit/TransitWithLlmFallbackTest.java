@@ -1,7 +1,10 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
+import banghak.home.halley.adapter.outbound.external.claude.LlmAvailability;
 import banghak.home.halley.adapter.outbound.external.odsay.OdsayTransitAdapter;
+import banghak.home.halley.application.service.LlmModelService;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.config.VirtualThreadGate;
 import banghak.home.halley.config.exception.TransitQuotaExceededException;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
@@ -17,6 +20,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -79,9 +83,9 @@ class TransitWithLlmFallbackTest {
     private TransitWithLlmFallback fallback() {
         // 게이트는 진짜를 쓴다 — 동시에 도는 것까지 그대로 재려는 것이다 (설계 I263)
         return new TransitWithLlmFallback(odsay,
-                new LlmTransitEstimator(llmPort(), objectMapper, "",
-                        new banghak.home.halley.adapter.outbound.external.claude.LlmAvailability()),
-                new banghak.home.halley.config.VirtualThreadGate("test", 8), 20);
+                new LlmTransitEstimator(llmPort(), objectMapper, llmModels(),
+                        new LlmAvailability()),
+                new VirtualThreadGate("test", 8), 20);
     }
 
     @BeforeEach
@@ -426,5 +430,12 @@ class TransitWithLlmFallbackTest {
         assertThat(result.totalMinutes()).isEqualTo(33);
         assertThat(result.legs()).isEmpty();
         assertThat(List.of(result)).allMatch(TransitResult::estimated);
+    }
+
+    /** 이 시험은 <b>모델을 안 고른</b> 상태를 본다 — 그러면 어댑터가 기본을 쓴다 (설계 I267). */
+    private static LlmModelService llmModels() {
+        final var models = mock(LlmModelService.class);
+        when(models.modelFor(any())).thenReturn(null);
+        return models;
     }
 }

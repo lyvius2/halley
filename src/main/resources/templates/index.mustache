@@ -10,8 +10,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@300;500;700&family=Noto+Sans+KR:wght@300;400;500;700&family=Noto+Sans:wght@400;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/css/app.css">
-    <script defer src="/js/app.js"></script>
+    <link rel="stylesheet" href="/css/app.css?v={{assetVersion}}">
+    <script defer src="/js/app.js?v={{assetVersion}}"></script>
     <script defer src="/js/vendor/alpine.min.js"></script>
     <!-- 카카오(다음) 우편번호 서비스 — 주소 검색 팝업 -->
     <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
@@ -1371,7 +1371,54 @@
             </div>
         </template>
         <p class="form-error" x-show="error" x-text="error"></p>
-        <button class="btn btn-primary" @click="saveSettings()" :disabled="loading">설정 저장</button>
+        <button class="btn btn-primary settings-save" @click="saveSettings()" :disabled="savingKey === 'settings'">설정 저장</button>
+
+        <!-- AI 모델 (설계 I267). 자리마다 따로 고른다 — 성격이 서로 다르다 -->
+        <div class="settings-section">
+            <h4>AI 모델</h4>
+            <p class="settings-note">
+                AI를 쓰는 자리마다 모델을 따로 고릅니다. <b>비워 두면 기본 모델</b>을 씁니다.
+                목록은 Anthropic 에서 받아 48시간 담아 둡니다 — 새 모델이 곧바로 안 보이면
+                그 때문입니다. <b>*</b> 표시는 Fable 계열처럼 성격이 다른 모델입니다(설계 I278).
+            </p>
+            <template x-if="!llmModels">
+                <p class="m2-empty">모델 목록을 받지 못했습니다. API 키를 확인해 주십시오.</p>
+            </template>
+            <template x-if="llmModels">
+                <div>
+                    <div class="card table-wrap">
+                        <table>
+                            <thead><tr><th>자리</th><th>하는 일</th><th>모델</th></tr></thead>
+                            <tbody>
+                            <template x-for="f in llmModels.features" :key="f.key">
+                                <tr>
+                                    <td class="strong" x-text="f.label"></td>
+                                    <td x-text="f.description"></td>
+                                    <td>
+                                        <!--
+                                          :selected 를 함께 겁니다 (설계 I280).
+                                          x-model 만 두면 <option> 이 x-for 로 붙기 <b>전에</b> 값이
+                                          적용돼, 브라우저가 첫 항목("기본 모델")으로 되돌립니다 —
+                                          저장은 됐는데 화면만 안 고른 것처럼 보였습니다.
+                                        -->
+                                        <select class="settings-input" x-model="llmForm[f.key]">
+                                            <option value="">기본 모델</option>
+                                            <template x-for="m in llmModels.models" :key="m.id">
+                                                <option :value="m.id"
+                                                        :selected="m.id === llmForm[f.key]"
+                                                        x-text="m.displayName + (m.special ? ' *' : '')"></option>
+                                            </template>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button class="btn btn-primary settings-save" @click="saveLlmModels()" :disabled="savingKey === 'llmModels'">AI 모델 저장</button>
+                </div>
+            </template>
+        </div>
 
         <!-- 규제 파라미터 (설계 I68) -->
         <div class="settings-section">
@@ -1415,7 +1462,7 @@
                 </table>
             </div>
             <p class="form-error" x-show="regError" x-text="regError"></p>
-            <button class="btn btn-primary" @click="saveRegParams()" :disabled="loading">규제 파라미터 저장</button>
+            <button class="btn btn-primary settings-save" @click="saveRegParams()" :disabled="savingKey === 'regParams'">규제 파라미터 저장</button>
         </div>
 
         <!-- 규제지역 (설계 I68) -->

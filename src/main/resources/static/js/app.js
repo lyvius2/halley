@@ -296,6 +296,9 @@ function halley() {
         _loadingTimers: {},
         weights: [],
         settings: [],
+        // AI 모델 설정 (설계 I267)
+        llmModels: null,
+        llmForm: {},
         settingsForm: {},
         notifications: [],
         map: null,
@@ -345,6 +348,14 @@ function halley() {
         passwordForm: { currentPassword: '', newPassword: '' },
         error: null,
         loading: false,
+        /**
+         * 지금 저장 중인 버튼 하나 (설계 I281).
+         *
+         * <p>{@code loading} 은 전역이라 하나를 누르면 <b>화면의 모든 버튼</b>이 같이
+         * 꺼졌다 켜집니다 — 설정 모달에서 "AI 모델 저장"을 눌렀는데 위의 "설정 저장"이
+         * 함께 깜빡였습니다. 누른 버튼만 잠급니다.
+         */
+        savingKey: null,
 
         /**
          * 로그인 전에 알아야 하는 설정 (설계 I95).
@@ -379,7 +390,7 @@ function halley() {
 
         async init() {
             this.guardNumberInputs();
-            this.watchModalClose();
+            this.watchModalOpen();
             this.restoreLoginId();
             // 뒤로/앞으로 가기 (설계 I188). 주소를 다시 밀지 않는다 — 기록이 두 번 쌓인다.
             // `hashchange` 가 아니라 `popstate` 를 듣습니다 — 우리가 `pushState` 로
@@ -704,14 +715,30 @@ function halley() {
             this.error = null;
             this.regError = null;
             this.loadSettings();
+            this.loadLlmModels();
             this.loadNotifications();
             this.loadNotifySettings();
             this.loadRegulations();
         },
 
+        /** 닫을 때 이 모달이 쓰던 것을 비운다 (설계 I112). 다음에 열면 openSettings 가 다시 읽는다. */
         closeSettings() {
             this.showSettings = false;
             this.error = null;
+            this.regError = null;
+            this.settings = [];
+            this.settingsForm = {};
+            this.llmModels = null;
+            this.llmForm = {};
+            this.notifications = [];
+            this.notifySettings = null;
+            this.regActiveProfile = '';
+            this.regProfiles = [];
+            this.regParams = [];
+            this.regParamForm = {};
+            this.regNewProfile = '';
+            this.regAreas = [];
+            this.regAreaForm = emptyRegAreaForm();
         },
 
         /** 사용자 관리도 ADMIN 전용이다 (설계 7.1 M3 · I51). */
@@ -1366,6 +1393,7 @@ function halley() {
                 return;
             }
             this.loading = true;
+            this.savingKey = 'regParams';
             this.regError = null;
             try {
                 const { ok, body } = await this.request('/api/admin/regulations/params', {
@@ -1384,6 +1412,7 @@ function halley() {
                 this.regError = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+                this.savingKey = null;
             }
         },
 
@@ -4082,26 +4111,42 @@ function halley() {
         },
 
         /**
-         * 모달이 닫힐 때 그 안의 스크롤을 되돌린다 (설계 I183).
+         * 모달을 <b>열 때</b> 그 안의 스크롤을 맨 위로 되돌린다 (설계 I183 · I282).
          *
          * <p>모달은 `x-show`로 <b>숨겨질 뿐 사라지지 않습니다</b> — 스크롤 위치가 그대로
          * 남아, 다음에 열면 <b>중간부터 보입니다.</b>
          *
-         * <p>닫는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
-         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 닫혀도</b> 걸립니다.
+         * <p>처음에는 <b>닫힐 때</b> 되돌렸는데 듣지 않았습니다 (설계 I282).
+         * 그때는 이미 `display:none` 이라 상자가 없고, <b>안 그려진 요소에 넣은
+         * {@code scrollTop} 은 그냥 버려집니다.</b> 열려서 그려진 뒤에 넣어야 먹습니다.
+         *
+         * <p>여는 함수가 스물 몇 개라 각각에 넣으면 반드시 하나를 빠뜨립니다.
+         * `style` 이 바뀌는 것을 지켜보면 <b>어느 경로로 열려도</b> 걸립니다.
+         * 열려 있는 채로 다른 `style` 이 바뀔 때는 건드리지 않습니다 — 보던 자리가
+         * 맨 위로 튑니다.
          */
-        watchModalClose() {
+        watchModalOpen() {
+            const hidden = new WeakSet();
+            const modals = document.querySelectorAll('.modal');
+            // 처음엔 다 닫혀 있다. 열리는 쪽으로 바뀌는 것만 잡으려고 표시해 둔다
+            modals.forEach(modal => hidden.add(modal));
             const observer = new MutationObserver(records => {
                 records.forEach(r => {
                     const modal = r.target;
                     if (modal.style.display === 'none') {
-                        modal.querySelectorAll('.modal-card').forEach(card => {
-                            card.scrollTop = 0;
-                        });
+                        hidden.add(modal);
+                        return;
                     }
+                    if (!hidden.has(modal)) {
+                        return;
+                    }
+                    hidden.delete(modal);
+                    modal.querySelectorAll('.modal-card').forEach(card => {
+                        card.scrollTop = 0;
+                    });
                 });
             });
-            document.querySelectorAll('.modal').forEach(modal => {
+            modals.forEach(modal => {
                 observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
             });
         },
@@ -4724,6 +4769,68 @@ function halley() {
             }
         },
 
+        /**
+         * AI 모델 설정 (설계 I267).
+         *
+         * <p>자리 넷과 고를 수 있는 모델을 <b>한 번에</b> 받습니다 — 두 번 물으면
+         * 목록이 늦게 와서 드롭다운이 잠깐 빈 채로 보입니다.
+         */
+        async loadLlmModels() {
+            const { ok, body } = await this.request('/api/admin/llm-models')
+                .catch(() => ({ ok: false }));
+            if (!ok || !body) {
+                this.llmModels = null;
+                return;
+            }
+            this.applyLlmModels(body);
+        },
+
+        /**
+         * 받은 것을 화면 상태로 옮긴다 — 읽을 때도 저장한 뒤에도 <b>같은 길</b>을 쓴다.
+         *
+         * <p>목록에 없는 모델이 저장돼 있으면(Anthropic 이 내린 모델) 비웁니다. 그대로 두면
+         * 드롭다운은 "기본 모델"을 보여 주는데 상태에는 그 모델이 남아, 저장할 때
+         * "쓸 수 없는 모델입니다"가 뜹니다 — 고른 적도 없는 값 때문에.
+         */
+        applyLlmModels(body) {
+            this.llmModels = body;
+            const known = new Set((body.models || []).map(m => m.id));
+            const form = {};
+            (body.features || []).forEach(f => {
+                form[f.key] = known.has(f.model) ? f.model : '';
+            });
+            this.llmForm = form;
+        },
+
+        async saveLlmModels() {
+            this.loading = true;
+            this.savingKey = 'llmModels';
+            this.error = null;
+            try {
+                const payload = (this.llmModels?.features || []).map(f => ({
+                    key: f.key,
+                    model: this.llmForm[f.key] ?? ''
+                }));
+                const { ok, body } = await this.request('/api/admin/llm-models', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                if (ok) {
+                    // 서버가 돌려준 것으로 화면을 다시 맞춘다 — 보낸 값과 저장된 값이
+                    // 다를 수 있고(빈 값 → 기본 모델), 그때 화면만 옛 선택을 들고 있으면 안 된다
+                    this.applyLlmModels(body);
+                } else {
+                    this.error = (body && body.message) || 'AI 모델 설정 저장에 실패했습니다';
+                }
+            } catch (e) {
+                this.error = '네트워크 오류가 발생했습니다';
+            } finally {
+                this.loading = false;
+                this.savingKey = null;
+            }
+        },
+
         async loadSettings() {
             const { ok, body } = await this.request('/api/admin/settings');
             if (ok) {
@@ -4738,6 +4845,7 @@ function halley() {
 
         async saveSettings() {
             this.loading = true;
+            this.savingKey = 'settings';
             this.error = null;
             try {
                 const body = this.settings.map(s => ({
@@ -4758,6 +4866,7 @@ function halley() {
                 this.error = '네트워크 오류가 발생했습니다';
             } finally {
                 this.loading = false;
+                this.savingKey = null;
             }
         },
 
@@ -4778,7 +4887,11 @@ function halley() {
         settingCategories() {
             const order = ['BATCH', 'LOAN'];
             const rank = c => (order.indexOf(c) === -1 ? order.length : order.indexOf(c));
-            const present = [...new Set(this.settings.map(s => s.category))];
+            // AI 모델은 <b>따로 층을 둔다</b> (설계 I267) — 여기 섞이면 자유 입력칸이 되어
+            // 아무 문자열이나 넣을 수 있고, 그러면 그 자리의 AI가 조용히 죽는다
+            const present = [...new Set(this.settings
+                .filter(s => s.category !== 'LLM')
+                .map(s => s.category))];
             return present.sort((a, b) => rank(a) - rank(b));
         },
 

@@ -1,12 +1,14 @@
 package banghak.home.halley.adapter.outbound.external.transit;
 
+import banghak.home.halley.adapter.outbound.external.claude.LlmAvailability;
 import banghak.home.halley.application.port.out.external.LlmPort;
+import banghak.home.halley.application.service.LlmModelService;
+import banghak.home.halley.domain.llm.LlmFeature;
 import banghak.home.halley.domain.itinerary.TransitLeg;
 import banghak.home.halley.domain.llm.LlmMessage;
 import banghak.home.halley.domain.llm.LlmResult;
 import banghak.home.halley.domain.scoring.TransitResult;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
@@ -100,23 +102,28 @@ public class LlmTransitEstimator {
 
     private final LlmPort llmPort;
     private final ObjectMapper objectMapper;
-    private final String model;
+    /** 이 자리에 쓸 모델을 <b>부를 때마다 물어본다</b> (설계 I267) — 붙박이가 아니다. */
+    private final LlmModelService llmModelService;
 
     /** 차단기가 열려 있으면 <b>묻지도 않는다</b> (설계 I271). */
-    private final banghak.home.halley.adapter.outbound.external.claude.LlmAvailability availability;
+    private final LlmAvailability availability;
 
     public LlmTransitEstimator(LlmPort llmPort,
                                ObjectMapper objectMapper,
-                               @Value("${transit.fallback.model:}") String model,
-                               banghak.home.halley.adapter.outbound.external.claude.LlmAvailability availability) {
+                               LlmModelService llmModelService,
+                               LlmAvailability availability) {
         this.llmPort = llmPort;
         this.objectMapper = objectMapper;
-        this.model = model;
+        this.llmModelService = llmModelService;
         this.availability = availability;
     }
 
     public boolean isEnabled() {
         return llmPort.isEnabled();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 
     /** 좌표 넷으로 한 구간을 가리킨다. {@code id} 는 답을 되돌려 짝지을 열쇠다. */
@@ -160,9 +167,11 @@ public class LlmTransitEstimator {
             user.append(String.format("id=%s 출발=(경도 %.6f, 위도 %.6f) 도착=(경도 %.6f, 위도 %.6f)%n",
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
+        // 자리마다 고른 모델을 쓴다 (설계 I267)
+        final String model = blankToNull(llmModelService.modelFor(LlmFeature.COMMUTE_ESTIMATE));
         final LlmMessage message = LlmMessage.deterministic(
-                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR,
-                model == null || model.isBlank() ? null : model);
+                SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR, model);
+        log.info("Asking LLM for transit estimate. model={}, legs={}", model, legs.size());
 
         LlmResult answer = llmPort.complete(message);
         if (retryable(answer)) {
