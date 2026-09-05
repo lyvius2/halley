@@ -54,3 +54,4 @@ src/test/resources/fixtures/
 
 ### JS 시험 도구 (설계 I276) ###
 node_modules/
+logs

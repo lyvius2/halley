@@ -36,20 +36,20 @@
             </a>
             <template x-if="session.authenticated">
                 <nav class="nav">
-                    <button class="nav-btn" :class="{on: view==='list'}" @click="setView('list')">매물</button>
-                    <button class="nav-btn" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
-                    <button class="nav-btn" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
-                    <button class="nav-btn" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
-                    <button class="nav-btn" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
+                    <button class="nav-btn nav-primary" :class="{on: view==='list'}" @click="setView('list')">매물</button>
+                    <button class="nav-btn nav-primary" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
+                    <button class="nav-btn desktop-nav-only" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
+                    <button class="nav-btn desktop-nav-only" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
+                    <button class="nav-btn desktop-nav-only" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
                     <!-- 「{그룹명}의 {닉네임}」 (설계 I170).
                          한 문장으로 읽히지만 <b>가는 곳이 둘</b>이라 버튼도 둘이다 —
                          앞은 그룹 정보(I123), 뒤는 내 프로필(I153). 사이의 구분선만 지운다 -->
-                    <button class="nav-btn nav-mine" type="button" x-show="myGroup"
+                    <button class="nav-btn nav-mine desktop-nav-only" type="button" x-show="myGroup"
                             :class="{on: view==='group'}" @click="setView('group')"
                             :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
                         <span x-text="(myGroup ? myGroup.name : '') + '의'"></span>
                     </button>
-                    <button class="nav-btn nav-mine nav-mine-tail" type="button"
+                    <button class="nav-btn nav-mine nav-mine-tail desktop-nav-only" type="button"
                             :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
                         <!-- 닉네임이 이미 '관리자'면 ' · 관리자'를 붙이지 않는다 (설계 I186).
                              기본 관리자 계정의 닉네임이 그것이라 '관리자 · 관리자'가 됐다 -->
@@ -57,17 +57,29 @@
                                 x-text="session.role==='ADMIN' && session.nickname !== '관리자'
                                         ? ' · 관리자' : ''"></span>
                     </button>
-                    <button class="btn btn-ghost" @click="logout()">로그아웃</button>
+                    <button class="btn btn-ghost desktop-nav-only" @click="logout()">로그아웃</button>
+                    <details class="mobile-nav-more" @click.outside="$el.removeAttribute('open')">
+                        <summary aria-label="더보기 메뉴">•••</summary>
+                        <div class="mobile-nav-menu">
+                            <button x-show="session.role==='ADMIN'"
+                                    @click="setView('weights'); $el.closest('details').removeAttribute('open')">기준</button>
+                            <button x-show="session.role==='ADMIN'"
+                                    @click="openUsers(); $el.closest('details').removeAttribute('open')">사용자</button>
+                            <button x-show="session.role==='ADMIN'"
+                                    @click="openSettings(); $el.closest('details').removeAttribute('open')">설정</button>
+                            <button x-show="myGroup"
+                                    @click="setView('group'); $el.closest('details').removeAttribute('open')"
+                                    x-text="myGroup ? myGroup.name : '그룹'"></button>
+                            <button @click="setView('me'); $el.closest('details').removeAttribute('open')">내 프로필</button>
+                            <button @click="logout(); $el.closest('details').removeAttribute('open')">로그아웃</button>
+                        </div>
+                    </details>
                 </nav>
             </template>
         </div>
     </div>
 
-    <main class="main-grid" :class="mobileTab">
-        <div class="mobile-tabs">
-            <button :class="{on: mobileTab==='map'}" @click="setMobileTab('map')">지도</button>
-            <button :class="{on: mobileTab==='list'}" @click="setMobileTab('list')">리스트</button>
-        </div>
+    <main class="main-grid">
         <section class="map-panel">
             <div id="map" class="map-canvas"></div>
             <div class="map-empty" x-show="!session.authenticated || session.mustChangePassword">
@@ -77,9 +89,23 @@
             </div>
         </section>
 
-        <aside class="list-panel">
+        <aside id="property-list-sheet" class="list-panel"
+               :class="{'sheet-expanded': mobileSheetExpanded, 'sheet-dragging': mobileSheetDragging}"
+               :style="mobileSheetStyle()">
+            <div class="mobile-sheet-handle" role="button" tabindex="0"
+                 :aria-expanded="mobileSheetExpanded" aria-controls="property-list-content"
+                 @pointerdown="startMobileSheetDrag($event)"
+                 @pointermove.window="moveMobileSheetDrag($event)"
+                 @pointerup.window="endMobileSheetDrag($event)"
+                 @pointercancel.window="cancelMobileSheetDrag($event)"
+                 @click="toggleMobileSheet()"
+                 @keydown.enter.prevent="toggleMobileSheet()"
+                 @keydown.space.prevent="toggleMobileSheet()">
+                <span class="mobile-sheet-grip" aria-hidden="true"></span>
+                <span class="sr-only" x-text="mobileSheetExpanded ? '매물 목록 접기' : '매물 목록 펼치기'"></span>
+            </div>
             <template x-if="session.authenticated && !session.mustChangePassword">
-                <div>
+                <div id="property-list-content" class="list-panel-scroll">
                     <div x-show="view==='list'">
                         <div class="sec-head sec-head-actions">
                             <h2>매물</h2>
@@ -140,37 +166,43 @@
                                 <article class="property-card" :class="{active: activePropertyId === r.property.id, sold: r.property.listingStatus==='SOLD_OUT'}"
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
-                                        <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I265).
-                                             없으면 카드가 전부 같은 이름으로 보인다 -->
-                                        <span class="property-card-name" x-text="propertyTitle(r.property)"></span>
-                                        <!-- 가격 전망 (설계 I136). 화살표는 오직 LLM 예측만 나타낸다 —
-                                             코드 예측과 갈려도 색을 흐리지 않는다. 그 사실은 모달에서 말한다 -->
-                                        <button class="forecast-arrow" type="button"
-                                                x-show="forecastArrow(r)"
-                                                :class="forecastArrowClass(r)"
-                                                :title="forecastTitle(r)"
-                                                @click.stop="openForecast(r)"
-                                                x-text="forecastArrow(r)"></button>
-                                        <span class="owner-badge" x-show="r.property.createdByNickname"
-                                              :title="'등록: ' + r.property.createdByNickname">
-                                            <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
-                                            <span x-text="r.property.createdByNickname"></span>
-                                        </span>
-                                        <!-- 그룹 badge는 admin에게만 온다 (설계 I87 · 규칙 5) -->
-                                        <span class="group-badge" x-show="r.property.groupName"
-                                              :title="'그룹: ' + r.property.groupName"
-                                              x-text="r.property.groupName"></span>
-                                        <!-- 쾌적함이 채점됐다면 누군가 다녀온 것이다 (설계 I121) -->
-                                        <span class="badge b-visited" x-show="hasVisited(r)"
-                                              :class="{mine: scoredComfort(r)}"
-                                              :title="visitedTitle(r)">🚩 임장완료</span>
-                                        <!-- 전망이 없는 매물은 매매가를 눌러 분석시킨다 (설계 I142).
-                                             이미 낸 적이 있으면 누를 수 없다 — UNCERTAIN 이라도 그건 답이다 -->
-                                        <span class="property-card-price"
-                                              :class="{'price-triggerable': canTriggerForecast(r)}"
-                                              :title="forecastPriceTitle(r)"
-                                              @click.stop="triggerForecast(r)"
-                                              x-text="fmtWon(r.property.priceDeposit)"></span>
+                                        <div class="property-card-title-row">
+                                            <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I265).
+                                                 없으면 카드가 전부 같은 이름으로 보인다 -->
+                                            <button class="property-card-name" type="button"
+                                                    @click.stop="revealPropertyOnMap(r)"
+                                                    :title="propertyTitle(r.property)"
+                                                    x-text="propertyTitle(r.property)"></button>
+                                            <!-- 가격 전망 (설계 I136). 화살표는 오직 LLM 예측만 나타낸다 —
+                                                 코드 예측과 갈려도 색을 흐리지 않는다. 그 사실은 모달에서 말한다 -->
+                                            <button class="forecast-arrow" type="button"
+                                                    x-show="forecastArrow(r)"
+                                                    :class="forecastArrowClass(r)"
+                                                    :title="forecastTitle(r)"
+                                                    @click.stop="openForecast(r)"
+                                                    x-text="forecastArrow(r)"></button>
+                                            <!-- 전망이 없는 매물은 매매가를 눌러 분석시킨다 (설계 I142).
+                                                 이미 낸 적이 있으면 누를 수 없다 — UNCERTAIN 이라도 그건 답이다 -->
+                                            <span class="property-card-price"
+                                                  :class="{'price-triggerable': canTriggerForecast(r)}"
+                                                  :title="forecastPriceTitle(r)"
+                                                  @click.stop="triggerForecast(r)"
+                                                  x-text="fmtWon(r.property.priceDeposit)"></span>
+                                        </div>
+                                        <div class="property-card-badges">
+                                            <!-- 좁은 화면에서는 이름·가격과 다른 줄에 둔다 (설계 I289). -->
+                                            <span class="owner-badge" x-show="r.property.createdByNickname"
+                                                  :title="'등록: ' + r.property.createdByNickname">
+                                                <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
+                                                <span x-text="r.property.createdByNickname"></span>
+                                            </span>
+                                            <span class="group-badge" x-show="r.property.groupName"
+                                                  :title="'그룹: ' + r.property.groupName"
+                                                  x-text="r.property.groupName"></span>
+                                            <span class="badge b-visited" x-show="hasVisited(r)"
+                                                  :class="{mine: scoredComfort(r)}"
+                                                  :title="visitedTitle(r)">🚩 임장완료</span>
+                                        </div>
                                     </div>
                                     <div class="property-card-meta">
                                         <span class="badge" :class="dealBadge(r.property.dealType)" x-text="dealLabel(r.property.dealType)"></span>

@@ -93,6 +93,10 @@ const INFINITE_SCROLL_MARGIN_PX = 400;
  * <p>다녀온 곳은 뒤로. 임장은 <b>아직 안 가 본 곳을 고르려고</b> 보는 지도입니다.
  */
 const PIN_Z = { visited: 1, fresh: 2, hover: 10 };
+/** 모바일 목록 시트가 지도를 남겨 두는 비율과 한 번의 밀기로 보는 최소 거리 (설계 I289). */
+const MOBILE_BREAKPOINT_PX = 767;
+const MOBILE_SHEET_PEEK_RATIO = 0.25;
+const MOBILE_SHEET_DRAG_THRESHOLD_PX = 48;
 
 /** AI 결과를 기다리는 동안의 폴링 간격·상한 (설계 I72). */
 /**
@@ -154,7 +158,16 @@ function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
         view: 'list',
-        mobileTab: 'map',
+        mobileSheetExpanded: false,
+        mobileSheetDragging: false,
+        mobileSheetOffsetPx: null,
+        _mobileSheetPointerId: null,
+        _mobileSheetStartY: 0,
+        _mobileSheetStartOffsetPx: 0,
+        _mobileSheetTravelPx: 0,
+        _mobileSheetStartedExpanded: false,
+        _mobileSheetMoved: false,
+        _mobileSheetSuppressClick: false,
         dealTypeFilter: 'ALL',
         /**
          * 목록 정렬 (설계 I221 → I240).
@@ -431,6 +444,7 @@ function halley() {
             window.addEventListener('hashchange', onNavigate);
             await this.loadPublicConfig();
             window.addEventListener('resize', () => {
+                this.resetMobileSheetDrag();
                 if (this.map) {
                     this.map.relayout();
                 }
@@ -438,10 +452,125 @@ function halley() {
             await this.checkSession();
         },
 
-        setMobileTab(tab) {
-            this.mobileTab = tab;
-            if (tab === 'map') {
-                this.renderMap();
+        isMobileViewport() {
+            if (typeof window.matchMedia === 'function') {
+                return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`).matches;
+            }
+            return window.innerWidth <= MOBILE_BREAKPOINT_PX;
+        },
+
+        mobileSheetStyle() {
+            if (this.mobileSheetOffsetPx == null) {
+                return '';
+            }
+            return `transform: translateY(${Math.round(this.mobileSheetOffsetPx)}px)`;
+        },
+
+        toggleMobileSheet() {
+            // 드래그를 끝내면 브라우저가 click도 이어서 보낸다. 그 click까지 받으면
+            // 방금 정한 스냅 상태가 즉시 반대로 뒤집힌다.
+            if (this._mobileSheetSuppressClick) {
+                this._mobileSheetSuppressClick = false;
+                return;
+            }
+            if (this.isMobileViewport()) {
+                this.mobileSheetExpanded = !this.mobileSheetExpanded;
+            }
+        },
+
+        expandMobileSheet() {
+            if (this.isMobileViewport()) {
+                this.mobileSheetExpanded = true;
+            }
+        },
+
+        collapseMobileSheet() {
+            this.mobileSheetExpanded = false;
+        },
+
+        revealPropertyOnMap(item) {
+            this.focusProperty(item);
+            this.collapseMobileSheet();
+        },
+
+        startMobileSheetDrag(event) {
+            if (!this.isMobileViewport() || (event.button != null && event.button !== 0)) {
+                return;
+            }
+            const panel = event.currentTarget.closest('.list-panel');
+            const panelHeight = panel ? panel.clientHeight : 0;
+            const travel = panelHeight * (1 - MOBILE_SHEET_PEEK_RATIO);
+            if (travel <= 0) {
+                return;
+            }
+            this.mobileSheetDragging = true;
+            this._mobileSheetPointerId = event.pointerId;
+            this._mobileSheetStartY = event.clientY;
+            this._mobileSheetTravelPx = travel;
+            this._mobileSheetStartedExpanded = this.mobileSheetExpanded;
+            this._mobileSheetStartOffsetPx = this.mobileSheetExpanded ? 0 : travel;
+            this.mobileSheetOffsetPx = this._mobileSheetStartOffsetPx;
+            this._mobileSheetMoved = false;
+            this._mobileSheetSuppressClick = false;
+            if (typeof event.currentTarget.setPointerCapture === 'function') {
+                event.currentTarget.setPointerCapture(event.pointerId);
+            }
+            event.preventDefault();
+        },
+
+        moveMobileSheetDrag(event) {
+            if (!this.mobileSheetDragging || event.pointerId !== this._mobileSheetPointerId) {
+                return;
+            }
+            const delta = event.clientY - this._mobileSheetStartY;
+            this.mobileSheetOffsetPx = Math.min(
+                this._mobileSheetTravelPx,
+                Math.max(0, this._mobileSheetStartOffsetPx + delta));
+            this._mobileSheetMoved = this._mobileSheetMoved || Math.abs(delta) > 8;
+            event.preventDefault();
+        },
+
+        endMobileSheetDrag(event) {
+            if (!this.mobileSheetDragging || event.pointerId !== this._mobileSheetPointerId) {
+                return;
+            }
+            const delta = event.clientY - this._mobileSheetStartY;
+            if (delta <= -MOBILE_SHEET_DRAG_THRESHOLD_PX) {
+                this.mobileSheetExpanded = true;
+            } else if (delta >= MOBILE_SHEET_DRAG_THRESHOLD_PX) {
+                this.mobileSheetExpanded = false;
+            } else {
+                this.mobileSheetExpanded = this._mobileSheetStartedExpanded;
+            }
+            this._mobileSheetSuppressClick = this._mobileSheetMoved;
+            if (this._mobileSheetSuppressClick) {
+                // 일부 브라우저는 드래그 뒤 click을 만들지 않는다. 그 경우 다음 실제 탭까지
+                // 막지 않도록 현재 이벤트 묶음이 끝나면 안전장치를 걷는다.
+                setTimeout(() => {
+                    this._mobileSheetSuppressClick = false;
+                }, 0);
+            }
+            this.resetMobileSheetDrag(false);
+        },
+
+        cancelMobileSheetDrag(event) {
+            if (!this.mobileSheetDragging || event.pointerId !== this._mobileSheetPointerId) {
+                return;
+            }
+            this.mobileSheetExpanded = this._mobileSheetStartedExpanded;
+            this.resetMobileSheetDrag();
+        },
+
+        resetMobileSheetDrag(clearSuppressedClick = true) {
+            this.mobileSheetDragging = false;
+            this.mobileSheetOffsetPx = null;
+            this._mobileSheetPointerId = null;
+            this._mobileSheetStartY = 0;
+            this._mobileSheetStartOffsetPx = 0;
+            this._mobileSheetTravelPx = 0;
+            this._mobileSheetMoved = false;
+            if (clearSuppressedClick) {
+                this._mobileSheetSuppressClick = false;
             }
         },
 
@@ -704,6 +833,9 @@ function halley() {
         setView(view) {
             const leaving = this.view;
             this.view = view;
+            if (view !== 'list') {
+                this.expandMobileSheet();
+            }
             // 지도는 <b>화면마다 따로 있지 않습니다</b> — 하나를 나눠 씁니다 (설계 I206).
             // 임장을 떠나면 그 경로선도 걷어냅니다. 안 그러면 매물 화면 지도 위에
             // 어제 짠 동선이 계속 얹혀 있습니다
@@ -5262,6 +5394,7 @@ function halley() {
 
         selectMarker(id) {
             this.activePropertyId = id;
+            this.expandMobileSheet();
             const el = document.getElementById('prop-' + id);
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
