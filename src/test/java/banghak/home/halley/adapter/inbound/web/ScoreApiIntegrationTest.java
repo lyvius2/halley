@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
+import banghak.home.halley.adapter.outbound.persistence.UserRepository;
 import banghak.home.halley.application.service.UserService;
 import banghak.home.halley.domain.user.UserRole;
 
@@ -18,6 +19,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -32,6 +34,9 @@ class ScoreApiIntegrationTest {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Autowired
     private ObjectMapper objectMapper;
@@ -133,6 +138,82 @@ class ScoreApiIntegrationTest {
         // when · then
         mockMvc.perform(post("/api/properties/1/rescore"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    /**
+     * 쾌적함은 <b>사람마다 따로</b> 매긴다 (설계 I118). A가 매겼다고 B가 못 매기면 안 된다.
+     */
+    @Test
+    @DisplayName("같은 그룹의 A가 쾌적함을 매겨도 B가 자기 점수를 매길 수 있다")
+    void bothMembersCanScoreComfort() throws Exception {
+        // given — 한 그룹에 두 사람
+        final MockHttpSession a = login("comfort-a", "comfort-a@example.com");
+        final Long groupId = userRepository.findByLoginId("comfort-a").orElseThrow().groupId();
+        final MockHttpSession b = loginInGroup("comfort-b", groupId);
+
+        final String created = mockMvc.perform(post("/api/properties").session(a)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"쾌적함 공유\",\"dealType\":\"SALE\",\"priceDeposit\":300000000}"))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        final String id = objectMapper.readTree(created).get("property").get("id").asString();
+
+        // when — A가 5점을 매긴 뒤 B가 3점을 매긴다
+        mockMvc.perform(put("/api/properties/" + id + "/scores").session(a)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scores\":{\"COMFORT\":5}}"))
+                .andExpect(status().isOk());
+        final String afterB = mockMvc.perform(put("/api/properties/" + id + "/scores").session(b)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"scores\":{\"COMFORT\":3}}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        // then — B의 점수가 남고, A의 점수는 '다른 사람'으로 살아 있다
+        final JsonNode comfort = comfortOf(afterB);
+        assertThat(comfort.path("myScore").asInt()).as("B가 매긴 점수가 안 남았다").isEqualTo(3);
+        assertThat(comfort.path("othersAverage").asDouble()).as("A의 점수가 사라졌다").isEqualTo(5.0);
+        // 평균 4점 × 20
+        assertThat(comfort.path("effectiveScore").asDouble()).isEqualTo(80.0);
+
+        // A가 다시 봐도 자기 점수는 그대로다
+        final String seenByA = mockMvc.perform(get("/api/properties/" + id).session(a))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(comfortOf(seenByA).path("myScore").asInt()).isEqualTo(5);
+    }
+
+    private JsonNode comfortOf(String body) throws Exception {
+        for (final JsonNode s : objectMapper.readTree(body).path("scores")) {
+            if ("COMFORT".equals(s.path("code").asString())) {
+                return s;
+            }
+        }
+        throw new AssertionError("응답에 COMFORT 항목이 없다");
+    }
+
+    /** 이미 있는 그룹에 회원을 하나 더 넣고 로그인한다. */
+    private MockHttpSession loginInGroup(String loginId, Long groupId) throws Exception {
+        userService.create(new CreateUserRequest(
+                loginId, loginId, groupId, "password1!", UserRole.MEMBER,
+                "회사", new BigDecimal("37.5"), new BigDecimal("127.0"), 300_000_000L, 60_000_000L, 0L));
+        final MockHttpSession session = new MockHttpSession();
+        mockMvc.perform(post("/api/auth/login").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"loginId\":\"" + loginId + "\",\"password\":\"password1!\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/password").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"currentPassword\":\"password1!\",\"newPassword\":\"newpassword2!\"}"))
+                .andExpect(status().isNoContent());
+        mockMvc.perform(put("/api/users/me/profile").session(session)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"workplaceName":"회사","workplaceLat":37.5,"workplaceLng":127.0,
+                                 "availableBudget":300000000,"annualIncome":60000000,"existingLoan":0}
+                                """))
+                .andExpect(status().isOk());
+        return session;
     }
 
     private MockHttpSession login(String nickname, String email) throws Exception {

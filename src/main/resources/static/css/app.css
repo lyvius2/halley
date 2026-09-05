@@ -798,6 +798,12 @@ input[type=checkbox], input[type=radio] {
 /* 매물 상세(M2) — 버튼을 눌러 펼치던 항목을 한 화면에 모두 보여준다 (설계 I53) */
 .m2-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 24px; }
 .m2-sec-wide { grid-column: 1 / -1; }
+/*
+ * 안의 가로 스크롤이 칸을 밀어내지 못하게 (설계 I288).
+ * 아래 모바일의 `minmax(0, 1fr)` 과 <b>각각 단독으로도</b> 이 버그를 막습니다 —
+ * 둘 다 두는 것은 격자 설정을 나중에 바꿔도 버티게 하려는 것입니다.
+ */
+.m2-sec { min-width: 0; }
 
 /* 상세 안의 사진 (설계 I203). 다른 칸과 같은 크기로 두어 격자가 어긋나지 않게 한다 */
 .m2-figure {
@@ -844,7 +850,16 @@ input[type=checkbox], input[type=radio] {
 }
 .m2-gap { font-size: 11.5px; color: var(--ocean); margin-bottom: 8px; }
 @media (max-width: 720px) {
-    .m2-grid { grid-template-columns: 1fr; }
+    /*
+     * `1fr` 이 아니라 `minmax(0, 1fr)` 이다 (설계 I288).
+     *
+     * `1fr` 은 `minmax(auto, 1fr)` 이라 <b>칸이 내용보다 좁아지지 않습니다.</b>
+     * 사진 띠(`.m2-photos`)는 가로로 이어 붙는 격자라 폭이 사진 수만큼 늘어나는데,
+     * 그 폭이 그대로 칸의 최소 폭이 되어 <b>격자 전체가 화면 밖으로 부풀었습니다</b> —
+     * 360px 화면에서 950px 이 됐고, 매물 정보는 옆으로 밀려 안 보였습니다.
+     * 넓은 화면은 이미 `minmax(0, 1fr)` 이라 멀쩡했고 <b>모바일에서만</b> 났습니다.
+     */
+    .m2-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* ── 프로필 (M5) ───────────────────────────────────── */
