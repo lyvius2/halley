@@ -166,3 +166,40 @@ test('쾌적함 슬라이더의 기본값은 1이다', () => {
     assert.equal(app.scoreSliderValue(app.scoreProperty.scores[0]), 1);
     assert.equal(app.changedScores().COMFORT, 1);
 });
+
+/**
+ * 미산출은 <b>모르는 것</b>이지 0점이 아니다 (설계 I220).
+ *
+ * <p>슬라이더는 어떤 값이든 손잡이를 놓아야 하지만, 그 값을 <b>점수처럼 보여 주면</b>
+ * 조회가 실패한 항목이 "0점을 받았다"로 읽힌다.
+ */
+test('미산출 항목을 0점으로 보여 주지 않는다', () => {
+    // given
+    const { window } = bootWindow();
+    const app = mountHalley(window);
+
+    // when
+    app.applyScoreForm({
+        property: { id: 1 },
+        scores: [{ code: 'STATION', name: '역세권', scoringType: 'AUTO',
+            autoScore: null, manualScore: null, effectiveScore: null,
+            scoreSource: 'FALLBACK', fallbackReason: '조회 실패' }],
+    });
+
+    // then
+    assert.equal(app.scoreDisplayValue(app.scoreProperty.scores[0]), '–',
+        '미산출이 0점으로 보인다');
+});
+
+test('아직 안 매긴 쾌적함은 저장될 값을 그대로 보여 준다', () => {
+    // given
+    const { window } = bootWindow();
+    const app = mountHalley(window);
+
+    // when
+    app.applyScoreForm(comfortAfterOthersScored());
+
+    // then — 손대지 않아도 1로 저장되므로 1을 보여 주는 것이 맞다
+    assert.equal(app.scoreDisplayValue(app.scoreProperty.scores[0]), 1);
+    assert.equal(app.changedScores().COMFORT, 1);
+});

@@ -4757,6 +4757,30 @@ function halley() {
         },
 
         /**
+         * 사람에게 보여 줄 값 (설계 I287).
+         *
+         * <p><b>손잡이가 놓인 자리와 점수는 다릅니다.</b> 슬라이더는 어떤 값이든 손잡이를
+         * 놓아야 하지만, 그 값을 점수처럼 보여 주면 조회가 실패한 항목이 <b>"0점을 받았다"</b>
+         * 로 읽힙니다 — 모르는 것과 나쁜 것은 다릅니다([I220]).
+         *
+         * <p>쾌적함만 다릅니다. 손대지 않아도 <b>그 값으로 저장되므로</b> 그대로 보여 주는
+         * 것이 맞습니다.
+         */
+        scoreDisplayValue(s) {
+            const held = this.scoreForm[s.code];
+            if (held !== '' && held != null) {
+                return held;
+            }
+            return s.code === 'COMFORT' ? this.scoreMin(s) : '–';
+        },
+
+        /** 읽어 주는 말 — 미산출을 "0점"이라고 읽지 않는다 (설계 I287). */
+        scoreValueText(s) {
+            const shown = this.scoreDisplayValue(s);
+            return shown === '–' ? '아직 산출되지 않음' : shown + '점';
+        },
+
+        /**
          * 저장할 항목만 고른다 (설계 I111 · I287).
          *
          * <p>고친 것만 보냅니다 — 전부 보내면 추정값으로 채워 둔 칸까지 저장돼

@@ -2060,11 +2060,11 @@
                                :style="scoreRangeFill(s)"
                                @input="scoreForm[s.code] = $event.target.value"
                                :aria-label="s.name + ' 점수'"
-                               :aria-valuetext="scoreSliderValue(s) + '점'">
-                        <!-- 손잡이가 가리키는 값을 그대로 보여 준다 (설계 I287).
-                             빈 칸이면 손잡이는 가운데 있는데 숫자만 '–' 라, 저장해도
-                             아무 일이 없는 이유를 화면에서 알 수 없었다 -->
-                        <span class="gauge-value" x-text="scoreSliderValue(s)"></span>
+                               :aria-valuetext="scoreValueText(s)">
+                        <!-- 손잡이 자리와 점수는 다르다 (설계 I287). 쾌적함은 손대지 않아도
+                             그 값으로 저장되므로 그대로 보여 주고, 미산출은 손잡이가
+                             어디에 있든 '–' 다 — 0점을 받은 것이 아니다 -->
+                        <span class="gauge-value" x-text="scoreDisplayValue(s)"></span>
                     </div>
 
                     <p class="score-item-reason" x-show="s.fallbackReason">
