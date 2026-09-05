@@ -153,3 +153,16 @@ test('미산출 항목은 손대지 않으면 저장되지 않는다', () => {
     assert.equal(app.changedScores().STATION, undefined,
         '미산출이 슬라이더 가운데 값으로 굳었다');
 });
+
+test('쾌적함 슬라이더의 기본값은 1이다', () => {
+    // given
+    const { window } = bootWindow();
+    const app = mountHalley(window);
+
+    // when
+    app.applyScoreForm(comfortAfterOthersScored());
+
+    // then
+    assert.equal(app.scoreSliderValue(app.scoreProperty.scores[0]), 1);
+    assert.equal(app.changedScores().COMFORT, 1);
+});

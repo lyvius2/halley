@@ -4750,7 +4750,10 @@ function halley() {
             if (held !== '' && held != null) {
                 return held;
             }
-            return Math.round((this.scoreMin(s) + this.scoreMax(s)) / 2);
+            // 쾌적함은 <b>가장 낮은 값</b>에서 시작한다. 가운데(보통)에서 시작하면
+            // 손대지 않고 저장했을 때 '보통이라고 매겼다'가 되는데, 그건 사람이
+            // 고른 것이 아니다 — 올리는 것은 뜻이 있어야 한다
+            return this.scoreMin(s);
         },
 
         /**
