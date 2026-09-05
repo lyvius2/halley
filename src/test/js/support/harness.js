@@ -71,8 +71,10 @@ async function renderFragment(window, html, setup) {
     const root = window.document.createElement('div');
     root.setAttribute('x-data', 'halley()');
     root.innerHTML = html;
+    // Alpine 은 <b>불러올 때 스스로 시작합니다.</b> 여기서 start() 를 또 부르면
+    // "이미 시작됐다" 경고가 뜨고, 초기화가 두 번 도는 탓에 <b>브라우저와 다르게</b>
+    // 굴러갈 수 있습니다. 뒤늦게 붙인 `x-data` 는 Alpine 이 알아서 집어 갑니다
     window.document.body.appendChild(root);
-    window.Alpine.start();
     await new Promise(r => window.setTimeout(r, 50));
     const app = window.Alpine.$data(root);
     if (setup) {
