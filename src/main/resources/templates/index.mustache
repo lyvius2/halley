@@ -2056,12 +2056,15 @@
                              1점인지 5점인지 눈에 안 들어온다 -->
                         <input type="range" class="score-range"
                                :min="scoreMin(s)" :max="scoreMax(s)" :step="scoreStep(s)"
-                               :value="scoreForm[s.code] ?? scoreMin(s)"
+                               :value="scoreSliderValue(s)"
                                :style="scoreRangeFill(s)"
                                @input="scoreForm[s.code] = $event.target.value"
                                :aria-label="s.name + ' 점수'"
-                               :aria-valuetext="(scoreForm[s.code] ?? scoreMin(s)) + '점'">
-                        <span class="gauge-value" x-text="scoreForm[s.code] ?? '–'"></span>
+                               :aria-valuetext="scoreValueText(s)">
+                        <!-- 손잡이 자리와 점수는 다르다 (설계 I287). 쾌적함은 손대지 않아도
+                             그 값으로 저장되므로 그대로 보여 주고, 미산출은 손잡이가
+                             어디에 있든 '–' 다 — 0점을 받은 것이 아니다 -->
+                        <span class="gauge-value" x-text="scoreDisplayValue(s)"></span>
                     </div>
 
                     <p class="score-item-reason" x-show="s.fallbackReason">

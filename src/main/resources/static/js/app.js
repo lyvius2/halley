@@ -4737,27 +4737,93 @@ function halley() {
             this.error = null;
         },
 
-        async saveScore() {
-            this.loading = true;
-            this.error = null;
-            // 내가 실제로 고친 항목만 보낸다 (설계 I111). 전부 보내면 추정값으로
-            // 채워 둔 칸까지 저장돼 자동 채점이 통째로 수동으로 굳고 산출 근거가 사라진다
+        /**
+         * 슬라이더가 실제로 가리키는 값 (설계 I287).
+         *
+         * <p>빈 칸이면 `<input type=range>` 는 값이 잘못됐다고 보고 <b>가운데로
+         * 손잡이를 놓습니다.</b> 화면은 3 을 가리키는데 모델은 빈 값이면, 사람이
+         * "3 이 맞다" 고 두었을 때 <b>바뀐 게 없다</b>고 읽혀 아무것도 저장되지 않습니다.
+         * 화면과 모델이 같은 값을 보게 맞춥니다.
+         */
+        scoreSliderValue(s) {
+            const held = this.scoreForm[s.code];
+            if (held !== '' && held != null) {
+                return held;
+            }
+            // 쾌적함은 <b>가장 낮은 값</b>에서 시작한다. 가운데(보통)에서 시작하면
+            // 손대지 않고 저장했을 때 '보통이라고 매겼다'가 되는데, 그건 사람이
+            // 고른 것이 아니다 — 올리는 것은 뜻이 있어야 한다
+            return this.scoreMin(s);
+        },
+
+        /**
+         * 사람에게 보여 줄 값 (설계 I287).
+         *
+         * <p><b>손잡이가 놓인 자리와 점수는 다릅니다.</b> 슬라이더는 어떤 값이든 손잡이를
+         * 놓아야 하지만, 그 값을 점수처럼 보여 주면 조회가 실패한 항목이 <b>"0점을 받았다"</b>
+         * 로 읽힙니다 — 모르는 것과 나쁜 것은 다릅니다([I220]).
+         *
+         * <p>쾌적함만 다릅니다. 손대지 않아도 <b>그 값으로 저장되므로</b> 그대로 보여 주는
+         * 것이 맞습니다.
+         */
+        scoreDisplayValue(s) {
+            const held = this.scoreForm[s.code];
+            if (held !== '' && held != null) {
+                return held;
+            }
+            return s.code === 'COMFORT' ? this.scoreMin(s) : '–';
+        },
+
+        /** 읽어 주는 말 — 미산출을 "0점"이라고 읽지 않는다 (설계 I287). */
+        scoreValueText(s) {
+            const shown = this.scoreDisplayValue(s);
+            return shown === '–' ? '아직 산출되지 않음' : shown + '점';
+        },
+
+        /**
+         * 저장할 항목만 고른다 (설계 I111 · I287).
+         *
+         * <p>고친 것만 보냅니다 — 전부 보내면 추정값으로 채워 둔 칸까지 저장돼
+         * 자동 채점이 통째로 수동으로 굳고 산출 근거가 사라집니다.
+         *
+         * <p>다만 <b>사람마다 따로 매기는 항목</b>(쾌적함)이 아직 내 것으로 비어 있으면
+         * 손대지 않았어도 보냅니다. 남이 매겨 둔 매물에서 B 가 슬라이더가 가리키는 값
+         * 그대로 저장하려 하면 "바뀐 게 없다"로 읽혀 <b>영영 못 매겼습니다.</b>
+         *
+         * <p><b>다른 항목에는 적용하지 않습니다.</b> 미산출은 대개 그때 외부 조회가
+         * 실패한 것이라, 슬라이더 가운데 값이 그대로 저장되면 <b>실패가 사람이 매긴
+         * 점수로 굳습니다.</b>
+         */
+        changedScores() {
             const before = this._scoreFormAtOpen || {};
             const locked = new Set((this.scoreProperty?.scores || [])
                 .filter(s => this.scoreLocked(s)).map(s => s.code));
+            const byCode = new Map((this.scoreProperty?.scores || []).map(s => [s.code, s]));
             const scores = {};
             for (const code in this.scoreForm) {
                 if (locked.has(code)) {
                     continue;
                 }
-                if (String(this.scoreForm[code] ?? '') === String(before[code] ?? '')) {
+                // 사람마다 매기는 항목만 예외다 — 미산출을 가운데 값으로 굳히면 안 된다
+                const unscored = code === 'COMFORT' && String(before[code] ?? '') === '';
+                const value = toNum(unscored
+                    ? this.scoreSliderValue(byCode.get(code) || { code })
+                    : this.scoreForm[code]);
+                if (value == null) {
                     continue;
                 }
-                const value = toNum(this.scoreForm[code]);
-                if (value != null) {
-                    scores[code] = value;
+                if (!unscored && String(this.scoreForm[code] ?? '') === String(before[code] ?? '')) {
+                    continue;
                 }
+                scores[code] = value;
             }
+            return scores;
+        },
+
+        async saveScore() {
+            this.loading = true;
+            this.error = null;
+            const scores = this.changedScores();
             if (Object.keys(scores).length === 0) {
                 this.loading = false;
                 this.showScoreModal = false;
