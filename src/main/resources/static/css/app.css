@@ -26,6 +26,17 @@ body {
 }
 
 [x-cloak] { display: none !important; }
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
 
 /* ── 셸 (상단 바 + 본문) ─────────────────────────── */
 .shell {
@@ -39,6 +50,8 @@ body {
 
 /* ── 상단 바 ─────────────────────────────────────── */
 .topbar {
+    position: relative;
+    z-index: 40;
     background: var(--ink);
     color: #d8d2c6;
     border-bottom: 1px solid #000;
@@ -118,6 +131,7 @@ body {
 .nav-btn.nav-mine-tail::before { display: none; }
 /* 로그아웃은 메뉴가 아니라 <b>나가는 문</b>이다. 붙여 두면 닉네임을 누르려다 눌린다 */
 .nav .btn-ghost { margin-left: 28px; }
+.mobile-nav-more { display: none; }
 
 /* ── 본문 (좌 지도 / 우 리스트) ───────────────────── */
 .main-grid {
@@ -160,6 +174,7 @@ body {
     padding: 24px 20px;
     background: var(--paper);
 }
+.mobile-sheet-handle { display: none; }
 
 /* ── 섹션 헤더 ───────────────────────────────────── */
 .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 18px; }
@@ -194,14 +209,38 @@ h2 { font-family: 'Noto Serif KR', serif; font-size: 20px; font-weight: 700; }
     gap: 10px;
     margin-bottom: 6px;
 }
+.property-card-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.property-card-badges {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-width: 0;
+    max-width: 100%;
+}
 .property-card-name {
+    display: block;
     font-family: 'Noto Serif KR', serif;
     font-size: 14px;
     font-weight: 700;
+    line-height: inherit;
+    color: inherit;
+    text-align: left;
+    border: 0;
+    padding: 0;
+    background: none;
+    cursor: pointer;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+.property-card-name:focus-visible { outline: 2px solid var(--ocean); outline-offset: 2px; }
 .property-card-price {
     font-family: 'JetBrains Mono', monospace;
     font-size: 12px;
@@ -1392,7 +1431,13 @@ tr.dragging { opacity: .5; background: var(--line2); }
 .rv-fallback p { font-size: 12px; }
 
 /* ── 반응형 ──────────────────────────────────────── */
-.mobile-tabs { display: none; }
+
+@media (min-width: 768px) {
+    /* 모바일용 묶음은 PC에서 상자를 만들지 않는다. 기존 카드의 한 줄 순서와 간격을 유지한다. */
+    .property-list .property-card-title-row,
+    .property-list .property-card-badges { display: contents; }
+    .property-list .property-card-title-row .property-card-price { order: 1; }
+}
 
 @media (max-width: 900px) {
     .shell { height: auto; min-height: 100vh; min-height: 100dvh; overflow: visible; }
@@ -1401,31 +1446,152 @@ tr.dragging { opacity: .5; background: var(--line2); }
     .list-panel { overflow: visible; }
 }
 
-@media (max-width: 768px) {
-    .mobile-tabs {
-        display: flex;
-        gap: 6px;
-        padding: 8px 12px;
-        background: var(--ink);
+@media (max-width: 767px) {
+    :root { --mobile-header-height: 49px; }
+    html,
+    body { width: 100%; max-width: 100%; overflow: hidden; }
+    .shell {
+        grid-template-rows: var(--mobile-header-height) minmax(0, 1fr);
+        height: 100vh;
+        height: 100dvh;
+        min-height: 0;
+        overflow: hidden;
     }
-    .mobile-tabs button {
-        font-family: inherit;
-        font-size: 12px;
-        padding: 5px 16px;
-        border: 1px solid #3a3a3a;
-        border-radius: 20px;
-        background: transparent;
+    .topbar { height: var(--mobile-header-height); min-width: 0; }
+    .topbar-in { height: 100%; min-width: 0; gap: 8px; padding: 0 12px; }
+    .wordmark { flex: 0 0 auto; }
+    .nav { height: 100%; min-width: 0; margin-left: auto; }
+    .nav-btn { padding: 8px 10px; white-space: nowrap; }
+    .nav .desktop-nav-only { display: none !important; }
+    .mobile-nav-more {
+        position: relative;
+        display: block;
+        margin-left: 2px;
+    }
+    .mobile-nav-more > summary {
+        display: grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
         color: #cfc9bd;
         cursor: pointer;
+        list-style: none;
+        letter-spacing: 2px;
     }
-    .mobile-tabs button.on { background: #fff; color: var(--ink); border-color: #fff; }
-    .main-grid.map .list-panel { display: none; }
-    .main-grid.list .map-panel { display: none; }
-    .map-panel { min-height: calc(100dvh - 140px); }
+    .mobile-nav-more > summary::-webkit-details-marker { display: none; }
+    .mobile-nav-menu {
+        position: absolute;
+        top: calc(100% + 5px);
+        right: 0;
+        display: grid;
+        width: 168px;
+        padding: 6px;
+        border: 1px solid #3a3a3a;
+        border-radius: 8px;
+        background: var(--ink);
+        box-shadow: 0 12px 28px rgba(0, 0, 0, .28);
+    }
+    .mobile-nav-menu button {
+        width: 100%;
+        padding: 9px 10px;
+        border: 0;
+        border-radius: 5px;
+        background: transparent;
+        color: #d8d2c6;
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        cursor: pointer;
+    }
+    .mobile-nav-menu button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+    .main-grid {
+        position: relative;
+        display: block;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+    }
+    .map-panel {
+        position: absolute;
+        inset: 0;
+        min-height: 0;
+        border: 0;
+    }
+    .list-panel {
+        position: absolute;
+        z-index: 10;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        padding: 0;
+        overflow: hidden;
+        border-radius: 16px 16px 0 0;
+        background: var(--paper);
+        box-shadow: 0 -8px 28px rgba(20, 20, 20, .18);
+        transform: translateY(75%);
+        transition: transform .28s cubic-bezier(.22, .8, .35, 1);
+        will-change: transform;
+    }
+    .list-panel.sheet-expanded { transform: translateY(0); }
+    .list-panel.sheet-dragging { transition: none; }
+    .mobile-sheet-handle {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 34px;
+        min-height: 34px;
+        border-bottom: 1px solid var(--line2);
+        background: var(--card);
+        cursor: grab;
+        touch-action: none;
+        user-select: none;
+    }
+    .mobile-sheet-handle:active { cursor: grabbing; }
+    .mobile-sheet-handle:focus-visible { outline: 2px solid var(--ocean); outline-offset: -3px; }
+    .mobile-sheet-grip {
+        width: 40px;
+        height: 4px;
+        border-radius: 999px;
+        background: #bbb5aa;
+    }
+    .list-panel-scroll {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        max-width: 100%;
+        padding: 12px 12px calc(24px + env(safe-area-inset-bottom));
+        overflow-x: hidden;
+        overflow-y: auto;
+        overscroll-behavior-y: contain;
+        -webkit-overflow-scrolling: touch;
+    }
+    .list-panel:not(.sheet-expanded) .list-panel-scroll { overflow-y: hidden; }
+    .sec-head-actions { align-items: center; flex-wrap: wrap; gap: 8px; }
+    .sec-head-actions .sec-actions { display: flex; width: 100%; margin-left: 0; }
+    .sec-head-actions .sec-actions .btn { flex: 1 1 0; min-width: 0; padding-inline: 8px; }
+    .property-list,
+    .property-card { width: 100%; min-width: 0; max-width: 100%; }
+    .property-card { padding: 12px; overflow: hidden; }
+    .property-list .property-card-header { display: grid; gap: 6px; min-width: 0; }
+    .property-card-title-row,
+    .property-card-badges { width: 100%; max-width: 100%; }
+    .property-list .property-card-title-row .property-card-name { flex: 1 1 auto; }
+    .property-card-badges { flex-wrap: wrap; }
+    .property-card-header .owner-badge { max-width: min(44%, 150px); }
+    .property-card-meta,
+    .property-card-actions { min-width: 0; max-width: 100%; }
+    .property-card-meta > span:not(.badge):not(.score-pill) { overflow-wrap: anywhere; }
     .modal-card { padding: 22px 18px; }
     .form-grid { grid-template-columns: 1fr; }
     .form-grid .span2 { grid-column: span 1; }
     .paste-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 767px) and (prefers-reduced-motion: reduce) {
+    .list-panel { transition-duration: .01ms; }
 }
 
 /* ── 매물 코멘트 (설계 I56) ──────────────────────
@@ -1525,7 +1691,7 @@ tr.dragging { opacity: .5; background: var(--line2); }
 }
 .owner-badge-lg .owner-initial { width: 18px; height: 18px; font-size: 10px; }
 
-/* 이름 · 배지 · 가격이 한 줄에서 자연스럽게 나뉘도록 */
+/* 이름·가격은 한 줄을 지키고 배지는 폭이 부족하면 다음 줄로 보낸다 (설계 I289) */
 .property-card-header .property-card-name { flex: 0 1 auto; min-width: 0; }
 .property-card-header .property-card-price { margin-left: auto; }
 
