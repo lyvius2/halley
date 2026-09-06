@@ -192,6 +192,17 @@ test('매물 상세 모달은 고정 헤더보다 위에 놓인다', () => {
     assert.ok(Number(detail[1]) > Number(header[1]), '매물 상세가 헤더를 덮어야 한다');
 });
 
+test('매물 상세의 두 열 배치는 모바일 기준 폭에서 한 열로 바뀐다', () => {
+    // given
+    const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');
+
+    // when
+    const mobileDetailGrid = /@media \(max-width:\s*767px\)\s*\{\s*\.m2-grid\s*\{\s*grid-template-columns:\s*1fr\s*;/.test(stylesheet);
+
+    // then
+    assert.equal(mobileDetailGrid, true, '모바일 상세가 PC용 두 열로 남지 않아야 한다');
+});
+
 test('PC 카드의 기존 한 줄 배치를 복원해도 모바일 두 줄 규칙은 남는다', () => {
     // given
     const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');

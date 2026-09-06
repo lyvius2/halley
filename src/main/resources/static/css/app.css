@@ -882,7 +882,7 @@ input[type=checkbox], input[type=radio] {
     font: inherit; color: var(--ocean); text-decoration: underline; cursor: pointer;
 }
 .m2-gap { font-size: 11.5px; color: var(--ocean); margin-bottom: 8px; }
-@media (max-width: 720px) {
+@media (max-width: 767px) {
     .m2-grid { grid-template-columns: 1fr; }
 }
 
