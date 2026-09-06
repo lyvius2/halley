@@ -203,6 +203,19 @@ test('매물 상세의 두 열 배치는 모바일 기준 폭에서 한 열로 �
     assert.equal(mobileDetailGrid, true, '모바일 상세가 PC용 두 열로 남지 않아야 한다');
 });
 
+test('상세 사진 목록은 사진 수가 많아도 모바일 모달 폭을 늘리지 않는다', () => {
+    // given
+    const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');
+
+    // when
+    const sectionCanShrink = /\.m2-sec\s*\{\s*min-width:\s*0/.test(stylesheet);
+    const photosCanShrink = /\.m2-photos\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s.test(stylesheet);
+
+    // then
+    assert.equal(sectionCanShrink, true);
+    assert.equal(photosCanShrink, true);
+});
+
 test('PC 카드의 기존 한 줄 배치를 복원해도 모바일 두 줄 규칙은 남는다', () => {
     // given
     const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');
