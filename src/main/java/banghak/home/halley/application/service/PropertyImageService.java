@@ -4,6 +4,8 @@ import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.outbound.persistence.PropertyImageRepository;
 import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import banghak.home.halley.config.ImageStorage;
+import banghak.home.halley.config.exception.BusinessException;
+import banghak.home.halley.config.exception.InvalidPropertyImageException;
 import banghak.home.halley.config.exception.InvalidPropertyRequestException;
 import banghak.home.halley.config.exception.NotFoundListingsException;
 import banghak.home.halley.domain.property.ImageType;
@@ -13,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -33,15 +36,18 @@ public class PropertyImageService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final PropertyImageRepository propertyImageRepository;
     private final ImageStorage imageStorage;
+    private final HeicImageDecoder heicImageDecoder;
 
     public PropertyImageService(PropertyAccessGuard propertyAccessGuard,
                                   PropertyRepository propertyRepository,
-                                PropertyImageRepository propertyImageRepository,
-                                ImageStorage imageStorage) {
+                                  PropertyImageRepository propertyImageRepository,
+                                  ImageStorage imageStorage,
+                                  HeicImageDecoder heicImageDecoder) {
         this.propertyAccessGuard = propertyAccessGuard;
         this.propertyRepository = propertyRepository;
         this.propertyImageRepository = propertyImageRepository;
         this.imageStorage = imageStorage;
+        this.heicImageDecoder = heicImageDecoder;
     }
 
     /**
@@ -61,37 +67,74 @@ public class PropertyImageService {
         if (type == null) {
             throw new InvalidPropertyRequestException("이미지 종류(평면도/매물사진)는 필수입니다");
         }
-        if (type == ImageType.FLOOR_PLAN) {
-            replaceExistingFloorPlan(propertyId);
-        }
         final String id = UUID.randomUUID().toString().substring(0, 8);
         final Path dir = imageStorage.dirOf(propertyId);
+        final String originalName = type + "_" + id + "_original.jpg";
+        final String thumbName = type + "_" + id + "_thumb.jpg";
+        final Path original = dir.resolve(originalName);
+        final Path thumb = dir.resolve(thumbName);
+        boolean heic = false;
         try {
             Files.createDirectories(dir);
-            final String originalName = type + "_" + id + "_original.jpg";
-            final String thumbName = type + "_" + id + "_thumb.jpg";
-            try (InputStream in = file.getInputStream()) {
-                Thumbnails.of(in)
-                        .size(ORIGINAL_MAX, ORIGINAL_MAX)
-                        .keepAspectRatio(true)
-                        .useExifOrientation(true)
-                        .outputFormat("jpg")
-                        .toFile(dir.resolve(originalName).toFile());
-            }
-            try (InputStream in = file.getInputStream()) {
-                Thumbnails.of(in)
-                        .size(THUMB_SIZE, THUMB_SIZE)
-                        .keepAspectRatio(true)
-                        .useExifOrientation(true)
-                        .outputFormat("jpg")
-                        .toFile(dir.resolve(thumbName).toFile());
+            heic = heicImageDecoder.matches(file);
+            if (heic) {
+                final BufferedImage decoded = heicImageDecoder.decode(file);
+                writeHeicJpeg(decoded, ORIGINAL_MAX, original);
+                writeHeicJpeg(decoded, THUMB_SIZE, thumb);
+            } else {
+                writeStandardJpeg(file, ORIGINAL_MAX, original);
+                writeStandardJpeg(file, THUMB_SIZE, thumb);
             }
             final PropertyImage saved = propertyImageRepository.save(new PropertyImage(
                     null, propertyId, type,
                     "/uploads/" + propertyId + "/" + originalName, nextSortOrder(propertyId, type)));
+            if (type == ImageType.FLOOR_PLAN) {
+                replaceExistingFloorPlan(propertyId, saved.id());
+            }
             return toResponse(saved);
+        } catch (BusinessException e) {
+            deleteFailedUpload(original, thumb);
+            log.warn("Image upload rejected. propertyId={}, size={}, contentType={}, heic={}, code={}, cause={}",
+                    propertyId, file.getSize(), file.getContentType(), heic, e.getCode(), e.getMessage());
+            throw e;
         } catch (IOException e) {
-            throw new InvalidPropertyRequestException("이미지 처리에 실패했습니다: " + e.getMessage());
+            deleteFailedUpload(original, thumb);
+            log.warn("Image upload failed. propertyId={}, size={}, contentType={}, heic={}, cause={}",
+                    propertyId, file.getSize(), file.getContentType(), heic, e.getMessage());
+            throw new InvalidPropertyImageException();
+        } catch (RuntimeException e) {
+            deleteFailedUpload(original, thumb);
+            log.error("Image upload failed unexpectedly. propertyId={}, size={}, contentType={}, heic={}",
+                    propertyId, file.getSize(), file.getContentType(), heic, e);
+            throw e;
+        }
+    }
+
+    private void writeHeicJpeg(BufferedImage image, int size, Path target) throws IOException {
+        Thumbnails.of(image)
+                .size(size, size)
+                .keepAspectRatio(true)
+                .outputFormat("jpg")
+                .toFile(target.toFile());
+    }
+
+    private void writeStandardJpeg(MultipartFile file, int size, Path target) throws IOException {
+        try (InputStream input = file.getInputStream()) {
+            Thumbnails.of(input)
+                    .size(size, size)
+                    .keepAspectRatio(true)
+                    .useExifOrientation(true)
+                    .outputFormat("jpg")
+                    .toFile(target.toFile());
+        }
+    }
+
+    private void deleteFailedUpload(Path original, Path thumb) {
+        try {
+            Files.deleteIfExists(original);
+            Files.deleteIfExists(thumb);
+        } catch (IOException e) {
+            log.warn("Failed to clean up rejected image files. original={}, cause={}", original, e.getMessage());
         }
     }
 
@@ -105,9 +148,10 @@ public class PropertyImageService {
                 .count();
     }
 
-    private void replaceExistingFloorPlan(Long propertyId) {
+    private void replaceExistingFloorPlan(Long propertyId, Long savedImageId) {
         propertyImageRepository.findByPropertyId(propertyId).stream()
                 .filter(i -> i.imageType() == ImageType.FLOOR_PLAN)
+                .filter(i -> !i.id().equals(savedImageId))
                 .forEach(this::removeImage);
     }
 

@@ -2394,7 +2394,7 @@ function halley() {
                         body: form
                     });
                     if (!res.ok) {
-                        this.error = `${file.name} 업로드에 실패했습니다`;
+                        this.error = await this.imageUploadFailureMessage(res, file.name);
                         break;
                     }
                 }
@@ -2407,6 +2407,21 @@ function halley() {
                 event.target.value = '';
                 this.loading = false;
             }
+        },
+
+        async imageUploadFailureMessage(response, fileName) {
+            try {
+                const body = await response.json();
+                if (body?.message) {
+                    return `${fileName}: ${body.message}`;
+                }
+            } catch (e) {
+                // 리버스 프록시의 413 HTML 응답처럼 JSON이 아닌 실패도 상태 코드로 설명한다.
+            }
+            if (response.status === 413) {
+                return `${fileName}: 사진 용량이 업로드 한도를 초과했습니다`;
+            }
+            return `${fileName} 업로드에 실패했습니다`;
         },
 
         async removeImage(image) {
