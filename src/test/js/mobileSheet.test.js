@@ -192,6 +192,30 @@ test('매물 상세 모달은 고정 헤더보다 위에 놓인다', () => {
     assert.ok(Number(detail[1]) > Number(header[1]), '매물 상세가 헤더를 덮어야 한다');
 });
 
+test('매물 상세의 두 열 배치는 모바일에서 내용보다 좁아질 수 있다', () => {
+    // given
+    const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');
+
+    // when
+    const mobileDetailGrid = /@media \(max-width:\s*720px\)[\s\S]*?\.m2-grid\s*\{\s*grid-template-columns:\s*minmax\(0,\s*1fr\)\s*;/.test(stylesheet);
+
+    // then
+    assert.equal(mobileDetailGrid, true, '모바일 상세 격자가 사진 내용에 밀리지 않아야 한다');
+});
+
+test('상세 사진 목록은 사진 수가 많아도 모바일 모달 폭을 늘리지 않는다', () => {
+    // given
+    const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');
+
+    // when
+    const sectionCanShrink = /\.m2-sec\s*\{\s*min-width:\s*0/.test(stylesheet);
+    const photosCanShrink = /\.m2-photos\s*\{[^}]*min-width:\s*0[^}]*max-width:\s*100%/s.test(stylesheet);
+
+    // then
+    assert.equal(sectionCanShrink, true);
+    assert.equal(photosCanShrink, true);
+});
+
 test('PC 카드의 기존 한 줄 배치를 복원해도 모바일 두 줄 규칙은 남는다', () => {
     // given
     const stylesheet = fs.readFileSync(STYLESHEET, 'utf8');

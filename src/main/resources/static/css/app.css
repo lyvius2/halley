@@ -856,7 +856,7 @@ input[type=checkbox], input[type=radio] {
 /* 여러 장은 가로로 훑는다 — 세로로 쌓으면 상세가 사진으로 뒤덮인다 */
 .m2-photos {
     display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr);
-    gap: 10px; overflow-x: auto; padding-bottom: 4px;
+    gap: 10px; min-width: 0; max-width: 100%; overflow-x: auto; padding-bottom: 4px;
 }
 .m2-count { font-family: 'JetBrains Mono', monospace; color: var(--ink3); letter-spacing: 0; }
 .m2-sec > h4 {

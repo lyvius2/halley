@@ -3,6 +3,11 @@ spring:
     name: Halley
   profiles:
     default: local
+  servlet:
+    multipart:
+      # 아이폰 원본 사진을 받은 뒤 JPEG로 줄인다 (설계 I292).
+      max-file-size: ${IMAGE_MAX_FILE_SIZE:20MB}
+      max-request-size: ${IMAGE_MAX_REQUEST_SIZE:25MB}
   cloud:
     openfeign:
       circuitbreaker:

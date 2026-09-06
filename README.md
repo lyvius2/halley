@@ -250,7 +250,21 @@ flowchart TB
 ### 사전 요구사항
 
 - JDK 25
+- libheif 1.16 이상 (아이폰 HEIC 사진 디코딩)
 - Docker (PostgreSQL · Redis 로컬 실행용 — `local` 프로파일만 쓴다면 불필요)
+
+macOS에서는 `brew install libheif`, Amazon Linux 2023에서는 `sudo dnf install libheif`,
+Debian/Ubuntu에서는 `apt-get install libheif-dev`로 설치합니다. Homebrew 기본 경로는
+Gradle이 자동으로 찾고, 다른 위치라면 `JAVA_LIBRARY_PATH`로 알려 줍니다. 직접 JAR를
+실행할 때는 네이티브 접근을 허용해야 합니다.
+
+```bash
+java --enable-native-access=ALL-UNNAMED -jar app.jar
+```
+
+macOS에서 JAR를 직접 실행한다면
+`-Djava.library.path=/opt/homebrew/lib`도 함께 줍니다. `bootRun`과 테스트에는 이 경로와
+네이티브 접근 옵션이 이미 설정돼 있습니다.
 
 ### 로컬 실행
 
@@ -306,6 +320,7 @@ REDIS_HOST=... \
 | `REDIS_HOST` · `REDIS_PORT` | Redis 접속 정보 |
 | `APP_BASE_URL` | Slack 알림에 붙는 링크의 앞부분. 비우면 링크를 안 답니다 |
 | `APP_IMAGES_DIR` | 올린 사진이 쌓이는 **절대 경로**. 아래 설명을 보십시오 |
+| `IMAGE_MAX_FILE_SIZE` · `IMAGE_MAX_REQUEST_SIZE` | 사진 한 장·요청의 업로드 상한. 기본 `20MB` · `25MB` |
 
 > **`APP_IMAGES_DIR`을 반드시 절대 경로로 주십시오.** 기본값 `uploads`는 상대
 > 경로라 **JVM을 띄운 디렉터리** 기준으로 풀립니다 — jar가 놓인 자리가 아닙니다.

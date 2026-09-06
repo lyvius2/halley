@@ -3,16 +3,19 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyImageResponse;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PropertyResponse;
-import banghak.home.halley.domain.property.DealType;
-import banghak.home.halley.config.exception.InvalidPropertyRequestException;
-import banghak.home.halley.config.exception.NotFoundListingsException;
-import banghak.home.halley.domain.property.ImageType;
-import org.junit.jupiter.api.DisplayName;
 import banghak.home.halley.adapter.outbound.persistence.UserGroupRepository;
 import banghak.home.halley.adapter.outbound.persistence.UserRepository;
+import banghak.home.halley.config.exception.InvalidPropertyImageException;
+import banghak.home.halley.config.ImageStorage;
+import banghak.home.halley.config.exception.InvalidPropertyRequestException;
+import banghak.home.halley.config.exception.NotFoundListingsException;
+import banghak.home.halley.domain.property.DealType;
+import banghak.home.halley.domain.property.ImageType;
 import banghak.home.halley.support.GroupTestSupport;
+import banghak.home.halley.support.HeicTestImage;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -30,11 +33,15 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
-@TestPropertySource(properties = "app.images.dir=${java.io.tmpdir}/halley-test-uploads")
+@TestPropertySource(properties = "app.images.dir=${java.io.tmpdir}/halley-test-uploads-${random.uuid}")
 class PropertyImageServiceTest {
+
+    @Autowired
+    private ImageStorage imageStorage;
 
     @Autowired
     private UserGroupRepository userGroupRepository;
@@ -74,10 +81,32 @@ class PropertyImageServiceTest {
         // then
         assertThat(list).hasSize(1);
         assertThat(uploaded.imageType()).isEqualTo(ImageType.PHOTO);
-        final Path original = Paths.get(System.getProperty("java.io.tmpdir"), "halley-test-uploads",
-                String.valueOf(property.id()), Paths.get(uploaded.storagePath()).getFileName().toString());
+        final Path original = pathOf(property.id(), uploaded);
         assertThat(Files.exists(original)).isTrue();
         assertThat(original.getFileName().toString()).contains("_original.jpg");
+    }
+
+    @Test
+    @DisplayName("아이폰 HEIC를 올리면 JPEG 원본·썸네일만 저장하고 HEIC는 남기지 않는다")
+    void convertsHeicToJpegWithoutKeepingHeic() throws Exception {
+        // given
+        final PropertyResponse property = propertyService.create(request());
+        final MockMultipartFile heic = new MockMultipartFile(
+                "file", "iphone.HEIC", "image/heic", HeicTestImage.bytes());
+
+        // when
+        final PropertyImageResponse uploaded = propertyImageService.upload(property.id(), heic, ImageType.PHOTO);
+
+        // then
+        final Path original = pathOf(property.id(), uploaded);
+        final Path thumb = original.resolveSibling(
+                original.getFileName().toString().replace("_original.jpg", "_thumb.jpg"));
+        assertThat(uploaded.storagePath()).endsWith("_original.jpg");
+        assertThat(ImageIO.read(original.toFile())).isNotNull();
+        assertThat(ImageIO.read(thumb.toFile())).isNotNull();
+        try (var files = Files.list(original.getParent())) {
+            assertThat(files).noneMatch(path -> path.getFileName().toString().toLowerCase().endsWith(".heic"));
+        }
     }
 
     @Test
@@ -99,6 +128,29 @@ class PropertyImageServiceTest {
         // 옛 평면도의 파일도 지워진다
         assertThat(Files.exists(pathOf(property.id(), first))).isFalse();
         assertThat(Files.exists(pathOf(property.id(), second))).isTrue();
+    }
+
+    @Test
+    @DisplayName("새 평면도 변환이 실패하면 반쪽 파일을 지우고 기존 평면도를 유지한다")
+    void failedFloorPlanUploadKeepsExistingImage() throws Exception {
+        // given
+        final PropertyResponse property = propertyService.create(request());
+        final PropertyImageResponse existing = propertyImageService.upload(property.id(),
+                new MockMultipartFile("file", "plan.jpg", "image/jpeg", jpegBytes()), ImageType.FLOOR_PLAN);
+        final MockMultipartFile broken = new MockMultipartFile(
+                "file", "broken.jpg", "image/jpeg", new byte[]{1, 2, 3, 4});
+
+        // when
+        assertThrows(InvalidPropertyImageException.class,
+                () -> propertyImageService.upload(property.id(), broken, ImageType.FLOOR_PLAN));
+
+        // then
+        assertThat(propertyImageService.list(property.id())).extracting(PropertyImageResponse::id)
+                .containsExactly(existing.id());
+        assertThat(Files.exists(pathOf(property.id(), existing))).isTrue();
+        try (var files = Files.list(pathOf(property.id(), existing).getParent())) {
+            assertThat(files).hasSize(2);
+        }
     }
 
     @Test
@@ -163,8 +215,7 @@ class PropertyImageServiceTest {
     }
 
     private Path pathOf(Long propertyId, PropertyImageResponse image) {
-        return Paths.get(System.getProperty("java.io.tmpdir"), "halley-test-uploads",
-                String.valueOf(propertyId), Paths.get(image.storagePath()).getFileName().toString());
+        return imageStorage.dirOf(propertyId).resolve(Paths.get(image.storagePath()).getFileName());
     }
 
     private PropertyRequest request() {
