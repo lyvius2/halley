@@ -158,6 +158,8 @@ function halley() {
     return {
         session: { authenticated: false, userId: null, nickname: null, role: null, mustChangePassword: false },
         view: 'list',
+        budgetPlanId: null,
+        budgetAggregate: null,
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -663,7 +665,8 @@ function halley() {
          */
         ROUTES: {
             list: '/list',
-            itinerary: '/tour-plan'
+            itinerary: '/tour-plan',
+            budget: '/budget'
         },
 
         /**
@@ -859,6 +862,20 @@ function halley() {
                 // 돌아오면 다시 얹어야 한다 — 계산을 다시 시키지는 않는다
                 this.loadItineraryDraft();
                 this.loadVisited();
+            }
+            if (view === 'budget') {
+                this.loadBudget();
+            }
+        },
+
+        async loadBudget() {
+            if (!this.budgetPlanId) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/budget/plans/' + this.budgetPlanId);
+            if (ok) {
+                this.budgetAggregate = body;
+                this.error = null;
             }
         },
 

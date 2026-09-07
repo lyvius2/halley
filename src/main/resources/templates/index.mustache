@@ -38,6 +38,7 @@
                 <nav class="nav">
                     <button class="nav-btn nav-primary" :class="{on: view==='list'}" @click="setView('list')">매물</button>
                     <button class="nav-btn nav-primary" :class="{on: view==='itinerary'}" @click="setView('itinerary')">임장</button>
+                    <button class="nav-btn nav-primary" :class="{on: view==='budget'}" @click="setView('budget')">예산</button>
                     <button class="nav-btn desktop-nav-only" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn desktop-nav-only" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn desktop-nav-only" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
@@ -254,6 +255,21 @@
                                 <span x-show="!loadingMore &amp;&amp; !propertyHasNext &amp;&amp; propertyTotal > PAGE_SIZE"
                                       x-cloak>모두 불러왔습니다</span>
                             </div>
+                        </div>
+                    </div>
+                    <div x-show="view==='budget'" x-cloak class="budget-view">
+                        <div class="sec-head"><h2>신혼 생활 시작 예산</h2><span class="sec-sub">그룹 공유 계획</span></div>
+                        <div class="budget-card">
+                            <label>계획 ID <input type="number" x-model.number="budgetPlanId" min="1"></label>
+                            <button class="btn btn-primary" @click="loadBudget()">불러오기</button>
+                            <p class="empty-hint" x-show="!budgetAggregate">예산 계획을 선택하거나 계획 ID를 입력하세요.</p>
+                            <template x-if="budgetAggregate">
+                                <div class="budget-summary-grid">
+                                    <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
+                                    <div><span>혼수 품목</span><b x-text="budgetAggregate.items.length + '개'"></b></div>
+                                    <div><span>자산</span><b x-text="budgetAggregate.assets.length + '건'"></b></div>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
