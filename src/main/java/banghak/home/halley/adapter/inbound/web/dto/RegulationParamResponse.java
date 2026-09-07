@@ -5,7 +5,7 @@ import banghak.home.halley.domain.loan.RegulationValueType;
 
 import java.time.Instant;
 
-/** 규제 파라미터 한 건 (설계 I68). */
+/** 규제 파라미터 한 건. */
 public record RegulationParamResponse(
         Long id,
         String profile,

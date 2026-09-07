@@ -58,7 +58,7 @@ public class AdminSettingsController {
         this.llmModelService = llmModelService;
     }
 
-    /** AI 모델 설정 (설계 I267). 자리 넷과 고를 수 있는 모델을 한 번에 보낸다. */
+    /** AI 모델 설정. 자리 넷과 고를 수 있는 모델을 한 번에 보낸다. */
     @GetMapping("/llm-models")
     public LlmModelSettingsResponse llmModels() {
         return LlmModelSettingsResponse.of(llmModelService.current(), llmModelService.available());
@@ -80,13 +80,13 @@ public class AdminSettingsController {
         return systemConfigService.update(requests);
     }
 
-    // ── 규제 파라미터·규제지역 (설계 I68) ─────────
+    // ── 규제 파라미터·규제지역 ─────────
 
     /**
-     * 기준 스트레스 금리를 한국은행 통계로 다시 산출한다 (설계 I116).
+     * 기준 스트레스 금리를 한국은행 통계로 다시 산출한다.
      *
-     * <p>월 1회 자동으로 돌지만, 규제가 바뀌었거나 값을 확인하고 싶을 때 손으로 부릅니다.
-     * 산출하지 못하면(키 미설정·조회 실패) <b>기존 값을 그대로 둡니다.</b>
+     * 월 1회 자동으로 돌지만, 규제가 바뀌었거나 값을 확인하고 싶을 때 손으로 부릅니다.
+     * 산출하지 못하면(키 미설정·조회 실패) 기존 값을 그대로 둡니다.
      */
     @PostMapping("/stress-rate/refresh")
     public Map<String, Object> refreshStressRate() {
@@ -143,16 +143,16 @@ public class AdminSettingsController {
         return notificationService.recentNotifications();
     }
 
-    /** 알림 스위치 상태 — 읽기 전용 (설계 I215). 배포로 정하는 값이라 여기서 못 바꿉니다. */
+    /** 알림 스위치 상태 — 읽기 전용. 배포로 정하는 값이라 여기서 못 바꿉니다. */
     @GetMapping("/notification-settings")
     public NotificationSettingsResponse notificationSettings() {
         return notificationService.notificationSettings();
     }
 
     /**
-     * 그룹 목록 (설계 I89 · 규칙 7·12).
+     * 그룹 목록.
      *
-     * <p><b>관리자 경로에만 둡니다.</b> 회원은 다른 그룹이 있는지도 알 수 없어야 하므로
+     * 관리자 경로에만 둡니다. 회원은 다른 그룹이 있는지도 알 수 없어야 하므로
      * `/api/groups` 쪽에는 목록 API가 없습니다.
      */
     @GetMapping("/groups")

@@ -7,12 +7,12 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * 공시 금리를 하루 한 번 새로 받는다 (설계 I81).
+ * 공시 금리를 하루 한 번 새로 받는다.
  *
- * <p>공시는 월 단위로 바뀌므로 자주 볼 필요가 없습니다. <b>일 허용횟수가 있는 API</b>라
+ * 공시는 월 단위로 바뀌므로 자주 볼 필요가 없습니다. 일 허용횟수가 있는 API라
  * (`err_cd = 020`) 대출 계산마다 부르면 금방 한도에 걸립니다.
  *
- * <p>규제지역 갱신(04:00)과 시간을 벌려 둡니다 — 기동 직후 외부 호출이 몰리지 않게 합니다.
+ * 규제지역 갱신(04:00)과 시간을 벌려 둡니다 — 기동 직후 외부 호출이 몰리지 않게 합니다.
  */
 @Slf4j
 @Component

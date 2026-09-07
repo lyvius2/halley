@@ -18,21 +18,21 @@ public final class LoanCalculator {
     }
 
     /**
-     * LTV/DSR 기반 자체 대출 시뮬레이션 (설계 3.4 · I64).
+     * LTV/DSR 기반 자체 대출 시뮬레이션.
      *
-     * <p><b>LTV는 호가가 아니라 담보가치에 매깁니다.</b> 은행이 보는 값은 KB시세이고, 호가는
-     * 파는 쪽이 부른 값이라 담보가치보다 높기 쉽습니다. 실측에서 1.5억까지 벌어졌습니다(설계 9.2).
+     * LTV는 호가가 아니라 담보가치에 매깁니다. 은행이 보는 값은 KB시세이고, 호가는
+     * 파는 쪽이 부른 값이라 담보가치보다 높기 쉽습니다. 실측에서 1.5억까지 벌어졌습니다.
      *
-     * <p><b>방공제를 LTV 한도에서 뺍니다.</b> 소액임차보증금 최우선변제금은 선순위라 은행이
+     * 방공제를 LTV 한도에서 뺍니다. 소액임차보증금 최우선변제금은 선순위라 은행이
      * 그만큼 덜 빌려줍니다. 빼먹으면 수천만 원 단위로 높게 나옵니다. MCI/MCG에 가입하면 면제됩니다.
      *
-     * <p>DSR은 연 소득 × DSR비율의 연간 상환 상한을 연금(annuity) 공식으로 원금 한도로 환산하며,
-     * <b>기존 대출이 있으면 그 연간 상환액을 먼저 뺍니다</b>(설계 I55). DSR은 모든 대출의 원리금을
+     * DSR은 연 소득 × DSR비율의 연간 상환 상한을 연금(annuity) 공식으로 원금 한도로 환산하며,
+     * 기존 대출이 있으면 그 연간 상환액을 먼저 뺍니다. DSR은 모든 대출의 원리금을
      * 합쳐 보는 규제라 무시하면 한도가 실제보다 높게 나옵니다. 기존 대출의 조건은 알 수 없으므로
      * 신규 대출과 같은 금리·기간으로 가정해 추정합니다.
      *
-     * <p>금리는 <b>스트레스 금리를 더한 값</b>으로 계산합니다. 실제 대출 금리로 DSR을 역산하면
-     * 한도가 부풀려집니다(설계 I64-2).
+     * 금리는 스트레스 금리를 더한 값으로 계산합니다. 실제 대출 금리로 DSR을 역산하면
+     * 한도가 부풀려집니다.
      */
     public LoanEstimateResult estimate(LoanEstimateInput input, RegulationParams params) {
         final long collateralValue = input.collateral().value();
@@ -40,7 +40,7 @@ public final class LoanCalculator {
         final long ltvBeforeCap = (long) (collateralValue * params.ltvRate().doubleValue()) - leaseDeduction;
         final long ltvLimit = Math.max(0L, Math.min(ltvBeforeCap, params.totalCap()));
 
-        // 스트레스 금리는 <b>한도를 역산할 때만</b> 쓴다 (설계 I97).
+        // 스트레스 금리는 한도를 역산할 때만 쓴다.
         // 실제로 내는 돈은 실금리 기준인데, 예전에는 월 상환액에도 섞여 있어 부풀려 보였다
         final double stressed =
                 params.interestRate().doubleValue()
@@ -51,7 +51,7 @@ public final class LoanCalculator {
         final double annuityFactor = annuityFactor(dsrMonthlyRate, months);
 
         final long dsrCapacity = (long) (input.annualIncome() * params.dsrRatio().doubleValue());
-        // 부채 종류마다 DSR 산정만기가 다르다 (설계 I92). 전부 30년 주담대로 보면
+        // 부채 종류마다 DSR 산정만기가 다르다. 전부 30년 주담대로 보면
         // 신용대출·마이너스통장의 부담이 실제보다 훨씬 작게 잡혀 한도가 부풀려진다
         // 기존 부채의 DSR 부담도 스트레스 기준이다
         final long existingLoanAnnual = input.existingDebtAnnualPayment(stressed);

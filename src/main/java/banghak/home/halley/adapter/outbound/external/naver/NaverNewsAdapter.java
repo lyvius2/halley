@@ -22,35 +22,35 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * 네이버 뉴스 검색 어댑터 (설계 I137).
+ * 네이버 뉴스 검색 어댑터.
  *
- * <p><b>응답에 HTML 태그가 섞여 옵니다.</b> `title`·`description`의 검색어가
- * `<b>…</b>`로 감싸여 오는데, 그대로 화면에 넣으면 <b>HTML 주입 통로</b>가 됩니다.
+ * 응답에 HTML 태그가 섞여 옵니다. `title`·`description`의 검색어가
+ * `…`로 감싸여 오는데, 그대로 화면에 넣으면 HTML 주입 통로가 됩니다.
  * 여기서 걷어 내고 텍스트로만 다룹니다.
  *
- * <h4>하루 담아 둡니다 (설계 I246)</h4>
+ * 하루 담아 둡니다
  *
- * <p>상세를 열 때마다 물었습니다. 같은 매물을 몇 번 열든 <b>기사는 그대로</b>이고,
+ * 상세를 열 때마다 물었습니다. 같은 매물을 몇 번 열든 기사는 그대로이고,
  * 네이버 검색은 일일 호출 한도가 있습니다.
  *
- * <p>키는 <b>검색어</b>입니다. 매물 번호가 아닙니다 — 같은 단지의 매물 둘은 검색어가
+ * 키는 검색어입니다. 매물 번호가 아닙니다 — 같은 단지의 매물 둘은 검색어가
  * 같고, 그러면 한 번만 물으면 됩니다.
  *
- * <p><b>실패는 담지 않습니다.</b> 이것이 이 캐시에서 가장 조심할 자리입니다:
+ * 실패는 담지 않습니다. 이것이 이 캐시에서 가장 조심할 자리입니다:
  * 키가 없거나 폴백이 돌거나 응답이 깨졌을 때도 빈 목록이 나가는데, 그것까지 담으면
- * <b>네이버가 잠깐 죽은 것 때문에 하루 종일 "기사 없음"</b>이 됩니다.
- * <b>진짜로 기사가 없는 것</b>만 담습니다 — 그건 담아야 합니다. 안 그러면 결과가
- * 없는 단지에서 캐시가 아무 일도 안 합니다([I219]와 같은 처방).
+ * 네이버가 잠깐 죽은 것 때문에 하루 종일 "기사 없음"이 됩니다.
+ * 진짜로 기사가 없는 것만 담습니다 — 그건 담아야 합니다. 안 그러면 결과가
+ * 없는 단지에서 캐시가 아무 일도 안 합니다(와 같은 처방).
  */
 @Slf4j
 @Component
 public class NaverNewsAdapter implements NewsSearchPort {
 
     /**
-     * `Sun, 12 Jul 2026 09:00:00 +0900` — RFC 1123에서 <b>요일을 뺀</b> 부분만 읽습니다.
+     * `Sun, 12 Jul 2026 09:00:00 +0900` — RFC 1123에서 요일을 뺀 부분만 읽습니다.
      *
-     * <p>요일은 <b>중복 정보</b>입니다. 날짜에서 계산할 수 있고, 그럼에도 파싱에 넣으면
-     * 보낸 쪽 요일이 하루라도 어긋났을 때 <b>날짜를 통째로 잃습니다.</b>
+     * 요일은 중복 정보입니다. 날짜에서 계산할 수 있고, 그럼에도 파싱에 넣으면
+     * 보낸 쪽 요일이 하루라도 어긋났을 때 날짜를 통째로 잃습니다.
      * 우리가 쓰는 것은 날짜뿐이니 요일은 떼고 읽습니다.
      */
     private static final DateTimeFormatter PUB_DATE =
@@ -59,7 +59,7 @@ public class NaverNewsAdapter implements NewsSearchPort {
     private static final java.util.regex.Pattern WEEKDAY =
             java.util.regex.Pattern.compile("^[A-Za-z]{3},\\s*");
 
-    /** 기사는 하루 사이에 달라지지 않는다 (설계 I246). */
+    /** 기사는 하루 사이에 달라지지 않는다. */
     private static final Duration TTL = Duration.ofHours(24);
 
     private static final TypeReference<List<NewsArticle>> ARTICLES = new TypeReference<>() { };
@@ -105,20 +105,20 @@ public class NaverNewsAdapter implements NewsSearchPort {
         // 개발 호재는 최신순이 맞다 — 정확도순은 오래된 기사가 위로 온다
         final String body = client.searchNews(clientId, clientSecret, query.trim(), limit, "date");
         if (body == null) {
-            // 폴백이 돌았다 (설계 I246). <b>담지 않습니다</b> — 잠깐 죽은 것을
+            // 폴백이 돌았다. 담지 않습니다 — 잠깐 죽은 것을
             // 하루짜리 "기사 없음"으로 굳히면 안 됩니다
             return List.of();
         }
-        // 빈 Optional 이면 <b>못 읽은 것</b>이다. 담지 않는다 (설계 I246)
+        // 빈 Optional 이면 못 읽은 것이다. 담지 않는다
         final Optional<List<NewsArticle>> answered = tryParse(body, query);
         answered.ifPresent(articles -> write(key, articles));
         return answered.orElseGet(List::of);
     }
 
     /**
-     * 검색어가 같으면 결과도 같다 (설계 I246).
+     * 검색어가 같으면 결과도 같다.
      *
-     * <p>{@code limit} 을 넣는 이유는 설정을 바꿨을 때 <b>옛 개수로 담아 둔 것</b>이
+     * limit 을 넣는 이유는 설정을 바꿨을 때 옛 개수로 담아 둔 것이
      * 그대로 나오면 안 되기 때문입니다.
      */
     private String cacheKey(String query, int limit) {
@@ -151,15 +151,15 @@ public class NaverNewsAdapter implements NewsSearchPort {
     }
 
     /**
-     * 네이버가 <b>답을 준 것인가</b> (설계 I246).
+     * 네이버가 답을 준 것인가.
      *
-     * <p>빈 목록이 두 가지 뜻입니다 — <b>기사가 없다</b>와 <b>못 읽었다.</b>
-     * 둘 다 {@code List.of()} 로 두면 구분이 사라지고, 그러면 못 읽은 것을
+     * 빈 목록이 두 가지 뜻입니다 — 기사가 없다와 못 읽었다.
+     * 둘 다 List.of() 로 두면 구분이 사라지고, 그러면 못 읽은 것을
      * 하루 동안 "기사 없음"으로 굳힙니다.
      *
-     * <p>빈 {@code Optional} = 못 읽었다. 빈 <b>목록</b> = 기사가 없다 —
-     * <b>이것은 담습니다.</b> 기사가 없는 단지는 앞으로도 없고, 안 담으면 그 매물은
-     * 상세를 열 때마다 네이버를 부릅니다([I219]와 같은 처방).
+     * 빈 Optional = 못 읽었다. 빈 목록 = 기사가 없다 —
+     * 이것은 담습니다. 기사가 없는 단지는 앞으로도 없고, 안 담으면 그 매물은
+     * 상세를 열 때마다 네이버를 부릅니다(와 같은 처방).
      */
     private Optional<List<NewsArticle>> tryParse(String body, String query) {
         final JsonNode root;
@@ -198,7 +198,7 @@ public class NaverNewsAdapter implements NewsSearchPort {
     }
 
     /**
-     * 검색어가 {@code <b>…</b>}로 감싸여 옵니다. <b>그대로 화면에 넣으면 안 됩니다.</b>
+     * 검색어가 …로 감싸여 옵니다. 그대로 화면에 넣으면 안 됩니다.
      * HTML 엔티티도 함께 되돌립니다.
      */
     static String stripTags(String value) {

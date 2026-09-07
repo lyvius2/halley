@@ -46,7 +46,7 @@ public class CriteriaBootstrap implements ApplicationRunner {
     }
 
     /**
-     * 첫 기동이면 전량 시드하고, 이미 있으면 <b>빠진 항목만</b> 채운다.
+     * 첫 기동이면 전량 시드하고, 이미 있으면 빠진 항목만 채운다.
      * 항목이 추가돼도(예: I59의 AI 추천도) 기존 설치에서 화면에 뜨지 않는 일이 없도록 한다.
      */
     @Override
@@ -78,17 +78,17 @@ public class CriteriaBootstrap implements ApplicationRunner {
     }
 
     /**
-     * <b>항목은 있는데 가중치만 없는 경우</b>를 메운다 (설계 I152).
+     * 항목은 있는데 가중치만 없는 경우를 메운다.
      *
-     * <p>가중치가 없으면 총점 계산에서 <b>그 항목의 무게가 0</b>이 됩니다 —
+     * 가중치가 없으면 총점 계산에서 그 항목의 무게가 0이 됩니다 —
      * 점수를 아무리 잘 받아도 총점이 꿈쩍하지 않습니다. 그런데 조용합니다:
      * 화면에는 점수가 멀쩡히 뜨고, 총점만 안 움직입니다.
      *
-     * <p>실제로 그렇게 됐습니다. `DDL.sql`의 이관 스크립트가 `criterion`에만 넣고
-     * `criterion_weight`는 넣지 않았는데, 그다음 기동에서 <b>항목이 이미 있으니
-     * 건너뛰어</b> 가중치가 영영 안 생겼습니다.
+     * 실제로 그렇게 됐습니다. `DDL.sql`의 이관 스크립트가 `criterion`에만 넣고
+     * `criterion_weight`는 넣지 않았는데, 그다음 기동에서 항목이 이미 있으니
+     * 건너뛰어 가중치가 영영 안 생겼습니다.
      *
-     * <p>항목 시드와 <b>따로</b> 도는 이유가 그것입니다 — 두 테이블은 같이 움직이지 않습니다.
+     * 항목 시드와 따로 도는 이유가 그것입니다 — 두 테이블은 같이 움직이지 않습니다.
      */
     private void seedMissingWeights() {
         final Set<String> weighted = criterionWeightRepository.findAll().stream()

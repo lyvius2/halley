@@ -11,8 +11,8 @@ import java.util.function.UnaryOperator;
 /**
  * 라벨 다음 줄을 값으로 읽는다.
  *
- * <p>{@code cleaner}로 표기 차이를 흡수합니다 — 같은 항목인데 페이지마다 `3/2`와 `3/2개`처럼
- * 다르게 오면 같은 값이 두 모양으로 저장됩니다 (설계 I82).
+ * cleaner로 표기 차이를 흡수합니다 — 같은 항목인데 페이지마다 `3/2`와 `3/2개`처럼
+ * 다르게 오면 같은 값이 두 모양으로 저장됩니다.
  */
 public class LabelValueExtractor implements FieldExtractor<String> {
 

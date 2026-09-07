@@ -9,7 +9,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** local용 인메모리 구현 (설계 I84). */
+/** local용 인메모리 구현. */
 @Component
 @Profile("!live")
 public class InMemoryScoringLock implements ScoringLock {

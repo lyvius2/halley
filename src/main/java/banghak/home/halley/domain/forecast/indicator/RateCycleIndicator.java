@@ -12,12 +12,12 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 금리 국면 (설계 I131).
+ * 금리 국면.
  *
- * <p>가계대출 금리가 내려가는 국면이면 <b>매수 여력이 커집니다.</b> 올라가면 반대입니다.
+ * 가계대출 금리가 내려가는 국면이면 매수 여력이 커집니다. 올라가면 반대입니다.
  * 재료는 ECOS에서 이미 받고 있습니다(I116) — 스트레스 금리를 만들려고 붙인 것을 함께 씁니다.
  *
- * <p><b>무게는 MEDIUM입니다.</b> 시장 전체의 이야기라 이 단지에 그대로 오지 않습니다.
+ * 무게는 MEDIUM입니다. 시장 전체의 이야기라 이 단지에 그대로 오지 않습니다.
  * 실거래 추세(HIGH)와 층위가 다릅니다.
  */
 public class RateCycleIndicator implements PriceIndicator {
@@ -65,7 +65,7 @@ public class RateCycleIndicator implements PriceIndicator {
                         change.multiply(BigDecimal.valueOf(100)).doubleValue())));
     }
 
-    /** <b>금리가 내리면 UP입니다.</b> 부호가 뒤집히는 자리라 따로 둡니다. */
+    /** 금리가 내리면 UP입니다. 부호가 뒤집히는 자리라 따로 둡니다. */
     private ForecastDirection directionOf(BigDecimal change) {
         if (change.compareTo(THRESHOLD.negate()) < 0) {
             return ForecastDirection.UP;

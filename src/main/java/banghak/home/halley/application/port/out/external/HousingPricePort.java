@@ -5,7 +5,7 @@ import banghak.home.halley.domain.property.OfficialPrice;
 import java.util.List;
 
 /**
- * 국토교통부 공시가격 조회 (V-World 개방데이터) — 설계 I54.
+ * 국토교통부 공시가격 조회 (V-World 개방데이터) —.
  * PNU(필지고유번호 19자리) 하나로 그 필지의 공시가격을 모두 받아 온다.
  */
 public interface HousingPricePort {

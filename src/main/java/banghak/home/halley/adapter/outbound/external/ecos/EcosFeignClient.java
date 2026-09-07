@@ -5,12 +5,12 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 
 /**
- * 한국은행 ECOS 통계검색 API (설계 I116).
+ * 한국은행 ECOS 통계검색 API.
  *
- * <p><b>인증키가 경로에 들어갑니다.</b> 쿼리 파라미터가 아니라 URL 조각이라, 로그에 URL을
+ * 인증키가 경로에 들어갑니다. 쿼리 파라미터가 아니라 URL 조각이라, 로그에 URL을
  * 통째로 남기면 키가 새어 나갑니다 — 어댑터에서 URL을 로그로 찍지 않습니다.
  *
- * <p>응답은 인증 실패도 HTTP 200으로 돌려주고 본문에 `RESULT.CODE`를 담습니다.
+ * 응답은 인증 실패도 HTTP 200으로 돌려주고 본문에 `RESULT.CODE`를 담습니다.
  * 그래서 Feign 예외만으로는 실패를 알 수 없어 본문을 먼저 확인합니다 (V-World와 같은 성질).
  */
 @FeignClient(name = "bok-ecos",

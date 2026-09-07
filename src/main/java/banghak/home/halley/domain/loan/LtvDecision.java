@@ -3,7 +3,7 @@ package banghak.home.halley.domain.loan;
 import java.math.BigDecimal;
 
 /**
- * LTV 비율 판정 결과 (설계 I66).
+ * LTV 비율 판정 결과.
  *
  * @param rate   적용 LTV 비율 (0.0 ~ 1.0)
  * @param cap    이 조건에서의 대출 총액 상한(원)

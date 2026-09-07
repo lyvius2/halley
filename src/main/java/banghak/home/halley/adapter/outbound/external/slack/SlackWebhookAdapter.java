@@ -8,9 +8,9 @@ import tools.jackson.databind.ObjectMapper;
 import java.net.URI;
 
 /**
- * Slack 수신 웹훅 어댑터 (설계 I96).
+ * Slack 수신 웹훅 어댑터.
  *
- * <p><b>웹훅 주소를 로그에 남기지 않습니다.</b> 그 주소를 아는 사람은 누구나 그 채널에 글을
+ * 웹훅 주소를 로그에 남기지 않습니다. 그 주소를 아는 사람은 누구나 그 채널에 글을
  * 쓸 수 있어 비밀번호에 가깝습니다.
  */
 @Slf4j

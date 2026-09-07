@@ -1,7 +1,7 @@
 package banghak.home.halley.domain.geo;
 
 /**
- * V-World 행정구역 한 건 (설계 I78).
+ * V-World 행정구역 한 건.
  *
  * @param code     시도는 2자리, 시군구는 5자리
  * @param fullName `경기도 고양시 덕양구`

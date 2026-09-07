@@ -17,18 +17,18 @@ import java.util.List;
 /**
  * ODsay 대중교통 경로.
  *
- * <p><b>거절 사유를 반드시 남깁니다</b> (설계 I141). ODsay는 실패해도 HTTP 200에
- * {@code error} 객체를 실어 보내므로 <b>폴백이 뜨지 않습니다.</b> 예전에는 그것을 버리고
- * '미산출'로만 돌려줘서, 화면에도 로그에도 <b>왜 안 나왔는지가 없었습니다</b> —
+ * 거절 사유를 반드시 남깁니다. ODsay는 실패해도 HTTP 200에
+ * error 객체를 실어 보내므로 폴백이 뜨지 않습니다. 예전에는 그것을 버리고
+ * '미산출'로만 돌려줘서, 화면에도 로그에도 왜 안 나왔는지가 없었습니다 —
  * 키가 막힌 것인지, 너무 가까운 것인지, 정말 경로가 없는 것인지 구분이 안 됐습니다.
  */
 @Slf4j
 @Component
 /**
- * <b>포트를 직접 구현하지 않습니다</b> (설계 I210).
+ * 포트를 직접 구현하지 않습니다.
  *
- * <p>`TransitWithLlmFallback` 이 이것을 감싸 포트가 됩니다. 둘 다 포트 빈이면
- * 스프링이 <b>어느 쪽을 줄지 모릅니다</b> — 그리고 감싼 쪽을 골라야 폴백이 삽니다.
+ * `TransitWithLlmFallback` 이 이것을 감싸 포트가 됩니다. 둘 다 포트 빈이면
+ * 스프링이 어느 쪽을 줄지 모릅니다 — 그리고 감싼 쪽을 골라야 폴백이 삽니다.
  */
 public class OdsayTransitAdapter {
 
@@ -64,7 +64,7 @@ public class OdsayTransitAdapter {
             log.warn("ODsay rejected the request. code={}, msg={}, hint={}, start=({},{}), end=({},{})",
                     code, messageOf(error), hintFor(code),
                     startX, startY, endX, endY);
-            // 하루치를 다 쓴 것과 경로가 없는 것은 다르다 (설계 I210).
+            // 하루치를 다 쓴 것과 경로가 없는 것은 다르다.
             // 앞은 다른 길로 가면 되고, 뒤는 어디로 가도 답이 없다
             if (isQuotaExhausted(code)) {
                 throw new TransitQuotaExceededException("ODsay 일일 호출 한도를 넘었습니다 (code=" + code + ")");
@@ -81,16 +81,16 @@ public class OdsayTransitAdapter {
     }
 
     /**
-     * 하루치를 다 썼는가 (설계 I210).
+     * 하루치를 다 썼는가.
      *
-     * <p>ODsay 는 이걸 <b>두 가지 코드</b>로 알려 줍니다 — HTTP 스러운 `429` 와
+     * ODsay 는 이걸 두 가지 코드로 알려 줍니다 — HTTP 스러운 `429` 와
      * 자체 코드 `3`(일일 사용량 초과). 실제 로그에서 본 것은 `429` 입니다.
      */
     private static boolean isQuotaExhausted(String code) {
         return "429".equals(code) || "3".equals(code);
     }
 
-    /** ODsay는 {@code error}를 객체로도 배열로도 보냅니다 — 엔드포인트마다 다릅니다. */
+    /** ODsay는 error를 객체로도 배열로도 보냅니다 — 엔드포인트마다 다릅니다. */
     private JsonNode errorNode(JsonNode root) {
         final JsonNode error = root.path("error");
         if (error.isArray() && !error.isEmpty()) {
@@ -100,13 +100,13 @@ public class OdsayTransitAdapter {
     }
 
     /**
-     * ODsay가 설명을 어느 이름으로 담는지 <b>확실하지 않습니다.</b>
+     * ODsay가 설명을 어느 이름으로 담는지 확실하지 않습니다.
      *
-     * <p>`msg`로 읽었더니 운영 로그에 {@code msg=?}만 남았습니다 — 이름이 틀렸는데
-     * <b>틀린 줄도 모르고 설명을 또 버렸습니다.</b> 알려진 이름을 차례로 보고,
-     * 그래도 없으면 <b>error 노드를 통째로 남깁니다.</b>
+     * `msg`로 읽었더니 운영 로그에 msg=?만 남았습니다 — 이름이 틀렸는데
+     * 틀린 줄도 모르고 설명을 또 버렸습니다. 알려진 이름을 차례로 보고,
+     * 그래도 없으면 error 노드를 통째로 남깁니다.
      *
-     * <p>모르는 모양일수록 통째로 남기는 편이 낫습니다. 골라 담으려다 놓치면
+     * 모르는 모양일수록 통째로 남기는 편이 낫습니다. 골라 담으려다 놓치면
      * 다음 배포를 기다려야 합니다.
      */
     private String messageOf(JsonNode error) {
@@ -122,13 +122,13 @@ public class OdsayTransitAdapter {
     /**
      * 자주 보는 코드에 사람이 읽을 설명을 붙인다.
      *
-     * <p>코드만 남기면 결국 문서를 다시 뒤지게 됩니다. <b>로그를 보는 순간 무엇을 해야 하는지</b>
+     * 코드만 남기면 결국 문서를 다시 뒤지게 됩니다. 로그를 보는 순간 무엇을 해야 하는지
      * 알 수 있어야 합니다.
      */
     private String hintFor(String code) {
         return switch (code) {
             case "-8" -> "출발지와 도착지가 너무 가깝다 (도보권)";
-            // 500은 뭉뚱그린 코드다. ApiKeyAuthFailed 도 500으로 온다 (설계 I141)
+            // 500은 뭉뚱그린 코드다. ApiKeyAuthFailed 도 500으로 온다
             case "500" -> "msg 를 봐야 갈린다 — ApiKeyAuthFailed 면 키·허용 IP 문제다";
             case "3" -> "일일 사용량 초과";
             case "4" -> "서비스 권한 없음 — 키에 이 API가 열려 있는지 확인";
@@ -139,16 +139,16 @@ public class OdsayTransitAdapter {
     }
 
     /**
-     * 경로선을 <b>교통수단별로 끊어서</b> (설계 I177 · I195).
+     * 경로선을 교통수단별로 끊어서.
      *
-     * <p>`lane[].section[].graphPos` 에 좌표가 들어 있습니다 — <b>`x` 가 경도, `y` 가 위도</b>입니다.
+     * `lane[].section[].graphPos` 에 좌표가 들어 있습니다 — `x` 가 경도, `y` 가 위도입니다.
      * 뒤집으면 지도에 아프리카 앞바다가 그려집니다.
      *
-     * <p>`lane` 하나가 <b>타고 가는 것 하나</b>입니다. 7호선 한 덩어리, 5호선 한 덩어리,
+     * `lane` 하나가 타고 가는 것 하나입니다. 7호선 한 덩어리, 5호선 한 덩어리,
      * 마을버스 한 덩어리. `class` 가 2면 지하철, 1이면 버스이고 `type` 이 그 안의 갈래입니다
      * (지하철은 호선 번호, 버스는 간선·지선 따위). 이어 붙이면 그 구분이 사라집니다.
      *
-     * <p><b>도보는 `lane` 에 없습니다.</b> 환승 구간마다 좌표가 비고, 화면은 그 사이를
+     * 도보는 `lane` 에 없습니다. 환승 구간마다 좌표가 비고, 화면은 그 사이를
      * 점선으로 잇습니다 — 서버가 없는 좌표를 지어내지 않습니다.
      */
     public RoutePath findLane(String mapObj) {
@@ -161,9 +161,9 @@ public class OdsayTransitAdapter {
         }
         final JsonNode root = parse(json);
         if (errorNode(root) != null) {
-            // 경로선은 <b>없어도 됩니다</b> — 화면이 직선으로 되돌아갑니다 (설계 I210).
+            // 경로선은 없어도 됩니다 — 화면이 직선으로 되돌아갑니다.
             // 그래서 할당량 초과여도 예외를 던지지 않습니다. LLM 에게 좌표를 지어내게
-            // 하면 <b>있지도 않은 길</b>이 지도에 그려집니다
+            // 하면 있지도 않은 길이 지도에 그려집니다
             log.warn("ODsay rejected the lane request - falling back to straight lines. mapObj={}", mapObj);
             return RoutePath.empty();
         }
@@ -184,9 +184,9 @@ public class OdsayTransitAdapter {
     }
 
     /**
-     * 이 lane 이 무엇인가 (설계 I195).
+     * 이 lane 이 무엇인가.
      *
-     * <p>색은 여기서 정하지 않습니다 — <b>무엇인지만</b> 말하고 색은 화면이 고릅니다.
+     * 색은 여기서 정하지 않습니다 — 무엇인지만 말하고 색은 화면이 고릅니다.
      * `class` 가 없으면 `TRANSIT` 로 두어, 모르는 것을 지하철인 척하지 않게 합니다.
      */
     private static String styleOf(JsonNode lane) {

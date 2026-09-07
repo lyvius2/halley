@@ -14,13 +14,13 @@ import java.io.IOException;
 import java.util.Set;
 
 /**
- * 계정 초기 설정을 서버에서 강제한다 (설계 6.1 · I48).
+ * 계정 초기 설정을 서버에서 강제한다.
  *
- * <p>두 단계를 순서대로 막는다.
- * <ol>
- *   <li>비밀번호 강제 변경 — `must_change_password`</li>
- *   <li>프로필 완성 — 직장 좌표·가용 예산. 없으면 `COMMUTE`·`PRICE`가 영원히 미산출로 남는다</li>
- * </ol>
+ * 두 단계를 순서대로 막는다.
+ *
+ *   비밀번호 강제 변경 — `must_change_password`
+ *   프로필 완성 — 직장 좌표·가용 예산. 없으면 `COMMUTE`·`PRICE`가 영원히 미산출로 남는다
+ *
  * 프런트에서 모달만 띄우는 것은 우회 가능하므로 API 단에서 차단한다.
  */
 @Component
@@ -50,7 +50,7 @@ public class AccountSetupFilter extends OncePerRequestFilter {
             return;
         }
 
-        // 관리자는 이 흐름을 타지 않는다 (설계 I105). 직장·보유 현금은 매물을 보는 사람의
+        // 관리자는 이 흐름을 타지 않는다. 직장·보유 현금은 매물을 보는 사람의
         // 값이고 admin은 어느 그룹에도 속하지 않는다 — 요구하면 관리 자체가 막힌다
         if (UserRole.ADMIN.name().equals(principal.getRole())) {
             filterChain.doFilter(request, response);
@@ -61,7 +61,7 @@ public class AccountSetupFilter extends OncePerRequestFilter {
             reject(response, "MUST_CHANGE_PASSWORD");
             return;
         }
-        // 화면과 같은 기준으로 막는다 (설계 I100). 한쪽은 확인 여부로, 다른 쪽은
+        // 화면과 같은 기준으로 막는다. 한쪽은 확인 여부로, 다른 쪽은
         // 완성 여부로 보면 확인을 마쳐도 API가 계속 403을 준다
         if (!principal.isProfileConfirmed() && !PROFILE_STEP_ALLOWED.contains(uri)) {
             reject(response, "PROFILE_SETUP_REQUIRED");

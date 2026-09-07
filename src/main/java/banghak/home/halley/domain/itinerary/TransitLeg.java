@@ -1,10 +1,10 @@
 package banghak.home.halley.domain.itinerary;
 
 /**
- * 대중교통 한 구간 (설계 I176).
+ * 대중교통 한 구간.
  *
- * <p>ODsay 응답의 `subPath` 하나에 해당합니다. "145번 버스 23분", "2호선 신림→강남 17분"
- * 같은 <b>사람이 읽는 문장</b>을 만들 재료입니다.
+ * ODsay 응답의 `subPath` 하나에 해당합니다. "145번 버스 23분", "2호선 신림→강남 17분"
+ * 같은 사람이 읽는 문장을 만들 재료입니다.
  *
  * @param kind         `SUBWAY` · `BUS` · `WALK`
  * @param lineName     노선 이름. 지하철은 `수도권 2호선`, 버스는 `145`. 도보는 null
@@ -24,15 +24,15 @@ public record TransitLeg(
 
     public enum Kind {
         SUBWAY, BUS, WALK,
-        /** 자가용 — 도로 이름과 거리를 담는다 (설계 I193). */
+        /** 자가용 — 도로 이름과 거리를 담는다. */
         ROAD
     }
 
     /**
-     * 자가용 한 구간 (설계 I193).
+     * 자가용 한 구간.
      *
-     * <p>"동부간선도로 2.2km" 처럼 <b>어느 길로 얼마나</b>를 말합니다.
-     * `stationCount` 자리에 <b>미터</b>를 담습니다 — 화면이 그것을 km 로 바꿔 씁니다.
+     * "동부간선도로 2.2km" 처럼 어느 길로 얼마나를 말합니다.
+     * `stationCount` 자리에 미터를 담습니다 — 화면이 그것을 km 로 바꿔 씁니다.
      */
     public static TransitLeg road(String name, Integer minutes, Integer distanceM) {
         return new TransitLeg(Kind.ROAD, name, null, null, minutes, distanceM);
@@ -41,7 +41,7 @@ public record TransitLeg(
     /**
      * ODsay의 `trafficType`.
      *
-     * <p><b>모르는 값은 도보로 봅니다.</b> 새 수단이 생겼을 때 화면이 터지는 것보다
+     * 모르는 값은 도보로 봅니다. 새 수단이 생겼을 때 화면이 터지는 것보다
      * "걸어서 몇 분"으로 보이는 편이 낫습니다.
      */
     public static Kind kindOf(int trafficType) {

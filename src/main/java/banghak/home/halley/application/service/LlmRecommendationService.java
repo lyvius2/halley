@@ -36,12 +36,12 @@ import java.util.Optional;
 import java.util.StringJoiner;
 
 /**
- * LLM 추천도 산출 (설계 I59).
+ * LLM 추천도 산출.
  *
- * <p>매물 정보와 <b>사용자들의 직장 위치</b>를 던져 0~100의 추천도와 이유를 받습니다.
+ * 매물 정보와 사용자들의 직장 위치를 던져 0~100의 추천도와 이유를 받습니다.
  * 결과는 `llm_recommendation`에 저장되고 `LLM_RECOMMENDATION` 채점 항목의 입력이 됩니다.
  *
- * <p>입력이 그대로면 다시 부르지 않습니다(`prompt_hash`). 매물을 열 때마다 호출하면 비용이
+ * 입력이 그대로면 다시 부르지 않습니다(`prompt_hash`). 매물을 열 때마다 호출하면 비용이
  * 선형으로 늘고, 같은 입력에 같은 답이 나올 것을 다시 사는 셈이기 때문입니다.
  */
 @Slf4j
@@ -108,19 +108,19 @@ public class LlmRecommendationService {
         this.enabled = enabled;
     }
 
-    /** 직장 위치가 이만큼 모이면 판단이 충분히 안정된다고 본다 (설계 I60). */
+    /** 직장 위치가 이만큼 모이면 판단이 충분히 안정된다고 본다. */
     static final int ENOUGH_WORKPLACES = 3;
 
-    /** 화면이 "지금 분석 중인가"를 물어볼 키 (설계 I72). */
+    /** 화면이 "지금 분석 중인가"를 물어볼 키. */
     public static String jobKey(Long propertyId) {
         return "rec:" + propertyId;
     }
 
     /**
-     * 저장된 추천도를 읽는다 — LLM을 부르지 않는다 (설계 I72).
+     * 저장된 추천도를 읽는다 — LLM을 부르지 않는다.
      *
-     * <p><b>캐시 우선, DB 폴백</b>입니다. 폴링이 2초마다 두드리므로 캐시가 DB를 막아 줍니다.
-     * 다만 캐시가 비었다고 "결과 없음"으로 답하면 <b>DB에 멀쩡히 있는 값을 못 산출로</b>
+     * 캐시 우선, DB 폴백입니다. 폴링이 2초마다 두드리므로 캐시가 DB를 막아 줍니다.
+     * 다만 캐시가 비었다고 "결과 없음"으로 답하면 DB에 멀쩡히 있는 값을 못 산출로
      * 보여주게 되므로, 미스가 나면 반드시 DB를 보고 캐시를 다시 채웁니다.
      */
     public Optional<LlmRecommendation> find(Long propertyId) {
@@ -156,7 +156,7 @@ public class LlmRecommendationService {
     }
 
     /**
-     * 지금 이 매물의 분석이 진행 중인지 (설계 I72).
+     * 지금 이 매물의 분석이 진행 중인지.
      * 캐시가 비었으면(TTL 만료·Redis 재시작) 진행 중이 아닌 것으로 본다 — 호출 측이 DB를 본다.
      */
     public boolean isRunning(Long propertyId) {
@@ -164,9 +164,9 @@ public class LlmRecommendationService {
     }
 
     /**
-     * 사용자가 추가되거나 직장 위치가 바뀌었을 때 전 매물의 추천도를 다시 뽑는다 (설계 I60).
+     * 사용자가 추가되거나 직장 위치가 바뀌었을 때 전 매물의 추천도를 다시 뽑는다.
      *
-     * <p>단, <b>직장 위치 3곳 이상으로 이미 추론한 매물은 건너뜁니다.</b> 그 정도면 통근 판단에
+     * 단, 직장 위치 3곳 이상으로 이미 추론한 매물은 건너뜁니다. 그 정도면 통근 판단에
      * 필요한 정보가 다 모인 셈이라, 네 번째 사람이 들어왔다고 매물 전체를 다시 물으면
      * 비용만 늘고 점수는 거의 그대로입니다.
      *
@@ -178,7 +178,7 @@ public class LlmRecommendationService {
         }
         int refreshed = 0;
         int skipped = 0;
-        // 직장이 바뀐 사람이 속한 그룹의 매물만 다시 묻는다 (설계 I91).
+        // 직장이 바뀐 사람이 속한 그룹의 매물만 다시 묻는다.
         // 전 매물을 돌면 남의 그룹까지 LLM을 부르는데, 그쪽 판단은 달라지지 않는다
         for (final Property property : propertiesToRefresh()) {
             final Optional<LlmRecommendation> cached = recommendationRepository.findByPropertyId(property.id());
@@ -212,12 +212,12 @@ public class LlmRecommendationService {
      * 실패해도 예외를 던지지 않는다 — 나머지 채점은 그대로 나와야 한다.
      */
     /**
-     * 보정이 시작될 때 미리 켠다 (설계 I109).
+     * 보정이 시작될 때 미리 켠다.
      *
-     * <p>AI 추천도는 보정 사슬의 <b>맨 끝</b>이라, 실제 호출 전까지 수십 초가 흐릅니다.
+     * AI 추천도는 보정 사슬의 맨 끝이라, 실제 호출 전까지 수십 초가 흐릅니다.
      * 그동안 진행 표시가 꺼져 있으면 화면은 "아직 산출되지 않았습니다"를 띄우고
-     * <b>폴링도 시작하지 않습니다</b> — 뒤늦게 결과가 나와도 모달을 다시 열기 전엔 안 보입니다.
-     * 그래서 표시를 <b>호출 시점이 아니라 보정 시작 시점</b>에 켭니다.
+     * 폴링도 시작하지 않습니다 — 뒤늦게 결과가 나와도 모달을 다시 열기 전엔 안 보입니다.
+     * 그래서 표시를 호출 시점이 아니라 보정 시작 시점에 켭니다.
      */
     public void markPending(Long propertyId) {
         jobCache.markRunning(jobKey(propertyId));
@@ -253,14 +253,14 @@ public class LlmRecommendationService {
             return cached;
         }
 
-        // 화면이 진행 중임을 알 수 있게 표시한다 (설계 I72)
+        // 화면이 진행 중임을 알 수 있게 표시한다
         final String key = jobKey(propertyId);
         jobCache.markRunning(key);
         boolean completed = false;
         try {
-            // 요청을 보낸 사실 자체를 남긴다 (설계 I107). 응답이 수십 초 걸려서,
+            // 요청을 보낸 사실 자체를 남긴다. 응답이 수십 초 걸려서,
             // 이 줄이 없으면 "안 나온다"가 호출 전인지 응답 대기인지 구분할 수 없다
-            // 자리마다 고른 모델을 쓴다 (설계 I267)
+            // 자리마다 고른 모델을 쓴다
             final String model = llmModelService.modelFor(LlmFeature.RECOMMENDATION);
             log.info("Asking LLM for recommendation. propertyId={}, provider={}, model={}, buyers={}, "
                             + "workplaces={}, promptChars={}",
@@ -302,7 +302,7 @@ public class LlmRecommendationService {
     }
 
     /**
-     * 프롬프트는 <b>줄 단위로 안정적</b>이어야 한다. 순서가 흔들리면 해시가 달라져 같은 입력에도
+     * 프롬프트는 줄 단위로 안정적이어야 한다. 순서가 흔들리면 해시가 달라져 같은 입력에도
      * 다시 호출된다. 그래서 필드를 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
      */
     String buildPrompt(Property property, List<User> buyers, List<NearbyFacility> nearby,
@@ -315,7 +315,7 @@ public class LlmRecommendationService {
         sb.add("매매가/보증금(원): " + number(property.priceDeposit()));
         sb.add("관리비(원/월): " + number(property.maintenanceFee()));
         // 도로명만 주면 모델이 동 이름을 잘못 추정한다 — 실측에서 '삼성로 212'를 보고
-        // 대치동을 '삼성동'이라고 했다. 지번주소가 단지 식별에 더 정확하므로 둘 다 준다 (설계 I71)
+        // 대치동을 '삼성동'이라고 했다. 지번주소가 단지 식별에 더 정확하므로 둘 다 준다
         sb.add("지번주소: " + text(property.addressJibun()));
         sb.add("도로명주소: " + text(property.addressRoad()));
         sb.add("공급면적(㎡): " + number(property.areaSupplyM2()));
@@ -352,7 +352,7 @@ public class LlmRecommendationService {
             }
         }
 
-        // 사람이 직접 남긴 판단 — 이게 바뀌면 추천도를 다시 묻는다 (설계 I78)
+        // 사람이 직접 남긴 판단 — 이게 바뀌면 추천도를 다시 묻는다
         sb.add("");
         sb.add("[구매자들이 직접 매긴 공간의 쾌적함] 1~5점");
         if (comfortScores == null || comfortScores.isEmpty()) {
@@ -375,7 +375,7 @@ public class LlmRecommendationService {
         return sb.toString();
     }
 
-    /** 쾌적함은 사용자별로 저장되고 총점에는 평균이 들어간다 (설계 I76). */
+    /** 쾌적함은 사용자별로 저장되고 총점에는 평균이 들어간다. */
     private List<Integer> comfortScoresOf(Long propertyId) {
         return userCriterionScoreRepository.findByPropertyId(propertyId).stream()
                 .filter(s -> COMFORT_CODE.equals(s.criterionCode()))
@@ -394,14 +394,14 @@ public class LlmRecommendationService {
 
 
     /**
-     * 주변 시설을 <b>가까운 순으로</b> 프롬프트에 싣는다.
+     * 주변 시설을 가까운 순으로 프롬프트에 싣는다.
      *
-     * <p>이게 없어서 모델이 "지하철역 접근성 정보가 없어 통근 시간 산정에 한계가 있다"고 답했다.
-     * 앱은 역명과 도보시간을 이미 갖고 있었는데({@code StationScorer}가 채점에 쓴다) 프롬프트에만
-     * 빠져 있었다. <b>채점이 쓰는 입력은 모델도 봐야 한다</b> — 같은 매물을 두고 서로 다른 근거로
+     * 이게 없어서 모델이 "지하철역 접근성 정보가 없어 통근 시간 산정에 한계가 있다"고 답했다.
+     * 앱은 역명과 도보시간을 이미 갖고 있었는데(StationScorer가 채점에 쓴다) 프롬프트에만
+     * 빠져 있었다. 채점이 쓰는 입력은 모델도 봐야 한다 — 같은 매물을 두고 서로 다른 근거로
      * 판단하면 추천 사유와 채점 결과가 어긋난다.
      *
-     * <p>전부 넣으면 수백 건이라 카테고리마다 가까운 것만 추린다. 순서는 도보시간 → 이름으로
+     * 전부 넣으면 수백 건이라 카테고리마다 가까운 것만 추린다. 순서는 도보시간 → 이름으로
      * 고정한다 — 프롬프트가 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다.
      */
     private void appendNearby(StringJoiner sb, List<NearbyFacility> nearby) {
@@ -441,14 +441,14 @@ public class LlmRecommendationService {
 
 
     /**
-     * AI 추천도가 <b>새로 생겼을 때만</b> 다시 채점한다 (설계 I84).
+     * AI 추천도가 새로 생겼을 때만 다시 채점한다.
      *
-     * <p>채점 결과는 `property_score`에 저장해 두는데 AI 추천도는 <b>비동기로 나중에</b>
+     * 채점 결과는 `property_score`에 저장해 두는데 AI 추천도는 비동기로 나중에
      * 채워집니다. 등록 직후 채점될 때는 아직 없으므로, 다시 채점하지 않으면 비어 있던 그때의
-     * 결과가 그대로 남습니다 — <b>상세 모달에는 AI 추천이 보이는데 채점 모달에는 없는</b>
+     * 결과가 그대로 남습니다 — 상세 모달에는 AI 추천이 보이는데 채점 모달에는 없는
      * 상태가 됩니다. 두 화면이 다른 곳을 읽기 때문입니다.
      *
-     * <p>여기에 두는 이유는 <b>값이 실제로 저장된 자리</b>이기 때문입니다. 보정이 끝나는
+     * 여기에 두는 이유는 값이 실제로 저장된 자리이기 때문입니다. 보정이 끝나는
      * 지점에 두면 AI 결과가 안 바뀌었을 때도 매번 다시 채점해 POI·통근 조회까지 딸려 갑니다.
      * 입력이 그대로면 프롬프트 해시가 같아 여기까지 오지 않습니다(I59).
      */
@@ -463,15 +463,15 @@ public class LlmRecommendationService {
     }
 
     /**
-     * 이 매물을 함께 보는 사람들 (설계 I91).
+     * 이 매물을 함께 보는 사람들.
      *
-     * <p><b>같은 그룹의 구성원만</b> 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
-     * <b>직장 주소가 프롬프트로 나가고</b>, 그 사람 기준의 통근까지 판단에 섞입니다.
+     * 같은 그룹의 구성원만 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
+     * 직장 주소가 프롬프트로 나가고, 그 사람 기준의 통근까지 판단에 섞입니다.
      *
-     * <p>세션이 아니라 매물의 그룹으로 좁힙니다 — 배경 보정에서도 도는데 그때는 로그인
+     * 세션이 아니라 매물의 그룹으로 좁힙니다 — 배경 보정에서도 도는데 그때는 로그인
      * 사용자가 없습니다.
      *
-     * <p>활성 사용자만, 아이디 순으로 — 순서가 흔들리면 프롬프트 해시가 달라집니다.
+     * 활성 사용자만, 아이디 순으로 — 순서가 흔들리면 프롬프트 해시가 달라집니다.
      */
     private List<User> activeBuyers(Property property) {
         return userRepository.findByGroupId(property.groupId()).stream()

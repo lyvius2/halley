@@ -12,7 +12,7 @@ public class MinistryReferenceFallbackFactory implements FallbackFactory<Ministr
 
     /**
      * 오퍼레이션이 둘이 되어 람다로는 안 됩니다 — 익명 클래스로 각각 로그를 남깁니다
-     * (설계 I131). 어느 쪽이 실패했는지 구분되지 않으면 원인을 못 찾습니다.
+     *. 어느 쪽이 실패했는지 구분되지 않으면 원인을 못 찾습니다.
      */
     @Override
     public MinistryReferenceFeignClient create(Throwable cause) {

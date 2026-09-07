@@ -11,8 +11,8 @@ import java.util.regex.Pattern;
 /**
  * 해당층/총층.
  *
- * <p>해당층은 숫자가 아니라 <b>밴드(저·중·고)</b>로 오기도 합니다 — `고/19층`.
- * 채점은 이미 밴드를 다루는데(AGENTS.md) 파서가 숫자만 받아 통째로 빠졌습니다 (설계 I283).
+ * 해당층은 숫자가 아니라 밴드(저·중·고)로 오기도 합니다 — `고/19층`.
+ * 채점은 이미 밴드를 다루는데(AGENTS.md) 파서가 숫자만 받아 통째로 빠졌습니다.
  */
 public class FloorExtractor implements FieldExtractor<String> {
 

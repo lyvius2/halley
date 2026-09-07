@@ -9,13 +9,13 @@ import java.util.regex.Pattern;
 public final class FallbackCause {
 
     /**
-     * 인증키를 가린다 (설계 I140).
+     * 인증키를 가린다.
      *
-     * <p>Feign의 예외 메시지에는 <b>요청 URL이 통째로 들어갑니다.</b> 공공데이터포털은
-     * 인증키를 쿼리 파라미터로 받으므로, 그대로 남기면 운영 로그에 <b>키 원문이 찍힙니다</b> —
+     * Feign의 예외 메시지에는 요청 URL이 통째로 들어갑니다. 공공데이터포털은
+     * 인증키를 쿼리 파라미터로 받으므로, 그대로 남기면 운영 로그에 키 원문이 찍힙니다 —
      * 실제로 429 로그에서 국토부 키가 그렇게 노출됐습니다.
      *
-     * <p>로그는 지우기 어렵고 여러 곳으로 복사됩니다. <b>애초에 안 남기는 편이 낫습니다.</b>
+     * 로그는 지우기 어렵고 여러 곳으로 복사됩니다. 애초에 안 남기는 편이 낫습니다.
      */
     private static final Pattern SECRET = Pattern.compile(
             "(?i)(serviceKey|apiKey|api_key|authKey|auth_key|access_token|client_secret|key)=[^&\\s\\]]*");

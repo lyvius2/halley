@@ -13,7 +13,7 @@ import java.time.Duration;
 
 /**
  * live용 Redis 캐시 (TTL 7일, 좌표 100m 반올림 키). Redis 장애 시 조회·저장을 조용히 건너뛰어
- * 외부 인프라 장애가 임장 동선 계산을 막지 않게 한다 (설계 12.2 원칙).
+ * 외부 인프라 장애가 임장 동선 계산을 막지 않게 한다.
  */
 @Slf4j
 @Component

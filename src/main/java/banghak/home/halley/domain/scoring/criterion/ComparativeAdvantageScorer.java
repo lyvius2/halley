@@ -3,9 +3,9 @@ package banghak.home.halley.domain.scoring.criterion;
 import banghak.home.halley.domain.property.Property;
 
 /**
- * 비교 우위 추천 — 등록된 매물 전체를 견주어 매긴 상대적 우위 (설계 I61).
+ * 비교 우위 추천 — 등록된 매물 전체를 견주어 매긴 상대적 우위.
  *
- * <p>AI 추천도(I59)와 달리 <b>다른 매물과의 비교</b>에서 나온 점수입니다. LLM 호출은 매물 전체를
+ * AI 추천도(I59)와 달리 다른 매물과의 비교에서 나온 점수입니다. LLM 호출은 매물 전체를
  * 한 번에 던지는 무거운 작업이라 채점 루프에서 돌리지 않고, `ComparativeAnalysisService`가
  * 저장해 둔 값을 `ScoringContext`로 받아 그대로 씁니다.
  */

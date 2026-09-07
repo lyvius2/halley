@@ -3,7 +3,7 @@ package banghak.home.halley.domain.property;
 import java.math.BigDecimal;
 
 /**
- * 공시가격 한 건 (설계 I54).
+ * 공시가격 한 건.
  *
  * @param price     공시가격(원)
  * @param year      기준연도

@@ -5,7 +5,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * `동/호` 에서 동만 뽑는다 (설계 I268) — 카카오 장소검색은 호까지 붙이면 결과가 없다.
+ * `동/호` 에서 동만 뽑는다 — 카카오 장소검색은 호까지 붙이면 결과가 없다.
  * 지도에 있는 것은 건물이지 세대가 아니다.
  */
 public final class BuildingNumber {

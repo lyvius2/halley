@@ -16,18 +16,18 @@ import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
 /**
- * 건축물대장 어댑터 (설계 I132).
+ * 건축물대장 어댑터.
  *
- * <p>PNU 19자리를 쪼개 넣습니다.
+ * PNU 19자리를 쪼개 넣습니다.
  *
- * <pre>
+ *
  *   41597   10500   1   0525   0000
  *     │       │     │     │      └── ji        (부번 4)
  *     │       │     │     └───────── bun       (본번 4)
  *     │       │     └─────────────── 산 여부    → platGbCd 로 변환
  *     │       └───────────────────── bjdongCd  (법정동 5)
  *     └───────────────────────────── sigunguCd (시군구 5)
- * </pre>
+ *
  */
 @Slf4j
 @Component
@@ -89,8 +89,8 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
     /**
      * PNU의 산 여부를 건축물대장 코드로 바꾼다.
      *
-     * <p><b>체계가 다릅니다.</b> PNU는 `1`=대지·`2`=산, 대장은 `0`=대지·`1`=산·`2`=블록.
-     * 그대로 넘기면 <b>엉뚱한 필지</b>를 봅니다.
+     * 체계가 다릅니다. PNU는 `1`=대지·`2`=산, 대장은 `0`=대지·`1`=산·`2`=블록.
+     * 그대로 넘기면 엉뚱한 필지를 봅니다.
      */
     private String platGbCd(char pnuMountainFlag) {
         return pnuMountainFlag == '2' ? "1" : "0";
@@ -129,7 +129,7 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
     }
 
     /**
-     * 결과가 1건이면 배열이 아니라 <b>객체로 오는</b> 공공 API가 있습니다.
+     * 결과가 1건이면 배열이 아니라 객체로 오는 공공 API가 있습니다.
      * 실측에서는 배열이었지만 둘 다 받습니다.
      */
     private JsonNode firstItem(JsonNode root) {

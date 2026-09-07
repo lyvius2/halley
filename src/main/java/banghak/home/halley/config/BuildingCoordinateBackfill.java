@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 이미 저장된 매물의 겹친 좌표를 건물 좌표로 바꾼다 (설계 I268).
+ * 이미 저장된 매물의 겹친 좌표를 건물 좌표로 바꾼다.
  * 좌표가 같은 매물이 둘 이상인 경우에만 물어보므로, 한 번 갈라지면 다음부터는
  * 대상이 아니다 — 여러 번 돌려도 같다. 카카오 키가 없거나 막히면 그냥 안 바뀐다.
  */
@@ -56,7 +56,7 @@ public class BuildingCoordinateBackfill implements ApplicationRunner {
             }
         }
         if (moved > 0) {
-            log.info("Moved {} properties to their own building coordinate (설계 I268).", moved);
+            log.info("Moved {} properties to their own building coordinate.", moved);
         }
     }
 

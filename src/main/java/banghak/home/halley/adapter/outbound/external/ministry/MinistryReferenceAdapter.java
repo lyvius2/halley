@@ -27,20 +27,20 @@ import java.util.Objects;
 @Component
 public class MinistryReferenceAdapter implements MinistryReferencePort {
 
-    /** {@code <resultCode>00</resultCode>} — 공백·CDATA 가 섞여 와도 읽는다 */
+    /** <resultCode>00</resultCode> — 공백·CDATA 가 섞여 와도 읽는다 */
     private static final Pattern RESULT_CODE =
             Pattern.compile("<resultCode>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]\\s]+)");
     private static final Pattern RESULT_MSG =
             Pattern.compile("<resultMsg>\\s*(?:<!\\[CDATA\\[)?\\s*([^<\\]]+)");
     /**
-     * 정상으로 볼 코드 (설계 I258).
+     * 정상으로 볼 코드.
      *
-     * <p>[I251]에서 {@code 00}·{@code 0}·{@code INFO-000} 만 정상으로 잡았습니다.
-     * <b>실물은 {@code 000} 이었습니다</b> — 목록에 없어 <b>정상 응답을 전부
-     * 버리고</b> 있었습니다.
+     * 에서 00·0·INFO-000 만 정상으로 잡았습니다.
+     * 실물은 000 이었습니다 — 목록에 없어 정상 응답을 전부
+     * 버리고 있었습니다.
      *
-     * <p>이름을 열거하지 않고 <b>0만으로 이뤄졌는가</b>를 봅니다.
-     * {@code 0}·{@code 00}·{@code 000}·{@code INFO-000} 이 한 규칙에 들어옵니다.
+     * 이름을 열거하지 않고 0만으로 이뤄졌는가를 봅니다.
+     * 0·00·000·INFO-000 이 한 규칙에 들어옵니다.
      */
     private static final Pattern OK_CODE = Pattern.compile("^(?:INFO-)?0+$");
 
@@ -70,32 +70,32 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
 
 
     /**
-     * 한 번에 받아 올 건수 (설계 I219).
+     * 한 번에 받아 올 건수.
      *
-     * <p><b>안 주면 10건입니다.</b> 서울 한 구의 한 달 아파트 매매는 실측으로
-     * 200~700건이라, 10건만 보면 <b>찾는 단지가 거의 안 걸립니다.</b>
+     * 안 주면 10건입니다. 서울 한 구의 한 달 아파트 매매는 실측으로
+     * 200~700건이라, 10건만 보면 찾는 단지가 거의 안 걸립니다.
      *
-     * <p>1000으로 뒀다가 <b>더 재 보고 올렸습니다.</b> 송파구 2025-03 이 952건이라
+     * 1000으로 뒀다가 더 재 보고 올렸습니다. 송파구 2025-03 이 952건이라
      * 여유가 48건뿐이었습니다 — 거래가 몰리는 달에 조용히 잘릴 자리였습니다.
      *
-     * <pre>
+     *
      * 송파(11710) 2025-03  952      강남(11680) 2025-03  917
      * 노원(11350) 2025-06  885      성북(11290) 2025-06  660
-     * </pre>
      *
-     * <p>충분히 크게 잡아 <b>한 번에 다 받습니다.</b> 페이지를 넘기면 호출이
-     * 그만큼 늘고, 국토부는 초당 호출을 제한합니다(`RateGate`, [I140]).
+     *
+     * 충분히 크게 잡아 한 번에 다 받습니다. 페이지를 넘기면 호출이
+     * 그만큼 늘고, 국토부는 초당 호출을 제한합니다(`RateGate`,).
      * 100,000 을 줘도 실제로는 `totalCount` 만큼만 옵니다 — 실측 확인했습니다.
      *
-     * <p>그래도 넘칠 수 있으므로 <b>넘쳤는지 확인합니다</b>(`warnIfTruncated`).
-     * 앞서 주석에 "어긋나면 알 수 있다"고 적어 두고 <b>비교하는 코드는
-     * 없었습니다</b> — 그래서 10건만 받던 것을 오래 몰랐습니다([I219]).
+     * 그래도 넘칠 수 있으므로 넘쳤는지 확인합니다(`warnIfTruncated`).
+     * 앞서 주석에 "어긋나면 알 수 있다"고 적어 두고 비교하는 코드는
+     * 없었습니다 — 그래서 10건만 받던 것을 오래 몰랐습니다().
      */
     private static final int PAGE_SIZE = 100_000;
 
     @Override
     public List<ReferenceTrade> fetchTrades(String lawdCd, String dealYmd) {
-        // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다 (설계 I140)
+        // 키가 없는 것도 '모르는 것'이다 — 0건으로 굳히면 안 된다
         if (serviceKey == null || serviceKey.isBlank()) {
             return null;
         }
@@ -110,10 +110,10 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     }
 
     /**
-     * 순수 전세만 (설계 I131).
+     * 순수 전세만.
      *
-     * <p>돌려주는 {@code dealAmount}는 <b>보증금</b>입니다 — 매매가가 아닙니다.
-     * 월세가 붙은 반전세는 보증금이 낮게 잡혀 전세가율을 왜곡하므로 <b>여기서 걸러 냅니다.</b>
+     * 돌려주는 dealAmount는 보증금입니다 — 매매가가 아닙니다.
+     * 월세가 붙은 반전세는 보증금이 낮게 잡혀 전세가율을 왜곡하므로 여기서 걸러 냅니다.
      */
     @Override
     public List<ReferenceTrade> fetchJeonseDeposits(String lawdCd, String dealYmd) {
@@ -132,32 +132,32 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
     }
 
     /**
-     * 한 페이지에 다 못 담았는지 (설계 I229).
+     * 한 페이지에 다 못 담았는지.
      *
-     * <p>국토부는 <b>넘쳐도 아무 말 없이</b> 앞에서 잘라 줍니다. 그러면 뒤쪽 거래는
+     * 국토부는 넘쳐도 아무 말 없이 앞에서 잘라 줍니다. 그러면 뒤쪽 거래는
      * 통째로 안 보이는데, 화면에는 "거래가 없다"로 나타납니다 —
-     * <b>없는 것과 못 받은 것을 구분할 수 없습니다.</b>
+     * 없는 것과 못 받은 것을 구분할 수 없습니다.
      *
-     * <p>이걸 안 봐서 <b>10건만 받던 것을 반년 넘게 몰랐습니다</b>([I219]).
+     * 이걸 안 봐서 10건만 받던 것을 반년 넘게 몰랐습니다().
      */
     /**
-     * 국토부는 <b>오류도 200으로 줍니다</b> (설계 I251).
+     * 국토부는 오류도 200으로 줍니다.
      *
-     * <pre>
+     *
      * &lt;header&gt;
      *   &lt;resultCode&gt;22&lt;/resultCode&gt;
      *   &lt;resultMsg&gt;LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR&lt;/resultMsg&gt;
      * &lt;/header&gt;
-     * </pre>
      *
-     * <p>이 본문에는 {@code <item>} 이 없어 파서가 <b>빈 목록</b>을 돌려주고,
-     * 수집기는 그것을 <b>"그 달은 거래가 없었다"</b>로 저장합니다.
-     * 과거 달은 다시 받지 않으므로([I128]) <b>영영 구멍</b>이 됩니다.
      *
-     * <p>[I140]에서 "실패를 캐시에 굳히지 않는다"고 고쳤는데 <b>연결 실패만</b>
+     * 이 본문에는 <item> 이 없어 파서가 빈 목록을 돌려주고,
+     * 수집기는 그것을 "그 달은 거래가 없었다"로 저장합니다.
+     * 과거 달은 다시 받지 않으므로() 영영 구멍이 됩니다.
+     *
+     * 에서 "실패를 캐시에 굳히지 않는다"고 고쳤는데 연결 실패만
      * 막았습니다. 429는 연결이 되고 200이 오므로 그 그물을 그냥 통과했습니다.
      *
-     * <p>정상 코드는 {@code 00} 입니다. <b>코드가 아예 없으면 통과시킵니다</b> —
+     * 정상 코드는 00 입니다. 코드가 아예 없으면 통과시킵니다 —
      * 헤더를 안 주는 응답 형태가 있을 수 있고, 없다고 실패로 몰면 멀쩡한 달까지
      * 안 받게 됩니다.
      */
@@ -170,7 +170,7 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         if (OK_CODE.matcher(code).matches()) {
             return false;
         }
-        // 코드 이름을 못 맞혀도 <b>본문이 왔으면 정상</b>이다 (설계 I258).
+        // 코드 이름을 못 맞혀도 본문이 왔으면 정상이다.
         // 이름을 열거하는 방식은 한 번 틀렸다 — 그때 정상 응답을 전부 버렸다.
         // 오류 응답에는 body 가 없어 totalCount 도 없다
         if (TOTAL_COUNT.matcher(xml).find()) {
@@ -257,18 +257,18 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
                         Integer.parseInt(Objects.requireNonNull(month)),
                         Integer.parseInt(Objects.requireNonNull(day))
                 ),
-                // 법정동·번지는 <b>이미 오고 있었습니다</b> (설계 I257). 버리고 있었을 뿐입니다
+                // 법정동·번지는 이미 오고 있었습니다. 버리고 있었을 뿐입니다
                 text(item, "umdNm", "법정동"),
                 jibunOf(item)
         );
     }
 
     /**
-     * 번지 (설계 I257).
+     * 번지.
      *
-     * <p>{@code jibun} 이 {@code 138} 또는 {@code 138-2} 로 옵니다. 안 오는 응답이
-     * 있어 {@code bonbun}·{@code bubun}(네 자리 0채움)으로 되짚습니다 —
-     * {@code 0138}·{@code 0000} → {@code 138}.
+     * jibun 이 138 또는 138-2 로 옵니다. 안 오는 응답이
+     * 있어 bonbun·bubun(네 자리 0채움)으로 되짚습니다 —
+     * 0138·0000 → 138.
      */
     private String jibunOf(Element item) {
         final String jibun = text(item, "jibun", "지번");
@@ -285,12 +285,12 @@ public class MinistryReferenceAdapter implements MinistryReferencePort {
         return sub == 0 ? String.valueOf(main) : main + "-" + sub;
     }
 
-    /** 국토부는 금액을 <b>만원 단위 문자열</b>로 준다 (`"110,000"`). 원으로 바꾼다. */
+    /** 국토부는 금액을 만원 단위 문자열로 준다 (`"110,000"`). 원으로 바꾼다. */
     private long parseMan(String value) {
         return Math.round(Double.parseDouble(value.replace(",", "").trim()) * 10_000L);
     }
 
-    /** XML에서 {@code item} 요소를 뽑는다. 매매·전세가 같은 구조라 함께 쓴다. */
+    /** XML에서 item 요소를 뽑는다. 매매·전세가 같은 구조라 함께 쓴다. */
     private List<Element> items(String xml) {
         try {
             final Document document = DocumentBuilderFactory.newInstance().newDocumentBuilder()

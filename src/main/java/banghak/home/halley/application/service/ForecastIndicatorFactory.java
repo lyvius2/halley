@@ -22,12 +22,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 지표와 예측기를 조립한다 (설계 I133).
+ * 지표와 예측기를 조립한다.
  *
- * <p><b>임계값을 매번 읽습니다.</b> 관리자가 `regulation_param`을 바꾸면 다음 전망부터
+ * 임계값을 매번 읽습니다. 관리자가 `regulation_param`을 바꾸면 다음 전망부터
  * 반영돼야 합니다 — 빈 생성 시점에 굳히면 재기동해야 바뀝니다.
  *
- * <p>지표는 `ScoringConfig`가 스코어러를 조립하는 것과 같은 방식으로 만듭니다 —
+ * 지표는 `ScoringConfig`가 스코어러를 조립하는 것과 같은 방식으로 만듭니다 —
  * 도메인은 순수 클래스로 두고 조립만 여기서 합니다.
  */
 @Slf4j
@@ -63,7 +63,7 @@ public class ForecastIndicatorFactory {
     }
 
     /**
-     * 순서가 곧 화면 순서입니다. <b>무거운 것부터</b> 둡니다 — 사용자가 위에서부터 읽습니다.
+     * 순서가 곧 화면 순서입니다. 무거운 것부터 둡니다 — 사용자가 위에서부터 읽습니다.
      */
     public List<PriceIndicator> indicators() {
         final Map<String, String> params = loadParams();
@@ -106,7 +106,7 @@ public class ForecastIndicatorFactory {
     }
 
     /**
-     * 값이 없거나 깨졌으면 기본값을 씁니다. <b>전망이 통째로 멈추는 것보다 낫습니다</b> —
+     * 값이 없거나 깨졌으면 기본값을 씁니다. 전망이 통째로 멈추는 것보다 낫습니다 —
      * 임계값은 요인의 방향만 가르고 결론을 정하지 않습니다.
      */
     private BigDecimal decimal(Map<String, String> params, String key, String fallback) {

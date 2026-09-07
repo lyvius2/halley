@@ -6,7 +6,7 @@ import org.springframework.stereotype.Component;
 
 import static banghak.home.halley.adapter.outbound.external.FallbackCause.describe;
 
-/** 목록을 못 받으면 비워 돌려준다 — 화면은 그때 지금 쓰는 모델만 보여 준다 (설계 I267). */
+/** 목록을 못 받으면 비워 돌려준다 — 화면은 그때 지금 쓰는 모델만 보여 준다. */
 @Slf4j
 @Component
 public class ClaudeModelsFallbackFactory implements FallbackFactory<ClaudeModelsFeignClient> {

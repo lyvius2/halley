@@ -66,7 +66,7 @@ public class LoanEstimateService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final ComplexService complexService;
-    /** 실거래를 고를 때의 면적 허용 범위 — {@code ReferenceTransactionService} 와 같은 값이어야 한다. */
+    /** 실거래를 고를 때의 면적 허용 범위 — ReferenceTransactionService 와 같은 값이어야 한다. */
     static final double REFERENCE_AREA_TOLERANCE = 0.15;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
@@ -107,16 +107,16 @@ public class LoanEstimateService {
     }
 
     /**
-     * 규제지역 값을 못 믿을 때 화면에 실을 문구 (설계 I73).
+     * 규제지역 값을 못 믿을 때 화면에 실을 문구.
      *
-     * <p>규제지역이 비어 있으면 {@code RegulatedAreaService}가 비규제로 판정하고 LTV 0.7이
-     * 잡힙니다. 실제가 투기과열지구(0.4)라면 <b>한도가 배 가까이 부풀려집니다.</b> 값이 틀린 것보다
+     * 규제지역이 비어 있으면 RegulatedAreaService가 비규제로 판정하고 LTV 0.7이
+     * 잡힙니다. 실제가 투기과열지구(0.4)라면 한도가 배 가까이 부풀려집니다. 값이 틀린 것보다
      * 틀렸는지 모르는 것이 위험하므로 결과에 붙여 보냅니다.
      */
     /**
-     * 로그인 사용자의 종류별 기존 부채 (설계 I92).
+     * 로그인 사용자의 종류별 기존 부채.
      *
-     * <p>비어 있으면 프로필의 단일 금액(`existingLoan`)이 주담대로 쓰입니다 —
+     * 비어 있으면 프로필의 단일 금액(`existingLoan`)이 주담대로 쓰입니다 —
      * 아직 종류를 입력하지 않은 사용자의 부채가 사라지면 한도가 부풀려집니다.
      */
     private List<ExistingDebt> myDebts() {
@@ -131,10 +131,10 @@ public class LoanEstimateService {
     }
 
     /**
-     * 매물의 거래유형에 맞는 대출을 산정한다 (설계 I67).
+     * 매물의 거래유형에 맞는 대출을 산정한다.
      *
-     * <p>매매는 주담대(LTV·DSR·취득세), 전세는 전세자금대출(보증 한도·이자만 DSR)입니다.
-     * <b>전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.</b>
+     * 매매는 주담대(LTV·DSR·취득세), 전세는 전세자금대출(보증 한도·이자만 DSR)입니다.
+     * 전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.
      */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {
         final Property property = propertyAccessGuard.require(propertyId);
@@ -145,13 +145,13 @@ public class LoanEstimateService {
                 jeonse ? LoanProductType.JEONSE : LoanProductType.MORTGAGE);
         final RegulationParams params = withMarketRate(loadParams(rawParams), marketRate);
 
-        // 입력이 비면 로그인 사용자의 프로필로 채운다 — 모달을 열자마자 결과가 보여야 한다 (설계 I55)
+        // 입력이 비면 로그인 사용자의 프로필로 채운다 — 모달을 열자마자 결과가 보여야 한다
         final Optional<User> me = currentUser();
         final long annualIncome = orProfile(request.annualIncome(), me.map(User::annualIncomeOrZero));
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
 
-        // 한도에는 안 들어가지만 화면에 병기한다 (설계 I114)
+        // 한도에는 안 들어가지만 화면에 병기한다
         final long groupCash = groupCash(property.groupId());
 
         if (jeonse) {
@@ -163,12 +163,12 @@ public class LoanEstimateService {
     }
 
     /**
-     * 시장 금리를 받았으면 <b>`interestRate`만</b> 갈아 끼운다 (설계 I81).
+     * 시장 금리를 받았으면 `interestRate`만 갈아 끼운다.
      *
-     * <p>한도 산식은 건드리지 않습니다. 금감원이 주는 `loan_lmt`는 `"LTV 70% 이내"` 같은
+     * 한도 산식은 건드리지 않습니다. 금감원이 주는 `loan_lmt`는 `"LTV 70% 이내"` 같은
      * 서술 문장이라, 파싱해서 얹으면 규제 파라미터와 같은 제약이 두 번 걸립니다.
      *
-     * <p>{@code stressRate}도 그대로 둡니다 — DSR은 스트레스 금리로 계산합니다(I64-2).
+     * stressRate도 그대로 둡니다 — DSR은 스트레스 금리로 계산합니다(I64-2).
      * 시장 금리로 역산하면 한도가 부풀려집니다.
      */
     private RegulationParams withMarketRate(RegulationParams params, Optional<MarketRate> marketRate) {
@@ -182,11 +182,11 @@ public class LoanEstimateService {
     }
 
     /**
-     * 금리가 어디서 왔는지 (설계 I81). 못 받아 기본값으로 떨어졌으면 <b>그 사실을 밝힙니다</b> —
+     * 금리가 어디서 왔는지. 못 받아 기본값으로 떨어졌으면 그 사실을 밝힙니다 —
      * 조용히 다른 값을 쓰면 사용자는 검증할 수 없습니다.
      */
     /**
-     * 스트레스 금리의 출처 (설계 I116). 한국은행 통계로 산출했으면 그 근거가 담겨 있고,
+     * 스트레스 금리의 출처. 한국은행 통계로 산출했으면 그 근거가 담겨 있고,
      * 사람이 넣은 값이면 비어 있습니다 — 화면은 있을 때만 보여 줍니다.
      */
     private String stressRateSource() {
@@ -205,10 +205,10 @@ public class LoanEstimateService {
     }
 
     /**
-     * 같은 그룹 사용자들의 보유 현금 합계 (설계 I114).
+     * 같은 그룹 사용자들의 보유 현금 합계.
      *
-     * <p>한도 산식에는 넣지 않습니다 — 대출은 개인 명의로 나오고, 남의 현금이 내 LTV·DSR을
-     * 늘려 주지 않습니다. 화면에 <b>병기만</b> 해서 그룹이 실제로 모을 수 있는 돈을 함께 봅니다.
+     * 한도 산식에는 넣지 않습니다 — 대출은 개인 명의로 나오고, 남의 현금이 내 LTV·DSR을
+     * 늘려 주지 않습니다. 화면에 병기만 해서 그룹이 실제로 모을 수 있는 돈을 함께 봅니다.
      */
     private long groupCash(Long groupId) {
         if (groupId == null) {
@@ -226,16 +226,16 @@ public class LoanEstimateService {
                                                   Map<String, String> rawParams, RegulationParams params,
                                                   Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
-        // 금리유형이 스트레스 가산폭을 가른다 (설계 I97). 비우면 변동으로 본다
+        // 금리유형이 스트레스 가산폭을 가른다. 비우면 변동으로 본다
         final RateType rateType = request.rateType() == null ? RateType.VARIABLE : request.rateType();
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
-        // LTV는 호가가 아니라 담보가치에 매긴다 (설계 I64-1)
+        // LTV는 호가가 아니라 담보가치에 매긴다
         final CollateralValuation collateral = CollateralValuator.estimate(
                 property.kbPrice(), tradeSamples(property), property.areaExclusiveM2(),
                 property.officialPrice(), askingPrice, params.officialPriceRatio(), LocalDate.now());
 
-        // 규제지역·주택 보유 수로 LTV 비율을 정한다 (설계 I66)
+        // 규제지역·주택 보유 수로 LTV 비율을 정한다
         final RegulationZone zone = regulatedAreaService.resolve(property);
         final HouseOwnership ownership = HouseOwnership.of(request.ownedHouseCount());
         final LtvDecision ltv = MortgagePolicy.decide(zone, ownership, firstHome, rawParams, params);
@@ -326,7 +326,7 @@ public class LoanEstimateService {
      * (대출 계산이 외부 API 지연에 묶이면 안 된다).
      */
     private List<TradeSample> tradeSamples(Property property) {
-        // 실거래는 단지·평형에 붙는다 (설계 I266) — 단지가 없으면 받아 온 적이 없다는 뜻이다
+        // 실거래는 단지·평형에 붙는다 — 단지가 없으면 받아 온 적이 없다는 뜻이다
         return complexService.find(property)
                 .map(c -> referenceTransactionRepository.findByComplexAndArea(
                         c.id(), property.areaExclusiveM2(), REFERENCE_AREA_TOLERANCE))

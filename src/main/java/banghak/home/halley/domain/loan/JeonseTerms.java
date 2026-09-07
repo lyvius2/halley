@@ -3,7 +3,7 @@ package banghak.home.halley.domain.loan;
 import java.math.BigDecimal;
 
 /**
- * 전세자금대출 조건 (설계 I67).
+ * 전세자금대출 조건.
  *
  * @param guaranteeRate 보증비율 — 보증기관이 보증금의 몇 %까지 보증하는지
  * @param guaranteeCap  보증기관 한도(원) — 비율과 무관한 절대 상한

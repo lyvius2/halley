@@ -31,7 +31,7 @@ public class WonValueExtractor implements FieldExtractor<Long> {
         if (nextLine.value() != null) {
             return nextLine;
         }
-        // 라벨과 값이 한 줄에 붙어 있는 경우 (설계 I159). 다음 줄을 <b>먼저</b> 보는 이유는
+        // 라벨과 값이 한 줄에 붙어 있는 경우. 다음 줄을 먼저 보는 이유는
         // 그쪽이 네이버의 일반형이라, 같은 줄을 먼저 보면 엉뚱한 줄을 집을 수 있어서다
         return extractFrom(doc, false);
     }
@@ -53,7 +53,7 @@ public class WonValueExtractor implements FieldExtractor<Long> {
                     return ParseResult.missing();
                 }
             }
-            // 같은 줄에 붙어 온 값은 뒤에 군더더기가 따라온다 (설계 I283)
+            // 같은 줄에 붙어 온 값은 뒤에 군더더기가 따라온다
             final Long won = nextLine ? WonConverter.toWon(raw) : WonConverter.leadingWon(raw);
             if (won != null) {
                 return ParseResult.of(won, label + ": " + raw);

@@ -7,8 +7,8 @@ import org.springframework.stereotype.Component;
 import static banghak.home.halley.adapter.outbound.external.FallbackCause.describe;
 
 /**
- * 조회 실패는 <b>반드시 로그를 남깁니다</b>. 규제지역을 못 받으면 비규제(LTV 0.7)로 계산되어
- * 한도가 과대평가되는데, 조용히 넘어가면 그 사실을 알 방법이 없습니다 (설계 I73).
+ * 조회 실패는 반드시 로그를 남깁니다. 규제지역을 못 받으면 비규제(LTV 0.7)로 계산되어
+ * 한도가 과대평가되는데, 조용히 넘어가면 그 사실을 알 방법이 없습니다.
  */
 @Slf4j
 @Component

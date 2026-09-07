@@ -41,20 +41,20 @@ import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
 /**
- * 비교 우위 분석 (설계 I61).
+ * 비교 우위 분석.
  *
- * <p>개별 매물을 따로 보는 AI 추천도(I59)와 달리, <b>등록된 매물 전체를 한 번에</b> LLM에 던져
+ * 개별 매물을 따로 보는 AI 추천도(I59)와 달리, 등록된 매물 전체를 한 번에 LLM에 던져
  * 서로 견주게 하고 순위와 `비교 우위 추천` 점수를 받습니다. 같은 정보를 봐도 "이 집이 괜찮은가"와
  * "이 집이 저 집보다 나은가"는 다른 질문이라 따로 둡니다.
  *
- * <p><b>매물이 4개 미만이면 실행하지 않습니다.</b> 둘셋으로는 비교 우위라는 말이 성립하지 않고,
+ * 매물이 4개 미만이면 실행하지 않습니다. 둘셋으로는 비교 우위라는 말이 성립하지 않고,
  * 순위를 매겨도 정보가 거의 없습니다.
  */
 @Slf4j
 @Service
 public class ComparativeAnalysisService {
 
-    /** 이보다 적으면 순위가 뜻을 갖지 못한다 (설계 I61). */
+    /** 이보다 적으면 순위가 뜻을 갖지 못한다. */
     public static final int MIN_PROPERTIES = 4;
 
     private static final int MAX_TOKENS = 4096;
@@ -107,7 +107,7 @@ public class ComparativeAnalysisService {
         this.enabled = enabled;
     }
 
-    /** 비교 우위는 매물 단위가 아니라 전체 단위라 키가 하나다 (설계 I72). */
+    /** 비교 우위는 매물 단위가 아니라 전체 단위라 키가 하나다. */
     public static final String JOB_KEY = "compare";
 
     /** 지금 분석이 진행 중인지. */
@@ -143,7 +143,7 @@ public class ComparativeAnalysisService {
     /**
      * 등록된 매물 전체를 견주어 순위와 점수를 매긴다.
      *
-     * <p>매물 집합이 그대로면 다시 부르지 않습니다(`batch_hash`). 매물이 추가·수정되면
+     * 매물 집합이 그대로면 다시 부르지 않습니다(`batch_hash`). 매물이 추가·수정되면
      * 해시가 달라져 다시 분석합니다.
      */
     @Transactional
@@ -164,12 +164,12 @@ public class ComparativeAnalysisService {
             return cached;
         }
 
-        // 매물 전체를 한 번에 묻느라 오래 걸린다. 화면이 진행 중임을 알 수 있게 표시한다 (설계 I72)
+        // 매물 전체를 한 번에 묻느라 오래 걸린다. 화면이 진행 중임을 알 수 있게 표시한다
         jobCache.markRunning(JOB_KEY);
         final LlmResult result;
         final List<Ranking> rankings;
         try {
-            // 자리마다 고른 모델을 쓴다 (설계 I267)
+            // 자리마다 고른 모델을 쓴다
             final String model = llmModelService.modelFor(LlmFeature.COMPARATIVE);
             log.info("Asking LLM for comparative analysis. model={}, targets={}, promptChars={}",
                     model, targets.size(), prompt.length());
@@ -212,12 +212,12 @@ public class ComparativeAnalysisService {
     }
 
     /**
-     * 비교 대상 매물 (설계 I91).
+     * 비교 대상 매물.
      *
-     * <p><b>내 그룹 매물만 견줍니다.</b> 전 매물을 한 줄로 세우면 남의 그룹 매물이 순위에
-     * 섞이고, 무엇보다 그 매물 정보가 <b>LLM 프롬프트로 나갑니다.</b>
+     * 내 그룹 매물만 견줍니다. 전 매물을 한 줄로 세우면 남의 그룹 매물이 순위에
+     * 섞이고, 무엇보다 그 매물 정보가 LLM 프롬프트로 나갑니다.
      *
-     * <p>판매완료·초안은 제외합니다 — 살 수 없는 집과 견주면 순위가 왜곡됩니다.
+     * 판매완료·초안은 제외합니다 — 살 수 없는 집과 견주면 순위가 왜곡됩니다.
      */
     private List<Property> targets() {
         final Long groupId = accessGuard.currentGroupId().orElse(null);
@@ -246,7 +246,7 @@ public class ComparativeAnalysisService {
     }
 
     /**
-     * 프롬프트는 <b>줄 순서가 안정적</b>이어야 한다. 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다.
+     * 프롬프트는 줄 순서가 안정적이어야 한다. 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다.
      * 매물은 id 순, 필드는 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
      */
     String buildPrompt(List<Property> properties, List<User> buyers) {
@@ -260,7 +260,7 @@ public class ComparativeAnalysisService {
             sb.add("거래유형: " + (p.dealType() == null ? "정보 없음" : p.dealType().name()));
             sb.add("매매가/보증금(원): " + number(p.priceDeposit()));
             sb.add("관리비(원/월): " + number(p.maintenanceFee()));
-            // 도로명만 주면 모델이 동 이름을 잘못 추정한다 (설계 I71)
+            // 도로명만 주면 모델이 동 이름을 잘못 추정한다
             sb.add("지번주소: " + text(p.addressJibun()));
             sb.add("도로명주소: " + text(p.addressRoad()));
             sb.add("공급면적(㎡): " + number(p.areaSupplyM2()));
@@ -298,9 +298,9 @@ public class ComparativeAnalysisService {
     }
 
     /**
-     * 이 매물들을 함께 보는 사람들 (설계 I91).
+     * 이 매물들을 함께 보는 사람들.
      *
-     * <p><b>같은 그룹의 구성원만</b> 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
+     * 같은 그룹의 구성원만 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
      * 직장 주소가 프롬프트로 나갑니다.
      */
     private List<User> activeBuyers() {

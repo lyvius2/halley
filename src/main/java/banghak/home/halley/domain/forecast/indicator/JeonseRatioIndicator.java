@@ -13,18 +13,18 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 전세가율 (설계 I131).
+ * 전세가율.
  *
- * <pre>
+ *
  *   전세가율 = median(전세 보증금) / median(매매가)     ← 같은 면적대
- * </pre>
  *
- * <p><b>수준과 방향을 같이 봅니다.</b>
+ *
+ * 수준과 방향을 같이 봅니다.
  * 높으면(70%+) 실거주 수요가 받쳐 하방이 단단하고, 낮으면(50% 미만) 매매가에
- * 기대가 많이 실려 있다는 뜻입니다. 다만 <b>둘 다 방향을 단정하지는 못합니다</b> —
+ * 기대가 많이 실려 있다는 뜻입니다. 다만 둘 다 방향을 단정하지는 못합니다 —
  * 요인 하나일 뿐입니다.
  *
- * <p><b>무게는 MEDIUM입니다.</b> 고전적인 선행 지표지만 이 단지의 실거래만큼 직접적이지 않습니다.
+ * 무게는 MEDIUM입니다. 고전적인 선행 지표지만 이 단지의 실거래만큼 직접적이지 않습니다.
  */
 public class JeonseRatioIndicator implements PriceIndicator {
 
@@ -71,7 +71,7 @@ public class JeonseRatioIndicator implements PriceIndicator {
     /**
      * 수준이 먼저, 방향이 다음입니다.
      *
-     * <p><b>둘 다 애매하면 FLAT입니다.</b> 억지로 방향을 주지 않습니다.
+     * 둘 다 애매하면 FLAT입니다. 억지로 방향을 주지 않습니다.
      */
     private ForecastDirection directionOf(BigDecimal recent, BigDecimal before) {
         final boolean rising = before != null && recent.compareTo(before) > 0;
@@ -96,7 +96,7 @@ public class JeonseRatioIndicator implements PriceIndicator {
 
     /**
      * @param offset 몇 달 전 구간을 볼지. 0이면 최근
-     * @return 표본이 모자라면 null — <b>0으로 두면 그 값이 계산에 섞입니다</b>
+     * @return 표본이 모자라면 null — 0으로 두면 그 값이 계산에 섞입니다
      */
     private BigDecimal ratio(Property property, List<MonthlyTrades> trades,
                              List<MonthlyTrades> jeonse, java.time.YearMonth base, int offset) {

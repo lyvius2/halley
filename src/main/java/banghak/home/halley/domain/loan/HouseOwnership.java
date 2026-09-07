@@ -1,9 +1,9 @@
 package banghak.home.halley.domain.loan;
 
 /**
- * 대출 신청 시점의 주택 보유 상태 (설계 I66).
+ * 대출 신청 시점의 주택 보유 상태.
  *
- * <p>LTV는 보유 주택 수에 따라 크게 달라집니다. 규제지역의 다주택자는 아예 0%인 시기도 있었습니다.
+ * LTV는 보유 주택 수에 따라 크게 달라집니다. 규제지역의 다주택자는 아예 0%인 시기도 있었습니다.
  */
 public enum HouseOwnership {
 

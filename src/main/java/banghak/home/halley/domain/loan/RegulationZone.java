@@ -1,10 +1,10 @@
 package banghak.home.halley.domain.loan;
 
 /**
- * 부동산 규제지역 구분 (설계 I66).
+ * 부동산 규제지역 구분.
  *
- * <p>국토교통부 고시로 지정·해제되며, 구분에 따라 LTV 비율이 달라집니다.
- * 지정 현황은 공개 API가 없어 `regulated_area` 테이블로 관리합니다(설계 I64의 규제 데이터 원칙).
+ * 국토교통부 고시로 지정·해제되며, 구분에 따라 LTV 비율이 달라집니다.
+ * 지정 현황은 공개 API가 없어 `regulated_area` 테이블로 관리합니다.
  */
 public enum RegulationZone {
 

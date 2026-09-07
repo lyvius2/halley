@@ -19,14 +19,14 @@ import java.util.Optional;
 public class PoiDataService {
 
     /**
-     * 수집 규칙 버전 — 캐시 키에 포함된다(설계 I44). 아래 중 하나라도 바뀌면 **반드시 올린다**.
+     * 수집 규칙 버전 — 캐시 키에 포함된다. 아래 중 하나라도 바뀌면 **반드시 올린다**.
      * 올리고 배포하면 옛 캐시가 즉시 무시되고 전량 재수집되므로 수동 삭제가 필요 없다.
-     * <ul>
-     *   <li>CATEGORIES · GREEN_KEYWORDS (수집 대상·반경)</li>
-     *   <li>sub_category 분류 규칙 (GreenCategory)</li>
-     *   <li>도보시간 환산식</li>
-     * </ul>
-     * v2 — GREEN을 category_name으로 분류하고 공원·하천·산을 키워드로 수집하도록 변경 (설계 I42)
+     *
+     *   CATEGORIES · GREEN_KEYWORDS (수집 대상·반경)
+     *   sub_category 분류 규칙 (GreenCategory)
+     *   도보시간 환산식
+     *
+     * v2 — GREEN을 category_name으로 분류하고 공원·하천·산을 키워드로 수집하도록 변경
      */
     private static final int POI_SCHEMA_VERSION = 2;
 
@@ -43,8 +43,8 @@ public class PoiDataService {
             new CategorySpec("GREEN", "AT4", 2000));
 
     /**
-     * 공원·하천·산은 카카오에 전용 카테고리 그룹코드가 없어 키워드로 찾는다(설계 3.1 · I5).
-     * 산은 키워드만 쓰면 "떡산 롯데백화점"·"산과맥주"가 걸리므로 <b>`AT4`(관광명소) 필터를 함께</b> 건다.
+     * 공원·하천·산은 카카오에 전용 카테고리 그룹코드가 없어 키워드로 찾는다.
+     * 산은 키워드만 쓰면 "떡산 롯데백화점"·"산과맥주"가 걸리므로 `AT4`(관광명소) 필터를 함께 건다.
      * `AT4` 카테고리 검색(위 CATEGORIES)은 페이지당 15건이라 산이 잘려나갈 수 있어, 두 경로를 모두 쓴다.
      */
     private static final List<KeywordSpec> GREEN_KEYWORDS = List.of(

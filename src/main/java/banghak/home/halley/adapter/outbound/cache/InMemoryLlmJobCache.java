@@ -12,9 +12,9 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * local/개발용 인메모리 구현 (설계 I72). live에서는 {@link RedisLlmJobCache}가 쓰인다.
+ * local/개발용 인메모리 구현. live에서는 {@link RedisLlmJobCache}가 쓰인다.
  *
- * <p>TTL이 다른 이유: RUNNING은 <b>앱이 호출 도중 죽었을 때 남는 찌꺼기</b>라 짧게 두고,
+ * TTL이 다른 이유: RUNNING은 앱이 호출 도중 죽었을 때 남는 찌꺼기라 짧게 두고,
  * DONE은 DB와 같은 값이라 오래 둬도 안전합니다.
  */
 @Component

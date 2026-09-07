@@ -31,12 +31,12 @@ import java.util.Comparator;
 import java.util.List;
 
 /**
- * 규제 파라미터·규제지역 관리 (설계 I68).
+ * 규제 파라미터·규제지역 관리.
  *
- * <p>규제 수치에 공개 API가 없어 사람이 관리합니다(설계 I64). 그렇다면 <b>DB에 직접 손대지 않고</b>
- * 고칠 수 있어야 하고, <b>왜 그 값이 됐는지</b>가 남아야 합니다.
+ * 규제 수치에 공개 API가 없어 사람이 관리합니다. 그렇다면 DB에 직접 손대지 않고
+ * 고칠 수 있어야 하고, 왜 그 값이 됐는지가 남아야 합니다.
  *
- * <p>규제가 바뀌면 값을 덮어쓰는 대신 <b>새 프로파일을 복제해</b> 만들고 활성만 전환합니다.
+ * 규제가 바뀌면 값을 덮어쓰는 대신 새 프로파일을 복제해 만들고 활성만 전환합니다.
  * 옛 프로파일이 남아야 과거 산출값을 재현할 수 있습니다.
  */
 @Slf4j
@@ -73,8 +73,8 @@ public class RegulationAdminService {
     }
 
     /**
-     * 값을 고친다. <b>LTV·DSR은 가격 채점(PRICE)의 입력이므로</b> 바뀌면 전 매물을 다시 채점한다
-     * (설계 5.2.1 — 예산 상한 = 현금 + 대출 한도).
+     * 값을 고친다. LTV·DSR은 가격 채점(PRICE)의 입력이므로 바뀌면 전 매물을 다시 채점한다
+     *.
      */
     @Transactional
     public RegulationProfileResponse updateParams(List<UpdateRegulationParamRequest> requests) {
@@ -103,7 +103,7 @@ public class RegulationAdminService {
     }
 
     /**
-     * 새 프로파일을 만든다. 규제가 바뀌면 <b>덮어쓰지 않고</b> 복제해 새로 만들어야
+     * 새 프로파일을 만든다. 규제가 바뀌면 덮어쓰지 않고 복제해 새로 만들어야
      * 과거 산출값을 재현할 수 있다.
      */
     @Transactional

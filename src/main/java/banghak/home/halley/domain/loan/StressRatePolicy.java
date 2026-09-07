@@ -8,15 +8,15 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 기준 스트레스 금리 산식 (설계 I116).
+ * 기준 스트레스 금리 산식.
  *
- * <pre>
+ *
  *   기준 스트레스 금리 = clamp(과거 5년 최고 가계대출금리 − 현재 금리, 1.5%, 3.0%)
- * </pre>
  *
- * <p>순수 계산이라 도메인에 둡니다. 외부 호출도 DB도 없어 값만 넣으면 검증됩니다.
  *
- * <p><b>하한·상한을 파라미터로 받습니다.</b> 규제가 바뀌면 숫자만 갈아 끼웁니다 —
+ * 순수 계산이라 도메인에 둡니다. 외부 호출도 DB도 없어 값만 넣으면 검증됩니다.
+ *
+ * 하한·상한을 파라미터로 받습니다. 규제가 바뀌면 숫자만 갈아 끼웁니다 —
  * 1.5%·3.0%를 코드에 박아 두면 고시가 바뀔 때 배포해야 합니다.
  */
 public final class StressRatePolicy {
@@ -26,8 +26,8 @@ public final class StressRatePolicy {
 
     /**
      * @param series 월별 가계대출 금리(소수). 비어 있으면 계산하지 않는다
-     * @return 산출된 기준 스트레스 금리. 자료가 모자라면 {@code empty} —
-     *         <b>이때는 사람이 넣어 둔 값을 그대로 둡니다.</b> 못 받았다고 0을 쓰면
+     * @return 산출된 기준 스트레스 금리. 자료가 모자라면 empty —
+     *         이때는 사람이 넣어 둔 값을 그대로 둡니다. 못 받았다고 0을 쓰면
      *         스트레스가 사라져 한도가 실제보다 넉넉하게 나옵니다
      */
     public static Optional<StressRateDecision> decide(List<RatePoint> series,
@@ -49,8 +49,8 @@ public final class StressRatePolicy {
     }
 
     /**
-     * 산출 결과와 <b>그 근거</b>. 화면과 로그가 "왜 이 값인가"를 말할 수 있어야 합니다 —
-     * 근거 없는 금리는 검증할 수 없습니다 (설계 I81과 같은 이유).
+     * 산출 결과와 그 근거. 화면과 로그가 "왜 이 값인가"를 말할 수 있어야 합니다 —
+     * 근거 없는 금리는 검증할 수 없습니다.
      */
     public record StressRateDecision(
             BigDecimal stressRate,

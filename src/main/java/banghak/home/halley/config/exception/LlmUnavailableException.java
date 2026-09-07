@@ -2,7 +2,7 @@ package banghak.home.halley.config.exception;
 
 import org.springframework.http.HttpStatus;
 
-/** LLM이 꺼져 있거나 응답을 쓸 수 없다 (설계 I61). */
+/** LLM이 꺼져 있거나 응답을 쓸 수 없다. */
 public class LlmUnavailableException extends BusinessException {
 
     public LlmUnavailableException() {

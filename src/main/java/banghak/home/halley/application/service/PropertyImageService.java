@@ -51,13 +51,13 @@ public class PropertyImageService {
     }
 
     /**
-     * 이미지 한 장을 올린다 (설계 I63).
+     * 이미지 한 장을 올린다.
      *
-     * <p><b>평면도는 매물당 한 장</b>입니다(설계 7.1 D12 "도면 1장 + 실사 N장").
+     * 평면도는 매물당 한 장입니다.
      * 다시 올리면 기존 평면도를 지우고 대체합니다 — 도면이 여러 장 쌓이면 어느 것이 맞는지 알 수 없습니다.
      * 매물사진은 여러 장 쌓입니다.
      *
-     * <p>정렬은 평면도가 항상 먼저(0), 매물사진이 그 뒤로 붙습니다. 목록에서 도면을 먼저 보게 하기 위한 것입니다.
+     * 정렬은 평면도가 항상 먼저(0), 매물사진이 그 뒤로 붙습니다. 목록에서 도면을 먼저 보게 하기 위한 것입니다.
      */
     public PropertyImageResponse upload(Long propertyId, MultipartFile file, ImageType type) {
         propertyAccessGuard.require(propertyId);

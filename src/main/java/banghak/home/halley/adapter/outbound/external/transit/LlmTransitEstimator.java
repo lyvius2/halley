@@ -20,13 +20,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * ODsay 가 하루치를 다 썼을 때 대신 답한다 (설계 I210).
+ * ODsay 가 하루치를 다 썼을 때 대신 답한다.
  *
- * <p><b>이것은 추정입니다.</b> LLM 은 시간표를 조회하지 않고 <b>아는 것으로 말합니다</b> —
+ * 이것은 추정입니다. LLM 은 시간표를 조회하지 않고 아는 것으로 말합니다 —
  * 실제 배차와 다를 수 있고, 없는 노선을 지어낼 수도 있습니다. 그래서
- * <b>그대로 믿지 않습니다</b>: 말이 되는 범위를 벗어나면 버리고 미산출로 둡니다.
+ * 그대로 믿지 않습니다: 말이 되는 범위를 벗어나면 버리고 미산출로 둡니다.
  *
- * <p><b>한 번에 묶어 묻습니다.</b> 임장 행렬은 매물 8개면 <b>72쌍</b>인데, 쌍마다
+ * 한 번에 묶어 묻습니다. 임장 행렬은 매물 8개면 72쌍인데, 쌍마다
  * 부르면 한 번 계산에 수십 분이 걸립니다. 쌍을 한 프롬프트에 담아 표로 받습니다.
  */
 @Slf4j
@@ -34,28 +34,28 @@ import java.util.Map;
 public class LlmTransitEstimator {
 
     /**
-     * 한 번에 묶어 물을 수 있는 쌍의 수 (설계 I210).
+     * 한 번에 묶어 물을 수 있는 쌍의 수.
      *
-     * <p>너무 많이 담으면 답이 잘리고, 잘린 답은 <b>뒤쪽 쌍이 통째로 빠집니다.</b>
+     * 너무 많이 담으면 답이 잘리고, 잘린 답은 뒤쪽 쌍이 통째로 빠집니다.
      * 나눠 부르는 편이 안전합니다.
      */
     private static final int BATCH_SIZE = 20;
 
     /**
-     * 생각에도 예산이 든다 (설계 I217 · I144).
+     * 생각에도 예산이 든다.
      *
-     * <p>처음에 쌍당 120토큰만 줬습니다. 운영에서 이렇게 돌아왔습니다.
+     * 처음에 쌍당 120토큰만 줬습니다. 운영에서 이렇게 돌아왔습니다.
      *
-     * <pre>
+     *
      * "stop_reason":"max_tokens", "output_tokens":120,
      * "output_tokens_details":{"thinking_tokens":120}
-     * </pre>
      *
-     * <p><b>120토큰을 생각이 전부 먹고 본문은 시작도 못 했습니다.</b> 요즘 모델은
+     *
+     * 120토큰을 생각이 전부 먹고 본문은 시작도 못 했습니다. 요즘 모델은
      * 답하기 전에 생각하는데, 그 몫이 같은 예산에서 나갑니다 — 이 프로젝트가
-     * [I144]에서 이미 겪은 함정을 제가 되풀이했습니다.
+     *에서 이미 겪은 함정을 제가 되풀이했습니다.
      *
-     * <p>그래서 <b>생각 몫을 먼저 떼어 둡니다.</b> 쌍이 하나여도 이만큼은 줍니다.
+     * 그래서 생각 몫을 먼저 떼어 둡니다. 쌍이 하나여도 이만큼은 줍니다.
      */
     private static final int THINKING_BUDGET = 2000;
 
@@ -63,11 +63,11 @@ public class LlmTransitEstimator {
     private static final int TOKENS_PER_PAIR = 200;
 
     /**
-     * 붐빌 때 한 번만 더 (설계 I218).
+     * 붐빌 때 한 번만 더.
      *
-     * <p>이 호출은 <b>사람이 화면 앞에서 기다리는</b> 요청 안에서 돕니다.
+     * 이 호출은 사람이 화면 앞에서 기다리는 요청 안에서 돕니다.
      * 여러 번 재시도하면 그만큼 화면이 멈춰 있습니다 — 한 번이면 충분합니다.
-     * 그래도 안 되면 저장하지 않으므로 <b>다음 재산출에서 다시 시도합니다.</b>
+     * 그래도 안 되면 저장하지 않으므로 다음 재산출에서 다시 시도합니다.
      */
     private static final long RETRY_WAIT_MS = 2000;
 
@@ -95,17 +95,17 @@ public class LlmTransitEstimator {
 
             규칙:
             - 갈 수 없거나 확신이 없으면 그 id 의 totalMinutes 를 null 로 두십시오.
-              <b>지어내지 마십시오.</b> 모른다고 하는 편이 낫습니다.
+              지어내지 마십시오. 모른다고 하는 편이 낫습니다.
             - 좌표가 서로 1km 이내면 대개 도보입니다. legs 에 WALK 하나만 두십시오.
             - 주어진 id 를 하나도 빠뜨리지 마십시오.
             """;
 
     private final LlmPort llmPort;
     private final ObjectMapper objectMapper;
-    /** 이 자리에 쓸 모델을 <b>부를 때마다 물어본다</b> (설계 I267) — 붙박이가 아니다. */
+    /** 이 자리에 쓸 모델을 부를 때마다 물어본다 — 붙박이가 아니다. */
     private final LlmModelService llmModelService;
 
-    /** 차단기가 열려 있으면 <b>묻지도 않는다</b> (설계 I271). */
+    /** 차단기가 열려 있으면 묻지도 않는다. */
     private final LlmAvailability availability;
 
     public LlmTransitEstimator(LlmPort llmPort,
@@ -126,21 +126,21 @@ public class LlmTransitEstimator {
         return value == null || value.isBlank() ? null : value;
     }
 
-    /** 좌표 넷으로 한 구간을 가리킨다. {@code id} 는 답을 되돌려 짝지을 열쇠다. */
+    /** 좌표 넷으로 한 구간을 가리킨다. id 는 답을 되돌려 짝지을 열쇠다. */
     public record Leg(String id, double startX, double startY, double endX, double endY) {
     }
 
     /**
-     * 여러 구간을 한꺼번에 (설계 I210).
+     * 여러 구간을 한꺼번에.
      *
-     * <p>답을 못 받거나 말이 안 되는 쌍은 <b>결과에서 빠집니다</b> — 부르는 쪽이
+     * 답을 못 받거나 말이 안 되는 쌍은 결과에서 빠집니다 — 부르는 쪽이
      * 미산출로 다룹니다. 빈 자리를 0분이나 999분으로 채우지 않습니다.
      */
     public Map<String, TransitResult> estimate(List<Leg> legs) {
         if (legs.isEmpty() || !isEnabled()) {
             return Map.of();
         }
-        // <b>차단기가 열려 있으면 시작도 안 한다 (설계 I271).</b> 예전에는 구간마다
+        // 차단기가 열려 있으면 시작도 안 한다. 예전에는 구간마다
         // 물어 보고 실패하고 2초 쉬고 또 물어, 로그가 몇 분 동안 같은 줄로 찼습니다
         if (availability.blocked()) {
             log.info("Claude circuit is open - not estimating transit. legs={}", legs.size());
@@ -148,7 +148,7 @@ public class LlmTransitEstimator {
         }
         final Map<String, TransitResult> results = new LinkedHashMap<>();
         for (int from = 0; from < legs.size(); from += BATCH_SIZE) {
-            // 앞 묶음에서 차단을 만났으면 <b>남은 묶음은 안 묻는다</b>
+            // 앞 묶음에서 차단을 만났으면 남은 묶음은 안 묻는다
             if (availability.blocked()) {
                 log.info("Claude circuit opened mid-way - stopping. answered={}, asked={}",
                         results.size(), legs.size());
@@ -167,7 +167,7 @@ public class LlmTransitEstimator {
             user.append(String.format("id=%s 출발=(경도 %.6f, 위도 %.6f) 도착=(경도 %.6f, 위도 %.6f)%n",
                     leg.id(), leg.startX(), leg.startY(), leg.endX(), leg.endY()));
         }
-        // 자리마다 고른 모델을 쓴다 (설계 I267)
+        // 자리마다 고른 모델을 쓴다
         final String model = blankToNull(llmModelService.modelFor(LlmFeature.COMMUTE_ESTIMATE));
         final LlmMessage message = LlmMessage.deterministic(
                 SYSTEM, user.toString(), THINKING_BUDGET + legs.size() * TOKENS_PER_PAIR, model);
@@ -179,7 +179,7 @@ public class LlmTransitEstimator {
             sleep();
             answer = llmPort.complete(message);
         }
-        // 두 번째도 차단이면 <b>이 요청 안에서는 더 안 묻는다</b> (설계 I271)
+        // 두 번째도 차단이면 이 요청 안에서는 더 안 묻는다
         if (answer.failureCause() != null) {
             log.warn("LLM transit fallback failed. legs={}, cause={}", legs.size(), answer.failureCause());
             return Map.of();
@@ -188,17 +188,17 @@ public class LlmTransitEstimator {
     }
 
     /**
-     * 다시 물어볼 만한 실패인가 (설계 I218).
+     * 다시 물어볼 만한 실패인가.
      *
-     * <p>Anthropic 이 <b>`529 overloaded`</b> 를 줄 때가 있습니다 — 우리가 뭘 잘못한
-     * 것이 아니라 <b>잠시 붐비는 것</b>이라 조금 뒤엔 됩니다.
+     * Anthropic 이 `529 overloaded` 를 줄 때가 있습니다 — 우리가 뭘 잘못한
+     * 것이 아니라 잠시 붐비는 것이라 조금 뒤엔 됩니다.
      *
-     * <p><b>다른 실패는 다시 묻지 않습니다.</b> 키가 없거나 예산이 모자란 것은
+     * 다른 실패는 다시 묻지 않습니다. 키가 없거나 예산이 모자란 것은
      * 몇 번을 물어도 같은 답입니다 — 기다리는 시간만 버립니다.
      */
     /**
-     * <p><b>차단기가 열렸으면 다시 묻지 않습니다 (설계 I271).</b> 어댑터가 모든 실패를
-     * {@code "call failed"} 하나로 뭉개서, 예전에는 <b>차단된 것도 "붐빈다"로 읽고</b>
+     * 차단기가 열렸으면 다시 묻지 않습니다. 어댑터가 모든 실패를
+     * "call failed" 하나로 뭉개서, 예전에는 차단된 것도 "붐빈다"로 읽고
      * 2초마다 다시 던졌습니다 — 성공할 리 없는 호출을 구간마다 몇 분씩 반복했습니다.
      */
     private boolean retryable(LlmResult answer) {
@@ -223,7 +223,7 @@ public class LlmTransitEstimator {
                     text == null ? "null" : text.substring(0, Math.min(200, text.length())));
             return Map.of();
         }
-        // 물어본 것만 받는다. 답에만 있는 id 는 <b>지어낸 것</b>이라 버린다
+        // 물어본 것만 받는다. 답에만 있는 id 는 지어낸 것이라 버린다
         final java.util.Set<String> wanted = asked.stream().map(Leg::id)
                 .collect(java.util.stream.Collectors.toSet());
         for (final JsonNode node : root.path("results")) {
@@ -235,7 +235,7 @@ public class LlmTransitEstimator {
             if (!isPlausible(total)) {
                 continue;
             }
-            // 추정임을 값에 실어 보낸다 (설계 I210). 경로선 열쇠(mapObj)는 ODsay 것이라
+            // 추정임을 값에 실어 보낸다. 경로선 열쇠(mapObj)는 ODsay 것이라
             // 없다 — 화면이 직선으로 그린다
             parsed.put(id, TransitResult.estimated(
                     total,
@@ -247,10 +247,10 @@ public class LlmTransitEstimator {
     }
 
     /**
-     * 말이 되는 값인가 (설계 I210).
+     * 말이 되는 값인가.
      *
-     * <p><b>0분은 안 됩니다.</b> 총점 계산에서 직주근접이 만점이 되는데, 그건
-     * "아주 가깝다"가 아니라 <b>LLM 이 답을 못 낸 것</b>일 가능성이 큽니다.
+     * 0분은 안 됩니다. 총점 계산에서 직주근접이 만점이 되는데, 그건
+     * "아주 가깝다"가 아니라 LLM 이 답을 못 낸 것일 가능성이 큽니다.
      * 조용히 좋은 쪽으로 틀리는 값이 이 프로젝트에서 가장 위험합니다.
      */
     private static boolean isPlausible(Integer minutes) {

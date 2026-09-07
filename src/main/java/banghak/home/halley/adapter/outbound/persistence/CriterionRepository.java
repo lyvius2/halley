@@ -38,7 +38,7 @@ public class CriterionRepository {
                 .set(SCORING_TYPE, criterion.scoringType() == null ? null : criterion.scoringType().name())
                 .set(ENABLED, criterion.enabled())
                 .execute();
-        cache.evict(CachePort.CRITERION);   // 담아 둔 목록이 낡았다 (설계 I239)
+        cache.evict(CachePort.CRITERION);   // 담아 둔 목록이 낡았다
         return findById(criterion.code()).orElseThrow();
     }
 
@@ -50,7 +50,7 @@ public class CriterionRepository {
     }
 
     /**
-     * 14행짜리 표인데 <b>매물마다</b> 읽히던 자리입니다 (설계 I239).
+     * 14행짜리 표인데 매물마다 읽히던 자리입니다.
      * 부르는 곳이 9군데라 부르는 쪽을 하나씩 고치는 대신 여기서 담습니다.
      */
     public List<Criterion> findAll() {

@@ -4,8 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 
 /**
- * 단지 하나 (설계 I266) — 매물이 여기에 딸린다(단지 1 : 매물 N). 그룹으로 가르지 않는다,
- * 격리는 여전히 {@code property.group_id} 가 한다 (설계 I87).
+ * 단지 하나 — 매물이 여기에 딸린다(단지 1 : 매물 N). 그룹으로 가르지 않는다,
+ * 격리는 여전히 property.group_id 가 한다.
  */
 public record Complex(
         Long id,

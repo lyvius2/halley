@@ -6,24 +6,24 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * 네이버 검색 API — 뉴스 (설계 I137 · I235).
+ * 네이버 검색 API — 뉴스.
  *
- * <p><b>2026년에 옮겨졌습니다.</b> `openapi.naver.com` 은 같은 키로 <b>401</b> 을 줍니다 —
- * 네이버 클라우드의 <b>API Hub</b> 로 넘어갔고 <b>헤더 이름도 바뀌었습니다.</b>
+ * 2026년에 옮겨졌습니다. `openapi.naver.com` 은 같은 키로 401 을 줍니다 —
+ * 네이버 클라우드의 API Hub 로 넘어갔고 헤더 이름도 바뀌었습니다.
  *
- * <pre>
+ *
  * 옛것  https://openapi.naver.com/v1/search/news.json
  *       X-Naver-Client-Id / X-Naver-Client-Secret          → 401 (실측)
  *
  * 지금  https://naverapihub.apigw.ntruss.com/search/v1/news
  *       X-NCP-APIGW-API-KEY-ID / X-NCP-APIGW-API-KEY       → 200 (실측)
- * </pre>
  *
- * <p><b>응답 구조는 그대로입니다</b>(`items[].title·link·pubDate`). 그래서 파서는
- * 손대지 않았습니다 — 바뀐 것은 <b>주소와 인증뿐</b>입니다.
  *
- * <p>주소가 `.json` 으로 끝나지 않습니다. 형식은 `format` 파라미터로 정하는데
- * 기본이 `json` 이라 <b>안 보냅니다</b> — 기본값을 굳이 적으면 나중에 기본이
+ * 응답 구조는 그대로입니다(`items[].title·link·pubDate`). 그래서 파서는
+ * 손대지 않았습니다 — 바뀐 것은 주소와 인증뿐입니다.
+ *
+ * 주소가 `.json` 으로 끝나지 않습니다. 형식은 `format` 파라미터로 정하는데
+ * 기본이 `json` 이라 안 보냅니다 — 기본값을 굳이 적으면 나중에 기본이
  * 바뀌었을 때 알아채지 못합니다.
  */
 @FeignClient(name = "naver-search",
@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface NaverSearchFeignClient {
 
     /**
-     * @param sort `date`(최신순) · `sim`(정확도순). 개발 호재는 <b>최신순</b>이 맞다
+     * @param sort `date`(최신순) · `sim`(정확도순). 개발 호재는 최신순이 맞다
      */
     @GetMapping("/news")
     String searchNews(@RequestHeader("X-NCP-APIGW-API-KEY-ID") String clientId,

@@ -9,12 +9,12 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 
 /**
- * live용 Redis 구현 (설계 I84).
+ * live용 Redis 구현.
  *
- * <p>`SET key value NX PX ttl` 한 번으로 검사와 획득을 원자적으로 합니다.
+ * `SET key value NX PX ttl` 한 번으로 검사와 획득을 원자적으로 합니다.
  *
- * <p>Redis 장애 시 <b>잠근 것으로 치고 통과시킵니다</b> — 채점은 멱등하게 upsert 하므로
- * 겹쳐도 마지막 값이 남을 뿐이고, 잠금이 죽었다고 채점이 멈추면 더 나쁩니다(설계 2.1.1).
+ * Redis 장애 시 잠근 것으로 치고 통과시킵니다 — 채점은 멱등하게 upsert 하므로
+ * 겹쳐도 마지막 값이 남을 뿐이고, 잠금이 죽었다고 채점이 멈추면 더 나쁩니다.
  */
 @Slf4j
 @Component

@@ -3,7 +3,7 @@ package banghak.home.halley.domain.llm;
 import java.util.Arrays;
 import java.util.Optional;
 
-/** AI를 쓰는 자리 — 자리마다 모델을 따로 고른다 (설계 I267). */
+/** AI를 쓰는 자리 — 자리마다 모델을 따로 고른다. */
 public enum LlmFeature {
 
     RECOMMENDATION("llm.model.recommendation", "AI 추천도",
@@ -13,7 +13,7 @@ public enum LlmFeature {
     PRICE_FORECAST("llm.model.forecast", "가격 전망",
             "실거래 추세를 읽고 오를지 내릴지 말한다"),
     COMMUTE_ESTIMATE("llm.model.commute", "직주근접 추정",
-            "ODsay 가 막혔을 때 대중교통 시간을 추정한다 (설계 I210)");
+            "ODsay 가 막혔을 때 대중교통 시간을 추정한다");
 
     private final String configKey;
     private final String label;

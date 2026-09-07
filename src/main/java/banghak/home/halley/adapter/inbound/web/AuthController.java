@@ -50,9 +50,9 @@ public class AuthController {
     }
 
     /**
-     * 로그인 전에 화면이 알아야 하는 설정 (설계 I95).
+     * 로그인 전에 화면이 알아야 하는 설정.
      *
-     * <p>세션 조회는 로그아웃 상태에서 401이라 여기에 담을 수 없습니다.
+     * 세션 조회는 로그아웃 상태에서 401이라 여기에 담을 수 없습니다.
      */
     @GetMapping("/config")
     public PublicConfigResponse config() {

@@ -7,7 +7,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 
 /**
- * 규제지역 지정 한 건 (설계 I68).
+ * 규제지역 지정 한 건.
  *
  * @param active 오늘 기준으로 유효한 지정인지 — 해제됐거나 아직 시작 전이면 false
  */

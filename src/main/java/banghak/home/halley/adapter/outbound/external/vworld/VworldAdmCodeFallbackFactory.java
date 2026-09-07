@@ -8,7 +8,7 @@ import static banghak.home.halley.adapter.outbound.external.FallbackCause.descri
 
 /**
  * 실패하면 시군구 사전이 비고, 그러면 규제지역 적재가 통째로 실패합니다 — 조용히 넘기면
- * 왜 규제지역이 안 들어왔는지 알 수 없습니다 (설계 I78).
+ * 왜 규제지역이 안 들어왔는지 알 수 없습니다.
  */
 @Slf4j
 @Component

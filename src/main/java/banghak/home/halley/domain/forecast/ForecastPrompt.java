@@ -13,12 +13,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * LLM에 보낼 프롬프트와 <b>그 안에 든 숫자들</b> (설계 I134).
+ * LLM에 보낼 프롬프트와 그 안에 든 숫자들.
  *
- * <p>숫자를 따로 들고 있는 이유는 <b>답을 검증하기 위해서</b>입니다. 모델이 인용한 숫자가
+ * 숫자를 따로 들고 있는 이유는 답을 검증하기 위해서입니다. 모델이 인용한 숫자가
  * 여기 없으면 지어낸 것이므로 그 요인을 버립니다(2.2-A).
  *
- * <p><b>원본 거래 목록을 넣지 않습니다.</b> 이미 계산된 값만 넣습니다 —
+ * 원본 거래 목록을 넣지 않습니다. 이미 계산된 값만 넣습니다 —
  * 넣으면 모델이 산술을 하게 되고, 조용히 틀립니다.
  */
 public record ForecastPrompt(String system, String user, Set<String> allowedNumbers) {
@@ -55,19 +55,19 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
             """;
 
     /**
-     * @param factors 코드가 계산한 요인들. <b>코드의 종합 예측은 넣지 않습니다</b> —
-     *                보여 주면 모델이 끌려가 두 예측이 독립이 아니게 됩니다 (설계 4.5)
+     * @param factors 코드가 계산한 요인들. 코드의 종합 예측은 넣지 않습니다 —
+     *                보여 주면 모델이 끌려가 두 예측이 독립이 아니게 됩니다
      */
     public static ForecastPrompt of(Property property, List<PriceFactor> factors, int horizonMonths) {
         return of(property, factors, horizonMonths, null, null);
     }
 
     /**
-     * @param gapNote       실거래 지표가 <b>왜</b> 빠졌는지 (설계 I253). 없으면 null.
-     *                      이유를 안 알려 주면 모델이 <b>"인근 실거래 비교 자료가 없습니다"</b>
-     *                      처럼 <b>지어낸 추측</b>을 씁니다 — 실제로 그랬습니다
-     * @param yearlyMedians 5년이 어떤 모양으로 움직였는가 (설계 I255). 없으면 null.
-     *                      <b>지표가 아니라 읽을 재료</b>입니다 — 같은 +7.6% 라도
+     * @param gapNote       실거래 지표가 왜 빠졌는지. 없으면 null.
+     *                      이유를 안 알려 주면 모델이 "인근 실거래 비교 자료가 없습니다"
+     *                      처럼 지어낸 추측을 씁니다 — 실제로 그랬습니다
+     * @param yearlyMedians 5년이 어떤 모양으로 움직였는가. 없으면 null.
+     *                      지표가 아니라 읽을 재료입니다 — 같은 +7.6% 라도
      *                      꾸준히 오른 것과 올랐다 꺾인 것은 다른 이야기입니다
      */
     public static ForecastPrompt of(Property property, List<PriceFactor> factors,
@@ -111,7 +111,7 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
     /**
      * 프롬프트에 실제로 등장한 숫자들.
      *
-     * <p>모델이 이 밖의 숫자를 인용하면 <b>지어낸 것</b>입니다. 쉼표를 걷어 내고 담아
+     * 모델이 이 밖의 숫자를 인용하면 지어낸 것입니다. 쉼표를 걷어 내고 담아
      * `12,000`과 `12000`을 같게 봅니다.
      */
     static Set<String> numbersIn(String text) {
@@ -126,8 +126,8 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
     /**
      * 이 문장이 인용한 숫자가 전부 프롬프트에 있었는가.
      *
-     * <p>한 자리 수는 봐줍니다 — "3개월"·"2건" 같은 말이 자연스럽게 섞이는데
-     * 그것까지 막으면 멀쩡한 근거가 버려집니다. <b>지어낸 금액·비율을 잡는 것이 목적</b>입니다.
+     * 한 자리 수는 봐줍니다 — "3개월"·"2건" 같은 말이 자연스럽게 섞이는데
+     * 그것까지 막으면 멀쩡한 근거가 버려집니다. 지어낸 금액·비율을 잡는 것이 목적입니다.
      */
     public boolean citesOnlyKnownNumbers(String evidence) {
         if (evidence == null || evidence.isBlank()) {
@@ -169,7 +169,7 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
                 : String.valueOf(value);
     }
 
-    /** 프롬프트 전체 — 해시로 중복 호출을 막을 때 쓴다 (설계 I59). */
+    /** 프롬프트 전체 — 해시로 중복 호출을 막을 때 쓴다. */
     public String full() {
         final List<String> parts = new ArrayList<>();
         parts.add(system);

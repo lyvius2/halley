@@ -8,11 +8,11 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * 규제지역이 비어 있으면 국토부 고시에서 받아 채운다 (설계 I73).
+ * 규제지역이 비어 있으면 국토부 고시에서 받아 채운다.
  *
- * <p><b>가상 스레드로 비켜서 돌립니다.</b> 법제처 조회 세 번 + PDF 파싱 + LLM 호출이라 몇 초가
+ * 가상 스레드로 비켜서 돌립니다. 법제처 조회 세 번 + PDF 파싱 + LLM 호출이라 몇 초가
  * 걸리는데, 기동을 그만큼 붙잡아 둘 이유가 없습니다. 적재가 끝나기 전에 대출 계산이 들어오면
- * {@code RegulationSeedStatus}가 아직 {@code RUNNING}이므로 화면에 경고가 붙습니다.
+ * RegulationSeedStatus가 아직 RUNNING이므로 화면에 경고가 붙습니다.
  */
 @Slf4j
 @Component

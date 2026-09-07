@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * 담보가치 추정에 쓰는 실거래 한 건 (설계 I65).
+ * 담보가치 추정에 쓰는 실거래 한 건.
  *
  * @param price        거래금액(원)
  * @param areaM2       전용면적(㎡). 없으면 단가 환산에서 빠진다

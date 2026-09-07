@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * live 용 (설계 I179).
+ * live 용.
  *
- * <p><b>Redis 가 죽어도 조용히 건너뜁니다</b>(2.1.1). 캐시가 없으면 원본에서 읽으면 됩니다 —
+ * Redis 가 죽어도 조용히 건너뜁니다(2.1.1). 캐시가 없으면 원본에서 읽으면 됩니다 —
  * 캐시 계층 장애가 화면을 막을 이유가 없습니다.
  */
 @Slf4j

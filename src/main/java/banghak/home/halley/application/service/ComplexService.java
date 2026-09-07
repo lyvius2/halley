@@ -11,8 +11,8 @@ import org.springframework.stereotype.Service;
 import java.util.Optional;
 
 /**
- * 매물을 단지에 붙인다 (설계 I266). 관계는 {@code property.complex_id} 열로 남긴다 —
- * {@code Property} 레코드(55칸)에 더하지 않고, 실거래 매칭에 쓰는 열쇠만 여기서 만든다.
+ * 매물을 단지에 붙인다. 관계는 property.complex_id 열로 남긴다 —
+ * Property 레코드(55칸)에 더하지 않고, 실거래 매칭에 쓰는 열쇠만 여기서 만든다.
  */
 @Slf4j
 @Service

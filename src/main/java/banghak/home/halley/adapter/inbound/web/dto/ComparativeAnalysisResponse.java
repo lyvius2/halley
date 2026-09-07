@@ -5,7 +5,7 @@ import banghak.home.halley.domain.llm.ComparativeAnalysis;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/** 비교 우위 분석 결과 한 건 (설계 I61). */
+/** 비교 우위 분석 결과 한 건. */
 public record ComparativeAnalysisResponse(
         Long propertyId,
         String propertyName,

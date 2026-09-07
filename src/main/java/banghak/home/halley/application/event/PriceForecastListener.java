@@ -6,13 +6,13 @@ import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
 
 /**
- * 보정이 끝났으니 가격 전망을 낸다 (설계 I126 · I135).
+ * 보정이 끝났으니 가격 전망을 낸다.
  *
- * <p><b>`@TransactionalEventListener`가 아닙니다.</b> 보정은 이미 커밋된 뒤 배경에서 도는
- * 작업이라 <b>묶일 트랜잭션이 없습니다.</b> `AFTER_COMMIT`을 걸면 트랜잭션 밖에서 발행된
- * 이벤트가 <b>조용히 버려집니다</b> — 예외도 로그도 없이 그냥 안 옵니다.
+ * `@TransactionalEventListener`가 아닙니다. 보정은 이미 커밋된 뒤 배경에서 도는
+ * 작업이라 묶일 트랜잭션이 없습니다. `AFTER_COMMIT`을 걸면 트랜잭션 밖에서 발행된
+ * 이벤트가 조용히 버려집니다 — 예외도 로그도 없이 그냥 안 옵니다.
  *
- * <p>가상 스레드로 비켜서 돕니다. 60개월 조회와 LLM 판단에 1~2분이 걸리는데,
+ * 가상 스레드로 비켜서 돕니다. 60개월 조회와 LLM 판단에 1~2분이 걸리는데,
  * 그동안 보정 스레드를 붙잡을 이유가 없습니다.
  */
 @Slf4j

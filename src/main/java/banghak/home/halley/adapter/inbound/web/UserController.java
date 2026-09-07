@@ -50,7 +50,7 @@ public class UserController {
         return userService.checkNickname(nickname);
     }
 
-    /** 종류별 기존 부채 (설계 I92). */
+    /** 종류별 기존 부채. */
     @GetMapping("/me/debts")
     public List<UserDebtResponse> myDebts() {
         return userService.myDebts();

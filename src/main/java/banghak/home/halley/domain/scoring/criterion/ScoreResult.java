@@ -3,7 +3,7 @@ package banghak.home.halley.domain.scoring.criterion;
 import java.math.BigDecimal;
 
 /**
- * @param explanation 자동 채점의 산출 근거. 사용자가 "왜 이 점수인지"를 화면에서 바로 볼 수 있어야 한다(설계 I50).
+ * @param explanation 자동 채점의 산출 근거. 사용자가 "왜 이 점수인지"를 화면에서 바로 볼 수 있어야 한다.
  */
 public record ScoreResult(BigDecimal score, String fallbackReason, String explanation) {
 

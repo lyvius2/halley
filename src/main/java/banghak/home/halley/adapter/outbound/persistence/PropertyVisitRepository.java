@@ -26,12 +26,12 @@ public class PropertyVisitRepository {
     }
 
     /**
-     * 체크한다 (설계 I197).
+     * 체크한다.
      *
-     * <p><b>두 번 눌러도 한 줄입니다.</b> 이미 있으면 아무것도 하지 않습니다 —
+     * 두 번 눌러도 한 줄입니다. 이미 있으면 아무것도 하지 않습니다 —
      * 처음 간 시각을 나중 클릭이 덮으면 기록이 아니라 마지막 클릭 시각이 됩니다.
      *
-     * <p>"있으면 넘어가고 없으면 넣는다"를 <b>두 문장으로 쓰지 않습니다.</b>
+     * "있으면 넘어가고 없으면 넣는다"를 두 문장으로 쓰지 않습니다.
      * 그 사이에 다른 클릭이 끼면 유니크 제약에 걸립니다. DB가 한 문장으로 판단하게 둡니다.
      */
     public void mark(Long propertyId, Long userId, Instant visitedAt) {
@@ -52,9 +52,9 @@ public class PropertyVisitRepository {
     }
 
     /**
-     * <b>`dsl.fetchExists` 를 쓰지 마십시오 (설계 I197).</b>
+     * `dsl.fetchExists` 를 쓰지 마십시오.
      *
-     * <p>한 트랜잭션 안에서 같은 조건으로 두 번 부르면 <b>첫 답을 그대로 돌려줍니다</b> —
+     * 한 트랜잭션 안에서 같은 조건으로 두 번 부르면 첫 답을 그대로 돌려줍니다 —
      * 사이에 행을 넣어도 계속 `false` 입니다. `fetchCount` 와 `fetch()` 는 멀쩡합니다.
      * 이걸로 하루를 썼습니다.
      */

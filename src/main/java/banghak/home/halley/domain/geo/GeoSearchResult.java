@@ -15,7 +15,7 @@ public record GeoSearchResult(
         String pnu
 ) {
     /**
-     * 필지고유번호(PNU, 19자리) — 공시가격 조회 키다 (설계 I54).
+     * 필지고유번호(PNU, 19자리) — 공시가격 조회 키다.
      * 구성: 법정동코드(10) + 필지구분(1: 일반 1 / 산 2) + 본번(4) + 부번(4). 하나라도 없으면 만들 수 없다.
      */
     static String pnu(JsonNode address) {
@@ -37,8 +37,8 @@ public record GeoSearchResult(
     }
 
     /**
-     * 카카오 주소검색 응답에서 도로명주소는 {@code road_address.address_name}에,
-     * 법정동코드는 {@code address.b_code}(10자리)에 들어 있다. 앞 5자리가 국토부 API의 `LAWD_CD`다.
+     * 카카오 주소검색 응답에서 도로명주소는 road_address.address_name에,
+     * 법정동코드는 address.b_code(10자리)에 들어 있다. 앞 5자리가 국토부 API의 `LAWD_CD`다.
      */
     public static List<GeoSearchResult> mapDocuments(JsonNode root) {
         final List<GeoSearchResult> results = new ArrayList<>();

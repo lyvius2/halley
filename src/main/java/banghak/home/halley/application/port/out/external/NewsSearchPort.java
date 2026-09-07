@@ -5,9 +5,9 @@ import banghak.home.halley.domain.news.NewsArticle;
 import java.util.List;
 
 /**
- * 관련 기사 검색 (설계 I137).
+ * 관련 기사 검색.
  *
- * <p><b>결과를 점수나 프롬프트에 넣지 마십시오.</b> 화면에 링크 목록으로만 씁니다 —
+ * 결과를 점수나 프롬프트에 넣지 마십시오. 화면에 링크 목록으로만 씁니다 —
  * 부동산 기사는 이해관계자가 만드는 것이 많고, LLM에 먹이면 프롬프트 주입 통로가 됩니다.
  */
 public interface NewsSearchPort {

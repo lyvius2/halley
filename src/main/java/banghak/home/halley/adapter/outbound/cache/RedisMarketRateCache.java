@@ -13,10 +13,10 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * live용 Redis 구현 (설계 I81).
+ * live용 Redis 구현.
  *
- * <p>Redis 장애 시 조용히 건너뜁니다 — 호출 측이 기본 금리로 떨어지므로 대출 계산이 멈추지
- * 않습니다(설계 2.1.1 원칙).
+ * Redis 장애 시 조용히 건너뜁니다 — 호출 측이 기본 금리로 떨어지므로 대출 계산이 멈추지
+ * 않습니다.
  */
 @Slf4j
 @Component

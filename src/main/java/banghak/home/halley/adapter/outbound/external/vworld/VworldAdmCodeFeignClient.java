@@ -5,9 +5,9 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * V-World 행정구역 코드 조회 (설계 I78).
+ * V-World 행정구역 코드 조회.
  *
- * <p><b>엔드포인트가 계층마다 다릅니다.</b> `admCodeList`는 파라미터와 무관하게 <b>시도만</b>
+ * 엔드포인트가 계층마다 다릅니다. `admCodeList`는 파라미터와 무관하게 시도만
  * 돌려주고, 시군구는 `admSiList`에 상위 코드를 넘겨야 나옵니다 — 실측으로 확인했습니다.
  */
 @FeignClient(name = "vworld-adm-code",

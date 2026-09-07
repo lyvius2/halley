@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 public record CreateUserRequest(
         String loginId,
         String nickname,
-        /** 넣을 그룹 (설계 I87 · 규칙 12). 비우면 새 그룹을 만들어 배정한다 */
+        /** 넣을 그룹. 비우면 새 그룹을 만들어 배정한다 */
         Long groupId,
         String password,
         UserRole role,

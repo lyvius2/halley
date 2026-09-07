@@ -36,7 +36,7 @@ public class CriterionWeightRepository {
                 .set(PRIORITY_RANK, weight.priorityRank())
                 .set(WEIGHT, weight.weight())
                 .execute();
-        cache.evict(CachePort.CRITERION_WEIGHT);   // 순위가 바뀌면 모든 매물의 총점이 바뀐다 (설계 I239)
+        cache.evict(CachePort.CRITERION_WEIGHT);   // 순위가 바뀌면 모든 매물의 총점이 바뀐다
         return findById(weight.criterionCode()).orElseThrow();
     }
 
@@ -48,8 +48,8 @@ public class CriterionWeightRepository {
     }
 
     /**
-     * 총점은 저장하지 않고 <b>읽을 때마다</b> 이 표로 다시 계산합니다 (설계 I173).
-     * 그래서 목록을 그릴 때마다 읽힙니다 — 담아 둡니다 (설계 I239).
+     * 총점은 저장하지 않고 읽을 때마다 이 표로 다시 계산합니다.
+     * 그래서 목록을 그릴 때마다 읽힙니다 — 담아 둡니다.
      */
     public List<CriterionWeight> findAll() {
         return cache.get(CachePort.CRITERION_WEIGHT, ReferenceDataCache.WHOLE, LIST, this::fetchAll);

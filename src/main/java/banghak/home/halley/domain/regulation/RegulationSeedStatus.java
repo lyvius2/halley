@@ -1,11 +1,11 @@
 package banghak.home.halley.domain.regulation;
 
 /**
- * 규제지역 적재 상태 (설계 I73).
+ * 규제지역 적재 상태.
  *
- * <p><b>이 값이 필요한 이유는 실패 방향이 위험하기 때문입니다.</b> `RegulatedAreaService`는 매칭에
- * 실패하면 {@code RegulationZone.NORMAL}로 떨어지고, 비규제 LTV는 0.7로 투기과열지구(0.4)보다
- * 훨씬 높습니다. 즉 <b>데이터가 없으면 한도를 과대평가</b>하는데 그 사실이 화면에 드러나지 않습니다.
+ * 이 값이 필요한 이유는 실패 방향이 위험하기 때문입니다. `RegulatedAreaService`는 매칭에
+ * 실패하면 RegulationZone.NORMAL로 떨어지고, 비규제 LTV는 0.7로 투기과열지구(0.4)보다
+ * 훨씬 높습니다. 즉 데이터가 없으면 한도를 과대평가하는데 그 사실이 화면에 드러나지 않습니다.
  * 적재가 끝나지 않았거나 실패했음을 대출 결과에 실어 보내려고 둡니다.
  */
 public enum RegulationSeedStatus {

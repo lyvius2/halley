@@ -20,7 +20,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 어느 자리에 어떤 모델을 쓸 것인가 (설계 I267). 고른 값은 {@code system_config} 에 둔다. */
+/** 어느 자리에 어떤 모델을 쓸 것인가. 고른 값은 system_config 에 둔다. */
 @Slf4j
 @Service
 public class LlmModelService {
@@ -55,7 +55,7 @@ public class LlmModelService {
         return chosen;
     }
 
-    /** 관리자가 고른 것을 적는다. 아는 자리·목록 안 모델만 받는다 (설계 I267). */
+    /** 관리자가 고른 것을 적는다. 아는 자리·목록 안 모델만 받는다. */
     public void update(List<UpdateLlmModelRequest> requests) {
         final Set<String> allowed = available().stream()
                 .map(LlmModelOption::id)

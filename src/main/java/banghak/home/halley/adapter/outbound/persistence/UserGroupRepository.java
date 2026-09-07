@@ -57,7 +57,7 @@ public class UserGroupRepository {
         dsl.update(TABLE).set(NAME, name).where(ID.eq(id)).execute();
     }
 
-    /** 알림이 나갈 곳 (설계 I96). 그룹의 누구나 바꾼다 — 이름 변경과 같은 기준이다. */
+    /** 알림이 나갈 곳. 그룹의 누구나 바꾼다 — 이름 변경과 같은 기준이다. */
     public void updateWebhook(Long id, String webhookUrl) {
         dsl.update(TABLE).set(SLACK_WEBHOOK_URL, webhookUrl).where(ID.eq(id)).execute();
     }

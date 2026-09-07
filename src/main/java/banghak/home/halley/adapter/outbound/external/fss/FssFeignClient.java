@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * 금융감독원 금융상품통합비교공시 오픈API (설계 I77).
+ * 금융감독원 금융상품통합비교공시 오픈API.
  *
- * <p><b>base-url은 https여야 합니다.</b> http는 307로 https에 넘기는데 Feign이 프로토콜 전환
+ * base-url은 https여야 합니다. http는 307로 https에 넘기는데 Feign이 프로토콜 전환
  * 리다이렉트를 따라가지 않습니다 (법제처에서 같은 문제를 겪었습니다).
  *
- * <p>엔드포인트 이름에 응답형식이 붙습니다 — `mortgageLoanProductsSearch.json`.
+ * 엔드포인트 이름에 응답형식이 붙습니다 — `mortgageLoanProductsSearch.json`.
  * 세 API가 요청 파라미터를 공유하므로 경로만 바꿔 한 메서드로 다룹니다.
  */
 @FeignClient(name = "fss-finlife",

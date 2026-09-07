@@ -1,7 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 /**
- * 전세자금대출 산정 입력 (설계 I67).
+ * 전세자금대출 산정 입력.
  *
  * @param deposit      전세보증금(원)
  * @param annualIncome 연소득(원)

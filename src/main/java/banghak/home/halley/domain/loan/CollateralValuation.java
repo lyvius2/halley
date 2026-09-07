@@ -1,7 +1,7 @@
 package banghak.home.halley.domain.loan;
 
 /**
- * 담보가치 추정 결과 (설계 I64-1 · I65).
+ * 담보가치 추정 결과.
  *
  * @param value       담보가치(원)
  * @param source      어디서 얻은 값인지 — 화면에 함께 표기한다
@@ -17,7 +17,7 @@ public record CollateralValuation(long value, CollateralSource source, int sampl
         if (source == CollateralSource.KB_PRICE) {
             return true;
         }
-        // 거래 두세 건으로 시세를 말할 수는 없다 (설계 I65)
+        // 거래 두세 건으로 시세를 말할 수는 없다
         return source == CollateralSource.RECENT_TRADE && sampleCount >= MIN_RELIABLE_SAMPLES;
     }
 

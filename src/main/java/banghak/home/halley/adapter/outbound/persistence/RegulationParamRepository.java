@@ -61,11 +61,11 @@ public class RegulationParamRepository {
     }
 
     /**
-     * 대출 계산이 <b>매번</b> 읽는 자리라 담아 둡니다 (설계 I239).
+     * 대출 계산이 매번 읽는 자리라 담아 둡니다.
      *
-     * <p>키가 프로파일입니다 — 프로파일을 갈아 끼우면 다른 칸을 보게 되므로
-     * 전환만으로 옛 값이 섞이지 않습니다. 다만 <b>값을 고치면 반드시 지웁니다</b>:
-     * 이 표가 틀리면 LTV·방공제가 틀리고, 그러면 <b>대출 한도가 틀립니다.</b>
+     * 키가 프로파일입니다 — 프로파일을 갈아 끼우면 다른 칸을 보게 되므로
+     * 전환만으로 옛 값이 섞이지 않습니다. 다만 값을 고치면 반드시 지웁니다:
+     * 이 표가 틀리면 LTV·방공제가 틀리고, 그러면 대출 한도가 틀립니다.
      */
     public List<RegulationParam> findByProfile(String profile) {
         return cache.get(CachePort.REGULATION_PARAM, profile, LIST, () -> fetchByProfile(profile));
@@ -98,7 +98,7 @@ public class RegulationParamRepository {
                 .fetch(PROFILE);
     }
 
-    /** 프로파일을 통째로 복제한다 — 규제가 바뀌면 새 프로파일을 만들어 옛 값을 남긴다 (설계 I64). */
+    /** 프로파일을 통째로 복제한다 — 규제가 바뀌면 새 프로파일을 만들어 옛 값을 남긴다. */
     public int copyProfile(String from, String to, Long updatedBy) {
         final List<RegulationParam> source = fetchByProfile(from);   // 복제는 원본에서 읽는다
         for (final RegulationParam param : source) {

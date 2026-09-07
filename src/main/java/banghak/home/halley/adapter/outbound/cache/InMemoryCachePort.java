@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** local/개발용 (설계 I179). live 에서는 {@link RedisCachePort} 가 쓰인다. */
+/** local/개발용. live 에서는 {@link RedisCachePort} 가 쓰인다. */
 @Component
 @Profile("!live")
 public class InMemoryCachePort implements CachePort {

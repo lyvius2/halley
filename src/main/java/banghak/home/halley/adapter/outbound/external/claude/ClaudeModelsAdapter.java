@@ -13,7 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Anthropic 의 모델 목록 — 48시간 담아 두고, 못 받으면 예외 없이 빈 목록을 돌려준다 (설계 I267). */
+/** Anthropic 의 모델 목록 — 48시간 담아 두고, 못 받으면 예외 없이 빈 목록을 돌려준다. */
 @Slf4j
 @Component
 public class ClaudeModelsAdapter implements ClaudeModelsPort {

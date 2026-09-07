@@ -25,38 +25,38 @@ import java.util.Locale;
 import java.util.Set;
 
 /**
- * 매물 목록을 <b>줄 세우고 잘라서</b> 내보낸다 (설계 I240).
+ * 매물 목록을 줄 세우고 잘라서 내보낸다.
  *
- * <h4>왜 서버가 줄 세우는가</h4>
+ * 왜 서버가 줄 세우는가
  *
- * <p>[I221]에서는 화면이 줄 세웠습니다. 목록에 필요한 값이 이미 전부 실려 있었으니
- * 그때는 맞았습니다. 30건씩 잘라 보내기 시작하면 <b>더는 맞지 않습니다</b> —
+ * 에서는 화면이 줄 세웠습니다. 목록에 필요한 값이 이미 전부 실려 있었으니
+ * 그때는 맞았습니다. 30건씩 잘라 보내기 시작하면 더는 맞지 않습니다 —
  * 받은 30건 안에서만 줄 세우면 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다.
- * <b>줄 세우는 곳과 자르는 곳은 같아야 합니다.</b>
+ * 줄 세우는 곳과 자르는 곳은 같아야 합니다.
  *
- * <h4>가 봤는지도 서버가 판단한다</h4>
+ * 가 봤는지도 서버가 판단한다
  *
- * <p>기본 정렬이 "안 가 본 곳 먼저"라 <b>임장 여부가 정렬의 입력</b>이 됐습니다.
- * 그 판단이 화면에만 있으면([I226]의 규칙이 화면에만 있었습니다) 서버는 다른 순서로
+ * 기본 정렬이 "안 가 본 곳 먼저"라 임장 여부가 정렬의 입력이 됐습니다.
+ * 그 판단이 화면에만 있으면(의 규칙이 화면에만 있었습니다) 서버는 다른 순서로
  * 자릅니다. 여기로 옮깁니다.
  *
- * <h4>잘라도 지도는 전부 본다</h4>
+ * 잘라도 지도는 전부 본다
  *
- * <p>지도와 임장 플래너는 <b>전체</b>를 알아야 합니다. 잘린 목록으로 지도를 그리면
+ * 지도와 임장 플래너는 전체를 알아야 합니다. 잘린 목록으로 지도를 그리면
  * 매물이 사라진 것처럼 보입니다. 그래서 좌표만 담은 얇은 목록을 따로 냅니다
  * ({@link #pins}) — 채점까지 붙은 전체 목록을 또 받으면 자른 보람이 없습니다.
  */
 @Service
 public class PropertyListService {
 
-    /** 한 쪽의 기본 크기 (설계 I240). 화면이 안 보내도 이 값으로 자른다 */
+    /** 한 쪽의 기본 크기. 화면이 안 보내도 이 값으로 자른다 */
     public static final int DEFAULT_PAGE_SIZE = 30;
 
     /**
      * 한 번에 내보낼 수 있는 최대 건수.
      *
-     * <p><b>화면이 시키는 대로 다 주면 자른 의미가 없습니다.</b> {@code size=100000} 한 번에
-     * 전부 받아 가면 [I219]에서 국토부에 그랬듯 <b>자른 척만</b> 하게 됩니다.
+     * 화면이 시키는 대로 다 주면 자른 의미가 없습니다. size=100000 한 번에
+     * 전부 받아 가면에서 국토부에 그랬듯 자른 척만 하게 됩니다.
      */
     private static final int MAX_PAGE_SIZE = 100;
 
@@ -77,12 +77,12 @@ public class PropertyListService {
     /**
      * 목록 한 쪽.
      *
-     * <p>전체를 채점해 줄 세운 뒤 자릅니다. <b>채점 없이 SQL 로 자를 수는 없습니다</b> —
+     * 전체를 채점해 줄 세운 뒤 자릅니다. 채점 없이 SQL 로 자를 수는 없습니다 —
      * 총점은 어디에도 저장하지 않고 읽을 때마다 그때의 가중치로 계산하기 때문입니다
-     * ([I173]). 대신 목록 전체를 모으는 데 드는 쿼리는 이미 매물 수와 무관합니다
-     * ([I124]·[I238]).
+     * (). 대신 목록 전체를 모으는 데 드는 쿼리는 이미 매물 수와 무관합니다
+     * (·).
      *
-     * <p>그래서 이 자르기가 줄이는 것은 <b>왕복 크기와 화면이 그리는 양</b>입니다.
+     * 그래서 이 자르기가 줄이는 것은 왕복 크기와 화면이 그리는 양입니다.
      * 매물 하나에 채점 14줄과 전망 요약이 붙으니 그것만으로도 작지 않습니다.
      */
     public ScoredPropertyPage page(DealType dealType, PropertySort sort, int page, int size) {
@@ -90,12 +90,12 @@ public class PropertyListService {
     }
 
     /**
-     * @param archived 아카이빙한 것만 볼 것인가 (설계 I241)
+     * @param archived 아카이빙한 것만 볼 것인가
      */
     public ScoredPropertyPage page(DealType dealType, PropertySort sort, int page, int size,
                                    boolean archived) {
         final List<ScoredPropertyResponse> all = sorted(scoringService.list(dealType, archived), sort);
-        // 치워 둔 것의 수는 지금 보는 탭과 무관하게 실린다 (설계 I241).
+        // 치워 둔 것의 수는 지금 보는 탭과 무관하게 실린다.
         // 채점까지 붙이지 않고 매물만 센다 — 뱃지 하나 때문에 전체를 다시 채점할 이유가 없다
         final int archivedTotal = scoringService.visibleProperties(null, true).size();
         final int pageSize = clampSize(size);
@@ -124,9 +124,9 @@ public class PropertyListService {
     }
 
     /**
-     * 가 본 곳 (설계 I226).
+     * 가 본 곳.
      *
-     * <p>둘 중 하나면 가 본 것입니다 — <b>방문 기록</b>이 있거나 <b>쾌적함을 매겼거나</b>.
+     * 둘 중 하나면 가 본 것입니다 — 방문 기록이 있거나 쾌적함을 매겼거나.
      * 쾌적함은 가 보지 않고는 매길 수 없는 항목이라, 매겼다면 다녀온 것입니다.
      */
     public Set<Long> visitedPropertyIds() {
@@ -142,9 +142,9 @@ public class PropertyListService {
     }
 
     /**
-     * <b>내가</b> 쾌적함을 매긴 매물 (설계 I118).
+     * 내가 쾌적함을 매긴 매물.
      *
-     * <p>그룹 평균으로 보면 <b>남이 다녀온 곳이 내 목록에서 뒤로 밀립니다</b> —
+     * 그룹 평균으로 보면 남이 다녀온 곳이 내 목록에서 뒤로 밀립니다 —
      * 정작 나는 안 가 봤는데요.
      */
     private Set<Long> comfortScoredPropertyIds() {
@@ -161,7 +161,7 @@ public class PropertyListService {
     private List<ScoredPropertyResponse> sorted(List<ScoredPropertyResponse> rows, PropertySort sort) {
         final Set<Long> visited = sort == PropertySort.DEFAULT ? visitedPropertyIds() : Set.of();
         final Collator korean = Collator.getInstance(Locale.KOREAN);
-        // 같은 값이면 이름순 — 새로고침마다 순서가 흔들리면 눈이 못 따라간다 (설계 I221).
+        // 같은 값이면 이름순 — 새로고침마다 순서가 흔들리면 눈이 못 따라간다.
         // 쪽을 나눠 받을 때는 더 중요하다: 순서가 흔들리면 같은 매물이 두 쪽에 나오거나
         // 어느 쪽에도 안 나온다
         final Comparator<ScoredPropertyResponse> byName = Comparator.comparing(
@@ -185,12 +185,12 @@ public class PropertyListService {
     }
 
     /**
-     * 아직 안 잰 것은 <b>맨 뒤</b>로 (설계 I221).
+     * 아직 안 잰 것은 맨 뒤로.
      *
-     * <p>등록 직후에는 점수도 직주근접도 없습니다([I220]). 그걸 0으로 보면
-     * <b>"나쁜 매물"로 줄 세워집니다</b> — 아직 모르는 것과 나쁜 것은 다릅니다.
+     * 등록 직후에는 점수도 직주근접도 없습니다(). 그걸 0으로 보면
+     * "나쁜 매물"로 줄 세워집니다 — 아직 모르는 것과 나쁜 것은 다릅니다.
      *
-     * <p>오름차순에서도 뒤로 갑니다. "싼 순"으로 세웠는데 <b>가격을 모르는 것이 맨 앞</b>에
+     * 오름차순에서도 뒤로 갑니다. "싼 순"으로 세웠는데 가격을 모르는 것이 맨 앞에
      * 오면 안 됩니다.
      */
     private Comparator<ScoredPropertyResponse> unknownLast(
@@ -222,10 +222,10 @@ public class PropertyListService {
     }
 
     /**
-     * 항목 하나의 점수. 아직 안 잰 것은 null 이다 — 0이 아니다 (설계 I221).
+     * 항목 하나의 점수. 아직 안 잰 것은 null 이다 — 0이 아니다.
      *
-     * <p>{@code findFirst()} 로 받으면 <b>점수가 없는 항목에서 터집니다</b>
-     * ({@code Optional.of(null)}). 등록 직후에는 직주근접이 비어 있는 것이 정상이라
+     * findFirst() 로 받으면 점수가 없는 항목에서 터집니다
+     * (Optional.of(null)). 등록 직후에는 직주근접이 비어 있는 것이 정상이라
      * 드문 일도 아닙니다 — 쪽 나누기 테스트가 잡아냈습니다.
      */
     private BigDecimal criterionScore(ScoredPropertyResponse scored, String code) {

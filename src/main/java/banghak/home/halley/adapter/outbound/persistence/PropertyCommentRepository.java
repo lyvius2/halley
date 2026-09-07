@@ -69,7 +69,7 @@ public class PropertyCommentRepository {
                 .map(this::map);
     }
 
-    /** 탈퇴 직전 작성자 이름을 값으로 굳힌다 (설계 I88). */
+    /** 탈퇴 직전 작성자 이름을 값으로 굳힌다. */
     public int snapshotAuthorNickname(Long userId, String nickname) {
         return dsl.update(TABLE)
                 .set(AUTHOR_NICKNAME, nickname)

@@ -16,13 +16,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * V-World 공시가격 속성조회 어댑터 (설계 I54).
+ * V-World 공시가격 속성조회 어댑터.
  *
- * <p>이 API는 인증 실패도 HTTP 200으로 돌려주고 본문에 `resultCode`를 담는다. 그래서 Feign 예외만으로는
+ * 이 API는 인증 실패도 HTTP 200으로 돌려주고 본문에 `resultCode`를 담는다. 그래서 Feign 예외만으로는
  * 실패를 알 수 없어 본문을 먼저 확인한다. 응답 래퍼 이름(`response`·`apartHousingPrices`)과 항목 배열 키는
- * 서비스·상황마다 다르므로 <b>루트 아래 첫 배열</b>을 항목 목록으로 삼는다.
+ * 서비스·상황마다 다르므로 루트 아래 첫 배열을 항목 목록으로 삼는다.
  *
- * <p><b>연도를 반드시 지정한다.</b> `stdrYear` 없이 부르면 그 필지의 전 연도가 <b>오래된 순으로</b> 나온다.
+ * 연도를 반드시 지정한다. `stdrYear` 없이 부르면 그 필지의 전 연도가 오래된 순으로 나온다.
  * 실측(은마아파트 PNU)에서 `totalCount = 110,600 = 4,424세대 × 25년`이었고 첫 페이지가 2006년치였다.
  * 그대로 쓰면 20년 전 공시가격이 저장된다.
  */
@@ -34,7 +34,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
     private static final int MAX_ROWS = 1000;
     /**
      * 한 필지의 한 해 자료가 세대 수보다 많이 나온다 — 실측(은마 4,424세대)에서 `totalCount = 8,848`로
-     * <b>세대 수의 2배</b>였습니다. 5페이지로 잡았을 때 56%만 받아 나머지가 조용히 잘렸습니다(설계 I70).
+     * 세대 수의 2배였습니다. 5페이지로 잡았을 때 56%만 받아 나머지가 조용히 잘렸습니다.
      * 잘리면 특정 면적대가 통째로 빠져 엉뚱한 값이 붙을 수 있으므로 넉넉히 잡고, 그래도 모자라면 경고합니다.
      */
     private static final int MAX_PAGES = 15;
@@ -184,7 +184,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
     }
 
     /**
-     * 정상 응답은 `resultCode`가 <b>빈 문자열</b>로 온다(`{"apartHousingPrices": {"resultCode": "", …}}`).
+     * 정상 응답은 `resultCode`가 빈 문자열로 온다(`{"apartHousingPrices": {"resultCode": "", …}}`).
      * 인증·파라미터 오류일 때만 `INVALID_KEY` 같은 코드가 채워지므로, 값이 있고 성공 코드가 아닐 때만 거절로 본다.
      */
     private boolean isRejected(JsonNode wrapper) {

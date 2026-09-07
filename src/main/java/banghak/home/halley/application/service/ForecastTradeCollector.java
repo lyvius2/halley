@@ -21,13 +21,13 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 /**
- * 가격 전망용 실거래를 모은다 (설계 I129).
+ * 가격 전망용 실거래를 모은다.
  *
- * <p>실거래 카드(`ReferenceTransactionService`)와 <b>다른 목적</b>입니다. 그쪽은 매물 하나의
+ * 실거래 카드(`ReferenceTransactionService`)와 다른 목적입니다. 그쪽은 매물 하나의
  * 최근 시세를 보여 주려고 12개월을 훑고 단지·면적으로 걸러 저장합니다.
- * 여기는 <b>추세를 재려고</b> 60개월을 훑고 <b>거르지 않고</b> 캐시에 담습니다.
+ * 여기는 추세를 재려고 60개월을 훑고 거르지 않고 캐시에 담습니다.
  *
- * <p>거르는 일은 지표 계산이 맡습니다 — 캐시에 걸러 담으면 같은 법정동의 다른 매물이
+ * 거르는 일은 지표 계산이 맡습니다 — 캐시에 걸러 담으면 같은 법정동의 다른 매물이
  * 재사용하지 못합니다.
  */
 @Slf4j
@@ -58,9 +58,9 @@ public class ForecastTradeCollector {
     }
 
     /**
-     * 최근 {@code lookbackMonths}개월치 거래를 모은다.
+     * 최근 lookbackMonths개월치 거래를 모은다.
      *
-     * <p>캐시에 있는 달은 <b>부르지 않습니다.</b> 같은 법정동의 두 번째 매물부터는
+     * 캐시에 있는 달은 부르지 않습니다. 같은 법정동의 두 번째 매물부터는
      * 거의 호출이 없습니다.
      *
      * @return 오래된 달부터 정렬된 목록. 못 받은 달은 빠진다
@@ -97,7 +97,7 @@ public class ForecastTradeCollector {
     /**
      * 다시 받아야 하는 달인지.
      *
-     * <p><b>과거 달은 바뀌지 않습니다.</b> 국토부 신고 지연 때문에 최근 몇 달만 다시 받고,
+     * 과거 달은 바뀌지 않습니다. 국토부 신고 지연 때문에 최근 몇 달만 다시 받고,
      * 그 이전은 한 번 받으면 끝입니다 — 60개월 중 57개월이 그렇습니다.
      */
     private boolean needsFetch(YearMonth month, MonthlyTrades cached, YearMonth now) {
@@ -120,12 +120,12 @@ public class ForecastTradeCollector {
                             ? ministryReferencePort.fetchJeonseDeposits(lawdCd, ym)
                             : ministryReferencePort.fetchTrades(lawdCd, ym);
                     if (trades == null) {
-                        // 조회 실패는 저장하지 않는다 (설계 I140). 여기서 빈 목록으로 담으면
+                        // 조회 실패는 저장하지 않는다. 여기서 빈 목록으로 담으면
                         // '거래 0건'으로 굳고, 과거 달은 다시 받지 않으므로 영영 구멍이 된다
                         return null;
                     }
                     // 거래가 없는 달은 저장한다 — '아직 안 받은 달'과 구분되지 않으면
-                    // 매번 다시 부른다 (설계 I128)
+                    // 매번 다시 부른다
                     return new MonthlyTrades(lawdCd, month, dealType, trades, Instant.now());
                 })
                 .toList();

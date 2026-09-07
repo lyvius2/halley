@@ -17,9 +17,9 @@ public interface OdsayTransitFeignClient {
                        @RequestParam("EY") double endY);
 
     /**
-     * 경로선 (설계 I177).
+     * 경로선.
      *
-     * <p>`mapObject` 는 <b>`0:0@` + mapObj</b> 형태입니다 — 앞의 좌표쌍은 화면 영역이고,
+     * `mapObject` 는 `0:0@` + mapObj 형태입니다 — 앞의 좌표쌍은 화면 영역이고,
      * `0:0` 이면 전체를 줍니다. 실호출로 확인했습니다.
      */
     @GetMapping("${odsay.lane-path:/v1/api/loadLane}")

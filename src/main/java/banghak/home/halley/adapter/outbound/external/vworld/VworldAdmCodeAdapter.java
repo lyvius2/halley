@@ -12,10 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * V-World 행정구역 코드 어댑터 (설계 I78).
+ * V-World 행정구역 코드 어댑터.
  *
- * <p>응답 래퍼가 <b>바깥과 안이 같은 이름</b>입니다 — {@code {"admVOList": {"admVOList": [...]}}}.
- * 이름으로 찾으면 바깥 객체에 걸리므로 <b>배열인 자식</b>을 찾습니다.
+ * 응답 래퍼가 바깥과 안이 같은 이름입니다 — {"admVOList": {"admVOList": [...]}}.
+ * 이름으로 찾으면 바깥 객체에 걸리므로 배열인 자식을 찾습니다.
  */
 @Slf4j
 @Component

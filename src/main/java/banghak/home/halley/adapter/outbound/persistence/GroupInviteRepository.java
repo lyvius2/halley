@@ -28,7 +28,7 @@ public class GroupInviteRepository {
     }
 
     /**
-     * @return 코드가 이미 있으면 false. 코드가 기본키라 <b>동시에 같은 코드를 뽑아도</b>
+     * @return 코드가 이미 있으면 false. 코드가 기본키라 동시에 같은 코드를 뽑아도
      *         한 쪽만 성공한다 — 생성 쪽에서 확인하면 그 경우를 놓친다
      */
     public boolean saveIfAbsent(GroupInvite invite) {

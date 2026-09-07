@@ -11,10 +11,10 @@ public final class WeightCurve {
     private static final BigDecimal FLOOR = BigDecimal.valueOf(2L, 1);
 
     /**
-     * weight(rank) = 3.0 − (rank − 1) × 0.2 (등차 — 설계 I29)
+     * weight(rank) = 3.0 − (rank − 1) × 0.2 (등차 —)
      *
-     * <p>설계 당시 항목은 12개였고 지금은 13개(AI 추천도 추가 — I59)다. 등차식은 rank 15에서 0.2,
-     * 16에서 0에 닿으므로 그 아래는 {@code FLOOR}로 잡는다.
+     * 항목 수가 늘어도 동일한 등차식으로 가중치를 계산한다.
+     * 16에서 0에 닿으므로 그 아래는 FLOOR로 잡는다.
      */
     public static BigDecimal weightFor(int rank) {
         final BigDecimal weight = BigDecimal.valueOf(30L - 2L * (rank - 1L), 1);

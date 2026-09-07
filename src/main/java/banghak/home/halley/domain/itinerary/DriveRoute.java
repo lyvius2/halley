@@ -1,7 +1,7 @@
 package banghak.home.halley.domain.itinerary;
 
 /**
- * @param path 실제 주행 경로선 (설계 I177). 지도에 그린다 — 없으면 직선으로 되돌아간다
+ * @param path 실제 주행 경로선. 지도에 그린다 — 없으면 직선으로 되돌아간다
  */
 public record DriveRoute(
         Integer durationMinutes,

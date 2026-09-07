@@ -59,7 +59,7 @@ public record PropertyResponse(
         Instant createdAt,
         Long createdBy,
         String createdByNickname,
-        /** admin에게만 보이는 소속 그룹 (설계 I87 · 규칙 5) */
+        /** admin에게만 보이는 소속 그룹 */
         Long groupId,
         String groupName,
         Long editVersion

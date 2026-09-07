@@ -58,16 +58,16 @@ public class ReferenceTransactionRepository {
     }
 
     /**
-     * 단지와 <b>비슷한 평형</b>으로 찾는다 (설계 I266).
+     * 단지와 비슷한 평형으로 찾는다.
      *
-     * <p>예전에는 매물 번호로 찾았습니다. 그러면 같은 단지 같은 평형이라도
-     * <b>매물마다 국토부를 다시 불렀습니다.</b>
+     * 예전에는 매물 번호로 찾았습니다. 그러면 같은 단지 같은 평형이라도
+     * 매물마다 국토부를 다시 불렀습니다.
      *
-     * <p>면적은 딱 맞지 않습니다 — 84.93 과 84.98 은 같은 평형입니다.
-     * 저장할 때 쓰는 허용 범위와 <b>같은 값</b>이어야 합니다. 다르면
+     * 면적은 딱 맞지 않습니다 — 84.93 과 84.98 은 같은 평형입니다.
+     * 저장할 때 쓰는 허용 범위와 같은 값이어야 합니다. 다르면
      * 담아 놓고 못 찾는 일이 생깁니다.
      *
-     * @param areaM2 null 이면 그 단지 것을 <b>다</b> 돌려준다 — 면적을 모르면 가릴 수 없다
+     * @param areaM2 null 이면 그 단지 것을 다 돌려준다 — 면적을 모르면 가릴 수 없다
      */
     public List<ReferenceTransaction> findByComplexAndArea(Long complexId, BigDecimal areaM2,
                                                            double tolerance) {

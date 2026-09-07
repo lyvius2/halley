@@ -11,12 +11,12 @@ import java.time.Duration;
 import java.util.Optional;
 
 /**
- * live용 Redis 구현 (설계 I72).
+ * live용 Redis 구현.
  *
- * <p>Redis 장애 시 조용히 건너뜁니다 — 캐시가 죽어도 호출 측이 DB로 내려가므로 기능이 멈추지
- * 않고 폴링이 조금 무거워질 뿐입니다(설계 2.1.1 원칙).
+ * Redis 장애 시 조용히 건너뜁니다 — 캐시가 죽어도 호출 측이 DB로 내려가므로 기능이 멈추지
+ * 않고 폴링이 조금 무거워질 뿐입니다.
  *
- * <p>값은 `RUNNING` 또는 `DONE:{payload}` 한 줄로 둡니다. 상태와 결과가 한 키에 있어야
+ * 값은 `RUNNING` 또는 `DONE:{payload}` 한 줄로 둡니다. 상태와 결과가 한 키에 있어야
  * 폴링이 한 번만 읽습니다.
  */
 @Slf4j

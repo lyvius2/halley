@@ -67,7 +67,7 @@ public class PropertyService {
     }
 
     public List<PropertyResponse> list() {
-        // admin은 전부, 회원은 자기 그룹만 (설계 I87)
+        // admin은 전부, 회원은 자기 그룹만
         final List<Property> properties = propertyAccessGuard.isAdmin()
                 ? propertyRepository.findAll()
                 : propertyAccessGuard.currentGroupId()
@@ -81,9 +81,9 @@ public class PropertyService {
     }
 
     /**
-     * 등록자의 그룹 (설계 I87). 매물은 <b>반드시</b> 그룹에 딸립니다.
+     * 등록자의 그룹. 매물은 반드시 그룹에 딸립니다.
      *
-     * <p>admin은 어느 그룹에도 속하지 않으므로 등록할 수 없습니다 — 등록하면 아무도 볼 수 없고
+     * admin은 어느 그룹에도 속하지 않으므로 등록할 수 없습니다 — 등록하면 아무도 볼 수 없고
      * 그룹이 사라져도 남는 매물이 생깁니다.
      */
     private Long requireOwnerGroupId() {
@@ -93,7 +93,7 @@ public class PropertyService {
         return propertyAccessGuard.currentGroupId().orElseThrow(NoGroupException::new);
     }
 
-    /** 등록자 닉네임을 매물에 복사해 둔다 — 탈퇴해도 화면에 남아야 한다 (설계 I88). */
+    /** 등록자 닉네임을 매물에 복사해 둔다 — 탈퇴해도 화면에 남아야 한다. */
     private String currentNickname() {
         return propertyAccessGuard.currentUser().map(u -> u.nickname()).orElse(null);
     }
@@ -101,13 +101,13 @@ public class PropertyService {
     /**
      * 매물을 등록한다.
      *
-     * <p><b>트랜잭션을 걸지 않습니다 (설계 I216).</b> 좌표를 구하려고 카카오를 부르는데
+     * 트랜잭션을 걸지 않습니다. 좌표를 구하려고 카카오를 부르는데
      * (`resolveCoordinates`), 그 왕복 동안 DB 연결을 쥐고 있게 됩니다 — 운영 풀이
      * 5개라 등록이 몇 건만 겹쳐도 화면 전체가 멈춥니다.
      *
-     * <p>한때 여기에 `@Transactional` 이 붙어 있었는데, [I87]에서 메서드가 사이에
-     * 끼어들며 <b>다른 메서드의 javadoc 위에 떠 버렸습니다.</b> 그 뒤로 아무 데도
-     * 적용되지 않았고, <b>알아챈 것은 알림이 안 나간다는 신고 덕</b>이었습니다.
+     * 한때 여기에 `@Transactional` 이 붙어 있었는데,에서 메서드가 사이에
+     * 끼어들며 다른 메서드의 javadoc 위에 떠 버렸습니다. 그 뒤로 아무 데도
+     * 적용되지 않았고, 알아챈 것은 알림이 안 나간다는 신고 덕이었습니다.
      */
     public PropertyResponse create(PropertyRequest request) {
         validate(request);
@@ -164,7 +164,7 @@ public class PropertyService {
                 groupId, nickname,
                 currentUserId(),
                 Instant.now()));
-        // 매물이 어느 단지에 속하는지 적어 둔다 (설계 I266) — 실거래는 단지에 붙는다
+        // 매물이 어느 단지에 속하는지 적어 둔다 — 실거래는 단지에 붙는다
         complexService.attach(saved);
         agentService.upsertFromPaste(saved.id(), request.agent());
         eventPublisher.publishEvent(new PropertyCreatedEvent(saved.id()));
@@ -232,11 +232,11 @@ public class PropertyService {
                 existing.groupId(), existing.createdByNickname(),
                 existing.createdBy(),
                 existing.createdAt()));
-        // 이름이나 주소를 고치면 <b>단지가 바뀔 수 있다</b> (설계 I266)
+        // 이름이나 주소를 고치면 단지가 바뀔 수 있다
         complexService.attach(updated);
         agentService.upsertFromPaste(id, request.agent());
         editVersionStore.bump(versionKey(id));
-        // 바뀐 게 있으면 AI에게 다시 묻는다 (설계 I113). 면적·층·가격·주차가 그대로
+        // 바뀐 게 있으면 AI에게 다시 묻는다. 면적·층·가격·주차가 그대로
         // 프롬프트에 실리므로, 고쳐 놓고 옛 판단을 그대로 두면 안 된다.
         //
         // 무엇이 바뀌었는지 항목을 손으로 나열하지 않는다 — 그 목록은 필드가 늘 때마다
@@ -252,7 +252,7 @@ public class PropertyService {
     public void delete(Long id) {
         final Property existing = propertyAccessGuard.require(id);
         propertyRepository.delete(id);
-        // 지우고 나면 이름도 그룹도 알 수 없어 미리 담아 보낸다 (설계 I96)
+        // 지우고 나면 이름도 그룹도 알 수 없어 미리 담아 보낸다
         eventPublisher.publishEvent(
                 new PropertyDeletedEvent(existing.groupId(), existing.name()));
     }
@@ -280,8 +280,8 @@ public class PropertyService {
 
     /**
      * 원본 URL은 화면에서 링크로 열리는 값이라
-     * <b>http/https만</b> 받는다. `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간
-     * 스크립트가 도는 통로가 된다 (설계 I62).
+     * http/https만 받는다. `javascript:` 같은 스킴이 들어오면 링크를 누르는 순간
+     * 스크립트가 도는 통로가 된다.
      */
     private String listingUrl(String value) {
         if (value == null || value.isBlank()) {
@@ -296,13 +296,13 @@ public class PropertyService {
     }
 
     /**
-     * 층을 가른다 (설계 I286).
+     * 층을 가른다.
      *
-     * <p>화면은 층을 <b>글자 그대로</b> 보냅니다 — `3` 또는 `저`. 여기서 숫자와 밴드로
+     * 화면은 층을 글자 그대로 보냅니다 — `3` 또는 `저`. 여기서 숫자와 밴드로
      * 나눠 담습니다. 가르는 규칙이 화면에도 있으면 언젠가 한쪽이 어긋납니다.
      *
-     * <p>{@code floorRaw} 가 없으면 <b>보내 준 값을 그대로 씁니다</b> — 예전 화면이나
-     * 다른 경로가 {@code floorNo}·{@code floorBand} 를 직접 보내도 지금처럼 동작합니다.
+     * floorRaw 가 없으면 보내 준 값을 그대로 씁니다 — 예전 화면이나
+     * 다른 경로가 floorNo·floorBand 를 직접 보내도 지금처럼 동작합니다.
      */
     private FloorValue floorOf(PropertyRequest request) {
         return FloorValue.of(request.floorRaw())
@@ -316,7 +316,7 @@ public class PropertyService {
         if (request.dealType() == null) {
             throw new InvalidPropertyRequestException("거래유형은 필수입니다");
         }
-        // 적을 수 있는 것은 숫자와 저·중·고 뿐이다 (설계 I286)
+        // 적을 수 있는 것은 숫자와 저·중·고 뿐이다
         if (request.floorRaw() != null && !request.floorRaw().isBlank()
                 && !FloorValue.isValid(request.floorRaw())) {
             throw new InvalidPropertyRequestException("층은 숫자 또는 저·중·고 로만 적을 수 있습니다");
@@ -328,16 +328,16 @@ public class PropertyService {
     }
 
     /**
-     * <b>전용면적은 공급면적보다 클 수 없습니다</b> (설계 I233).
+     * 전용면적은 공급면적보다 클 수 없습니다.
      *
-     * <p>둘을 바꿔 넣는 일이 실제로 있었습니다 — 상계주공7단지에 전용 49.94 대신
-     * <b>공급 71.02</b> 가 들어가 있었고, 그 때문에 국토부 실거래가 <b>한 건도 안
-     * 맞았습니다.</b> 화면은 그냥 "거래 내역이 없습니다" 였습니다.
+     * 둘을 바꿔 넣는 일이 실제로 있었습니다 — 상계주공7단지에 전용 49.94 대신
+     * 공급 71.02 가 들어가 있었고, 그 때문에 국토부 실거래가 한 건도 안
+     * 맞았습니다. 화면은 그냥 "거래 내역이 없습니다" 였습니다.
      *
-     * <p>사람이 실수할 수 있는 자리이고, <b>틀려도 아무 데서도 안 걸리는</b> 값이라
+     * 사람이 실수할 수 있는 자리이고, 틀려도 아무 데서도 안 걸리는 값이라
      * 여기서 막습니다. 채점·대출·실거래가 전부 전용면적을 봅니다.
      *
-     * <p>같은 값은 통과시킵니다 — <b>둘 중 하나만 아는 매물</b>이 실제로 있고,
+     * 같은 값은 통과시킵니다 — 둘 중 하나만 아는 매물이 실제로 있고,
      * 그때 같은 값을 넣어 두는 것은 거짓말이 아닙니다.
      */
     private void validateAreas(PropertyRequest request) {
@@ -374,7 +374,7 @@ public class PropertyService {
     }
 
     /**
-     * 동이 바뀌었을 때만 좌표를 다시 찾는다 (설계 I269) — 사람이 좌표를 직접 손댔으면
+     * 동이 바뀌었을 때만 좌표를 다시 찾는다 — 사람이 좌표를 직접 손댔으면
      * 그대로 둔다. {@link #resolveCoordinates} 는 요청에 좌표가 있으면 그대로 쓴다.
      */
     private Coordinates resolveCoordinatesForUpdate(Property existing, PropertyRequest request) {
@@ -412,7 +412,7 @@ public class PropertyService {
     }
 
     /**
-     * 같은 단지라도 동이 다르면 자리가 다르다 (설계 I268) — 주소검색은 동을 무시하지만
+     * 같은 단지라도 동이 다르면 자리가 다르다 — 주소검색은 동을 무시하지만
      * 장소검색은 건물 좌표를 준다. 못 찾으면 단지 좌표를 그대로 쓴다.
      */
     private Coordinates refineToBuilding(PropertyRequest request, Coordinates base) {
@@ -459,7 +459,7 @@ public class PropertyService {
         return PropertyResponse.from(p, nicknameOf(p.createdBy()), editVersionStore.current(versionKey(p.id())));
     }
 
-    /** 매물 카드에 등록자를 보여주기 위한 닉네임 (설계 I53). 삭제된 사용자면 null. */
+    /** 매물 카드에 등록자를 보여주기 위한 닉네임. 삭제된 사용자면 null. */
     private String nicknameOf(Long userId) {
         if (userId == null) {
             return null;

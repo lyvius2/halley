@@ -27,7 +27,7 @@ public class ItineraryController {
         this.itineraryService = itineraryService;
     }
 
-    /** 마지막 출발지 조회 — 캐시에 없으면 null (설계 I52). */
+    /** 마지막 출발지 조회 — 캐시에 없으면 null. */
     @GetMapping("/start-location")
     public StartLocation startLocation() {
         return itineraryService.lastStartLocation();
@@ -39,7 +39,7 @@ public class ItineraryController {
     }
 
     /**
-     * 작업 중인 것 (설계 I179). <b>계정마다 다릅니다.</b>
+     * 작업 중인 것. 계정마다 다릅니다.
      */
     @GetMapping("/draft")
     public ItineraryDraft draft() {
@@ -63,9 +63,9 @@ public class ItineraryController {
     }
 
     /**
-     * 가 본 곳 (설계 I197).
+     * 가 본 곳.
      *
-     * <p>계획 저장을 없앴으므로 <b>방문 기록만</b> DB에 남습니다.
+     * 계획 저장을 없앴으므로 방문 기록만 DB에 남습니다.
      * 계산 결과는 draft 캐시로 충분하지만, 어디를 가 봤는지는 그렇지 않습니다.
      */
     @GetMapping("/visits")

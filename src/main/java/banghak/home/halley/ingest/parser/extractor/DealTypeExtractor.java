@@ -5,10 +5,10 @@ import banghak.home.halley.ingest.parser.ParseResult;
 import banghak.home.halley.ingest.parser.TextDocument;
 
 /**
- * 거래유형 (설계 I283).
+ * 거래유형.
  *
- * <p><b>제목을 먼저 믿습니다.</b> 본문 아래쪽에는 "매매 / 전세 / 월세" 를 고르는
- * <b>토글 글자</b>가 그대로 붙어 옵니다 — 매매 매물인데 거기 걸려 <b>전세로 읽혔습니다.</b>
+ * 제목을 먼저 믿습니다. 본문 아래쪽에는 "매매 / 전세 / 월세" 를 고르는
+ * 토글 글자가 그대로 붙어 옵니다 — 매매 매물인데 거기 걸려 전세로 읽혔습니다.
  * 매매와 전세는 순위표가 아예 달라(AGENTS.md) 조용히 틀리면 매물이 딴 표에 실립니다.
  */
 public class DealTypeExtractor implements FieldExtractor<String> {

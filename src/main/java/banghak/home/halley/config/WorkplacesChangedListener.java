@@ -10,9 +10,9 @@ import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
 /**
- * 직장 위치가 바뀌면 AI 추천도를 다시 뽑는다 (설계 I60).
+ * 직장 위치가 바뀌면 AI 추천도를 다시 뽑는다.
  *
- * <p>직장 위치 3곳 이상으로 이미 추론한 매물은 서비스가 알아서 건너뜁니다.
+ * 직장 위치 3곳 이상으로 이미 추론한 매물은 서비스가 알아서 건너뜁니다.
  * 재추론된 매물이 있을 때만 재채점합니다 — 점수가 안 바뀌었는데 전 매물을 다시 계산할 이유가 없습니다.
  */
 @Slf4j

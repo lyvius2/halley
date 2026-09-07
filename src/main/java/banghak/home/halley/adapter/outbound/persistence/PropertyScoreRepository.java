@@ -59,11 +59,11 @@ public class PropertyScoreRepository {
     }
 
     /**
-     * 매물 여러 건을 한 번에 (설계 I124).
+     * 매물 여러 건을 한 번에.
      *
-     * <p>목록 화면이 매물마다 따로 부르면 그 수만큼 왕복이 늘어납니다 — 느린 DB에서는
+     * 목록 화면이 매물마다 따로 부르면 그 수만큼 왕복이 늘어납니다 — 느린 DB에서는
      * 그것이 그대로 체감 지연이 됩니다. 비어 있으면 질의하지 않습니다:
-     * {@code IN ()} 는 dialect마다 다르게 굴어 굳이 시험할 이유가 없습니다.
+     * IN () 는 dialect마다 다르게 굴어 굳이 시험할 이유가 없습니다.
      */
     public List<PropertyScore> findByPropertyIds(java.util.Collection<Long> propertyIds) {
         if (propertyIds == null || propertyIds.isEmpty()) {
@@ -95,13 +95,13 @@ public class PropertyScoreRepository {
     }
 
     /**
-     * 한 매물의 채점을 통째로 갈아 끼운다 (설계 I84).
+     * 한 매물의 채점을 통째로 갈아 끼운다.
      *
-     * <p><b>지우고 다시 넣지 않습니다.</b> 예전에는 `deleteByPropertyId` 뒤에 전부 insert 했는데,
+     * 지우고 다시 넣지 않습니다. 예전에는 `deleteByPropertyId` 뒤에 전부 insert 했는데,
      * 등록 시점 채점과 비동기 보정의 재채점이 겹치면 유니크 제약에 걸려 터졌습니다. 항목마다
      * upsert 하면 순서가 어떻게 되든 마지막 값이 남고 충돌하지 않습니다.
      *
-     * <p>사라진 항목만 지웁니다 — 채점 기준이 빠졌을 때 옛 점수가 남지 않게 합니다.
+     * 사라진 항목만 지웁니다 — 채점 기준이 빠졌을 때 옛 점수가 남지 않게 합니다.
      */
     public void replaceAll(Long propertyId, List<PropertyScore> scores) {
         for (final PropertyScore score : scores) {

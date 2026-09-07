@@ -19,20 +19,20 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * 금감원 공시에서 대표 금리를 뽑는다 (설계 I81 · MORTGAGE_ENGINE 6장).
+ * 금감원 공시에서 대표 금리를 뽑는다.
  *
- * <p>바꾸는 것은 <b>`interestRate` 하나</b>입니다. 한도 산식은 건드리지 않습니다 —
+ * 바꾸는 것은 `interestRate` 하나입니다. 한도 산식은 건드리지 않습니다 —
  * 금감원이 주는 `loan_lmt`(`"LTV 70% 이내"` 같은 서술 문장)를 규제 파라미터 위에 얹으면
  * 같은 제약이 두 번 걸립니다.
  *
- * <p><b>DSR 역산에는 쓰지 않습니다.</b> DSR은 스트레스 금리로 계산합니다(I64-2).
+ * DSR 역산에는 쓰지 않습니다. DSR은 스트레스 금리로 계산합니다(I64-2).
  */
 @Slf4j
 @Service
 public class MarketRateService {
 
     /**
-     * <b>은행만 봅니다.</b> 저축은행·보험은 금리가 크게 높아 같은 표에 섞으면 중앙값이
+     * 은행만 봅니다. 저축은행·보험은 금리가 크게 높아 같은 표에 섞으면 중앙값이
      * 왜곡됩니다. 넓힐 때는 사용자가 권역을 고르게 합니다.
      */
     private static final FinanceGroup GROUP = FinanceGroup.BANK;
@@ -87,8 +87,8 @@ public class MarketRateService {
     /**
      * 조건에 맞는 옵션의 금리만 모은다.
      *
-     * <p>한 상품이 담보유형 × 상환방식 × 금리유형마다 다른 금리를 가지므로 <b>비교 단위는
-     * 상품이 아니라 옵션</b>입니다. 상품마다 조건에 맞는 것 중 가장 싼 하나만 골라, 옵션이
+     * 한 상품이 담보유형 × 상환방식 × 금리유형마다 다른 금리를 가지므로 비교 단위는
+     * 상품이 아니라 옵션입니다. 상품마다 조건에 맞는 것 중 가장 싼 하나만 골라, 옵션이
      * 많은 상품이 중앙값을 끌어당기지 않게 합니다.
      */
     private List<BigDecimal> representativeRates(List<LoanProduct> products, LoanProductType type) {
@@ -117,7 +117,7 @@ public class MarketRateService {
     }
 
     /**
-     * 평균이 아니라 <b>중앙값</b>입니다. 극단적으로 낮은 특판 하나에 전체가 끌려가면
+     * 평균이 아니라 중앙값입니다. 극단적으로 낮은 특판 하나에 전체가 끌려가면
      * 실제로 받을 수 있는 금리와 멀어집니다 — 실거래가 단가와 같은 이유입니다(I65).
      */
     private BigDecimal median(List<BigDecimal> rates) {

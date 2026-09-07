@@ -5,11 +5,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
 /**
- * 국토교통부 건축물대장정보 서비스 (설계 I132).
+ * 국토교통부 건축물대장정보 서비스.
  *
- * <p>실거래가와 <b>같은 기관·같은 인증키</b>지만 <b>다른 서비스</b>라 따로 활용신청이 필요합니다.
+ * 실거래가와 같은 기관·같은 인증키지만 다른 서비스라 따로 활용신청이 필요합니다.
  *
- * <p><b>실거래가와 달리 JSON을 줍니다</b>(`_type=json`). 실거래가는 XML이라 어댑터가
+ * 실거래가와 달리 JSON을 줍니다(`_type=json`). 실거래가는 XML이라 어댑터가
  * DOM으로 읽는데, 여기는 Jackson으로 읽습니다.
  */
 @FeignClient(name = "building-ledger",
@@ -18,10 +18,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 public interface BuildingLedgerFeignClient {
 
     /**
-     * 총괄표제부 — <b>단지 전체</b>. 표제부(`getBrTitleInfo`)는 동마다 한 행이라
+     * 총괄표제부 — 단지 전체. 표제부(`getBrTitleInfo`)는 동마다 한 행이라
      * 대지면적이 중복됩니다.
      *
-     * @param platGbCd <b>PNU와 코드 체계가 다릅니다.</b> PNU는 `1`=대지·`2`=산인데
+     * @param platGbCd PNU와 코드 체계가 다릅니다. PNU는 `1`=대지·`2`=산인데
      *                 여기는 `0`=대지·`1`=산·`2`=블록입니다
      */
     @GetMapping("/getBrRecapTitleInfo")

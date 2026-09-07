@@ -19,22 +19,22 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * ODsay 를 먼저, 하루치를 다 썼으면 LLM 으로 (설계 I210).
+ * ODsay 를 먼저, 하루치를 다 썼으면 LLM 으로.
  *
- * <p>실제 운영 로그에서 <b>`code=429, msg=Daily quota exceeded`</b> 가 줄줄이 났습니다.
+ * 실제 운영 로그에서 `code=429, msg=Daily quota exceeded` 가 줄줄이 났습니다.
  * 그때 직주근접은 통째로 미산출이 되고, 임장 대중교통은 모든 구간이 999분이 됩니다 —
- * <b>화면이 죽은 것처럼 보입니다.</b>
+ * 화면이 죽은 것처럼 보입니다.
  *
- * <p><b>추정이라는 사실은 숨기지 않습니다.</b> LLM 은 시간표를 조회하지 않고 아는 것으로
+ * 추정이라는 사실은 숨기지 않습니다. LLM 은 시간표를 조회하지 않고 아는 것으로
  * 말합니다. 부르는 쪽이 그 차이를 알 수 있게 `mapObj` 를 비워 돌려주고,
  * 저장하는 쪽은 출처를 남깁니다.
  *
- * <p><b>경로선은 LLM 에게 묻지 않습니다.</b> 좌표를 지어내게 하면 <b>있지도 않은 길</b>이
+ * 경로선은 LLM 에게 묻지 않습니다. 좌표를 지어내게 하면 있지도 않은 길이
  * 지도에 그려집니다. 그건 없는 것보다 나쁩니다 — 직선으로 그립니다(현행 그대로).
  *
- * <p><b>`@Primary` 를 붙이지 않았습니다.</b> `OdsayTransitAdapter` 가 포트를 구현하지
- * 않으므로 운영에서는 이것이 유일한 포트 빈입니다. 붙이면 <b>테스트가 갈아 끼우는
- * 대역과 부딪힙니다</b> — 우선 빈이 둘이 되어 스프링이 고르지 못합니다.
+ * `@Primary` 를 붙이지 않았습니다. `OdsayTransitAdapter` 가 포트를 구현하지
+ * 않으므로 운영에서는 이것이 유일한 포트 빈입니다. 붙이면 테스트가 갈아 끼우는
+ * 대역과 부딪힙니다 — 우선 빈이 둘이 되어 스프링이 고르지 못합니다.
  */
 @Slf4j
 @Component
@@ -44,12 +44,12 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
     private final LlmTransitEstimator estimator;
 
     /**
-     * 하루치를 다 쓴 날 (설계 I210).
+     * 하루치를 다 쓴 날.
      *
-     * <p>한 번 429 를 보면 <b>그날은 더 부르지 않습니다.</b> 안 그러면 매물 하나 채점할
+     * 한 번 429 를 보면 그날은 더 부르지 않습니다. 안 그러면 매물 하나 채점할
      * 때마다 사람 수만큼 429 를 받으러 갑니다 — 로그만 더러워지고 얻는 것이 없습니다.
      *
-     * <p>날짜로 둡니다. 할당량이 <b>하루 단위</b>라 자정을 넘기면 저절로 풀립니다 —
+     * 날짜로 둡니다. 할당량이 하루 단위라 자정을 넘기면 저절로 풀립니다 —
      * 타이머를 두면 서버를 다시 띄울 때 잃습니다.
      */
     private volatile LocalDate exhaustedOn;
@@ -57,9 +57,9 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
     /** 구간 하나만 물을 때의 열쇠. 프롬프트와 로그에 그대로 실리므로 읽히는 이름을 쓴다. */
     private static final String SINGLE = "leg";
 
-    /** 구간들을 한꺼번에 물을 때 쓰는 자리 (설계 I263). */
+    /** 구간들을 한꺼번에 물을 때 쓰는 자리. */
     private final VirtualThreadGate gate;
-    /** 이 시간 안에 못 받은 구간은 <b>추정으로 넘깁니다</b> (설계 I263). */
+    /** 이 시간 안에 못 받은 구간은 추정으로 넘깁니다. */
     private final Duration batchBudget;
 
     public TransitWithLlmFallback(OdsayTransitAdapter odsay, LlmTransitEstimator estimator,
@@ -72,9 +72,9 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
     }
 
     /**
-     * ODsay 가 막혀도 LLM 이 있으면 <b>산출할 수 있습니다.</b>
+     * ODsay 가 막혀도 LLM 이 있으면 산출할 수 있습니다.
      *
-     * <p>이 값이 거짓이면 부르는 쪽이 "미산출" 이유로 삼습니다(설계 I119).
+     * 이 값이 거짓이면 부르는 쪽이 "미산출" 이유로 삼습니다.
      * 둘 다 없을 때만 거짓입니다.
      */
     @Override
@@ -97,17 +97,17 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
     }
 
     /**
-     * 여러 구간을 한꺼번에 (설계 I210).
+     * 여러 구간을 한꺼번에.
      *
-     * <p>임장 행렬은 매물 8개면 <b>72쌍</b>입니다. 쌍마다 LLM 을 부르면 한 번 계산에
+     * 임장 행렬은 매물 8개면 72쌍입니다. 쌍마다 LLM 을 부르면 한 번 계산에
      * 수십 분이 걸립니다 — ODsay 라면 쌍마다 불러도 괜찮지만(50ms) LLM 은 아닙니다.
      *
-     * <p>그래서 <b>ODsay 는 돌면서</b>, LLM 은 <b>남은 것을 한 번에</b> 묻습니다.
+     * 그래서 ODsay 는 돌면서, LLM 은 남은 것을 한 번에 묻습니다.
      */
     @Override
     public Map<String, TransitResult> findTransitBatch(Map<String, double[]> legs) {
         final Map<String, TransitResult> found = new ConcurrentHashMap<>();
-        // <b>한 줄로 돌지 않는다 (설계 I263).</b> 49쌍을 순서대로 부르면 ODsay 가
+        // 한 줄로 돌지 않는다. 49쌍을 순서대로 부르면 ODsay 가
         // 느려진 날 5분이 걸립니다 — 프록시가 60초에 끊어 504 가 났습니다
         gate.runWithin(legs.entrySet().stream()
                 .map(entry -> (Runnable) () -> {
@@ -123,8 +123,8 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
                 })
                 .toList(), batchBudget);
 
-        // <b>못 받은 것은 이유를 가리지 않는다.</b> 할당량이 끝났든 시간이 모자랐든
-        // 화면에는 답이 있어야 합니다 — 남은 것을 <b>한 번에</b> 추정으로 넘깁니다
+        // 못 받은 것은 이유를 가리지 않는다. 할당량이 끝났든 시간이 모자랐든
+        // 화면에는 답이 있어야 합니다 — 남은 것을 한 번에 추정으로 넘깁니다
         final List<LlmTransitEstimator.Leg> unresolved = legs.entrySet().stream()
                 .filter(entry -> !found.containsKey(entry.getKey()))
                 .map(entry -> new LlmTransitEstimator.Leg(entry.getKey(),
@@ -139,7 +139,7 @@ public class TransitWithLlmFallback implements OdsayTransitPort {
         return found;
     }
 
-    /** 경로선은 ODsay 만 줍니다. 없으면 화면이 직선으로 그립니다 (설계 I177 · I210). */
+    /** 경로선은 ODsay 만 줍니다. 없으면 화면이 직선으로 그립니다. */
     @Override
     public RoutePath findLane(String mapObj) {
         if (quotaExhausted()) {

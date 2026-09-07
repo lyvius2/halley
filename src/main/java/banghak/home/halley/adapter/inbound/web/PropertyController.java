@@ -118,7 +118,7 @@ public class PropertyController {
         this.propertyAccessGuard = propertyAccessGuard;
     }
 
-    /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위 (설계 I61). */
+    /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위. */
     @GetMapping("/comparative-analysis")
     public ComparativeAnalysisStatus comparativeAnalysis() {
         return comparativeAnalysisService.status();
@@ -143,8 +143,8 @@ public class PropertyController {
     }
 
     /**
-     * AI 추천도. 화면이 2초 간격으로 폴링하므로 <b>결과가 없어도 200</b>을 돌려주고
-     * `pending`으로 '분석 중'과 '미산출'을 가른다 (설계 I72).
+     * AI 추천도. 화면이 2초 간격으로 폴링하므로 결과가 없어도 200을 돌려주고
+     * `pending`으로 '분석 중'과 '미산출'을 가른다.
      */
     @GetMapping("/{id}/llm-recommendation")
     public LlmRecommendationResponse llmRecommendation(@PathVariable Long id) {
@@ -231,12 +231,12 @@ public class PropertyController {
 
 
     /**
-     * 목록 한 쪽 (설계 I240).
+     * 목록 한 쪽.
      *
-     * <p>줄 세우기가 <b>서버로 넘어왔습니다.</b> 받은 30건 안에서만 줄 세우면
+     * 줄 세우기가 서버로 넘어왔습니다. 받은 30건 안에서만 줄 세우면
      * 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다 — 자르는 곳과 줄 세우는 곳은 같아야 합니다.
      *
-     * <p>전망 요약은 <b>이 쪽의 30건에만</b> 붙입니다. 예전에는 전체에 붙였습니다.
+     * 전망 요약은 이 쪽의 30건에만 붙입니다. 예전에는 전체에 붙였습니다.
      */
     @GetMapping
     public ScoredPropertyPage list(
@@ -247,17 +247,17 @@ public class PropertyController {
             @RequestParam(value = "archived", defaultValue = "false") boolean archived) {
         final ScoredPropertyPage found =
                 propertyListService.page(dealType, PropertySort.of(sort), page, size, archived);
-        // 전망 요약을 한 번에 붙인다 (설계 I136). 요인 상세는 모달에서 따로 받는다
+        // 전망 요약을 한 번에 붙인다. 요인 상세는 모달에서 따로 받는다
         return new ScoredPropertyPage(
                 priceForecastService.attachForecasts(found.items()),
                 found.page(), found.size(), found.total(), found.hasNext(), found.archivedTotal());
     }
 
     /**
-     * 지도와 임장 플래너가 쓰는 <b>전체</b> 목록 (설계 I240).
+     * 지도와 임장 플래너가 쓰는 전체 목록.
      *
-     * <p>목록은 잘라 보내지만 지도는 전부 찍어야 합니다. 잘린 목록으로 그리면
-     * <b>매물이 사라진 것처럼</b> 보입니다.
+     * 목록은 잘라 보내지만 지도는 전부 찍어야 합니다. 잘린 목록으로 그리면
+     * 매물이 사라진 것처럼 보입니다.
      */
     @GetMapping("/pins")
     public List<PropertyPinResponse> pins(
@@ -285,7 +285,7 @@ public class PropertyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
-        // <b>기다리지 않고 돌려준다 (설계 I220).</b> [I110]은 초등학교·토지이용계획·채점을
+        // 기다리지 않고 돌려준다.은 초등학교·토지이용계획·채점을
         // 기다렸는데, ODsay 가 막혀 직주근접이 LLM 으로 넘어가면(I210) 사람당 4~5초라
         // 등록 한 번이 수십 초가 됐다. 화면은 카드를 먼저 보여 주고 진행 표시를 띄운다
         propertyEnrichmentService.enrichAsync(created.id());
@@ -300,9 +300,9 @@ public class PropertyController {
     }
 
     /**
-     * 채점 판 번호 목록 (설계 I85).
+     * 채점 판 번호 목록.
      *
-     * <p>채점은 <b>사용자가 보고 있는 동안 뒤에서 바뀝니다</b> — 보정이 끝나고, AI 응답이 옵니다.
+     * 채점은 사용자가 보고 있는 동안 뒤에서 바뀝니다 — 보정이 끝나고, AI 응답이 옵니다.
      * 화면이 그걸 알아채려고 목록을 통째로 다시 받으면 무겁습니다. 이 번호만 확인하고
      * 달라진 게 있을 때만 목록을 받습니다.
      */
@@ -314,8 +314,8 @@ public class PropertyController {
     }
 
     /**
-     * 자동 재채점 트리거 (설계 8장). 매물을 수정하지 않고 점수만 다시 계산한다 —
-     * 수집 규칙 버전을 올린 뒤(`PoiDataService.POI_SCHEMA_VERSION`, 설계 I44) POI 재수집을 유도하거나,
+     * 자동 재채점 트리거. 매물을 수정하지 않고 점수만 다시 계산한다 —
+     * 수집 규칙 버전을 올린 뒤(`PoiDataService.POI_SCHEMA_VERSION`,) POI 재수집을 유도하거나,
      * 외부 API 장애로 폴백된 항목을 복구할 때 쓴다.
      */
     @PostMapping("/{id}/rescore")
@@ -324,9 +324,9 @@ public class PropertyController {
     }
 
     /**
-     * 미산출 항목을 다시 계산한다 (설계 I119).
+     * 미산출 항목을 다시 계산한다.
      *
-     * <p>미산출은 대개 <b>그때 외부 조회가 실패한 것</b>입니다 — 실패는 저장하지 않으므로
+     * 미산출은 대개 그때 외부 조회가 실패한 것입니다 — 실패는 저장하지 않으므로
      * 다시 채점하면 다시 시도합니다. 사용자가 직장 좌표를 넣은 뒤 매물을 다시 등록할 필요가
      * 없도록 화면에서 직접 부를 수 있게 둡니다.
      */
@@ -336,9 +336,9 @@ public class PropertyController {
     }
 
     /**
-     * 가격 전망 (설계 I135).
+     * 가격 전망.
      *
-     * <p>결과가 없어도 200을 줍니다 — 화면이 <b>분석 중인지</b>를 알아야 폴링을 이어갑니다.
+     * 결과가 없어도 200을 줍니다 — 화면이 분석 중인지를 알아야 폴링을 이어갑니다.
      * 204를 주면 "없다"와 "아직"을 구분할 수 없습니다.
      */
     @GetMapping("/{id}/forecast")
@@ -351,9 +351,9 @@ public class PropertyController {
     }
 
     /**
-     * 관련 기사 (설계 I137).
+     * 관련 기사.
      *
-     * <p><b>점수에도 프롬프트에도 반영되지 않습니다.</b> 전망 모달에 링크 목록으로만 뜹니다.
+     * 점수에도 프롬프트에도 반영되지 않습니다. 전망 모달에 링크 목록으로만 뜹니다.
      * 전망 계산과 분리해 둔 이유는, 기사가 안 와도 전망이 멀쩡히 나와야 하기 때문입니다.
      */
     @GetMapping("/{id}/news")
@@ -361,7 +361,7 @@ public class PropertyController {
         return propertyNewsService.find(id).stream().map(NewsArticleResponse::from).toList();
     }
 
-    /** 사용자가 명시적으로 다시 분석할 때 (설계 3-A.5). */
+    /** 사용자가 명시적으로 다시 분석할 때. */
     @PostMapping("/{id}/forecast/refresh")
     public PriceForecastResponse refreshForecast(@PathVariable Long id) {
         propertyAccessGuard.require(id);
