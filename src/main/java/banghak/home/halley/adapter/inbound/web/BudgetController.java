@@ -3,6 +3,7 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.application.service.BudgetPlanAggregate;
 import banghak.home.halley.application.service.BudgetPlanService;
 import banghak.home.halley.application.service.ProductPreviewService;
+import banghak.home.halley.application.service.BudgetAdviceService;
 import banghak.home.halley.adapter.inbound.web.dto.ProductPreviewRequest;
 import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.BudgetAsset;
@@ -10,6 +11,8 @@ import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductPreview;
 import banghak.home.halley.domain.budget.BudgetScenario;
+import banghak.home.halley.domain.budget.BudgetAdvice;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -19,10 +22,13 @@ import java.util.List;
 public class BudgetController {
     private final BudgetPlanService service;
     private final ProductPreviewService productPreviewService;
+    private final BudgetAdviceService budgetAdviceService;
 
-    public BudgetController(BudgetPlanService service, ProductPreviewService productPreviewService) {
+    public BudgetController(BudgetPlanService service, ProductPreviewService productPreviewService,
+                            BudgetAdviceService budgetAdviceService) {
         this.service = service;
         this.productPreviewService = productPreviewService;
+        this.budgetAdviceService = budgetAdviceService;
     }
 
     @GetMapping
@@ -85,5 +91,10 @@ public class BudgetController {
     @PutMapping("/{id}/scenario")
     public BudgetPlan applyScenario(@PathVariable Long id, @RequestParam BudgetScenario scenario) {
         return service.applyScenario(id, scenario);
+    }
+
+    @PostMapping("/{id}/advice")
+    public ResponseEntity<BudgetAdvice> advice(@PathVariable Long id) {
+        return budgetAdviceService.advise(id).map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.noContent().build());
     }
 }

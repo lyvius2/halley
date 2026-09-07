@@ -164,6 +164,7 @@ function halley() {
         budgetAssetForm: { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false },
         budgetItemFilter: '',
         showBudgetPropertyPicker: false,
+        budgetAdvice: null,
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -996,6 +997,13 @@ function halley() {
             if (ok) {
                 await this.loadBudget();
             }
+        },
+
+        async loadBudgetAdvice() {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId) return;
+            const { ok, body } = await this.request('/api/budget/plans/' + planId + '/advice', { method: 'POST' });
+            this.budgetAdvice = ok ? body : null;
         },
 
         openBudgetPropertyPicker() {
