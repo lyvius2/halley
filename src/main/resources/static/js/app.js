@@ -163,6 +163,7 @@ function halley() {
         budgetPlans: [],
         budgetAssetForm: { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false },
         budgetItemFilter: '',
+        showBudgetPropertyPicker: false,
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -963,6 +964,27 @@ function halley() {
             if (ok) {
                 await this.loadBudget();
             }
+        },
+
+        openBudgetPropertyPicker() {
+            this.showBudgetPropertyPicker = true;
+            if (this.properties.length === 0) {
+                this.loadProperties();
+            }
+        },
+
+        async selectBudgetProperty(item) {
+            const plan = this.budgetAggregate?.plan;
+            const property = item?.property;
+            if (!plan || !property) {
+                return;
+            }
+            plan.selectedPropertyId = property.id;
+            plan.houseName = property.name;
+            plan.purchasePrice = property.price || 0;
+            plan.exclusiveAreaM2 = property.exclusiveAreaM2 || null;
+            this.showBudgetPropertyPicker = false;
+            await this.saveBudget();
         },
 
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */

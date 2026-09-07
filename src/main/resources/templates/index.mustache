@@ -271,7 +271,7 @@
                                 <div>
                                     <div class="budget-form-grid">
                                         <label>계획 이름 <input x-model="budgetAggregate.plan.planName"></label>
-                                        <label>주택명 <input x-model="budgetAggregate.plan.houseName"></label>
+                                        <label>주택명 <input x-model="budgetAggregate.plan.houseName"><button type="button" class="btn btn-sm" @click="openBudgetPropertyPicker()">등록 매물 선택</button></label>
                                         <label>매매가격(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.purchasePrice"></label>
                                         <label>계약금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.contractCash"></label>
                                         <label>잔금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.balanceCash"></label>
@@ -775,6 +775,15 @@
             </template>
         </aside>
     </main>
+</div>
+
+<div class="modal" x-show="showBudgetPropertyPicker" x-cloak>
+    <div class="modal-backdrop" @click="showBudgetPropertyPicker=false"></div>
+    <div class="modal-box budget-property-picker" role="dialog" aria-modal="true" aria-label="예산 대상 매물 선택">
+        <div class="modal-head"><h2>예산 대상 매물 선택</h2><button class="modal-close" @click="showBudgetPropertyPicker=false" aria-label="닫기">×</button></div>
+        <p class="empty-hint">선택한 매물의 호가와 전용면적을 계획에 반영합니다.</p>
+        <div class="budget-picker-list"><template x-for="item in properties" :key="item.property.id"><button type="button" @click="selectBudgetProperty(item)"><b x-text="item.property.name"></b><span x-text="fmtWon(item.property.price)"></span><small x-text="item.property.exclusiveAreaM2 ? item.property.exclusiveAreaM2 + '㎡' : '면적 미입력'"></small></button></template></div>
+    </div>
 </div>
 
 <!-- D1 로그인 모달 -->
