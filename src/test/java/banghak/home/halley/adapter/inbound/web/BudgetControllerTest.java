@@ -1,6 +1,7 @@
 package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.application.service.BudgetPlanService;
+import banghak.home.halley.application.service.ProductPreviewService;
 import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.AssetType;
 import banghak.home.halley.domain.budget.BudgetAsset;
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.verify;
 @ExtendWith(MockitoExtension.class)
 class BudgetControllerTest {
     @Mock BudgetPlanService service;
+    @Mock ProductPreviewService productPreviewService;
     @InjectMocks BudgetController controller;
 
     @Test

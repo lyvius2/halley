@@ -2,10 +2,13 @@ package banghak.home.halley.adapter.inbound.web;
 
 import banghak.home.halley.application.service.BudgetPlanAggregate;
 import banghak.home.halley.application.service.BudgetPlanService;
+import banghak.home.halley.application.service.ProductPreviewService;
+import banghak.home.halley.adapter.inbound.web.dto.ProductPreviewRequest;
 import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.BudgetAsset;
 import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.BudgetItem;
+import banghak.home.halley.domain.budget.ProductPreview;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -14,9 +17,11 @@ import java.util.List;
 @RequestMapping("/api/budget/plans")
 public class BudgetController {
     private final BudgetPlanService service;
+    private final ProductPreviewService productPreviewService;
 
-    public BudgetController(BudgetPlanService service) {
+    public BudgetController(BudgetPlanService service, ProductPreviewService productPreviewService) {
         this.service = service;
+        this.productPreviewService = productPreviewService;
     }
 
     @GetMapping
@@ -69,5 +74,10 @@ public class BudgetController {
             throw new IllegalArgumentException("item does not match path");
         }
         return service.updateItem(item);
+    }
+
+    @PostMapping("/product-preview")
+    public ProductPreview previewProduct(@RequestBody ProductPreviewRequest request) {
+        return productPreviewService.preview(request.url());
     }
 }

@@ -966,6 +966,27 @@ function halley() {
             }
         },
 
+        async previewBudgetProduct(item, alternative) {
+            const url = alternative ? item.alternativeUrl : item.candidateUrl;
+            if (!url) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/budget/plans/product-preview', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url })
+            });
+            if (!ok || !body?.found) {
+                return;
+            }
+            if (alternative) {
+                item.alternativeName = body.productName || item.alternativeName;
+                item.alternativePriceWon = body.priceWon ?? item.alternativePriceWon;
+            } else {
+                item.candidateName = body.productName || item.candidateName;
+                item.candidatePriceWon = body.priceWon ?? item.candidatePriceWon;
+            }
+            await this.saveBudgetItem(item);
+        },
+
         openBudgetPropertyPicker() {
             this.showBudgetPropertyPicker = true;
             if (this.properties.length === 0) {
