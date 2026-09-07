@@ -10,10 +10,7 @@ import static banghak.home.halley.adapter.outbound.external.FallbackCause.descri
 @Component
 public class MinistryReferenceFallbackFactory implements FallbackFactory<MinistryReferenceFeignClient> {
 
-    /**
-     * 오퍼레이션이 둘이 되어 람다로는 안 됩니다 — 익명 클래스로 각각 로그를 남깁니다
-     *. 어느 쪽이 실패했는지 구분되지 않으면 원인을 못 찾습니다.
-     */
+ /** 오퍼레이션이 둘이 되어 람다로는 안 됩니다. 익명 클래스로 각각 로그를 남깁니다 */
     @Override
     public MinistryReferenceFeignClient create(Throwable cause) {
         return new MinistryReferenceFeignClient() {

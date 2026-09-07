@@ -53,7 +53,7 @@ public class PropertyCommentRepository {
         return dsl.selectFrom(TABLE).where(ID.eq(id)).fetchOptional().map(this::map);
     }
 
-    /** 오래된 순 — 대화를 읽듯 위에서 아래로 본다. */
+ /** 오래된 순. 대화를 읽듯 위에서 아래로 본다. */
     public List<PropertyComment> findByPropertyId(Long propertyId) {
         return dsl.selectFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId))
@@ -69,7 +69,7 @@ public class PropertyCommentRepository {
                 .map(this::map);
     }
 
-    /** 탈퇴 직전 작성자 이름을 값으로 굳힌다. */
+ /** 탈퇴 직전 작성자 이름을 값으로 굳힌다. */
     public int snapshotAuthorNickname(Long userId, String nickname) {
         return dsl.update(TABLE)
                 .set(AUTHOR_NICKNAME, nickname)

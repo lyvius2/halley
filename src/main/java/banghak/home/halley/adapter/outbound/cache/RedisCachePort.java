@@ -13,19 +13,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * live 용.
- *
- * Redis 가 죽어도 조용히 건너뜁니다(2.1.1). 캐시가 없으면 원본에서 읽으면 됩니다 —
- * 캐시 계층 장애가 화면을 막을 이유가 없습니다.
- */
+/** live 용. */
 @Slf4j
 @Component
 @Profile("live")
 public class RedisCachePort implements CachePort {
 
     private static final String PREFIX = "cache:";
-    /** 한 번에 훑을 키 수. KEYS 는 레디스를 멈추므로 쓰지 않는다. */
+ /** 한 번에 훑을 키 수. KEYS 는 레디스를 멈추므로 쓰지 않는다. */
     private static final int SCAN_COUNT = 200;
 
     private final StringRedisTemplate redisTemplate;

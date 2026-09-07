@@ -6,9 +6,7 @@ import banghak.home.halley.ingest.parser.TextDocument;
 
 import java.util.Optional;
 
-/**
- * 동/호 — "동/호" 라벨이 있으면 그 값, 없으면 제목 첫 줄의 "N동(N호)" 부분.
- */
+/** 동/호. "동/호" 라벨이 있으면 그 값, 없으면 제목 첫 줄의 "N동(N호)" 부분. */
 public class DongHoExtractor implements FieldExtractor<String> {
 
     @Override

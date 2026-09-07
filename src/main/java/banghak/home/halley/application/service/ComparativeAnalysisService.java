@@ -40,21 +40,12 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
-/**
- * 비교 우위 분석.
- *
- * 개별 매물을 따로 보는 AI 추천도(I59)와 달리, 등록된 매물 전체를 한 번에 LLM에 던져
- * 서로 견주게 하고 순위와 `비교 우위 추천` 점수를 받습니다. 같은 정보를 봐도 "이 집이 괜찮은가"와
- * "이 집이 저 집보다 나은가"는 다른 질문이라 따로 둡니다.
- *
- * 매물이 4개 미만이면 실행하지 않습니다. 둘셋으로는 비교 우위라는 말이 성립하지 않고,
- * 순위를 매겨도 정보가 거의 없습니다.
- */
+/** 비교 우위 분석. */
 @Slf4j
 @Service
 public class ComparativeAnalysisService {
 
-    /** 이보다 적으면 순위가 뜻을 갖지 못한다. */
+ /** 이보다 적으면 순위가 뜻을 갖지 못한다. */
     public static final int MIN_PROPERTIES = 4;
 
     private static final int MAX_TOKENS = 4096;
@@ -107,15 +98,15 @@ public class ComparativeAnalysisService {
         this.enabled = enabled;
     }
 
-    /** 비교 우위는 매물 단위가 아니라 전체 단위라 키가 하나다. */
+ /** 비교 우위는 매물 단위가 아니라 전체 단위라 키가 하나다. */
     public static final String JOB_KEY = "compare";
 
-    /** 지금 분석이 진행 중인지. */
+ /** 지금 분석이 진행 중인지. */
     public boolean isRunning() {
         return jobCache.get(JOB_KEY).map(LlmJobState::isRunning).orElse(false);
     }
 
-    /** 저장된 분석 결과만 읽는다 — LLM을 부르지 않는다. 순위 오름차순. */
+ /** 저장된 분석 결과만 읽는다. LLM을 부르지 않는다. 순위 오름차순. */
     public List<ComparativeAnalysis> findAll() {
         return analysisRepository.findAll();
     }
@@ -124,9 +115,7 @@ public class ComparativeAnalysisService {
         return analysisRepository.findByPropertyId(propertyId);
     }
 
-    /**
-     * 현황 — 지금 실행할 수 있는지와 저장된 순위. 화면이 버튼을 열지 말지 이 값으로 판단한다.
-     */
+ /** 현황. 지금 실행할 수 있는지와 저장된 순위. 화면이 버튼을 열지 말지 이 값으로 판단한다. */
     public ComparativeAnalysisStatus status() {
         final List<Property> targets = targets();
         final Map<Long, String> names = targets.stream()
@@ -140,12 +129,7 @@ public class ComparativeAnalysisService {
                 targets.size(), MIN_PROPERTIES, rankings);
     }
 
-    /**
-     * 등록된 매물 전체를 견주어 순위와 점수를 매긴다.
-     *
-     * 매물 집합이 그대로면 다시 부르지 않습니다(`batch_hash`). 매물이 추가·수정되면
-     * 해시가 달라져 다시 분석합니다.
-     */
+ /** 등록된 매물 전체를 견주어 순위와 점수를 매긴다. */
     @Transactional
     public List<ComparativeAnalysis> analyse() {
         final List<Property> targets = targets();
@@ -164,12 +148,10 @@ public class ComparativeAnalysisService {
             return cached;
         }
 
-        // 매물 전체를 한 번에 묻느라 오래 걸린다. 화면이 진행 중임을 알 수 있게 표시한다
         jobCache.markRunning(JOB_KEY);
         final LlmResult result;
         final List<Ranking> rankings;
         try {
-            // 자리마다 고른 모델을 쓴다
             final String model = llmModelService.modelFor(LlmFeature.COMPARATIVE);
             log.info("Asking LLM for comparative analysis. model={}, targets={}, promptChars={}",
                     model, targets.size(), prompt.length());
@@ -184,8 +166,6 @@ public class ComparativeAnalysisService {
                 throw new LlmUnavailableException();
             }
         } finally {
-            // 결과는 DB에서 읽는다(매물마다 한 행이라 캐시 한 칸에 담기 부적절).
-            // 여기서는 '진행 중' 표시만 걷어낸다
             jobCache.clear(JOB_KEY);
         }
 
@@ -196,7 +176,6 @@ public class ComparativeAnalysisService {
                     null, ranking.propertyId(), ranking.rank(), ranking.score(), ranking.reason(),
                     result.model(), hash, targets.size(), now)));
         }
-        // 이번 분석에 없던 매물의 옛 결과는 지운다 — 몇 개 중의 몇 위인지가 어긋나면 순위가 거짓이 된다
         final Set<Long> analysed = rankings.stream().map(Ranking::propertyId).collect(Collectors.toSet());
         for (final ComparativeAnalysis stale : cached) {
             if (!analysed.contains(stale.propertyId())) {
@@ -211,18 +190,10 @@ public class ComparativeAnalysisService {
                 .toList();
     }
 
-    /**
-     * 비교 대상 매물.
-     *
-     * 내 그룹 매물만 견줍니다. 전 매물을 한 줄로 세우면 남의 그룹 매물이 순위에
-     * 섞이고, 무엇보다 그 매물 정보가 LLM 프롬프트로 나갑니다.
-     *
-     * 판매완료·초안은 제외합니다 — 살 수 없는 집과 견주면 순위가 왜곡됩니다.
-     */
+ /** 비교 대상 매물. */
     private List<Property> targets() {
         final Long groupId = accessGuard.currentGroupId().orElse(null);
         if (groupId == null) {
-            // admin은 그룹이 없다. 어느 그룹의 순위를 매길지 정해지지 않으므로 대상이 없다
             return List.of();
         }
         return propertyRepository.findByGroupId(groupId).stream()
@@ -232,7 +203,7 @@ public class ComparativeAnalysisService {
                 .toList();
     }
 
-    /** 저장된 결과가 이번 매물 집합과 해시·구성원까지 같은지. */
+ /** 저장된 결과가 이번 매물 집합과 해시·구성원까지 같은지. */
     private boolean isFresh(List<ComparativeAnalysis> cached, String hash, List<Property> targets) {
         if (cached.size() != targets.size()) {
             return false;
@@ -245,10 +216,7 @@ public class ComparativeAnalysisService {
                 && cached.stream().allMatch(c -> hash.equals(c.batchHash()));
     }
 
-    /**
-     * 프롬프트는 줄 순서가 안정적이어야 한다. 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다.
-     * 매물은 id 순, 필드는 고정 순서로 쓰고 빈 값은 '정보 없음'으로 명시한다.
-     */
+ /** 프롬프트는 줄 순서가 안정적이어야 한다. 흔들리면 해시가 달라져 같은 입력에도 다시 호출된다. */
     String buildPrompt(List<Property> properties, List<User> buyers) {
         final StringJoiner sb = new StringJoiner("\n");
         sb.add("[비교 대상 매물 " + properties.size() + "건]");
@@ -260,7 +228,6 @@ public class ComparativeAnalysisService {
             sb.add("거래유형: " + (p.dealType() == null ? "정보 없음" : p.dealType().name()));
             sb.add("매매가/보증금(원): " + number(p.priceDeposit()));
             sb.add("관리비(원/월): " + number(p.maintenanceFee()));
-            // 도로명만 주면 모델이 동 이름을 잘못 추정한다
             sb.add("지번주소: " + text(p.addressJibun()));
             sb.add("도로명주소: " + text(p.addressRoad()));
             sb.add("공급면적(㎡): " + number(p.areaSupplyM2()));
@@ -297,12 +264,7 @@ public class ComparativeAnalysisService {
         return sb.toString();
     }
 
-    /**
-     * 이 매물들을 함께 보는 사람들.
-     *
-     * 같은 그룹의 구성원만 훑습니다. 전 사용자를 넣으면 남의 그룹 사람의
-     * 직장 주소가 프롬프트로 나갑니다.
-     */
+ /** 이 매물들을 함께 보는 사람들. */
     private List<User> activeBuyers() {
         return accessGuard.currentGroupId()
                 .map(userRepository::findByGroupId)
@@ -312,11 +274,7 @@ public class ComparativeAnalysisService {
                 .toList();
     }
 
-    /**
-     * 모델이 코드펜스나 설명을 덧붙이는 경우가 있어 첫 `{`부터 마지막 `}`까지만 잘라 읽는다.
-     * 대상에 없는 propertyId나 범위를 벗어난 점수는 버리고, 하나라도 빠지면 결과 전체를 버린다 —
-     * 일부만 순위가 매겨지면 "몇 개 중 몇 위"가 거짓이 된다.
-     */
+ /** 모델이 코드펜스나 설명을 덧붙이는 경우가 있어 첫 {부터 마지막 }까지만 잘라 읽는다. */
     List<Ranking> parse(String raw, List<Property> targets) {
         final int start = raw.indexOf('{');
         final int end = raw.lastIndexOf('}');

@@ -8,10 +8,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 도보시간(N분) — 라벨 다음 블록(최대 12줄)에서 "N분"들을 찾아 최솟값(가장 가까운 곳)을 취한다.
- * 지하철·배정 초등학교처럼 여러 줄로 표기되는 경우에 대응.
- */
+/** 도보시간(N분). 라벨 다음 블록(최대 12줄)에서 "N분"들을 찾아 최솟값(가장 가까운 곳)을 취한다. */
 public class WalkMinutesExtractor implements FieldExtractor<Integer> {
 
     private static final Pattern MINUTES = Pattern.compile("(\\d+)\\s*분");

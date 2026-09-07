@@ -21,45 +21,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-/**
- * 네이버 뉴스 검색 어댑터.
- *
- * 응답에 HTML 태그가 섞여 옵니다. `title`·`description`의 검색어가
- * `…`로 감싸여 오는데, 그대로 화면에 넣으면 HTML 주입 통로가 됩니다.
- * 여기서 걷어 내고 텍스트로만 다룹니다.
- *
- * 하루 담아 둡니다
- *
- * 상세를 열 때마다 물었습니다. 같은 매물을 몇 번 열든 기사는 그대로이고,
- * 네이버 검색은 일일 호출 한도가 있습니다.
- *
- * 키는 검색어입니다. 매물 번호가 아닙니다 — 같은 단지의 매물 둘은 검색어가
- * 같고, 그러면 한 번만 물으면 됩니다.
- *
- * 실패는 담지 않습니다. 이것이 이 캐시에서 가장 조심할 자리입니다:
- * 키가 없거나 폴백이 돌거나 응답이 깨졌을 때도 빈 목록이 나가는데, 그것까지 담으면
- * 네이버가 잠깐 죽은 것 때문에 하루 종일 "기사 없음"이 됩니다.
- * 진짜로 기사가 없는 것만 담습니다 — 그건 담아야 합니다. 안 그러면 결과가
- * 없는 단지에서 캐시가 아무 일도 안 합니다(와 같은 처방).
- */
+/** 네이버 뉴스 검색 어댑터. */
 @Slf4j
 @Component
 public class NaverNewsAdapter implements NewsSearchPort {
 
-    /**
-     * `Sun, 12 Jul 2026 09:00:00 +0900` — RFC 1123에서 요일을 뺀 부분만 읽습니다.
-     *
-     * 요일은 중복 정보입니다. 날짜에서 계산할 수 있고, 그럼에도 파싱에 넣으면
-     * 보낸 쪽 요일이 하루라도 어긋났을 때 날짜를 통째로 잃습니다.
-     * 우리가 쓰는 것은 날짜뿐이니 요일은 떼고 읽습니다.
-     */
+ /** Sun, 12 Jul 2026 09:00:00 +0900. RFC 1123에서 요일을 뺀 부분만 읽습니다. */
     private static final DateTimeFormatter PUB_DATE =
             DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss Z", Locale.ENGLISH);
-    /** `Sun, ` 처럼 앞에 붙는 요일. */
+ /** Sun, 처럼 앞에 붙는 요일. */
     private static final java.util.regex.Pattern WEEKDAY =
             java.util.regex.Pattern.compile("^[A-Za-z]{3},\\s*");
 
-    /** 기사는 하루 사이에 달라지지 않는다. */
+ /** 기사는 하루 사이에 달라지지 않는다. */
     private static final Duration TTL = Duration.ofHours(24);
 
     private static final TypeReference<List<NewsArticle>> ARTICLES = new TypeReference<>() { };
@@ -102,25 +76,16 @@ public class NaverNewsAdapter implements NewsSearchPort {
         if (held.isPresent()) {
             return held.get();
         }
-        // 개발 호재는 최신순이 맞다 — 정확도순은 오래된 기사가 위로 온다
         final String body = client.searchNews(clientId, clientSecret, query.trim(), limit, "date");
         if (body == null) {
-            // 폴백이 돌았다. 담지 않습니다 — 잠깐 죽은 것을
-            // 하루짜리 "기사 없음"으로 굳히면 안 됩니다
             return List.of();
         }
-        // 빈 Optional 이면 못 읽은 것이다. 담지 않는다
         final Optional<List<NewsArticle>> answered = tryParse(body, query);
         answered.ifPresent(articles -> write(key, articles));
         return answered.orElseGet(List::of);
     }
 
-    /**
-     * 검색어가 같으면 결과도 같다.
-     *
-     * limit 을 넣는 이유는 설정을 바꿨을 때 옛 개수로 담아 둔 것이
-     * 그대로 나오면 안 되기 때문입니다.
-     */
+ /** 검색어가 같으면 결과도 같다. */
     private String cacheKey(String query, int limit) {
         return query.trim().replaceAll("\\s+", " ") + "|" + limit;
     }
@@ -130,7 +95,6 @@ public class NaverNewsAdapter implements NewsSearchPort {
             return cache.get(CachePort.NEWS, key)
                     .map(json -> objectMapper.readValue(json, ARTICLES));
         } catch (RuntimeException e) {
-            // 못 읽으면 그냥 물어보면 됩니다 — 캐시 때문에 기능이 죽을 이유는 없습니다
             log.warn("News cache read failed - asking Naver instead. key={}, cause={}",
                     key, e.getMessage());
             return Optional.empty();
@@ -150,17 +114,7 @@ public class NaverNewsAdapter implements NewsSearchPort {
         return tryParse(body, query).orElseGet(List::of);
     }
 
-    /**
-     * 네이버가 답을 준 것인가.
-     *
-     * 빈 목록이 두 가지 뜻입니다 — 기사가 없다와 못 읽었다.
-     * 둘 다 List.of() 로 두면 구분이 사라지고, 그러면 못 읽은 것을
-     * 하루 동안 "기사 없음"으로 굳힙니다.
-     *
-     * 빈 Optional = 못 읽었다. 빈 목록 = 기사가 없다 —
-     * 이것은 담습니다. 기사가 없는 단지는 앞으로도 없고, 안 담으면 그 매물은
-     * 상세를 열 때마다 네이버를 부릅니다(와 같은 처방).
-     */
+ /** 네이버가 답을 준 것인가. */
     private Optional<List<NewsArticle>> tryParse(String body, String query) {
         final JsonNode root;
         try {
@@ -171,7 +125,6 @@ public class NaverNewsAdapter implements NewsSearchPort {
         }
         final JsonNode items = root.path("items");
         if (!items.isArray()) {
-            // 오류도 200으로 올 수 있다. errorMessage 가 있으면 그것을 남긴다
             final String error = root.path("errorMessage").asString(null);
             if (error != null) {
                 log.warn("Naver news search rejected. query={}, errorCode={}, message={}",
@@ -187,7 +140,6 @@ public class NaverNewsAdapter implements NewsSearchPort {
             }
             articles.add(new NewsArticle(
                     title,
-                    // 네이버 뉴스 링크가 아니라 원문을 준다 — 원 언론사를 보여 주려는 것
                     firstNonBlank(item.path("originallink").asString(null),
                             item.path("link").asString(null)),
                     sourceOf(item.path("originallink").asString(null)),
@@ -197,10 +149,7 @@ public class NaverNewsAdapter implements NewsSearchPort {
         return Optional.of(articles);
     }
 
-    /**
-     * 검색어가 …로 감싸여 옵니다. 그대로 화면에 넣으면 안 됩니다.
-     * HTML 엔티티도 함께 되돌립니다.
-     */
+ /** 검색어가 …로 감싸여 옵니다. 그대로 화면에 넣으면 안 됩니다. */
     static String stripTags(String value) {
         if (value == null) {
             return null;
@@ -213,7 +162,7 @@ public class NaverNewsAdapter implements NewsSearchPort {
                 .trim();
     }
 
-    /** `https://www.hankyung.com/article/…` → `hankyung.com`. */
+ /** https://www.hankyung.com/article/… → hankyung.com. */
     private String sourceOf(String originalLink) {
         if (originalLink == null || originalLink.isBlank()) {
             return null;

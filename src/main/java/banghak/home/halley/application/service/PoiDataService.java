@@ -18,16 +18,7 @@ import java.util.Optional;
 @Service
 public class PoiDataService {
 
-    /**
-     * 수집 규칙 버전 — 캐시 키에 포함된다. 아래 중 하나라도 바뀌면 **반드시 올린다**.
-     * 올리고 배포하면 옛 캐시가 즉시 무시되고 전량 재수집되므로 수동 삭제가 필요 없다.
-     *
-     *   CATEGORIES · GREEN_KEYWORDS (수집 대상·반경)
-     *   sub_category 분류 규칙 (GreenCategory)
-     *   도보시간 환산식
-     *
-     * v2 — GREEN을 category_name으로 분류하고 공원·하천·산을 키워드로 수집하도록 변경
-     */
+ /** 수집 규칙 버전. 캐시 키에 포함된다. 아래 중 하나라도 바뀌면 **반드시 올린다**. */
     private static final int POI_SCHEMA_VERSION = 2;
 
     private static final List<CategorySpec> CATEGORIES = List.of(
@@ -42,11 +33,7 @@ public class PoiDataService {
             new CategorySpec("AMENITY", "BK9", 1300),
             new CategorySpec("GREEN", "AT4", 2000));
 
-    /**
-     * 공원·하천·산은 카카오에 전용 카테고리 그룹코드가 없어 키워드로 찾는다.
-     * 산은 키워드만 쓰면 "떡산 롯데백화점"·"산과맥주"가 걸리므로 `AT4`(관광명소) 필터를 함께 건다.
-     * `AT4` 카테고리 검색(위 CATEGORIES)은 페이지당 15건이라 산이 잘려나갈 수 있어, 두 경로를 모두 쓴다.
-     */
+ /** 공원·하천·산은 카카오에 전용 카테고리 그룹코드가 없어 키워드로 찾는다. */
     private static final List<KeywordSpec> GREEN_KEYWORDS = List.of(
             new KeywordSpec("공원", null, 2000),
             new KeywordSpec("하천", null, 2000),
@@ -97,10 +84,7 @@ public class PoiDataService {
         return facilities;
     }
 
-    /**
-     * `GREEN`은 `category_name`으로 공원·산·하천을 분류해 `sub_category`에 남기고, 셋 중 어디에도 해당하지 않는
-     * 결과(테마거리·화장실·음수대 등)는 버린다. 다른 카테고리는 기존대로 그룹코드를 `sub_category`로 쓴다.
-     */
+ /** GREEN은 category_name으로 공원·산·하천을 분류해 sub_category에 남기고, 셋 중 어디에도 해당하지 않는 */
     private Optional<NearbyFacility> toFacility(Property property, String category, String groupCode, PoiResult poi) {
         String subCategory = groupCode;
         if ("GREEN".equals(category)) {

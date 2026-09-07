@@ -20,16 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
-/**
- * 가격 전망용 실거래를 모은다.
- *
- * 실거래 카드(`ReferenceTransactionService`)와 다른 목적입니다. 그쪽은 매물 하나의
- * 최근 시세를 보여 주려고 12개월을 훑고 단지·면적으로 걸러 저장합니다.
- * 여기는 추세를 재려고 60개월을 훑고 거르지 않고 캐시에 담습니다.
- *
- * 거르는 일은 지표 계산이 맡습니다 — 캐시에 걸러 담으면 같은 법정동의 다른 매물이
- * 재사용하지 못합니다.
- */
+/** 가격 전망용 실거래를 모은다. */
 @Slf4j
 @Service
 public class ForecastTradeCollector {
@@ -57,14 +48,7 @@ public class ForecastTradeCollector {
         this.refetchAfter = Duration.ofHours(refetchAfterHours);
     }
 
-    /**
-     * 최근 lookbackMonths개월치 거래를 모은다.
-     *
-     * 캐시에 있는 달은 부르지 않습니다. 같은 법정동의 두 번째 매물부터는
-     * 거의 호출이 없습니다.
-     *
-     * @return 오래된 달부터 정렬된 목록. 못 받은 달은 빠진다
-     */
+ /** 최근 lookbackMonths개월치 거래를 모은다. */
     public List<MonthlyTrades> collect(String lawdCd, CachedDealType dealType) {
         if (lawdCd == null || lawdCd.isBlank()) {
             log.info("Skipping forecast trade collection - no legal dong code. dealType={}", dealType);
@@ -85,7 +69,6 @@ public class ForecastTradeCollector {
         log.info("Forecast trades collected. lawdCd={}, dealType={}, months={}, cached={}, fetched={}",
                 lawdCd, dealType, months.size(), months.size() - toFetch.size(), toFetch.size());
 
-        // 갱신분을 포함해 다시 읽는다 — 방금 받은 것과 캐시에 있던 것을 합치는 것보다 단순하다
         final Map<YearMonth, MonthlyTrades> all = cacheRepository.findAll(lawdCd, months, dealType);
         return months.stream()
                 .sorted()
@@ -94,12 +77,7 @@ public class ForecastTradeCollector {
                 .toList();
     }
 
-    /**
-     * 다시 받아야 하는 달인지.
-     *
-     * 과거 달은 바뀌지 않습니다. 국토부 신고 지연 때문에 최근 몇 달만 다시 받고,
-     * 그 이전은 한 번 받으면 끝입니다 — 60개월 중 57개월이 그렇습니다.
-     */
+ /** 다시 받아야 하는 달인지. */
     private boolean needsFetch(YearMonth month, MonthlyTrades cached, YearMonth now) {
         if (cached == null) {
             return true;
@@ -120,12 +98,8 @@ public class ForecastTradeCollector {
                             ? ministryReferencePort.fetchJeonseDeposits(lawdCd, ym)
                             : ministryReferencePort.fetchTrades(lawdCd, ym);
                     if (trades == null) {
-                        // 조회 실패는 저장하지 않는다. 여기서 빈 목록으로 담으면
-                        // '거래 0건'으로 굳고, 과거 달은 다시 받지 않으므로 영영 구멍이 된다
                         return null;
                     }
-                    // 거래가 없는 달은 저장한다 — '아직 안 받은 달'과 구분되지 않으면
-                    // 매번 다시 부른다
                     return new MonthlyTrades(lawdCd, month, dealType, trades, Instant.now());
                 })
                 .toList();
@@ -133,14 +107,12 @@ public class ForecastTradeCollector {
         int failed = 0;
         for (final MonthlyTrades monthly : gate.runAll(tasks)) {
             if (monthly == null) {
-                // 한 달이 실패해도 나머지는 저장한다. 담지 않았으므로 다음 실행에서 그 달만 다시 받는다
                 failed++;
                 continue;
             }
             cacheRepository.upsert(monthly);
         }
         if (failed > 0) {
-            // 몇 달이 비었는지 알아야 전망을 얼마나 믿을지 판단할 수 있다
             log.warn("Forecast trade months failed - will retry next run. lawdCd={}, dealType={}, failed={}/{}",
                     lawdCd, dealType, failed, months.size());
         }

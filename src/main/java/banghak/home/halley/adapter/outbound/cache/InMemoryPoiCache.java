@@ -11,9 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * local/개발용 인메모리 POI 캐시 (TTL 30일). live에서는 RedisPoiCache가 사용된다.
- */
+/** local/개발용 인메모리 POI 캐시 (TTL 30일). live에서는 RedisPoiCache가 사용된다. */
 @Component
 @Profile("!live")
 public class InMemoryPoiCache implements PoiCache {

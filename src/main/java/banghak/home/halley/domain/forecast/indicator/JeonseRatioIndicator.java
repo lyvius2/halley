@@ -12,23 +12,10 @@ import java.math.RoundingMode;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 전세가율.
- *
- *
- *   전세가율 = median(전세 보증금) / median(매매가)     ← 같은 면적대
- *
- *
- * 수준과 방향을 같이 봅니다.
- * 높으면(70%+) 실거주 수요가 받쳐 하방이 단단하고, 낮으면(50% 미만) 매매가에
- * 기대가 많이 실려 있다는 뜻입니다. 다만 둘 다 방향을 단정하지는 못합니다 —
- * 요인 하나일 뿐입니다.
- *
- * 무게는 MEDIUM입니다. 고전적인 선행 지표지만 이 단지의 실거래만큼 직접적이지 않습니다.
- */
+/** 전세가율. */
 public class JeonseRatioIndicator implements PriceIndicator {
 
-    /** 앞뒤로 비교할 구간(개월). 전세는 거래가 적어 매매보다 넓게 잡는다. */
+ /** 앞뒤로 비교할 구간(개월). 전세는 거래가 적어 매매보다 넓게 잡는다. */
     private static final int WINDOW_MONTHS = 6;
     private static final int REPORTING_LAG_MONTHS = 1;
     private static final int MIN_SAMPLES = 3;
@@ -37,10 +24,7 @@ public class JeonseRatioIndicator implements PriceIndicator {
     private final BigDecimal low;
     private final TradeStatCalculator calculator = new TradeStatCalculator();
 
-    /**
-     * @param high 이 위면 실거주 수요가 받친다고 본다 (기본 0.70)
-     * @param low  이 아래면 매매가에 기대가 실려 있다고 본다 (기본 0.50)
-     */
+
     public JeonseRatioIndicator(BigDecimal high, BigDecimal low) {
         this.high = high;
         this.low = low;
@@ -68,11 +52,7 @@ public class JeonseRatioIndicator implements PriceIndicator {
                 evidence(recent, before)));
     }
 
-    /**
-     * 수준이 먼저, 방향이 다음입니다.
-     *
-     * 둘 다 애매하면 FLAT입니다. 억지로 방향을 주지 않습니다.
-     */
+ /** 수준이 먼저, 방향이 다음입니다. */
     private ForecastDirection directionOf(BigDecimal recent, BigDecimal before) {
         final boolean rising = before != null && recent.compareTo(before) > 0;
         final boolean falling = before != null && recent.compareTo(before) < 0;
@@ -94,10 +74,7 @@ public class JeonseRatioIndicator implements PriceIndicator {
                 percent(before), percent(recent), WINDOW_MONTHS);
     }
 
-    /**
-     * @param offset 몇 달 전 구간을 볼지. 0이면 최근
-     * @return 표본이 모자라면 null — 0으로 두면 그 값이 계산에 섞입니다
-     */
+
     private BigDecimal ratio(Property property, List<MonthlyTrades> trades,
                              List<MonthlyTrades> jeonse, java.time.YearMonth base, int offset) {
         final TradeStat sale = calculator.medianOf(property, trades, base, offset, WINDOW_MONTHS,

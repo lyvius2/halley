@@ -48,24 +48,11 @@ import java.util.stream.Collectors;
 public class ItineraryService {
 
     private static final long DEPOT_ID = -1L;
-    /** 출발지 캐시(I52)와 같은 수명 — 임장 준비는 며칠에 걸친다. */
+ /** 출발지 캐시(I52)와 같은 수명. 임장 준비는 며칠에 걸친다. */
     private static final java.time.Duration DRAFT_TTL = java.time.Duration.ofDays(7);
-    /**
-     * 한 번의 계산 안에서만 쓰는 기억.
-     *
-     * 행렬을 만들며 받은 `TransitResult` 를 구간 안내에서 다시 씁니다 —
-     * 안 그러면 같은 구간을 두 번 부릅니다. 요청마다 비웁니다.
-     */
+ /** 한 번의 계산 안에서만 쓰는 기억. */
     private final ThreadLocal<Map<String, TransitResult>> transitMemo = ThreadLocal.withInitial(HashMap::new);
-    /**
-     * 자동차 길도 한 번의 계산 안에서만 기억한다.
-     *
-     * 대중교통과 달리 자동차는 아무 데도 담아 두지 않았습니다. 행렬을 만들며
-     * 49번, 구간 안내에서 또 6번을 같은 길에 물었습니다.
-     *
-     * travelTimeCache 에 담지 않는 이유는 출발 시각에 따라 답이 다르기
-     * 때문입니다 — 화요일 14시와 일요일 14시는 다른 길입니다.
-     */
+ /** 자동차 길도 한 번의 계산 안에서만 기억한다. */
     private final ThreadLocal<Map<String, DriveRoute>> driveMemo = ThreadLocal.withInitial(java.util.concurrent.ConcurrentHashMap::new);
     private static final int UNREACHABLE_MINUTES = 999;
 
@@ -80,9 +67,9 @@ public class ItineraryService {
     private final StartLocationCache startLocationCache;
     private final CachePort cache;
     private final ObjectMapper objectMapper;
-    /** 구간들을 한꺼번에 받아 두는 자리. */
+ /** 구간들을 한꺼번에 받아 두는 자리. */
     private final VirtualThreadGate gate;
-    /** 미리 받아 두기에 쓸 수 있는 시간. */
+ /** 미리 받아 두기에 쓸 수 있는 시간. */
     private final java.time.Duration prewarmBudget;
 
     public ItineraryService(PropertyAccessGuard propertyAccessGuard,
@@ -111,21 +98,13 @@ public class ItineraryService {
         this.prewarmBudget = java.time.Duration.ofSeconds(prewarmBudgetSeconds);
     }
 
-    /**
-     * 작업 중인 것을 사용자별로 담아 둔다.
-     *
-     * 계정마다 다릅니다. 예전에는 화면 상태로만 있어, 로그아웃하지 않고
-     * 다른 계정으로 들어오면 앞 사람이 짜던 동선이 그대로 보였습니다.
-     *
-     * 출발지(I52)와 같은 수명(7일)을 줍니다 — 임장 준비는 며칠에 걸칩니다.
-     */
+ /** 작업 중인 것을 사용자별로 담아 둔다. */
     public ItineraryDraft loadDraft() {
         return cache.get(CachePort.ITINERARY, String.valueOf(currentUserId()))
                 .map(json -> {
                     try {
                         return objectMapper.readValue(json, ItineraryDraft.class);
                     } catch (RuntimeException e) {
-                        // 담아 둔 모양이 바뀌었을 수 있다. 버리고 빈 것으로 시작한다
                         log.warn("Itinerary draft unreadable - starting empty. cause={}", e.getMessage());
                         cache.evict(CachePort.ITINERARY, String.valueOf(currentUserId()));
                         return ItineraryDraft.empty();
@@ -153,8 +132,6 @@ public class ItineraryService {
                 return OptimizeItineraryResponse.empty();
             }
             final LocalDateTime departAt = departAt(request.visitDate(), request.windowStart());
-            // 두 모드 다 미리 받아 둔다. 예전에는 대중교통만
-            // 미리 받고 자동차는 행렬을 만들며 한 줄로 49번을 불렀습니다
             if (mode == TravelMode.TRANSIT) {
                 prewarmTransit(properties, request.startLat(), request.startLng());
             } else {
@@ -173,33 +150,21 @@ public class ItineraryService {
             }
             return OptimizeItineraryResponse.of(order, totalMinutes(legs), legs, unknown);
         } finally {
-            // 요청 스레드는 재사용된다 — 안 지우면 다음 사람이 남의 길을 본다
             transitMemo.remove();
             driveMemo.remove();
         }
     }
 
-    /**
-     * 자동차 길을 미리, 한꺼번에 받아 둔다.
-     *
-     * 매물 7개면 49쌍입니다. 카카오 읽기 제한이 6초이니 한 줄로 돌면
-     * 최악에 5분이고, 프록시는 60초에 끊습니다 — 504가 그것이었습니다.
-     *
-     * 시간 안에 못 받은 것은 남겨 둡니다. 행렬이 그 자리를 다시 물어보고,
-     * 그때도 없으면 못 간다고 답합니다 — 계산이 멈추는 것보다 낫습니다.
-     */
+ /** 자동차 길을 미리, 한꺼번에 받아 둔다. */
     private void prewarmDriving(List<Property> properties, BigDecimal startLat, BigDecimal startLng,
                                 LocalDateTime departAt) {
         final List<double[]> points = new ArrayList<>();
         points.add(new double[]{startLng.doubleValue(), startLat.doubleValue()});
         properties.forEach(p -> points.add(new double[]{p.lng().doubleValue(), p.lat().doubleValue()}));
 
-        // 맵을 미리 꺼내 둔다. 작업은 다른 스레드에서 도는데 ThreadLocal 을
-        // 그 안에서 꺼내면 스레드마다 빈 맵이 새로 생겨 아무것도 안 담긴다
         final Map<String, DriveRoute> memo = driveMemo.get();
         final List<Runnable> tasks = new ArrayList<>();
         for (int i = 0; i < points.size(); i++) {
-            // 도착이 출발지(0)인 구간은 안 쓴다 — 편도다
             for (int j = 1; j < points.size(); j++) {
                 if (i == j) {
                     continue;
@@ -218,27 +183,14 @@ public class ItineraryService {
         }
     }
 
-    /**
-     * 언제 출발하는가.
-     *
-     * 날짜가 없으면 null 을 돌려줍니다. 오늘로 채워 넣으면 다음 주말 계획에
-     * 오늘의 길이 섞이는데, 그 어긋남은 화면에 드러나지 않습니다. 모르면 모르는 채로
-     * 두어 "지금 기준"임이 분명하게 합니다.
-     */
+ /** 언제 출발하는가. */
     private static LocalDateTime departAt(LocalDate visitDate, LocalTime windowStart) {
         return visitDate == null
                 ? null
                 : visitDate.atTime(windowStart == null ? LocalTime.of(9, 0) : windowStart);
     }
 
-    /**
-     * 정해진 순서를 따라가며 구간 안내와 경로선을 모은다.
-     *
-     * 순서를 정한 뒤에 부릅니다. 행렬을 만들 때 다 받아 두면 12개 매물에
-     * 156번을 부르는데, 실제로 쓰는 것은 11개 구간뿐입니다.
-     *
-     * 한 구간이 실패해도 나머지는 채웁니다 — 경로선이 없으면 화면이 직선을 그립니다.
-     */
+ /** 정해진 순서를 따라가며 구간 안내와 경로선을 모은다. */
     private List<ItineraryLegResponse> legsOf(List<Long> order, List<Property> properties,
                                               BigDecimal startLat, BigDecimal startLng, TravelMode mode,
                                               LocalDateTime departAt, int stayMinutes) {
@@ -255,9 +207,6 @@ public class ItineraryService {
             }
             final ItineraryLegResponse leg = legOf(fromId, to, fromLng, fromLat, mode, departAt);
             legs.add(leg);
-            // 세 번째 매물의 길은 09시가 아니라 13시의 길이다 — 이동한 만큼, 머문 만큼 미룬다.
-            // 못 받은 구간은 못 미룬다. 예전에는 999분을 더해
-            // 뒤 구간을 하루 뒤의 길로 물었다 — 화면의 `(+1일)` 이 그것이었다
             if (departAt != null && leg.minutes() != null) {
                 departAt = departAt.plusMinutes((long) leg.minutes() + stayMinutes);
             }
@@ -274,8 +223,6 @@ public class ItineraryService {
         final double toLat = to.lat().doubleValue();
         if (mode == TravelMode.DRIVING) {
             final DriveRoute route = drive(fromLng, fromLat, toLng, toLat, departAt);
-            // 모르는 것은 모른다고 한다. 999를 넣었더니 화면이
-            // "999분"이라고 말했고, 합계는 3996분이라는 지어낸 숫자가 됐다
             return ItineraryLegResponse.of(fromId, to.id(),
                     route.isComputed() ? route.durationMinutes() : null,
                     route.roads(), route.path());
@@ -289,24 +236,14 @@ public class ItineraryService {
                 transit.legs(), odsayTransitPort.findLane(transit.mapObj()));
     }
 
-    /**
-     * 가 본 곳.
-     *
-     * 계획을 저장하지 않으므로 여기가 유일하게 DB에 남는 것입니다.
-     * 계산 결과는 캐시(I179)에 7일이면 충분하지만, 어디를 가 봤는지는 그렇지 않습니다.
-     */
+ /** 가 본 곳. */
     public List<Long> visitedPropertyIds() {
         return propertyVisitRepository.findByUser(currentUserId()).stream()
                 .map(PropertyVisit::propertyId)
                 .toList();
     }
 
-    /**
-     * 방문완료를 켜고 끈다.
-     *
-     * 내 그룹의 매물인지 먼저 봅니다. 남의 매물 번호를 넣어 방문 기록을
-     * 심을 수 있으면 안 됩니다.
-     */
+ /** 방문완료를 켜고 끈다. */
     @Transactional
     public void markVisited(Long propertyId, boolean visited) {
         propertyAccessGuard.require(propertyId);
@@ -343,12 +280,7 @@ public class ItineraryService {
         };
     }
 
-    /**
-     * 아는 것만 더한다.
-     *
-     * 예전에는 못 받은 구간마다 999를 더해 3996분 같은 수를 내놓았습니다.
-     * 그 수는 아무 뜻이 없는데 화면은 「예상 이동시간 합계」라고 불렀습니다.
-     */
+ /** 아는 것만 더한다. */
     private static int totalMinutes(List<ItineraryLegResponse> legs) {
         return legs.stream()
                 .map(ItineraryLegResponse::minutes)
@@ -367,16 +299,11 @@ public class ItineraryService {
         if (cached != null) {
             return cached;
         }
-        // 이 요청에서 이미 물어본 자리는 다시 안 묻는다.
-        // 최적화기는 같은 쌍을 여러 번 물어봅니다 — 매물 넷에 52번이 나갔습니다.
-        // 못 받은 것도 기억에 있으므로, 한 번의 실패가 구간 수만큼 늘어나지 않습니다
         final TransitResult remembered = transitMemo.get().get(legKey(fromLng, fromLat, toLng, toLat));
         if (remembered != null) {
             return remembered.isComputed() ? remembered.totalMinutes() : UNREACHABLE_MINUTES;
         }
         final TransitResult transit = odsayTransitPort.findTransit(fromLng, fromLat, toLng, toLat);
-        // 구간 안내를 만들 때 다시 부르지 않도록 기억해 둔다.
-        // 이 호출 한 번 안에서만 유효하다 — 행렬을 만들며 이미 받은 것을 그대로 쓴다
         transitMemo.get().put(legKey(fromLng, fromLat, toLng, toLat), transit);
         final int minutes = transit.isComputed() ? transit.totalMinutes() : UNREACHABLE_MINUTES;
         if (minutes != UNREACHABLE_MINUTES) {
@@ -385,18 +312,7 @@ public class ItineraryService {
         return minutes;
     }
 
-    /**
-     * 행렬에 필요한 대중교통 구간을 한꺼번에 받아 둔다.
-     *
-     * ODsay 라면 쌍마다 불러도 괜찮지만(50ms), 하루치를 다 써 LLM 으로 넘어가면
-     * 쌍마다 부르는 것은 못 씁니다 — 매물 8개면 64쌍이라 한 번 계산에 수십 분입니다.
-     *
-     * Held-Karp 가 실제로 보는 쌍만 담습니다. 출발지로 돌아오는 구간은
-     * 쓰지 않습니다 — 임장은 편도라 돌아오는 시간을 세지 않습니다.
-     *
-     * 이미 캐시에 있는 쌍은 뺍니다. 못 받은 쌍은 그냥 둡니다 — `travelTime` 이
-     * 평소대로 하나씩 물어보고, 그래도 없으면 999분입니다.
-     */
+ /** 행렬에 필요한 대중교통 구간을 한꺼번에 받아 둔다. */
     private void prewarmTransit(List<Property> properties, BigDecimal startLat, BigDecimal startLng) {
         final List<double[]> points = new ArrayList<>();
         points.add(new double[]{startLng.doubleValue(), startLat.doubleValue()});
@@ -404,7 +320,6 @@ public class ItineraryService {
 
         final Map<String, double[]> pending = new LinkedHashMap<>();
         for (int i = 0; i < points.size(); i++) {
-            // 도착이 출발지(0)인 구간은 안 쓴다 — 편도다
             for (int j = 1; j < points.size(); j++) {
                 if (i == j) {
                     continue;
@@ -422,51 +337,31 @@ public class ItineraryService {
         }
         final Map<String, TransitResult> answered = odsayTransitPort.findTransitBatch(pending);
         answered.forEach((key, transit) -> {
-            // 구간 안내에서 다시 부르지 않도록 기억해 둔다
             transitMemo.get().put(key, transit);
             if (transit.isComputed()) {
                 final double[] c = pending.get(key);
                 travelTimeCache.put(TravelMode.TRANSIT, c[0], c[1], c[2], c[3], transit.totalMinutes());
             }
         });
-        // 못 받은 것도 기억한다. 안 그러면 구간 안내가 그 자리를
-        // 하나씩 다시 물어, 한 번 실패한 것이 구간 수만큼 늘어납니다 —
-        // ODsay 한도가 끝난 날 LLM 이 구간마다 60초씩 붙잡혔습니다
         pending.keySet().stream()
                 .filter(key -> !answered.containsKey(key))
                 .forEach(key -> transitMemo.get().put(key, TransitResult.missing()));
     }
 
-    /**
-     * 미리 받아 둔 자동차 길을 먼저 본다.
-     *
-     * 같은 길을 행렬에서 한 번, 구간 안내에서 또 한 번 물었습니다.
-     * 대중교통은 transitMemo 로 이미 막아 두었는데(I176) 자동차만 빠져
-     * 있었습니다.
-     */
+ /** 미리 받아 둔 자동차 길을 먼저 본다. */
     private DriveRoute drive(double fromLng, double fromLat, double toLng, double toLat,
                              LocalDateTime departAt) {
         return driveMemo.get().computeIfAbsent(driveKey(fromLng, fromLat, toLng, toLat, departAt),
                 key -> kakaoDirectionsPort.findRoute(fromLng, fromLat, toLng, toLat, departAt));
     }
 
-    /**
-     * 출발 시각까지 열쇠에 넣는다.
-     *
-     * 좌표만으로 담아 두면 세 번째 매물이 09시의 길을 씁니다 — 실제로는
-     * 13시에 출발하는데도요.이 일부러 시각별로 묻게 해 둔 것을
-     * 담아 두기가 도로 지워 버립니다.
-     *
-     * 그래서 미리 받아 두기는 행렬에만 듣습니다. 순서를 정할 때는 모두
-     * 같은 시각을 쓰기 때문입니다. 구간 안내는 시각이 저마다라 다시 묻습니다 —
-     * 그건 n-1번이라 감당할 만합니다.
-     */
+ /** 출발 시각까지 열쇠에 넣는다. */
     private static String driveKey(double fromLng, double fromLat, double toLng, double toLat,
                                    LocalDateTime departAt) {
         return legKey(fromLng, fromLat, toLng, toLat) + "@" + departAt;
     }
 
-    /** 좌표 넷을 하나의 열쇠로. 소수점 여섯 자리면 1m 안쪽이라 같은 지점으로 봐도 된다. */
+ /** 좌표 넷을 하나의 열쇠로. 소수점 여섯 자리면 1m 안쪽이라 같은 지점으로 봐도 된다. */
     private static String legKey(double fromLng, double fromLat, double toLng, double toLat) {
         return String.format("%.6f,%.6f>%.6f,%.6f", fromLng, fromLat, toLng, toLat);
     }
@@ -475,12 +370,12 @@ public class ItineraryService {
         return mode == null ? TravelMode.DRIVING : mode;
     }
 
-    /** 마지막 출발지를 돌려준다 — 임장 플래너를 열 때 채워 넣는다. */
+ /** 마지막 출발지를 돌려준다. 임장 플래너를 열 때 채워 넣는다. */
     public StartLocation lastStartLocation() {
         return startLocationCache.get(currentUserId()).orElse(null);
     }
 
-    /** 출발지 입력이 끝난 시점에 캐시한다 (TTL 7일). */
+ /** 출발지 입력이 끝난 시점에 캐시한다 (TTL 7일). */
     public StartLocation rememberStartLocation(StartLocation location) {
         startLocationCache.put(currentUserId(), location);
         return location;

@@ -42,16 +42,7 @@ import static banghak.home.halley.adapter.outbound.persistence.support.JooqMappi
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJsonNode;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 
-/**
- * 가격 전망 저장.
- *
- * price_forecast는 매물당 최신 한 건만 들고 덮어씁니다 — 목록(I124)이
- * 보는 것이 이쪽이라 "매물별 최신 한 건"을 매번 골라내게 만들지 않습니다.
- *
- * 덮어쓴 것은 price_forecast_history에 쌓아 둡니다(I138).
- * 그러지 않으면 "3개월 전에 오른다고 했는데 실제로 올랐나"를 볼 수 없습니다 —
- * 그 행이 이미 사라지고 없습니다.
- */
+/** 가격 전망 저장. */
 @Repository
 public class PriceForecastRepository {
 
@@ -63,12 +54,7 @@ public class PriceForecastRepository {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 최신 전망을 덮어쓰고, 같은 내용을 이력에도 남긴다.
-     *
-     * 한 자리에서 같이 합니다. 서비스가 두 번 부르게 하면 언젠가 한쪽을 빠뜨리고,
-     * 빠진 것은 조용히 지나갑니다 — 몇 달 뒤 이력을 열어 봐야 비어 있는 걸 압니다.
-     */
+ /** 최신 전망을 덮어쓰고, 같은 내용을 이력에도 남긴다. */
     public PriceForecast upsert(PriceForecast forecast) {
         dsl.transaction(cfg -> {
             final DSLContext tx = cfg.dsl();
@@ -87,12 +73,7 @@ public class PriceForecastRepository {
         return findByPropertyId(forecast.propertyId()).orElseThrow();
     }
 
-    /**
-     * 이 매물의 전망 이력 — 최근 것부터.
-     *
-     * 사후 검증(구현 10)의 재료입니다. 판정 기준은 아직 정하지 않았습니다 —
-     * 표본을 보고 정할 일이라 지금은 쌓기만 합니다.
-     */
+ /** 이 매물의 전망 이력. 최근 것부터. */
     public List<PriceForecast> history(Long propertyId) {
         return dsl.selectFrom(TABLE_HISTORY)
                 .where(PriceForecastHistoryTable.PROPERTY_ID.eq(propertyId))
@@ -102,7 +83,7 @@ public class PriceForecastRepository {
                 .map(this::mapHistory);
     }
 
-    /** 최신과 이력이 어긋나지 않도록 한 곳에서 만든다. */
+ /** 최신과 이력이 어긋나지 않도록 한 곳에서 만든다. */
     private java.util.Map<Field<?>, Object> columns(PriceForecast forecast) {
         final PriceOutlook outlook = forecast.outlook();
         final java.util.Map<Field<?>, Object> values = new java.util.LinkedHashMap<>();
@@ -139,11 +120,7 @@ public class PriceForecastRepository {
         return values;
     }
 
-    /**
-     * 매물 여러 건을 한 번에.
-     *
-     * 목록이 매물마다 따로 부르면 그 수만큼 왕복이 늘어납니다 — 이미 한 번 겪은 일입니다.
-     */
+ /** 매물 여러 건을 한 번에. */
     public java.util.Map<Long, PriceForecast> findByPropertyIds(java.util.Collection<Long> propertyIds) {
         if (propertyIds == null || propertyIds.isEmpty()) {
             return java.util.Map.of();

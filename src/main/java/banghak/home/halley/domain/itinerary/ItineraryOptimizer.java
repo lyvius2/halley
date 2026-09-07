@@ -3,10 +3,7 @@ package banghak.home.halley.domain.itinerary;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Held-Karp 정확해 알고리즘 — 최대 12개 매물에 대해 최소 총 이동시간 방문 순서를 구한다.
- * 노드 0은 출발지(depot), 이후 인덱스는 목적지 매물에 대응한다.
- */
+/** Held-Karp 정확해 알고리즘. 최대 12개 매물에 대해 최소 총 이동시간 방문 순서를 구한다. */
 public final class ItineraryOptimizer {
 
     public List<Long> optimize(long startId, List<Long> nodeIds, TravelCostMatrix matrix) {

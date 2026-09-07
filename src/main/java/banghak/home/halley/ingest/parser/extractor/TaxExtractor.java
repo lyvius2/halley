@@ -5,10 +5,7 @@ import banghak.home.halley.ingest.parser.FieldExtractor;
 import banghak.home.halley.ingest.parser.ParseResult;
 import banghak.home.halley.ingest.parser.TextDocument;
 
-/**
- * 세금 항목 — 취득세 합계, 재산세 합계, 종합부동산세.
- * 금액 뒤에 `상세내역 보기` 같은 UI 문구가 붙어 오므로 금액 부분만 잘라낸다.
- */
+/** 세금 항목. 취득세 합계, 재산세 합계, 종합부동산세. */
 public class TaxExtractor implements FieldExtractor<Object> {
 
     public enum Target { ACQUISITION, PROPERTY, COMPREHENSIVE }

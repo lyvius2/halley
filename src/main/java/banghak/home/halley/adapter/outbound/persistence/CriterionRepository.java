@@ -49,10 +49,7 @@ public class CriterionRepository {
                 .map(this::map);
     }
 
-    /**
-     * 14행짜리 표인데 매물마다 읽히던 자리입니다.
-     * 부르는 곳이 9군데라 부르는 쪽을 하나씩 고치는 대신 여기서 담습니다.
-     */
+ /** 14행짜리 표인데 매물마다 읽히던 자리입니다. */
     public List<Criterion> findAll() {
         return cache.get(CachePort.CRITERION, ReferenceDataCache.WHOLE, LIST, this::fetchAll);
     }

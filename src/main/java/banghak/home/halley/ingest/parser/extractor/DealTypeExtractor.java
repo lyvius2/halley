@@ -4,13 +4,7 @@ import banghak.home.halley.ingest.parser.FieldExtractor;
 import banghak.home.halley.ingest.parser.ParseResult;
 import banghak.home.halley.ingest.parser.TextDocument;
 
-/**
- * 거래유형.
- *
- * 제목을 먼저 믿습니다. 본문 아래쪽에는 "매매 / 전세 / 월세" 를 고르는
- * 토글 글자가 그대로 붙어 옵니다 — 매매 매물인데 거기 걸려 전세로 읽혔습니다.
- * 매매와 전세는 순위표가 아예 달라(AGENTS.md) 조용히 틀리면 매물이 딴 표에 실립니다.
- */
+/** 거래유형. */
 public class DealTypeExtractor implements FieldExtractor<String> {
 
     private static final String DEAL_TYPE_PATTERN = "(?m)^\\s*(매매|전세)(?:\\s|$)";
@@ -27,7 +21,6 @@ public class DealTypeExtractor implements FieldExtractor<String> {
         if (fromTitle.isPresent()) {
             return ParseResult.of(fromTitle.get(), "제목: " + title);
         }
-        // 값 라벨이 유형을 말해 준다 — "매매가" / "전세가"
         if (doc.valueAfter("매매가").isPresent()) {
             return ParseResult.of("매매", "매매가 라벨");
         }

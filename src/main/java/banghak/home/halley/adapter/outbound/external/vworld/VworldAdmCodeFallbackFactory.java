@@ -6,10 +6,7 @@ import org.springframework.stereotype.Component;
 
 import static banghak.home.halley.adapter.outbound.external.FallbackCause.describe;
 
-/**
- * 실패하면 시군구 사전이 비고, 그러면 규제지역 적재가 통째로 실패합니다 — 조용히 넘기면
- * 왜 규제지역이 안 들어왔는지 알 수 없습니다.
- */
+/** 실패하면 시군구 사전이 비고, 그러면 규제지역 적재가 통째로 실패합니다. 조용히 넘기면 */
 @Slf4j
 @Component
 public class VworldAdmCodeFallbackFactory implements FallbackFactory<VworldAdmCodeFeignClient> {

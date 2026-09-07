@@ -66,7 +66,7 @@ public class LoanEstimateService {
     private final PropertyAccessGuard propertyAccessGuard;
     private final ReferenceTransactionRepository referenceTransactionRepository;
     private final ComplexService complexService;
-    /** 실거래를 고를 때의 면적 허용 범위 — ReferenceTransactionService 와 같은 값이어야 한다. */
+ /** 실거래를 고를 때의 면적 허용 범위. ReferenceTransactionService 와 같은 값이어야 한다. */
     static final double REFERENCE_AREA_TOLERANCE = 0.15;
     private final RegulatedAreaService regulatedAreaService;
     private final UserRepository userRepository;
@@ -106,19 +106,8 @@ public class LoanEstimateService {
         this.objectMapper = objectMapper;
     }
 
-    /**
-     * 규제지역 값을 못 믿을 때 화면에 실을 문구.
-     *
-     * 규제지역이 비어 있으면 RegulatedAreaService가 비규제로 판정하고 LTV 0.7이
-     * 잡힙니다. 실제가 투기과열지구(0.4)라면 한도가 배 가까이 부풀려집니다. 값이 틀린 것보다
-     * 틀렸는지 모르는 것이 위험하므로 결과에 붙여 보냅니다.
-     */
-    /**
-     * 로그인 사용자의 종류별 기존 부채.
-     *
-     * 비어 있으면 프로필의 단일 금액(`existingLoan`)이 주담대로 쓰입니다 —
-     * 아직 종류를 입력하지 않은 사용자의 부채가 사라지면 한도가 부풀려집니다.
-     */
+ /** 규제지역 값을 못 믿을 때 화면에 실을 문구. */
+ /** 로그인 사용자의 종류별 기존 부채. */
     private List<ExistingDebt> myDebts() {
         return currentUser().map(u -> userDebtRepository.findByUserId(u.id())).orElseGet(List::of);
     }
@@ -130,12 +119,7 @@ public class LoanEstimateService {
         return "규제지역 정보를 아직 불러오지 못했습니다. 실제 규제지역이라면 한도가 과대평가될 수 있습니다.";
     }
 
-    /**
-     * 매물의 거래유형에 맞는 대출을 산정한다.
-     *
-     * 매매는 주담대(LTV·DSR·취득세), 전세는 전세자금대출(보증 한도·이자만 DSR)입니다.
-     * 전세에 매매 공식을 쓰면 취득세와 방공제가 나오는데, 둘 다 전세와 무관한 개념입니다.
-     */
+ /** 매물의 거래유형에 맞는 대출을 산정한다. */
     public LoanEstimateResponse estimate(Long propertyId, LoanEstimateRequest request) {
         final Property property = propertyAccessGuard.require(propertyId);
         final long price = property.priceDeposit() == null ? 0L : property.priceDeposit();
@@ -145,13 +129,11 @@ public class LoanEstimateService {
                 jeonse ? LoanProductType.JEONSE : LoanProductType.MORTGAGE);
         final RegulationParams params = withMarketRate(loadParams(rawParams), marketRate);
 
-        // 입력이 비면 로그인 사용자의 프로필로 채운다 — 모달을 열자마자 결과가 보여야 한다
         final Optional<User> me = currentUser();
         final long annualIncome = orProfile(request.annualIncome(), me.map(User::annualIncomeOrZero));
         final long cash = orProfile(request.cash(), me.map(User::cashOrZero));
         final long existingLoan = orProfile(request.existingLoan(), me.map(User::existingLoanOrZero));
 
-        // 한도에는 안 들어가지만 화면에 병기한다
         final long groupCash = groupCash(property.groupId());
 
         if (jeonse) {
@@ -162,15 +144,7 @@ public class LoanEstimateService {
                 groupCash, request, rawParams, params, marketRate);
     }
 
-    /**
-     * 시장 금리를 받았으면 `interestRate`만 갈아 끼운다.
-     *
-     * 한도 산식은 건드리지 않습니다. 금감원이 주는 `loan_lmt`는 `"LTV 70% 이내"` 같은
-     * 서술 문장이라, 파싱해서 얹으면 규제 파라미터와 같은 제약이 두 번 걸립니다.
-     *
-     * stressRate도 그대로 둡니다 — DSR은 스트레스 금리로 계산합니다(I64-2).
-     * 시장 금리로 역산하면 한도가 부풀려집니다.
-     */
+ /** 시장 금리를 받았으면 interestRate만 갈아 끼운다. */
     private RegulationParams withMarketRate(RegulationParams params, Optional<MarketRate> marketRate) {
         return marketRate
                 .map(rate -> new RegulationParams(
@@ -181,14 +155,8 @@ public class LoanEstimateService {
                 .orElse(params);
     }
 
-    /**
-     * 금리가 어디서 왔는지. 못 받아 기본값으로 떨어졌으면 그 사실을 밝힙니다 —
-     * 조용히 다른 값을 쓰면 사용자는 검증할 수 없습니다.
-     */
-    /**
-     * 스트레스 금리의 출처. 한국은행 통계로 산출했으면 그 근거가 담겨 있고,
-     * 사람이 넣은 값이면 비어 있습니다 — 화면은 있을 때만 보여 줍니다.
-     */
+ /** 금리가 어디서 왔는지. 못 받아 기본값으로 떨어졌으면 그 사실을 밝힙니다. * 조용히 다른 값을 쓰면 사용자는 검증할 수 없습니다. */
+ /** 스트레스 금리의 출처. 한국은행 통계로 산출했으면 그 근거가 담겨 있고, */
     private String stressRateSource() {
         return systemConfigRepository.findById("loan.stressRate.source")
                 .map(banghak.home.halley.domain.setting.SystemConfig::configValue)
@@ -204,12 +172,7 @@ public class LoanEstimateService {
                                 .stripTrailingZeros().toPlainString()));
     }
 
-    /**
-     * 같은 그룹 사용자들의 보유 현금 합계.
-     *
-     * 한도 산식에는 넣지 않습니다 — 대출은 개인 명의로 나오고, 남의 현금이 내 LTV·DSR을
-     * 늘려 주지 않습니다. 화면에 병기만 해서 그룹이 실제로 모을 수 있는 돈을 함께 봅니다.
-     */
+ /** 같은 그룹 사용자들의 보유 현금 합계. */
     private long groupCash(Long groupId) {
         if (groupId == null) {
             return 0L;
@@ -226,16 +189,13 @@ public class LoanEstimateService {
                                                   Map<String, String> rawParams, RegulationParams params,
                                                   Optional<MarketRate> marketRate) {
         final boolean firstHome = Boolean.TRUE.equals(request.firstHome());
-        // 금리유형이 스트레스 가산폭을 가른다. 비우면 변동으로 본다
         final RateType rateType = request.rateType() == null ? RateType.VARIABLE : request.rateType();
         final boolean insured = Boolean.TRUE.equals(request.mortgageInsured());
 
-        // LTV는 호가가 아니라 담보가치에 매긴다
         final CollateralValuation collateral = CollateralValuator.estimate(
                 property.kbPrice(), tradeSamples(property), property.areaExclusiveM2(),
                 property.officialPrice(), askingPrice, params.officialPriceRatio(), LocalDate.now());
 
-        // 규제지역·주택 보유 수로 LTV 비율을 정한다
         final RegulationZone zone = regulatedAreaService.resolve(property);
         final HouseOwnership ownership = HouseOwnership.of(request.ownedHouseCount());
         final LtvDecision ltv = MortgagePolicy.decide(zone, ownership, firstHome, rawParams, params);
@@ -266,7 +226,6 @@ public class LoanEstimateService {
         final JeonseEstimateResult result = new JeonseLoanCalculator(terms)
                 .estimate(new JeonseEstimateInput(deposit, annualIncome, cash, existingLoan), params);
 
-        // 전세는 LTV·취득세가 없다. 이력 테이블의 해당 칸은 비워 둔다
         loanEstimateRepository.save(new LoanEstimate(
                 null, propertyId, ProductType.JEONSE, terms.guaranteeRate(),
                 result.guaranteeLimit(), result.dsrLimit(), result.finalLimit(),
@@ -287,7 +246,7 @@ public class LoanEstimateService {
                 .toList();
     }
 
-    /** 판정된 LTV 비율·상한을 계산기가 쓰도록 갈아 끼운다. 다른 수치는 프로파일 그대로다. */
+ /** 판정된 LTV 비율·상한을 계산기가 쓰도록 갈아 끼운다. 다른 수치는 프로파일 그대로다. */
     private RegulationParams withLtv(RegulationParams params, LtvDecision ltv) {
         return new RegulationParams(
                 ltv.rate(), ltv.cap(), params.dsrRatio(), params.interestRate(), params.stressRate(),
@@ -295,7 +254,7 @@ public class LoanEstimateService {
                 params.leaseDeduction(), params.officialPriceRatio(), params.stressApplyRatio());
     }
 
-    /** 활성 프로파일의 원본 키·값. LTV 매트릭스처럼 레코드에 담기 어려운 값은 여기서 직접 읽는다. */
+ /** 활성 프로파일의 원본 키·값. LTV 매트릭스처럼 레코드에 담기 어려운 값은 여기서 직접 읽는다. */
     private Map<String, String> loadRawParams() {
         final String profile = systemConfigRepository.findById(PROFILE_KEY)
                 .map(SystemConfig::configValue)
@@ -321,12 +280,8 @@ public class LoanEstimateService {
                 decimal(values, "loan.stressApplyRatio", defaults.stressApplyRatio()));
     }
 
-    /**
-     * 담보가치를 매길 재료 — 이 매물의 최근 실거래가. 이미 수집해 둔 캐시만 읽고 국토부를 부르지 않는다
-     * (대출 계산이 외부 API 지연에 묶이면 안 된다).
-     */
+ /** 담보가치를 매길 재료. 이 매물의 최근 실거래가. 이미 수집해 둔 캐시만 읽고 국토부를 부르지 않는다 */
     private List<TradeSample> tradeSamples(Property property) {
-        // 실거래는 단지·평형에 붙는다 — 단지가 없으면 받아 온 적이 없다는 뜻이다
         return complexService.find(property)
                 .map(c -> referenceTransactionRepository.findByComplexAndArea(
                         c.id(), property.areaExclusiveM2(), REFERENCE_AREA_TOLERANCE))
@@ -336,7 +291,7 @@ public class LoanEstimateService {
                 .toList();
     }
 
-    /** 어떤 전제로 계산했는지 남긴다. 나중에 값이 왜 그랬는지 되짚을 수 있어야 한다. */
+ /** 어떤 전제로 계산했는지 남긴다. 나중에 값이 왜 그랬는지 되짚을 수 있어야 한다. */
     private ObjectNode mortgageAssumptions(long annualIncome, long cash, long existingLoan,
                                            boolean firstHome, boolean insured, LoanEstimateResult result,
                                            RegulationZone zone, HouseOwnership ownership, LtvDecision ltv) {

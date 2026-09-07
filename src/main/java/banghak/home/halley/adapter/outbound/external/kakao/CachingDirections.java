@@ -11,33 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.time.LocalDateTime;
 
-/**
- * 한 번 받은 길은 다시 안 받는다.
- *
- * 매물 일곱이면 한 번 계산에 49쌍입니다. 담아 두는 곳이 아무 데도 없어
- * 「경로 계산」을 누를 때마다 49건이 나갔고, 한도가 있는 API는 그것으로 하루가
- * 끝났습니다 — 실제로 그렇게 끝났습니다().
- *
- *
- * {"code":-10,"msg":"API limit has been exceeded."}
- *
- *
- * 열쇠에 출발 시각을 넣는다
- *
- * 시각을 빼면 화요일 14시와 일요일 14시가 같은 길이 되어이
- * 무의미해집니다.에서 요청 안의 기억(`driveMemo`)에 같은 실수를 했다가
- * 기존 시험에 걸렸습니다.
- *
- * 못 받은 것은 담지 않는다
- *
- * 한 번의 실패를 하루 동안 물려주게 됩니다 —에서 모델 목록에 같은
- * 판단을 했습니다. 실패는 다음에 다시 물어야 합니다.
- *
- * 여기가 캐시의 자리다
- *
- * 공급자 위에 둡니다. 나중에 다른 길찾기를 붙여도(의 계획) 담아 두기는
- * 그대로입니다 — 어느 쪽이 답했든 같은 좌표·같은 시각이면 같은 답입니다.
- */
+/** 한 번 받은 길은 다시 안 받는다. */
 @Slf4j
 @Component
 public class CachingDirections implements KakaoDirectionsPort {
@@ -76,7 +50,6 @@ public class CachingDirections implements KakaoDirectionsPort {
                     try {
                         return objectMapper.readValue(json, DriveRoute.class);
                     } catch (RuntimeException e) {
-                        // 담아 둔 모양이 바뀌었을 수 있다. 버리고 다시 받는다
                         log.warn("Cached drive route unreadable - fetching again. cause={}", e.getMessage());
                         cache.evict(CachePort.DRIVE_ROUTE, key);
                         return null;
@@ -89,12 +62,11 @@ public class CachingDirections implements KakaoDirectionsPort {
         try {
             cache.put(CachePort.DRIVE_ROUTE, key, objectMapper.writeValueAsString(route), ttl);
         } catch (RuntimeException e) {
-            // 담지 못해도 길은 이미 받았다. 이번 계산은 그대로 끝낸다
             log.warn("Could not cache the drive route. cause={}", e.getMessage());
         }
     }
 
-    /** 소수점 여섯 자리면 1m 안쪽 — 같은 지점으로 봐도 된다 (과 같은 규칙). */
+ /** 소수점 여섯 자리면 1m 안쪽. 같은 지점으로 봐도 된다 (과 같은 규칙). */
     private static String key(double fromLng, double fromLat, double toLng, double toLat,
                               LocalDateTime departAt) {
         return String.format("%.6f,%.6f>%.6f,%.6f@%s", fromLng, fromLat, toLng, toLat, departAt);

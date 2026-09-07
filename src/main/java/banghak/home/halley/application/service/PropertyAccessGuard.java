@@ -13,19 +13,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Optional;
 
-/**
- * 매물 접근을 그룹 경계로 막는 단 하나의 길목.
- *
- * 매물을 읽는 자리가 스무 곳이 넘습니다. 각자 그룹을 확인하게 두면 한 곳만 빠져도 남의
- * 그룹 자료가 샙니다 — 그리고 빠졌다는 사실은 아무 데도 드러나지 않습니다. 그래서 사용자
- * 요청에서 출발하는 모든 경로가 여기를 지나게 합니다.
- *
- * 없는 것처럼 답합니다. 남의 그룹 매물에 접근하면 403이 아니라 404입니다.
- * 403은 "그 번호의 매물이 존재하기는 한다"는 사실을 알려 줍니다.
- *
- * 배경 작업(보정·AI·알림)은 이미 인가된 매물 번호로 도는 것이라 여기를 거치지 않습니다 —
- * 거치게 하면 로그인 사용자가 없어 전부 막힙니다.
- */
+/** 매물 접근을 그룹 경계로 막는 단 하나의 길목. */
 @Service
 public class PropertyAccessGuard {
 
@@ -37,7 +25,7 @@ public class PropertyAccessGuard {
         this.userRepository = userRepository;
     }
 
-    /** 볼 수 있는 매물이면 돌려주고, 아니면 없는 것으로 친다. */
+ /** 볼 수 있는 매물이면 돌려주고, 아니면 없는 것으로 친다. */
     public Property require(Long propertyId) {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
@@ -55,14 +43,7 @@ public class PropertyAccessGuard {
         return myGroup != null && myGroup.equals(property.groupId());
     }
 
-    /**
-     * admin은 어느 그룹에도 속하지 않고 전부 본다.
-     *
-     * 세션의 principal에서 읽습니다 — DB를 치지 않습니다.
-     * 목록에서 매물마다 불리는 자리라 한 번에 여러 번 왕복하고 있었습니다.
-     * 실제 접근 통제(`/api/admin/**`)도 같은 principal의 권한으로 걸리므로
-     * 여기만 DB를 봐야 할 이유가 없습니다.
-     */
+ /** admin은 어느 그룹에도 속하지 않고 전부 본다. */
     public boolean isAdmin() {
         final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         return auth != null

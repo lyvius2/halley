@@ -4,23 +4,14 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 가격이 어느 쪽으로 움직일 것으로 보는가.
- *
- * UNCERTAIN은 이제 마지막 수단입니다. 한때는 재료가 모자라면
- * 곧바로 "모른다"고 답했는데, 실제로 써 보니 거의 모든 매물이 판단 보류였습니다 —
- * 지표가 여럿 나와 있는데도 그랬습니다. 알아낸 것을 안 보여 주는 셈이었습니다.
- *
- * 이제 지표들이 가리키는 쪽을 세어 많은 쪽을 말합니다. 셀 것이 하나도
- * 없을 때만 UNCERTAIN 입니다.
- */
+/** 가격이 어느 쪽으로 움직일 것으로 보는가. */
 public enum ForecastDirection {
 
     UP("상승"),
     DOWN("하락"),
-    /** "횡보"보다 "유지" — 횡보는 시세 용어라 한 번 더 생각하게 만듭니다. */
+ /** "횡보"보다 "유지". 횡보는 시세 용어라 한 번 더 생각하게 만듭니다. */
     FLAT("유지"),
-    /** 판단하지 않았다. '약한 전망'이 아니라 '모른다'입니다. */
+ /** 판단하지 않았다. '약한 전망'이 아니라 '모른다'입니다. */
     UNCERTAIN("판단 보류");
 
     private final String label;
@@ -33,24 +24,7 @@ public enum ForecastDirection {
         return label;
     }
 
-    /**
-     * 지표들이 가리키는 쪽을 세어 많은 쪽.
-     *
-     * 무게를 쓰지 않고 그냥 셉니다. 무게를 곱하면 "실거래 추세 하나가
-     * 나머지 셋을 이긴다" 같은 일이 생기는데, 그 비율을 정당화할 근거가 없습니다
-     * (규칙 예측이 무게를 쓰는 것은 다른 목적입니다 — 거기서는 표차로
-     * 확신도를 잽니다).
-     *
-     * 동수일 때:
-     *
-     *   상승이 끼어 있으면 상승. 오를 수도 있다는 신호를 묻어 두면
-     *       기다리다 놓칩니다 — 이 도구는 살 집을 고르는 자리입니다
-     *   상승이 없고 유지·하락이 갈리면 유지. 하락을 단정하려면
-     *       그쪽이 더 많아야 합니다
-     *
-     *
-     * @return 셀 것이 없으면 UNCERTAIN
-     */
+ /** 지표들이 가리키는 쪽을 세어 많은 쪽. */
     public static ForecastDirection majorityOf(List<PriceFactor> factors) {
         if (factors == null || factors.isEmpty()) {
             return UNCERTAIN;
@@ -58,7 +32,6 @@ public enum ForecastDirection {
         final Map<ForecastDirection, Integer> counts = new EnumMap<>(ForecastDirection.class);
         for (final PriceFactor factor : factors) {
             final ForecastDirection effect = factor.effect();
-            // 요인이 "모르겠다"고 하는 것은 표가 아니다
             if (effect == null || effect == UNCERTAIN) {
                 continue;
             }
@@ -68,7 +41,6 @@ public enum ForecastDirection {
             return UNCERTAIN;
         }
         final int top = counts.values().stream().mapToInt(Integer::intValue).max().orElse(0);
-        // 동수면 UP → FLAT → DOWN 순으로 고른다
         for (final ForecastDirection candidate : List.of(UP, FLAT, DOWN)) {
             if (counts.getOrDefault(candidate, 0) == top) {
                 return candidate;

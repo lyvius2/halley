@@ -38,15 +38,7 @@ import static banghak.home.halley.adapter.outbound.persistence.support.JooqMappi
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toJsonNode;
 import static banghak.home.halley.adapter.outbound.persistence.support.JooqMapping.toOffset;
 
-/**
- * 법정동·월별 실거래 원본 캐시.
- *
- * 같은 법정동·같은 달은 매물이 달라도 국토부 응답이 동일합니다. 가격 전망이
- * 60개월을 훑는데 매물마다 60번씩 부르면 등록이 몇 분씩 걸립니다.
- *
- * 거래를 JSON 배열 하나로 담습니다. 행마다 한 건씩 넣으면 한 달에 수백 행이 되고,
- * 60개월이면 수만 행입니다. 통째로 읽고 통째로 쓰는 용도라 쪼갤 이유가 없습니다.
- */
+/** 법정동·월별 실거래 원본 캐시. */
 @Slf4j
 @Repository
 public class MonthlyTradeCacheRepository {
@@ -61,7 +53,7 @@ public class MonthlyTradeCacheRepository {
         this.objectMapper = objectMapper;
     }
 
-    /** 한 달치를 넣거나 갈아 끼운다. */
+ /** 한 달치를 넣거나 갈아 끼운다. */
     public void upsert(MonthlyTrades monthly) {
         final String ym = monthly.dealYm().format(YM);
         dsl.insertInto(TABLE)
@@ -86,11 +78,7 @@ public class MonthlyTradeCacheRepository {
                 .map(this::map);
     }
 
-    /**
-     * 여러 달을 한 번에.
-     *
-     * 60개월을 달마다 따로 물으면 왕복이 60번입니다. 캐시를 두는 뜻이 없어집니다.
-     */
+ /** 여러 달을 한 번에. */
     public Map<YearMonth, MonthlyTrades> findAll(String lawdCd, Collection<YearMonth> months,
                                                  CachedDealType dealType) {
         if (lawdCd == null || months == null || months.isEmpty()) {
@@ -114,10 +102,7 @@ public class MonthlyTradeCacheRepository {
                 toInstant(r.get(FETCHED_AT)));
     }
 
-    /**
-     * 도메인을 JSON으로. 필드 이름을 짧게 두지 않습니다 — 나중에 이 캐시를 사람이
-     * 열어 볼 때 무엇인지 알 수 있어야 합니다.
-     */
+ /** 도메인을 JSON으로. 필드 이름을 짧게 두지 않습니다. 나중에 이 캐시를 사람이 */
     private JsonNode toJsonArray(List<ReferenceTrade> trades) {
         final ArrayNode array = objectMapper.createArrayNode();
         if (trades == null) {

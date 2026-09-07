@@ -45,10 +45,7 @@ public class CriteriaBootstrap implements ApplicationRunner {
         this.criterionWeightRepository = criterionWeightRepository;
     }
 
-    /**
-     * 첫 기동이면 전량 시드하고, 이미 있으면 빠진 항목만 채운다.
-     * 항목이 추가돼도(예: I59의 AI 추천도) 기존 설치에서 화면에 뜨지 않는 일이 없도록 한다.
-     */
+ /** 첫 기동이면 전량 시드하고, 이미 있으면 빠진 항목만 채운다. */
     @Override
     public void run(@NonNull ApplicationArguments args) {
         seedMissingCriteria();
@@ -65,7 +62,6 @@ public class CriteriaBootstrap implements ApplicationRunner {
             if (existing.contains(seed.code())) {
                 continue;
             }
-            // 나중에 추가된 항목은 기존 순위 뒤에 붙인다 — 앞 항목의 가중치를 흔들지 않는다
             final int rank = existing.isEmpty() ? i + 1 : existing.size() + added + 1;
             criterionRepository.save(new Criterion(seed.code(), seed.name(), seed.type(), true));
             criterionWeightRepository.save(new CriterionWeight(
@@ -77,19 +73,7 @@ public class CriteriaBootstrap implements ApplicationRunner {
         }
     }
 
-    /**
-     * 항목은 있는데 가중치만 없는 경우를 메운다.
-     *
-     * 가중치가 없으면 총점 계산에서 그 항목의 무게가 0이 됩니다 —
-     * 점수를 아무리 잘 받아도 총점이 꿈쩍하지 않습니다. 그런데 조용합니다:
-     * 화면에는 점수가 멀쩡히 뜨고, 총점만 안 움직입니다.
-     *
-     * 실제로 그렇게 됐습니다. `DDL.sql`의 이관 스크립트가 `criterion`에만 넣고
-     * `criterion_weight`는 넣지 않았는데, 그다음 기동에서 항목이 이미 있으니
-     * 건너뛰어 가중치가 영영 안 생겼습니다.
-     *
-     * 항목 시드와 따로 도는 이유가 그것입니다 — 두 테이블은 같이 움직이지 않습니다.
-     */
+ /** 항목은 있는데 가중치만 없는 경우를 메운다. */
     private void seedMissingWeights() {
         final Set<String> weighted = criterionWeightRepository.findAll().stream()
                 .map(CriterionWeight::criterionCode)
@@ -101,7 +85,6 @@ public class CriteriaBootstrap implements ApplicationRunner {
             if (weighted.contains(criterion.code())) {
                 continue;
             }
-            // 기존 순위 뒤에 붙인다. 앞 항목의 가중치를 흔들면 모든 매물의 총점이 바뀐다
             final int rank = ++nextRank;
             criterionWeightRepository.save(new CriterionWeight(
                     criterion.code(), rank, WeightCurve.weightFor(rank), null));

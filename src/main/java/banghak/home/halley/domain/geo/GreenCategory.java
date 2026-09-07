@@ -4,18 +4,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 녹색환경(`GREEN`) 3종 판정. 카카오 응답의 장소명이 아니라 `category_name`으로 분류한다.
- * 장소명 매칭은 "떡산 롯데백화점"·"산과맥주"를 산으로, "달빛어린이공원 개방화장실"을 공원으로 잡는다.
- *
- * 실측한 `category_name` 형태:
- *
- *   공원 — 여행 > 공원, 여행 > 공원 > 도시근린공원
- *   산 — 여행 > 관광,명소 > 산, 여행 > 관광,명소 > 자연휴양림, 여행 > 관광,명소 > 숲
- *   하천 — 여행 > 관광,명소 > 하천
- *
- * 세그먼트 단위로 정확히 비교하므로 여행 > 공원시설물(음수대)이나 가정,생활 > 화장실은 제외된다.
- */
+/** 녹색환경(GREEN) 3종 판정. 카카오 응답의 장소명이 아니라 category_name으로 분류한다. */
 public enum GreenCategory {
 
     PARK(List.of("공원")),

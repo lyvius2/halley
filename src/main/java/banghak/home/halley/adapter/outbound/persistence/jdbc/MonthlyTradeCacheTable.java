@@ -21,13 +21,7 @@ public final class MonthlyTradeCacheTable {
     public static final Field<String> DEAL_YM = field(name(T, "deal_ym"), String.class);
     public static final Field<String> DEAL_TYPE = field(name(T, "deal_type"), String.class);
     public static final Field<JSON> PAYLOAD = field(name(T, "payload"), JSON.class);
-    /**
-     * 읽을 때는 타입을 못 박지 않는다.
-     *
-     * 같은 컬럼이 live(PostgreSQL)에서는 jsonb, local(H2)에서는 json이라
-     * 드라이버가 돌려주는 객체가 다릅니다. Field<JSON>으로 읽으면 live에서
-     * JSONB cannot be cast to JSON으로 터집니다 — 로컬에서는 재현되지 않습니다.
-     */
+ /** 읽을 때는 타입을 못 박지 않는다. */
     public static final Field<Object> PAYLOAD_RAW = field(name(T, "payload"), Object.class);
     public static final Field<Integer> TRADE_COUNT = field(name(T, "trade_count"), Integer.class);
     public static final Field<OffsetDateTime> FETCHED_AT = field(name(T, "fetched_at"), OffsetDateTime.class);

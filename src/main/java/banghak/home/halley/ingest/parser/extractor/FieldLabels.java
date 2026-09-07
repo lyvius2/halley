@@ -4,7 +4,7 @@ import java.util.Set;
 
 public final class FieldLabels {
 
-    /** 블록 스캔 시 다음 섹션으로 넘어가지 않도록 멈추는 라벨 집합 */
+ /** 블록 스캔 시 다음 섹션으로 넘어가지 않도록 멈추는 라벨 집합 */
     public static final Set<String> SECTION_STOPS = Set.of(
             "초등학교", "배정 초등학교", "버스", "지하철", "주차", "난방", "향", "세대수",
             "사용승인일", "입주가능일", "KB시세", "관리비", "공급면적", "전용면적",

@@ -12,10 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.List;
 
-/**
- * live용 Redis POI 캐시. Redis 장애 시 조회·저장을 조용히 건너뛰어
- * 캐시 계층 장애가 채점을 막지 않게 한다(외부 API 재호출로 흡수.1.1).
- */
+/** live용 Redis POI 캐시. Redis 장애 시 조회·저장을 조용히 건너뛰어 */
 @Slf4j
 @Component
 @Profile("live")

@@ -16,10 +16,7 @@ import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTabl
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.ID;
 import static banghak.home.halley.adapter.outbound.persistence.jdbc.PropertyTable.TABLE;
 
-/**
- * 이미 있는 매물에 단지를 달아 준다. 단지 열쇠 생성 규칙이 자바(`ComplexName`)에
- * 있어 SQL 로는 못 한다. 이미 달린 매물은 안 건드리므로 여러 번 돌려도 같다.
- */
+/** 기존 매물의 단지 정보를 보완한다. */
 @Slf4j
 @Component
 @Order(50)
@@ -55,7 +52,6 @@ public class ComplexBackfill implements ApplicationRunner {
                 complexService.attach(property);
                 attached++;
             } catch (RuntimeException e) {
-                // 한 건이 막혀도 나머지는 달아 준다 — 안 달린 것은 다음 기동에 다시 본다
                 log.warn("Could not attach complex. propertyId={}, cause={}", id, e.toString());
             }
         }

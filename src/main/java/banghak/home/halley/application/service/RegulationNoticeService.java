@@ -18,16 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * 규제지역을 국토부 고시에서 받아 적재한다.
- *
- * 사람이 관리하지 않는 이유는 편의가 아니라 실패 방향입니다. 규제지역이 비어 있으면
- * RegulatedAreaService가 NORMAL로 판정하고, 비규제 LTV(0.7)는 투기과열지구(0.4)의
- * 배에 가깝습니다. 즉 입력을 잊으면 한도를 과대평가하는데 화면에는 아무 표시가 없습니다.
- *
- * 고시가 갱신되면 통째로 갈아 끼웁니다. 고시 본문의 `제개정이유`는 이번에 추가된 지역만
- * 담아서 그것만 반영하면 해제된 지역이 남습니다. 첨부 PDF의 현황표가 전체 목록입니다.
- */
+/** 규제지역을 국토부 고시에서 받아 적재한다. */
 @Slf4j
 @Service
 public class RegulationNoticeService {
@@ -50,7 +41,7 @@ public class RegulationNoticeService {
         this.noticeRepository = noticeRepository;
     }
 
-    /** 규제지역 값을 대출 계산에 믿고 쓸 수 있는지 — 하나라도 미완이면 false. */
+ /** 규제지역 값을 대출 계산에 믿고 쓸 수 있는지. 하나라도 미완이면 false. */
     public boolean isTrustworthy() {
         for (final RegulationZone zone : seedableZones()) {
             if (!noticeRepository.find(zone).seedStatus().isTrustworthy()) {
@@ -64,10 +55,7 @@ public class RegulationNoticeService {
         return seedableZones().stream().map(noticeRepository::find).toList();
     }
 
-    /**
-     * 비어 있을 때만 채운다. 이미 값이 있으면 손대지 않는다 — 관리 화면에서 손으로
-     * 고친 값을 기동할 때마다 덮으면 수정이 사라진다.
-     */
+ /** 비어 있을 때만 채운다. 이미 값이 있으면 손대지 않는다. 관리 화면에서 손으로 */
     public void seedIfEmpty() {
         for (final RegulationZone zone : seedableZones()) {
             if (regulatedAreaRepository.countByZone(zone) > 0) {
@@ -79,7 +67,7 @@ public class RegulationNoticeService {
         }
     }
 
-    /** 발령일자가 바뀐 규제만 갈아 끼운다. */
+ /** 발령일자가 바뀐 규제만 갈아 끼운다. */
     public void refreshOutdated() {
         for (final RegulationZone zone : seedableZones()) {
             final RegulationNoticeState state = noticeRepository.find(zone);
@@ -98,7 +86,7 @@ public class RegulationNoticeService {
         }
     }
 
-    /** 한 규제를 지금 고시로 다시 적재한다. */
+ /** 한 규제를 지금 고시로 다시 적재한다. */
     public void refresh(RegulationZone zone) {
         final RegulationNoticeState state = noticeRepository.find(zone);
         noticeRepository.save(running(state));
@@ -115,7 +103,6 @@ public class RegulationNoticeService {
         final Map<String, SigunguNameMatcher.Matched> codes =
                 nameMatcher.match(notice.areaNames(), legalDongCodeRepository.findAll());
         if (codes.isEmpty()) {
-            // 부분 적재를 허용하면 빠진 지역이 비규제로 잡혀 한도가 과대평가된다
             fail(zone, state, "지역명을 법정동코드로 바꾸지 못했습니다 (" + notice.areaNames().size() + "건)");
             return;
         }
@@ -133,7 +120,6 @@ public class RegulationNoticeService {
     }
 
     private void fail(RegulationZone zone, RegulationNoticeState state, String message) {
-        // 실패를 로그로만 남기면 화면은 비규제(0.7)로 계산한 값을 아무 표시 없이 보여준다
         log.error("Regulated area seeding failed - loan limits may be overestimated. zone={}, reason={}",
                 zone, message);
         noticeRepository.save(new RegulationNoticeState(
@@ -145,7 +131,6 @@ public class RegulationNoticeService {
         if (state.seedStatus().isTrustworthy()) {
             return;
         }
-        // 손으로 넣어 둔 값이 이미 있으면 그것을 신뢰한다
         noticeRepository.save(new RegulationNoticeState(
                 zone, state.noticeNo(), state.announcedOn(), RegulationSeedStatus.READY,
                 regulatedAreaRepository.countByZone(zone), "수동 등록", Instant.now()));
@@ -156,7 +141,7 @@ public class RegulationNoticeService {
                 RegulationSeedStatus.RUNNING, state.areaCount(), null, Instant.now());
     }
 
-    /** 고시로 받아올 수 있는 규제만. `NORMAL`은 지정 대상이 아니다. */
+ /** 고시로 받아올 수 있는 규제만. NORMAL은 지정 대상이 아니다. */
     private List<RegulationZone> seedableZones() {
         return List.of(RegulationZone.SPECULATION_OVERHEATED, RegulationZone.ADJUSTMENT_TARGET);
     }

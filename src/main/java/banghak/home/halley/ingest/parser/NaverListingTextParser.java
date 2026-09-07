@@ -38,8 +38,6 @@ public class NaverListingTextParser {
                 new LabelValueExtractor("naverArticleNo", "매물번호"),
                 new DongHoExtractor(),
                 new DealTypeExtractor(),
-                // 전세는 실제 페이지가 `전세가`로 적는다. `보증금`만 보던 탓에 전세 매물의
-                // 가격이 통째로 비었다
                 new WonValueExtractor("priceDeposit", true, "매매가", "전세가", "보증금"),
                 new WonValueExtractor("kbPrice", false, "KB시세"),
                 new MaintenanceFeeExtractor(),
@@ -58,14 +56,12 @@ public class NaverListingTextParser {
                 new IntegerValueExtractor("totalHouseholds", "세대수"),
                 new ParkingExtractor(),
                 new MoveInExtractor(),
-                // 중개사
                 new AgentExtractor("agentName", AgentExtractor.Target.AGENT_NAME),
                 new AgentExtractor("agentOfficeName", AgentExtractor.Target.OFFICE_NAME),
                 new AgentExtractor("agentPhone", AgentExtractor.Target.PHONE),
                 new AgentExtractor("agentMobile", AgentExtractor.Target.MOBILE),
                 new AgentExtractor("agentAddress", AgentExtractor.Target.ADDRESS),
                 new AgentExtractor("agentRegistrationNo", AgentExtractor.Target.REGISTRATION_NO),
-                // 중개보수·세금
                 new BrokerageExtractor("brokerageFee", BrokerageExtractor.Target.FEE),
                 new BrokerageExtractor("brokerageRate", BrokerageExtractor.Target.RATE),
                 new TaxExtractor("acquisitionTax", TaxExtractor.Target.ACQUISITION),

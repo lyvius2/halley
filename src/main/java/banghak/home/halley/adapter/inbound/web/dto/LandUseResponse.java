@@ -5,12 +5,7 @@ import banghak.home.halley.domain.landuse.LandUseConflict;
 
 import java.time.Instant;
 
-/**
- * 토지이용계획 한 건.
- *
- * @param conflict 필지와의 관계. INCLUDED만 실제로 적용된다
- * @param notable  매수 판단에 직접 영향을 주는 항목인지 — 화면에서 강조한다
- */
+/** 토지이용계획 한 건. */
 public record LandUseResponse(
         String zoneCode,
         String zoneName,

@@ -6,44 +6,16 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 담보가치 추정.
- *
- * 은행이 LTV를 매길 때 쓰는 것은 KB시세입니다. 실측에서 호가 15억 / KB시세 13.5억으로
- * 1.5억 차이가 났습니다. 호가를 담보가치로 쓰면 그 차이가 그대로 한도에 실립니다.
- *
- * 우선순위: KB시세 → 최근 실거래 → 공시가격 환산 → 호가. 어느 단계를 썼는지
- * {@link CollateralSource}로 남기고 화면에 표기합니다.
- *
- * 실거래는 금액을 그대로 평균 내지 않습니다. 세 가지를 보정합니다.
- *
- *   면적 — 단가(원/㎡)의 중앙값에 이 매물의 전용면적을 곱합니다. 같은 단지라도
- *       59㎡와 84㎡가 섞이면 금액 평균은 뜻이 없습니다.
- *   시점 — 최근 {@value #RECENT_MONTHS}개월 거래만 봅니다. 그 안에 거래가 없으면
- *       전체로 넓히되 건수를 함께 남겨 신뢰도를 낮춥니다.
- *   이상치 — 평균이 아니라 중앙값을 씁니다. 급매나 특수관계 거래 한 건이
- *       평균을 끌어내리기 때문입니다.
- *
- *
- * 외부를 부르지 않는 순수 계산입니다 — 값은 호출자가 모아서 넘깁니다.
- */
+/** 담보가치 추정. */
 public final class CollateralValuator {
 
-    /** 이 기간 안의 거래를 우선 본다. 시세는 반년이면 꽤 움직인다. */
+ /** 이 기간 안의 거래를 우선 본다. 시세는 반년이면 꽤 움직인다. */
     public static final int RECENT_MONTHS = 6;
 
     private CollateralValuator() {
     }
 
-    /**
-     * @param kbPrice            KB시세(원). 있으면 무조건 이것
-     * @param trades             동일 단지·유사 면적의 실거래 목록
-     * @param exclusiveAreaM2    이 매물의 전용면적(㎡) — 단가 환산의 기준
-     * @param officialPrice      공시가격(원)
-     * @param askingPrice        호가(원)
-     * @param officialPriceRatio 공시가격 현실화율 — 규제 파라미터
-     * @param today              기준일. 최근성 판정에 쓴다
-     */
+
     public static CollateralValuation estimate(Long kbPrice,
                                                List<TradeSample> trades,
                                                BigDecimal exclusiveAreaM2,
@@ -81,7 +53,6 @@ public final class CollateralValuator {
         if (valid.isEmpty()) {
             return null;
         }
-        // 최근 거래를 우선 보되, 없으면 전체로 넓힌다 — 건수는 결과에 남겨 신뢰도를 드러낸다
         final LocalDate cutoff = today == null ? null : today.minusMonths(RECENT_MONTHS);
         final List<TradeSample> recent = cutoff == null ? valid : valid.stream()
                 .filter(t -> t.contractDate() != null && !t.contractDate().isBefore(cutoff))
@@ -92,14 +63,13 @@ public final class CollateralValuator {
         if (byUnitPrice != null) {
             return new CollateralValuation(byUnitPrice, CollateralSource.RECENT_TRADE, samples.size());
         }
-        // 면적을 모르면 금액 중앙값으로 떨어진다
         final Long median = median(samples.stream().map(TradeSample::price).toList());
         return median == null
                 ? null
                 : new CollateralValuation(median, CollateralSource.RECENT_TRADE, samples.size());
     }
 
-    /** 단가(원/㎡) 중앙값 × 이 매물의 전용면적. 면적을 모르는 거래는 빠진다. */
+ /** 단가(원/㎡) 중앙값 × 이 매물의 전용면적. 면적을 모르는 거래는 빠진다. */
     private static Long medianUnitPrice(List<TradeSample> samples, BigDecimal exclusiveAreaM2) {
         if (exclusiveAreaM2 == null || exclusiveAreaM2.signum() <= 0) {
             return null;

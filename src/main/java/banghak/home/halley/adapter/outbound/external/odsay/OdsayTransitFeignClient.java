@@ -16,12 +16,7 @@ public interface OdsayTransitFeignClient {
                        @RequestParam("EX") double endX,
                        @RequestParam("EY") double endY);
 
-    /**
-     * 경로선.
-     *
-     * `mapObject` 는 `0:0@` + mapObj 형태입니다 — 앞의 좌표쌍은 화면 영역이고,
-     * `0:0` 이면 전체를 줍니다. 실호출로 확인했습니다.
-     */
+ /** 경로선. */
     @GetMapping("${odsay.lane-path:/v1/api/loadLane}")
     String loadLane(@RequestParam("apiKey") String apiKey,
                     @RequestParam("mapObject") String mapObject);

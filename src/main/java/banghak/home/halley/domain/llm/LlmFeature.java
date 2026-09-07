@@ -3,7 +3,7 @@ package banghak.home.halley.domain.llm;
 import java.util.Arrays;
 import java.util.Optional;
 
-/** AI를 쓰는 자리 — 자리마다 모델을 따로 고른다. */
+/** AI를 쓰는 자리. 자리마다 모델을 따로 고른다. */
 public enum LlmFeature {
 
     RECOMMENDATION("llm.model.recommendation", "AI 추천도",

@@ -13,25 +13,13 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * 규제지역 매칭에 쓸 시군구 사전을 V-World에서 받아 채운다.
- *
- * legal_dong_code는 원래 카카오로 채우는 지연 캐시라 기동 시 비어 있습니다.
- * 규제지역 적재는 기동 직후에 도는데 그때 사전이 없으면 매칭이 통째로 실패합니다.
- *
- * 목록을 코드에 박지 않습니다. 행정구역은 실제로 바뀝니다 — 화성시 동탄구가 신설됐고
- * 광주광역시와 전라남도가 통합됐습니다. 박아 둔 목록은 낡아도 낡은 줄 모르고, 그 상태로
- * 규제지역이 엉뚱한 코드에 붙습니다.
- *
- * 시도 1회 + 시도별 1회로 스무 번쯤 부르지만 한 번 채우면 다시 부르지 않습니다.
- */
+/** 규제지역 매칭에 쓸 시군구 사전을 V-World에서 받아 채운다. */
 @Slf4j
 @Component
-// 규제지역 적재(RegulatedAreaBootstrap)가 이 사전을 읽으므로 반드시 먼저 돈다
 @Order(10)
 public class SigunguCodeBootstrap implements ApplicationRunner {
 
-    /** 법정동코드는 10자리. 시군구까지만 알므로 뒤를 0으로 채운다. */
+ /** 법정동코드는 10자리. 시군구까지만 알므로 뒤를 0으로 채운다. */
     private static final String DONG_PADDING = "00000";
     private static final int SIGUNGU_CODE_LENGTH = 5;
 
@@ -44,14 +32,7 @@ public class SigunguCodeBootstrap implements ApplicationRunner {
         this.legalDongCodeRepository = legalDongCodeRepository;
     }
 
-    /**
-     * 여기서 던지면 애플리케이션이 뜨지 않습니다. `ApplicationRunner`의 예외는
-     * 기동 실패로 이어집니다 — 외부 API 한 번 실패했다고 앱 전체가 못 뜨면 안 됩니다
-     *. 사전이 비면 규제지역 매칭만 못 하고 나머지는 그대로 돕니다.
-     *
-     * 비동기로 비키지 않는 이유: 규제지역 적재(`RegulatedAreaBootstrap`, @Order(20))가
-     * 이 사전을 읽습니다. 여기서 먼저 끝내야 순서가 지켜집니다.
-     */
+ /** 여기서 던지면 애플리케이션이 뜨지 않습니다. ApplicationRunner의 예외는 */
     @Override
     public void run(ApplicationArguments args) {
         try {
@@ -69,7 +50,6 @@ public class SigunguCodeBootstrap implements ApplicationRunner {
             return;
         }
         if (!admCodePort.isEnabled()) {
-            // 여기서 조용히 넘어가면 규제지역이 왜 안 들어왔는지 알 수 없다
             log.warn("Cannot build sigungu dictionary - VWorld key not configured. "
                     + "Regulated area seeding will fail.");
             return;

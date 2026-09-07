@@ -3,11 +3,7 @@ package banghak.home.halley.domain.finance;
 import java.util.Arrays;
 import java.util.Optional;
 
-/**
- * 금감원 오픈API의 권역코드 `topFinGrpNo`.
- *
- * 필수 파라미터이고 권역마다 따로 불러야 합니다 — 한 번에 전 권역을 받는 값이 없습니다.
- */
+/** 금감원 오픈API의 권역코드 topFinGrpNo. */
 public enum FinanceGroup {
 
     BANK("020000", "은행"),

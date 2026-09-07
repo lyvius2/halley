@@ -23,13 +23,7 @@ public final class CommuteResultTable {
     public static final Field<Integer> TRANSFER_COUNT = field(name(T, "transfer_count"), Integer.class);
     public static final Field<Integer> WALK_MINUTES = field(name(T, "walk_minutes"), Integer.class);
     public static final Field<JSON> PATH_SUMMARY = field(name(T, "path_summary"), JSON.class);
-    /**
-     * 읽을 때는 타입을 못 박지 않는다.
-     * 같은 컬럼이 live(PostgreSQL)에서는 jsonb, local(H2)에서는 json이라
-     * 드라이버가 돌려주는 객체가 다르다. Field<JSON>으로 읽으면 live에서
-     * JSONB cannot be cast to JSON으로 터진다 — 로컬에서는 절대 재현되지 않는다.
-     * 쓰기는 위 필드를 그대로 쓴다.
-     */
+ /** 읽을 때는 타입을 못 박지 않는다. */
     public static final Field<Object> PATH_SUMMARY_RAW = field(name(T, "path_summary"), Object.class);
     public static final Field<OffsetDateTime> FETCHED_AT = field(name(T, "fetched_at"), OffsetDateTime.class);
 

@@ -12,12 +12,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Optional;
 
-/**
- * live용 Redis 구현.
- *
- * Redis 장애 시 조용히 건너뜁니다 — 호출 측이 기본 금리로 떨어지므로 대출 계산이 멈추지
- * 않습니다.
- */
+/** live용 Redis 구현. */
 @Slf4j
 @Component
 @Profile("live")

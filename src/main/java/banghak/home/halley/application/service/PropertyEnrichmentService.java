@@ -22,24 +22,19 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 매물 등록 직후 외부 API로 빈 칸을 채우는 보정 작업.
- *
- * 등록 트랜잭션 커밋 뒤 비동기로 돈다. 외부 API가 죽어 있어도 매물 등록 자체는 이미 끝나 있고,
- * 여기서 실패해도 값이 비는 것 외에 부작용이 없다 — 그래서 예외를 삼키고 로그만 남긴다.
- */
+/** 매물 등록 직후 외부 API로 빈 칸을 채우는 보정 작업. */
 @Slf4j
 @Service
 public class PropertyEnrichmentService {
 
-    /** 카카오 학교 카테고리. 반경 2km 안에서 가장 가까운 초등학교를 고른다. */
+ /** 카카오 학교 카테고리. 반경 2km 안에서 가장 가까운 초등학교를 고른다. */
     private static final String SCHOOL_CATEGORY = "SC4";
     private static final int SCHOOL_RADIUS_M = 2000;
-    /** 도보 환산: 분당 67m. */
+ /** 도보 환산: 분당 67m. */
     private static final int WALK_METERS_PER_MINUTE = 67;
-    /** 공동주택 공시가격은 같은 필지에 동·호가 모두 나온다. 전용면적이 이 비율 안이면 같은 타입으로 본다. */
+ /** 공동주택 공시가격은 같은 필지에 동·호가 모두 나온다. 전용면적이 이 비율 안이면 같은 타입으로 본다. */
     private static final double AREA_TOLERANCE = 0.05;
-    /** `102동` · `27` 어느 표기든 앞의 숫자를 동 번호로 본다. */
+ /** 102동 · 27 어느 표기든 앞의 숫자를 동 번호로 본다. */
     private static final Pattern DONG_NUMBER = Pattern.compile("(\\d+)");
 
     private final PropertyRepository propertyRepository;
@@ -78,26 +73,8 @@ public class PropertyEnrichmentService {
         this.cache = cache;
     }
 
-    /**
-     * 등록 요청이 기다리는 앞 단계.
-     *
-     * 초등학교 · 토지이용계획 · 채점 — 셋은 서로의 결과를 쓰지 않으므로 가상 스레드로
-     * 한꺼번에 돕니다. 채점은 초등학교 칸도 공시가격도 읽지 않고 POI와 가격·대출만 보므로
-     * 학교 조회를 기다릴 필요가 없습니다.
-     *
-     * 여기까지 끝나야 응답을 돌려줍니다 — 화면은 그동안 진행 표시를 띄웁니다.
-     *
-     * 등록 트랜잭션 안에서 돌지 않습니다. 외부 API를 부르는 동안 DB 커넥션을
-     * 붙잡고 있으면 동시 등록 몇 건에 풀이 마르고, 카카오가 죽었다고 매물 등록 자체가
-     * 되돌아갑니다 — 외부 연동 실패가 본 기능을 막지 않는다는 원칙(12.2)에 어긋납니다.
-     * 등록은 이미 커밋된 뒤이고, 여기서 실패해도 값이 비는 것 외에 부작용이 없습니다.
-     */
-    /**
-     * 보정 표시가 남아 있을 최대 시간.
-     *
-     * 보정 중에 서버가 죽으면 표시만 남습니다. TTL 이 없으면 그 매물은
-     * 영영 채점되지 않습니다 — 목록이 계속 "곧 채워진다"고만 답합니다.
-     */
+ /** 등록 요청이 기다리는 앞 단계. */
+ /** 보정 표시가 남아 있을 최대 시간. */
     private static final java.time.Duration ENRICHING_TTL = java.time.Duration.ofMinutes(5);
 
     public void enrichCore(Long propertyId) {
@@ -108,8 +85,6 @@ public class PropertyEnrichmentService {
         final Property property = found.get();
         log.info("Enrichment(core) started. propertyId={}", propertyId);
         final long startedAt = System.currentTimeMillis();
-        // AI 추천도 진행 표시를 지금 켠다. 실제 호출은 뒤 단계라
-        // 그때 켜면 그전에 상세를 연 사람은 진행 표시도 폴링도 못 받는다
         llmRecommendationService.markPending(propertyId);
 
         final List<Property> filled = gate.runAll(List.of(
@@ -126,7 +101,6 @@ public class PropertyEnrichmentService {
         final Property school = filled.get(0) == null ? property : filled.get(0);
         if (changed(property, school)) {
             propertyRepository.update(school);
-            // 학교가 채워지기 전 점수로 저장됐을 수 있다. 값이 실제로 바뀐 때만 다시 센다
             step(propertyId, "score-after-school", () -> {
                 rescore(propertyId);
                 return null;
@@ -136,13 +110,7 @@ public class PropertyEnrichmentService {
                 propertyId, System.currentTimeMillis() - startedAt);
     }
 
-    /**
-     * 응답을 돌려준 뒤 배경에서 도는 단계.
-     *
-     * 실거래가와 공시가격은 서로 무관해 동시에 돕니다. AI 추천도는 공시가격 뒤에
-     * 옵니다 — 프롬프트에 `공시가격(원)` 줄이 들어가기 때문입니다. 셋을 나란히 돌리면
-     * 첫 판단이 공시가격을 '정보 없음'으로 본 채 나오고, 그 뒤로 다시 물을 계기가 없습니다.
-     */
+ /** 응답을 돌려준 뒤 배경에서 도는 단계. */
     public void enrichRest(Long propertyId) {
         log.info("Enrichment(rest) started. propertyId={}", propertyId);
         final long startedAt = System.currentTimeMillis();
@@ -156,35 +124,14 @@ public class PropertyEnrichmentService {
                     fetchLlmRecommendation(propertyId);
                     return null;
                 })));
-        // 끝났는데도 결과가 없으면(키 미설정·호출 실패) 진행 표시를 끈다
         llmRecommendationService.clearPendingIfUnresolved(propertyId);
         log.info("Enrichment(rest) finished. propertyId={}, elapsedMs={}",
                 propertyId, System.currentTimeMillis() - startedAt);
-        // 보정이 끝났으니 더 오래 걸리는 후속 작업을 띄운다.
-        // 등록 이벤트로 띄우면 앞 단계와 겹쳐 돈다
         eventPublisher.publishEvent(new PropertyEnrichedEvent(propertyId));
     }
 
-    /**
-     * 앞 단계를 기다렸다가 나머지를 배경으로 넘긴다.
-     *
-     * 뒤 단계를 이벤트로 띄우지 않는 이유: 커밋 직후에 띄우면 앞 단계와 겹쳐 돌 수
-     * 있고, 그러면 AI가 채점 전 상태를 보게 됩니다.
-     */
-    /**
-     * 등록 응답을 붙잡지 않고 배경에서 보정한다.
-     *
-     * 은 초등학교·토지이용계획·채점까지 기다렸다가 돌려줬습니다.
-     * 그때 배경으로 돌리기를 거부한 이유는 "소리 없이 바뀌어 무엇이 도는지
-     * 알 수 없다"였습니다 — 이제 화면이 진행 표시를 띄우고 판 번호로
-     * 알아채므로(I85) 그 이유가 없어졌습니다.
-     *
-     * 기다리는 쪽이 문제가 된 것은 직주근접 때문입니다. ODsay 가 막히면
-     * LLM 이 대신 답하는데(I210) 사람당 4~5초입니다 — 등록 한 번이 수십 초가 됩니다.
-     *
-     * 표시를 먼저 남깁니다. 배경 스레드가 뜨기 전에 목록을 받으면
-     * 표시가 없어 그 자리에서 채점해 버립니다.
-     */
+ /** 앞 단계를 기다렸다가 나머지를 배경으로 넘긴다. */
+ /** 등록 응답을 붙잡지 않고 배경에서 보정한다. */
     public void enrichAsync(Long propertyId) {
         cache.put(CachePort.ENRICHING, String.valueOf(propertyId), "1", ENRICHING_TTL);
         Thread.ofVirtual().name("enrich-" + propertyId).start(() -> {
@@ -193,8 +140,6 @@ public class PropertyEnrichmentService {
             } catch (RuntimeException e) {
                 log.error("Enrichment failed. propertyId={}, cause={}", propertyId, e.toString(), e);
             } finally {
-                // 앞 단계가 끝나면 점수가 있다. 뒤 단계(실거래·공시가격·AI)는
-                // 없어도 화면이 성립하므로 여기서 표시를 걷는다
                 cache.evict(CachePort.ENRICHING, String.valueOf(propertyId));
             }
         });
@@ -206,13 +151,12 @@ public class PropertyEnrichmentService {
             try {
                 enrichRest(propertyId);
             } catch (RuntimeException e) {
-                // 여기서 새어 나가면 가상 스레드가 조용히 죽어 아무 기록도 남지 않는다
                 log.error("Enrichment(rest) failed. propertyId={}, cause={}", propertyId, e.toString(), e);
             }
         });
     }
 
-    /** 공시가격만 따로 저장한다 — 앞 단계에서 이미 학교를 저장했으므로 다시 읽어 덮어쓰기를 피한다. */
+ /** 공시가격만 따로 저장한다. 앞 단계에서 이미 학교를 저장했으므로 다시 읽어 덮어쓰기를 피한다. */
     private void fillOfficialPriceAndSave(Long propertyId) {
         final Optional<Property> found = propertyRepository.findById(propertyId);
         if (found.isEmpty()) {
@@ -225,7 +169,7 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /** 바뀐 게 없으면 저장하지 않는다. 보정이 아무것도 못 채운 경우가 흔하다. */
+ /** 바뀐 게 없으면 저장하지 않는다. 보정이 아무것도 못 채운 경우가 흔하다. */
     private boolean changed(Property before, Property after) {
         return !java.util.Objects.equals(before.schoolName(), after.schoolName())
                 || !java.util.Objects.equals(before.schoolWalkMinutes(), after.schoolWalkMinutes())
@@ -235,10 +179,7 @@ public class PropertyEnrichmentService {
                 || !java.util.Objects.equals(before.officialPriceYear(), after.officialPriceYear());
     }
 
-    /**
-     * 한 단계를 재고 로그를 남긴다. 단계가 터져도 다음 단계는 돌아야 한다 —
-     * 실거래가 조회가 막혔을 때 AI 추천도까지 통째로 날아간 적이 있다.
-     */
+ /** 한 단계를 재고 로그를 남긴다. 단계가 터져도 다음 단계는 돌아야 한다. * 실거래가 조회가 막혔을 때 AI 추천도까지 통째로 날아간 적이 있다. */
     private <T> T step(Long propertyId, String name, java.util.function.Supplier<T> body) {
         final long from = System.currentTimeMillis();
         try {
@@ -252,28 +193,17 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /**
-     * 자동 채점 항목이 채워진 뒤 다시 채점한다.
-     *
-     * 등록 직후에도 한 번 채점되지만 그때는 공시가격·배정 초등학교·토지이용계획이 아직
-     * 없습니다. 보정이 그 값들을 채우고도 다시 채점하지 않으면 `property_score`에 비어 있던
-     * 그때의 결과가 그대로 남습니다.
-     *
-     * AI 추천도는 여기서 기다리지 않습니다 — 수십 초가 걸리고, 그 값이 저장될 때
-     * LlmRecommendationService가 다시 채점합니다. 그래야 AI를 기다리는 동안에도
-     * 나머지 항목의 점수는 화면에 보입니다.
-     */
+ /** 자동 채점 항목이 채워진 뒤 다시 채점한다. */
     private void rescore(Long propertyId) {
         try {
             scoringService.rescore(propertyId);
         } catch (RuntimeException e) {
-            // 채점이 실패해도 보정으로 채운 값 자체는 살아 있어야 한다
             log.warn("Rescore after enrichment failed. propertyId={}, cause={}",
                     propertyId, e.toString());
         }
     }
 
-    /** 붙여넣기 원문에 배정 초등학교가 없으면 카카오로 가장 가까운 초등학교를 찾아 채운다. */
+ /** 붙여넣기 원문에 배정 초등학교가 없으면 카카오로 가장 가까운 초등학교를 찾아 채운다. */
     private Property fillSchool(Property property) {
         if (property.schoolName() != null && !property.schoolName().isBlank()) {
             return property;
@@ -306,11 +236,7 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /**
-     * 공시가격. 지번주소를 카카오로 다시 조회해 PNU(필지고유번호)를 얻고, 그 필지의 공동주택
-     * 공시가격 중 전용면적이 가장 비슷한 건을 고른다. 같은 단지라도 타입마다 공시가격이 달라서
-     * 면적을 맞추지 않으면 엉뚱한 값이 붙는다. 공동주택 결과가 없으면 개별주택(단독·다가구)으로 한 번 더 본다.
-     */
+ /** 공시가격. 지번주소를 카카오로 다시 조회해 PNU(필지고유번호)를 얻고, 그 필지의 공동주택 */
     private Property fillOfficialPrice(Property property) {
         if (property.officialPrice() != null) {
             return property;
@@ -347,13 +273,7 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /**
-     * 매물과 같은 타입의 건을 고른다. 어댑터가 이미 한 연도만 가져오므로 여기서는 동·전용면적으로 좁힌다.
-     *
-     * 순서는 전용면적(±5%) → 같은 동 → 중앙값이다. 같은 면적이라도 층·향에 따라 공시가격이 조금씩 달라서
-     * (실측 은마 84.43㎡: 6.56억 ~ 6.62억) 첫 건을 집기보다 중앙값이 단지 대표값에 가깝다.
-     * 면적을 모르면(수기 등록 등) 전체 중앙값을 쓴다.
-     */
+ /** 매물과 같은 타입의 건을 고른다. 어댑터가 이미 한 연도만 가져오므로 여기서는 동·전용면적으로 좁힌다. */
     private Optional<OfficialPrice> pick(List<OfficialPrice> prices, BigDecimal exclusiveAreaM2, String dongHo) {
         if (prices.isEmpty()) {
             return Optional.empty();
@@ -373,7 +293,7 @@ public class PropertyEnrichmentService {
         return Optional.of(median(sameDong.isEmpty() ? candidates : sameDong));
     }
 
-    /** ±5% 안에 없으면 면적 차가 가장 작은 값들만 남긴다. */
+ /** ±5% 안에 없으면 면적 차가 가장 작은 값들만 남긴다. */
     private List<OfficialPrice> nearestArea(List<OfficialPrice> prices, double target) {
         return prices.stream()
                 .filter(p -> p.areaM2() != null)
@@ -382,7 +302,7 @@ public class PropertyEnrichmentService {
                 .orElse(prices);
     }
 
-    /** 공시가격의 동명은 `27`처럼 숫자만 오고 매물의 동/호는 `102동`이라 숫자로 맞춘다. */
+ /** 공시가격의 동명은 27처럼 숫자만 오고 매물의 동/호는 102동이라 숫자로 맞춘다. */
     private List<OfficialPrice> sameDong(List<OfficialPrice> prices, String dongHo) {
         final String dong = dongNumber(dongHo);
         if (dong == null) {
@@ -408,7 +328,7 @@ public class PropertyEnrichmentService {
         return sorted.get(sorted.size() / 2);
     }
 
-    /** 국토교통부 실거래가를 미리 받아 둔다 — 상세 모달이 버튼 없이 바로 보여줄 수 있어야 한다. */
+ /** 국토교통부 실거래가를 미리 받아 둔다. 상세 모달이 버튼 없이 바로 보여줄 수 있어야 한다. */
     private void fetchReferenceTrades(Long propertyId) {
         try {
             referenceTransactionService.prefetch(propertyId);
@@ -417,7 +337,7 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /** 토지이용계획 — 토지거래허가구역·정비구역을 매물 상세에 붙인다. */
+ /** 토지이용계획. 토지거래허가구역·정비구역을 매물 상세에 붙인다. */
     private void fetchLandUse(Long propertyId) {
         try {
             landUseService.ensureLandUse(propertyId);
@@ -426,10 +346,7 @@ public class PropertyEnrichmentService {
         }
     }
 
-    /**
-     * AI 추천도. 보정의 마지막에 둔다 — 공시가격·초등학교가 채워진 뒤라야
-     * 프롬프트에 그 값들이 실려 판단이 나아진다.
-     */
+ /** AI 추천도. 보정의 마지막에 둔다. 공시가격·초등학교가 채워진 뒤라야 */
     private void fetchLlmRecommendation(Long propertyId) {
         try {
             llmRecommendationService.ensureRecommendation(propertyId);

@@ -35,10 +35,10 @@ public class NotificationService {
     private final ScoringService scoringService;
     private final NotificationLogRepository notificationLogRepository;
     private final ObjectMapper objectMapper;
-    /** Slack 에 실을 코멘트 길이. 넘으면 자른다 — 채널이 덮인다 */
+ /** Slack 에 실을 코멘트 길이. 넘으면 자른다. 채널이 덮인다 */
     private static final int COMMENT_PREVIEW_CHARS = 300;
 
-    /** 알림에 붙일 매물 주소의 앞부분. 비우면 링크를 안 단다 */
+ /** 알림에 붙일 매물 주소의 앞부분. 비우면 링크를 안 단다 */
     private final String baseUrl;
 
     public NotificationService(SlackPort slackPort,
@@ -78,25 +78,13 @@ public class NotificationService {
                 buildCreatedMessage(property), webhook);
     }
 
-    /**
-     * 매물이 지워졌다.
-     *
-     * 이름을 인자로 받습니다. 알림은 커밋 뒤에 나가는데 그때는 이미 매물이 없어
-     * 조회로는 이름을 알 수 없습니다.
-     */
+ /** 매물이 지워졌다. */
     public void sendPropertyDeleted(Long groupId, String propertyName) {
         send(NotificationEventType.PROPERTY_DELETED, null, groupId,
                 ":wastebasket: 매물이 삭제되었습니다 — " + text(propertyName));
     }
 
-    /**
-     * 누가 뭐라고 썼는지까지.
-     *
-     * 전에는 "의견을 남겼습니다"까지만 갔습니다. 무슨 의견인지 보려면 들어가야
-     * 했는데, 대개 그 한 줄이 알림의 전부입니다.
-     *
-     * @param content 남기거나 고친 글. null 이면 지운 것이라 실을 내용이 없다
-     */
+ /** 누가 뭐라고 썼는지까지. */
     public void sendCommentCreated(Long propertyId, String nickname, String content) {
         sendForProperty(NotificationEventType.COMMENT_CREATED, propertyId, property -> {
             final String head = ":speech_balloon: " + text(nickname) + "님이 "
@@ -107,7 +95,7 @@ public class NotificationService {
         });
     }
 
-    /** @param score 1~5. 점수를 빼면 "평가했다"만 남아 좋다는 건지 나쁘다는 건지 모른다 */
+
     public void sendComfortScored(Long propertyId, String nickname, Integer score) {
         sendForProperty(NotificationEventType.COMFORT_SCORED, propertyId,
                 property -> ":sparkles: " + text(nickname) + "님이 "
@@ -115,14 +103,7 @@ public class NotificationService {
                         + (score == null ? "평가했습니다" : score + "점으로 평가했습니다 (5점 만점)"));
     }
 
-    /**
-     * 남의 글을 Slack 인용으로.
-     *
-     * 줄마다 `>` 를 붙입니다. 첫 줄에만 붙이면 두 번째 줄부터 인용이 풀려
-     * 우리가 쓴 문장인지 사용자가 쓴 문장인지 구분이 사라집니다.
-     *
-     * 자릅니다. 코멘트는 2,000자까지 들어가는데 그대로 실으면 채널이 덮입니다.
-     */
+ /** 남의 글을 Slack 인용으로. */
     private String quote(String content) {
         final String trimmed = content.strip();
         final String shown = trimmed.length() > COMMENT_PREVIEW_CHARS
@@ -132,7 +113,7 @@ public class NotificationService {
                 .collect(java.util.stream.Collectors.joining("\n"));
     }
 
-    /** 매물을 찾아 그 그룹으로 보낸다. 매물이 없으면 보낼 곳도 없다. */
+ /** 매물을 찾아 그 그룹으로 보낸다. 매물이 없으면 보낼 곳도 없다. */
     private void sendForProperty(NotificationEventType eventType, Long propertyId,
                                  java.util.function.Function<Property, String> message) {
         if (!shouldSend()) {
@@ -157,29 +138,17 @@ public class NotificationService {
         return value == null || value.isBlank() ? "(이름 없음)" : escape(value);
     }
 
-    /**
-     * Slack 이 태그로 읽는 세 글자를 막는다.
-     *
-     * 우리가 `<!channel>` 을 쓰므로 사람이 쓴 글에 `<...>` 가 있으면
-     * Slack 이 그것도 태그로 읽습니다. 단지명이나 코멘트에서 온 값만 지납니다 —
-     * 메시지 전체에 걸면 우리가 쓴 `<!channel>` 까지 깨집니다.
-     */
+ /** Slack 이 태그로 읽는 세 글자를 막는다. */
     private String escape(String value) {
         return value.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 
-    /** 웹훅이 실제로 닿는지 확인한다. 그룹 설정 화면에서 부른다. */
+ /** 웹훅이 실제로 닿는지 확인한다. 그룹 설정 화면에서 부른다. */
     public boolean testSend(String webhookUrl) {
         return slackPort.send(webhookUrl, ":tada: Halley에서 테스트 메시지를 보냅니다.");
     }
 
-    /**
-     * 지금 알림이 어떤 상태인지.
-     *
-     * 스위치가 환경변수에만 있어, 켜 두고도 매물 등록 알림만 안 오는 이유를
-     * 화면에서 알 길이 없었습니다. 값을 바꾸는 것이 아니라 보여 주기만 합니다 —
-     * 배포로 정하는 값을 화면에서 고칠 수 있는 척하면 그것도 거짓말입니다.
-     */
+ /** 지금 알림이 어떤 상태인지. */
     public NotificationSettingsResponse notificationSettings() {
         return new NotificationSettingsResponse(
                 slackProperties.isEnabled(),
@@ -195,9 +164,7 @@ public class NotificationService {
                 .toList();
     }
 
-    /**
-     * 재시도 대상(RETRYING, 3회 미만) 알림을 5분 주기 스케줄러가 재발송한다.
-     */
+ /** 재시도 대상(RETRYING, 3회 미만) 알림을 5분 주기 스케줄러가 재발송한다. */
     public void resendRetrying() {
         for (final NotificationLog log : notificationLogRepository.findRetrying(50)) {
             if (!shouldSend()) {
@@ -207,8 +174,6 @@ public class NotificationService {
             if (text == null) {
                 continue;
             }
-            // 재발송도 원래 나가야 했던 곳으로 보낸다.
-            // 전역으로 돌리면 재시도 한 번에 남의 채널로 새어 나간다
             final String webhook = webhookForRetry(log);
             if (webhook == null) {
                 continue;
@@ -233,15 +198,9 @@ public class NotificationService {
         };
     }
 
-    /**
-     * 재발송할 알림이 원래 나가야 했던 곳.
-     *
-     * 매물에 딸린 알림이면 그 매물의 그룹, 아니면 운영자에게 갑니다. 그룹 웹훅이
-     * 그 사이에 지워졌으면 보내지 않습니다 — 옛 알림을 엉뚱한 곳에 흘리지 않습니다.
-     */
+ /** 재발송할 알림이 원래 나가야 했던 곳. */
     private String webhookForRetry(NotificationLog log) {
         if (log.propertyId() == null) {
-            // 매물에 딸리지 않은 알림은 보낼 곳이 없다 — 시스템 알림을 두지 않는다
             return null;
         }
         return propertyRepository.findById(log.propertyId())
@@ -249,12 +208,7 @@ public class NotificationService {
                 .orElse(null);
     }
 
-    /**
-     * 그룹의 알림이 나갈 곳.
-     *
-     * 없으면 보내지 않습니다. 전역 웹훅으로 흘려보내면 그게 곧 누수입니다 —
-     * 우리 매물이 남의 채널에 뜹니다.
-     */
+ /** 그룹의 알림이 나갈 곳. */
     private String webhookOfGroup(Long groupId) {
         if (groupId == null) {
             return null;
@@ -279,39 +233,18 @@ public class NotificationService {
         }
     }
 
-    /**
-     * 사람을 부르고, 볼 곳을 알려 준다.
-     *
-     * `@channel` 을 붙입니다. 알림이 그냥 흘러가면 아무도 안 봅니다 —
-     * 매물이 올라온 것을 그날 알아야 의미가 있습니다.
-     * 테스트 메시지는 예외입니다 — 연결을 확인하려고 채널 전체를 부를 이유가 없습니다.
-     *
-     * 볼 곳까지 짚어 줍니다. 쾌적함 알림은 채점 화면으로,
-     * 코멘트 알림은 코멘트 화면으로 갑니다 — 어디로 갈지는 알림 종류가 압니다
-     * (`NotificationEventType.linkSuffix`). 전에는 전부 매물 첫 화면이라
-     * 거기서 다시 찾아 들어가야 했습니다.
-     *
-     * 삭제 알림에는 링크를 안 답니다 — 이미 없는 매물입니다.
-     */
+ /** 사람을 부르고, 볼 곳을 알려 준다. */
     String decorate(NotificationEventType eventType, Long propertyId, String text) {
         final StringBuilder sb = new StringBuilder("<!channel> ").append(text);
         final String suffix = eventType == null ? null : eventType.linkSuffix();
         if (propertyId != null && suffix != null && baseUrl != null && !baseUrl.isBlank()) {
-            // 주소가 `#` 뒤로 갔다. 이걸 안 바꾸면 링크를 눌러도
-            // 껍데기만 뜨고 아무것도 안 열립니다 — 서버는 `#` 뒤를 못 봅니다
             sb.append('\n').append(baseUrl.replaceAll("/+$", ""))
                     .append("/#/properties/").append(propertyId).append(suffix);
         }
         return sb.toString();
     }
 
-    /**
-     * 알림 기능이 켜져 있는지.
-     *
-     * 전역 웹훅 주소는 더 이상 보지 않습니다. 보낼 곳은 매물의 그룹마다 다르므로
-     * 여기서 전역 주소로 막으면 그룹 웹훅을 넣어 둔 사람도 알림을 못 받습니다.
-     * 주소가 없는 경우는 발송 직전에 각자 걸러집니다.
-     */
+ /** 알림 기능이 켜져 있는지. */
     private boolean shouldSend() {
         return slackProperties.isEnabled();
     }

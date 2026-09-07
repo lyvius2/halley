@@ -49,11 +49,7 @@ public class AuthController {
         authService.changePassword(request.currentPassword(), request.newPassword());
     }
 
-    /**
-     * 로그인 전에 화면이 알아야 하는 설정.
-     *
-     * 세션 조회는 로그아웃 상태에서 401이라 여기에 담을 수 없습니다.
-     */
+ /** 로그인 전에 화면이 알아야 하는 설정. */
     @GetMapping("/config")
     public PublicConfigResponse config() {
         return new PublicConfigResponse(signUpOpen);

@@ -52,9 +52,7 @@ public class RegulatedAreaRepository {
         return dsl.selectFrom(TABLE).where(ID.eq(id)).fetchOptional().map(this::map);
     }
 
-    /**
-     * 법정동코드 앞자리가 일치하는 지정을 찾는다. 10자리(법정동)와 5자리(시군구) 후보를 모두 본다.
-     */
+ /** 법정동코드 앞자리가 일치하는 지정을 찾는다. 10자리(법정동)와 5자리(시군구) 후보를 모두 본다. */
     public List<RegulatedArea> findByCodePrefixes(List<String> prefixes) {
         if (prefixes == null || prefixes.isEmpty()) {
             return List.of();
@@ -80,10 +78,7 @@ public class RegulatedAreaRepository {
         return dsl.fetchCount(TABLE, ZONE.eq(zone.name()));
     }
 
-    /**
-     * 고시가 갱신되면 그 규제의 지역을 통째로 갈아 끼운다. 부분 갱신하면
-     * 해제된 지역이 남아 거짓이 된다 — 고시 현황표는 그 시점의 전체 목록이다.
-     */
+ /** 고시가 갱신되면 그 규제의 지역을 통째로 갈아 끼운다. 부분 갱신하면 */
     public void replaceZone(RegulationZone zone, List<RegulatedArea> areas) {
         dsl.deleteFrom(TABLE).where(ZONE.eq(zone.name())).execute();
         areas.forEach(this::save);

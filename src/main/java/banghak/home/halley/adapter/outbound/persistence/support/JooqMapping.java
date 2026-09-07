@@ -46,13 +46,7 @@ public final class JooqMapping {
         return node == null ? null : JSON.valueOf(mapper.writeValueAsString(node));
     }
 
-    /**
-     * JSON 칸을 읽는다.
-     *
-     * 타입을 가리지 않습니다. live(PostgreSQL)는 JSONB, local(H2)은 JSON,
-     * 드라이버에 따라 String이나 PGobject로 오기도 합니다. 한 쪽으로 못 박으면
-     * 다른 쪽에서 ClassCastException이 나는데, 로컬에서는 재현되지 않습니다.
-     */
+ /** JSON 칸을 읽는다. */
     public static JsonNode toJsonNode(Object json, ObjectMapper mapper) {
         final String raw = switch (json) {
             case null -> null;

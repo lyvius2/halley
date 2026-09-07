@@ -11,7 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 import java.time.Duration;
 import java.util.Optional;
 
-/** live용 Redis 캐시 (TTL 7일). 장애 시 조용히 건너뛴다 — 출발지는 다시 입력하면 되는 값이다. */
+/** live용 Redis 캐시 (TTL 7일). 장애 시 조용히 건너뛴다. 출발지는 다시 입력하면 되는 값이다. */
 @Slf4j
 @Component
 @Profile("live")

@@ -29,7 +29,7 @@ public class LandUseRepository {
         this.dsl = dsl;
     }
 
-    /** 매물의 토지이용계획을 통째로 갈아 끼운다 — 부분 갱신은 옛 항목이 남아 거짓이 된다. */
+ /** 매물의 토지이용계획을 통째로 갈아 끼운다. 부분 갱신은 옛 항목이 남아 거짓이 된다. */
     public List<LandUse> replaceAll(Long propertyId, List<LandUse> items) {
         deleteByPropertyId(propertyId);
         for (final LandUse item : items) {
@@ -45,7 +45,7 @@ public class LandUseRepository {
         return findByPropertyId(propertyId);
     }
 
-    /** 포함 → 저촉 → 접함 순. 실제 적용되는 것을 먼저 보여준다. */
+ /** 포함 → 저촉 → 접함 순. 실제 적용되는 것을 먼저 보여준다. */
     public List<LandUse> findByPropertyId(Long propertyId) {
         return dsl.selectFrom(TABLE)
                 .where(PROPERTY_ID.eq(propertyId))

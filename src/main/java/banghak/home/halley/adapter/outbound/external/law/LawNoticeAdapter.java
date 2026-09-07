@@ -16,12 +16,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 법제처 국가법령정보 어댑터.
- *
- * 세 번 부릅니다 — 목록에서 일련번호를 얻고, 본문에서 발령일자와 첨부 링크를 얻고, 첨부 PDF에서
- * 현황표를 읽습니다. 지정 지역이 본문이 아니라 첨부에 있어서 이 단계가 필요합니다.
- */
+/** 법제처 국가법령정보 어댑터. */
 @Slf4j
 @Component
 public class LawNoticeAdapter implements LawNoticePort {
@@ -29,13 +24,13 @@ public class LawNoticeAdapter implements LawNoticePort {
     private static final String TARGET = "admrul";
     private static final String TYPE = "JSON";
     private static final DateTimeFormatter YYYYMMDD = DateTimeFormatter.ofPattern("yyyyMMdd");
-    /** 첨부 링크에서 파일 일련번호만 뽑는다. 링크를 통째로 쓰면 호스트가 바뀔 때 깨진다. */
+ /** 첨부 링크에서 파일 일련번호만 뽑는다. 링크를 통째로 쓰면 호스트가 바뀔 때 깨진다. */
     private static final Pattern FL_SEQ = Pattern.compile("flSeq=(\\d+)");
 
     private final LawNoticeFeignClient client;
     private final RegulationNoticePdfParser pdfParser;
     private final ObjectMapper objectMapper;
-    /** 법제처가 요구하는 이메일 ID. 인증키가 아니다. */
+ /** 법제처가 요구하는 이메일 ID. 인증키가 아니다. */
     private final String oc;
 
     public LawNoticeAdapter(LawNoticeFeignClient client,
@@ -56,7 +51,6 @@ public class LawNoticeAdapter implements LawNoticePort {
     @Override
     public Optional<RegulationNotice> fetchLatest(RegulationZone zone) {
         if (!isEnabled()) {
-            // 키가 없어 안 부른 것과 불렀는데 실패한 것은 다른 상황이다. 구분되지 않으면 원인을 못 찾는다
             log.info("Skipping law notice lookup - law.oc not configured. zone={}", zone);
             return Optional.empty();
         }
@@ -76,7 +70,6 @@ public class LawNoticeAdapter implements LawNoticePort {
         }
         try {
             final JsonNode root = objectMapper.readTree(body).path("AdmRulSearch").path("admrul");
-            // 결과가 1건이면 배열이 아니라 객체로 온다
             final JsonNode first = root.isArray() ? (root.isEmpty() ? null : root.get(0)) : root;
             if (first == null || first.isMissingNode()) {
                 return Optional.empty();

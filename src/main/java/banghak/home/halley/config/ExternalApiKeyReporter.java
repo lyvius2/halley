@@ -9,11 +9,7 @@ import org.springframework.stereotype.Component;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-/**
- * 기동 시 외부 연동 키의 주입 여부를 한 줄로 남긴다. 키가 비어 있으면 어댑터가 외부 호출 없이
- * 빈 결과를 반환하는데, 그 상태가 로그에 드러나지 않으면
- * "API 결과가 안 나온다"의 원인이 키 미주입인지 호출 실패인지 구분할 수 없다.
- */
+/** 기동 시 외부 연동 키의 주입 여부를 한 줄로 남긴다. 키가 비어 있으면 어댑터가 외부 호출 없이 */
 @Slf4j
 @Component
 public class ExternalApiKeyReporter implements ApplicationRunner {

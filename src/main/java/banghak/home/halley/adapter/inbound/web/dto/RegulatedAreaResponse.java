@@ -6,11 +6,7 @@ import banghak.home.halley.domain.loan.RegulationZone;
 import java.time.Instant;
 import java.time.LocalDate;
 
-/**
- * 규제지역 지정 한 건.
- *
- * @param active 오늘 기준으로 유효한 지정인지 — 해제됐거나 아직 시작 전이면 false
- */
+/** 규제지역 지정 한 건. */
 public record RegulatedAreaResponse(
         Long id,
         String codePrefix,

@@ -12,7 +12,6 @@ public class EcosFallbackFactory implements FallbackFactory<EcosFeignClient> {
 
     @Override
     public EcosFeignClient create(Throwable cause) {
-        // 인증키는 경로에 들어간다. 로그에 남기지 않는다
         return (key, start, end, statCode, cycle, from, to) -> {
             log.warn("ECOS call failed - returning no series. statCode={}, cycle={}, period={}~{}, cause={}",
                     statCode, cycle, from, to, describe(cause));

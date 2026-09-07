@@ -19,14 +19,10 @@ import java.util.Map;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
-/**
- * 포트를 직접 구현하지 않습니다. 담아 두기({@link CachingDirections})가
- * 포트이고 이것을 감쌉니다 — TransitWithLlmFallback 이 ODsay 를 감싸는 것과
- * 같은 모양입니다. 둘 다 포트이면 시험이 갈아 끼우는 대역과 우선 빈이 부딪힙니다.
- */
+/** 포트를 직접 구현하지 않습니다. 담아 두기({@link CachingDirections})가 */
 public class KakaoDirectionsAdapter {
 
-    /** 이보다 짧은 도로는 안 적는다 — 골목까지 늘어놓으면 큰길이 안 보인다. */
+ /** 이보다 짧은 도로는 안 적는다. 골목까지 늘어놓으면 큰길이 안 보인다. */
     private static final int MIN_ROAD_METERS = 300;
 
     private final KakaoDirectionsFeignClient client;
@@ -44,7 +40,7 @@ public class KakaoDirectionsAdapter {
         this.quota = quota;
     }
 
-    /** 카카오가 받는 출발 시각 꼴. */
+ /** 카카오가 받는 출발 시각 꼴. */
     private static final DateTimeFormatter DEPART_AT = DateTimeFormatter.ofPattern("yyyyMMddHHmm");
 
     public DriveRoute findRoute(double fromLng, double fromLat, double toLng, double toLat,
@@ -52,8 +48,6 @@ public class KakaoDirectionsAdapter {
         if (restKey == null || restKey.isBlank()) {
             return DriveRoute.missing();
         }
-        // 하루치를 다 썼으면 부르지 않는다.
-        // 던져 봐야 400 이 오고, 차단기만 여닫힌다
         if (quota.exhausted()) {
             return DriveRoute.missing();
         }
@@ -83,25 +77,8 @@ public class KakaoDirectionsAdapter {
         }
     }
 
-    /**
-     * 실제 주행 경로선.
-     *
-     * `vertexes` 는 경도·위도가 번갈아 든 평평한 배열입니다.
-     * `[lng, lat, lng, lat, …]` — 둘씩 끊어 읽습니다. 순서를 뒤집으면 지도에
-     * 아프리카 앞바다에 선이 그려집니다.
-     *
-     * 도로가 여러 개면 이어 붙입니다. 한 경로가 도로 아홉 개로 쪼개져 오기도 합니다.
-     */
-    /**
-     * 어느 길로 얼마나.
-     *
-     * 카카오는 도로를 잘게 쪼개서 줍니다 — 27km 한 경로가 26조각입니다.
-     * 이름이 같으면 이어 붙입니다: "동부간선도로 0.4km"가 여섯 줄 뜨는 것보다
-     * "동부간선도로 2.2km" 한 줄이 읽힙니다.
-     *
-     * 짧은 구간은 버립니다. 큰길로 들어가기 전의 골목까지 늘어놓으면
-     * 정작 어느 도로를 타는지가 안 보입니다. 이름 없는 조각도 마찬가지입니다.
-     */
+ /** 실제 주행 경로선. */
+ /** 어느 길로 얼마나. */
     private List<TransitLeg> roadsOf(JsonNode route) {
         final Map<String, Integer> merged = new LinkedHashMap<>();
         for (final JsonNode section : route.path("sections")) {
@@ -119,19 +96,7 @@ public class KakaoDirectionsAdapter {
                 .toList();
     }
 
-    /**
-     * 실제 주행 경로선을 정체 상태별로 끊어서.
-     *
-     * `vertexes` 는 경도·위도가 번갈아 든 평평한 배열입니다.
-     * `[lng, lat, lng, lat, …]` — 둘씩 끊어 읽습니다. 순서를 뒤집으면 지도에
-     * 아프리카 앞바다에 선이 그려집니다.
-     *
-     * 도로마다 `traffic_state` 가 따로 옵니다. 한 색으로 이어 붙이면 그 값이
-     * 버려집니다 — 도로 하나가 구간 하나이고, 색은 화면이 고릅니다.
-     *
-     * 도로 사이를 잇습니다. 앞 도로의 끝점과 다음 도로의 첫점이 떨어져 있으면
-     * 선이 끊겨 보입니다. 다음 구간의 머리에 앞 구간의 꼬리를 붙여 둡니다.
-     */
+ /** 실제 주행 경로선을 정체 상태별로 끊어서. */
     private RoutePath pathOf(JsonNode route) {
         final List<RoutePath.Segment> segments = new ArrayList<>();
         RoutePath.Point tail = null;

@@ -27,7 +27,7 @@ public class LlmModelService {
 
     private final SystemConfigRepository systemConfigRepository;
     private final ClaudeModelsPort claudeModelsPort;
-    /** 아무것도 안 골랐을 때 쓰는 모델 — 배포로 정한다. */
+ /** 아무것도 안 골랐을 때 쓰는 모델. 배포로 정한다. */
     private final String defaultModel;
 
     public LlmModelService(SystemConfigRepository systemConfigRepository,
@@ -38,7 +38,7 @@ public class LlmModelService {
         this.defaultModel = defaultModel;
     }
 
-    /** 이 자리가 쓸 모델. 안 골랐으면 기본값 — 빈 문자열을 그대로 보내면 400이 난다. */
+ /** 이 자리가 쓸 모델. 안 골랐으면 기본값. 빈 문자열을 그대로 보내면 400이 난다. */
     public String modelFor(LlmFeature feature) {
         return systemConfigRepository.findById(feature.configKey())
                 .map(SystemConfig::configValue)
@@ -46,7 +46,7 @@ public class LlmModelService {
                 .orElse(defaultModel);
     }
 
-    /** 관리자 화면이 보여 줄 것 — 자리마다 지금 고른 값. */
+ /** 관리자 화면이 보여 줄 것. 자리마다 지금 고른 값. */
     public Map<LlmFeature, String> current() {
         final Map<LlmFeature, String> chosen = new LinkedHashMap<>();
         for (final LlmFeature feature : LlmFeature.values()) {
@@ -55,7 +55,7 @@ public class LlmModelService {
         return chosen;
     }
 
-    /** 관리자가 고른 것을 적는다. 아는 자리·목록 안 모델만 받는다. */
+ /** 관리자가 고른 것을 적는다. 아는 자리·목록 안 모델만 받는다. */
     public void update(List<UpdateLlmModelRequest> requests) {
         final Set<String> allowed = available().stream()
                 .map(LlmModelOption::id)
@@ -82,7 +82,7 @@ public class LlmModelService {
         }
     }
 
-    /** 고를 수 있는 모델. Anthropic 이 안 알려 주면 지금 쓰는 것들만 돌려준다. */
+ /** 고를 수 있는 모델. Anthropic 이 안 알려 주면 지금 쓰는 것들만 돌려준다. */
     public List<LlmModelOption> available() {
         final List<LlmModelOption> models = claudeModelsPort.list();
         if (!models.isEmpty()) {

@@ -5,7 +5,7 @@ import java.time.LocalDate;
 
 public record ReferenceTransaction(
         Long id,
-        /** 매물이 아니라 단지에 붙는다. */
+ /** 매물이 아니라 단지에 붙는다. */
         Long complexId,
         ReferenceDealType dealType,
         LocalDate contractDate,

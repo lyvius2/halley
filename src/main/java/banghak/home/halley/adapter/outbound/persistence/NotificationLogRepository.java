@@ -96,9 +96,7 @@ public class NotificationLogRepository {
                 .execute();
     }
 
-    /**
-     * 재시도 실패 처리 — retryCount가 3회 미만이면 RETRYING 유지, 3회 이상이면 FAILED로 확정한다.
-     */
+ /** 재시도 실패 처리. retryCount가 3회 미만이면 RETRYING 유지, 3회 이상이면 FAILED로 확정한다. */
     public void markRetry(Long id, int retryCount, String errorMessage) {
         final NotificationStatus status = retryCount >= 3 ? NotificationStatus.FAILED : NotificationStatus.RETRYING;
         dsl.update(TABLE)

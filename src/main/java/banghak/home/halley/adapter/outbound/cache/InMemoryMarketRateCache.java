@@ -17,7 +17,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Profile("!live")
 public class InMemoryMarketRateCache implements MarketRateCache {
 
-    /** 공시는 월 단위로 바뀌므로 하루면 충분히 짧다. */
+ /** 공시는 월 단위로 바뀌므로 하루면 충분히 짧다. */
     private static final Duration TTL = Duration.ofDays(1);
 
     private final Map<LoanProductType, Entry> store = new ConcurrentHashMap<>();

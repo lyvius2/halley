@@ -1,11 +1,6 @@
 package banghak.home.halley.domain.forecast;
 
-/**
- * 이 판단을 얼마나 믿을 만한가.
- *
- * 코드 예측에서는 요인들이 서로 얼마나 일치하는가로 정합니다.
- * 방향이 갈리는데 확신이 높을 수는 없습니다.
- */
+/** 이 판단을 얼마나 믿을 만한가. */
 public enum ForecastConfidence {
     LOW("낮음"),
     MEDIUM("보통"),

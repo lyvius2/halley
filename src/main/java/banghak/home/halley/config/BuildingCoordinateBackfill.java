@@ -15,11 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 이미 저장된 매물의 겹친 좌표를 건물 좌표로 바꾼다.
- * 좌표가 같은 매물이 둘 이상인 경우에만 물어보므로, 한 번 갈라지면 다음부터는
- * 대상이 아니다 — 여러 번 돌려도 같다. 카카오 키가 없거나 막히면 그냥 안 바뀐다.
- */
+/** 이미 저장된 매물의 겹친 좌표를 건물 좌표로 바꾼다. */
 @Slf4j
 @Component
 @Order(60)
@@ -72,7 +68,7 @@ public class BuildingCoordinateBackfill implements ApplicationRunner {
                 .orElse(false);
     }
 
-    /** 소수점 여섯 자리면 1m 안쪽 — 같은 자리로 본다. */
+ /** 소수점 여섯 자리면 1m 안쪽. 같은 자리로 본다. */
     private static String spot(Property property) {
         return property.lat().setScale(6, RoundingMode.HALF_UP)
                 + "," + property.lng().setScale(6, RoundingMode.HALF_UP);

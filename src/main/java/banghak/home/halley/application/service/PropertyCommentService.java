@@ -26,12 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-/**
- * 매물 코멘트.
- *
- * 사람당 매물 하나에 한 건입니다. 이미 남겼으면 새로 쓰지 않고 자기 글을 고칩니다.
- * 남의 글은 읽을 수만 있습니다.
- */
+/** 매물 코멘트. */
 @Service
 public class PropertyCommentService {
 
@@ -74,7 +69,6 @@ public class PropertyCommentService {
         }
         final PropertyComment saved = commentRepository.save(new PropertyComment(
                 null, propertyId, me, validated(request), Instant.now(), null));
-        // 코멘트는 AI 추천의 입력이다. 바뀌면 다시 묻는다
         eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname(), saved.content()));
         return toResponse(saved, nicknames(), me);
     }
@@ -93,11 +87,10 @@ public class PropertyCommentService {
     public void delete(Long propertyId, Long commentId) {
         requireOwnComment(propertyId, commentId);
         commentRepository.delete(commentId);
-        // 지운 것에는 실을 내용이 없다 — null 이 그 뜻이다
         eventPublisher.publishEvent(PropertyInsightChanged.comment(propertyId, myNickname(), null));
     }
 
-    /** 알림에 들어갈 이름. 탈퇴 스냅샷과 같은 이유로 조회 시점의 값을 쓴다. */
+ /** 알림에 들어갈 이름. 탈퇴 스냅샷과 같은 이유로 조회 시점의 값을 쓴다. */
     private String myNickname() {
         return userRepository.findById(requireCurrentUserId()).map(u -> u.nickname()).orElse(null);
     }

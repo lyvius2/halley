@@ -152,12 +152,7 @@ public class PropertyRepository {
         return findById(id).orElseThrow();
     }
 
-    /**
-     * 단지 번호만 따로 적는다.
-     *
-     * Property 레코드에 칸을 더하지 않기로 했으므로(55칸) 이 값만
-     * 따로 씁니다. 매물의 다른 값은 건드리지 않습니다.
-     */
+ /** 단지 번호만 따로 적는다. */
     public void setComplexId(Long propertyId, Long complexId) {
         dsl.update(TABLE)
                 .set(COMPLEX_ID, complexId)
@@ -165,12 +160,7 @@ public class PropertyRepository {
                 .execute();
     }
 
-    /**
-     * 좌표만 따로 적는다.
-     *
-     * 동을 가려 받은 건물 좌표로 바꿔 줄 때 씁니다. 매물의 다른 값은
-     * 건드리지 않습니다 — 사람이 고친 값을 덮으면 안 됩니다.
-     */
+ /** 좌표만 따로 적는다. */
     public void setCoordinates(Long propertyId, BigDecimal lat, BigDecimal lng) {
         dsl.update(TABLE)
                 .set(LAT, lat)
@@ -244,12 +234,12 @@ public class PropertyRepository {
                 .map(this::map);
     }
 
-    /** 채점 버전 확인용 — 전체 레코드를 읽지 않는다. */
+ /** 채점 버전 확인용. 전체 레코드를 읽지 않는다. */
     public List<Long> findAllIds() {
         return dsl.select(ID).from(TABLE).orderBy(ID.asc()).fetch(ID);
     }
 
-    /** 한 그룹의 매물만. 회원은 자기 그룹 밖을 볼 수 없다. */
+ /** 한 그룹의 매물만. 회원은 자기 그룹 밖을 볼 수 없다. */
     public List<Property> findByGroupId(Long groupId) {
         return dsl.selectFrom(TABLE)
                 .where(GROUP_ID.eq(groupId))
@@ -267,8 +257,8 @@ public class PropertyRepository {
                 .map(this::map);
     }
 
-    /** 그룹이 사라질 때 그 그룹의 매물도 함께 지운다. */
-    /** 탈퇴 직전 등록자 이름을 값으로 굳힌다. */
+ /** 그룹이 사라질 때 그 그룹의 매물도 함께 지운다. */
+ /** 탈퇴 직전 등록자 이름을 값으로 굳힌다. */
     public int snapshotCreatorNickname(Long userId, String nickname) {
         return dsl.update(TABLE)
                 .set(CREATED_BY_NICKNAME, nickname)

@@ -21,26 +21,18 @@ import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 기준 스트레스 금리를 한국은행 통계로 갱신한다.
- *
- * 지금까지 `loan.stressRate`는 사람이 넣은 고정값(하한 1.5%)이었습니다. 실제 규제식은
- * 과거 5년 시계열이 필요해 미뤄 뒀던 것을, ECOS 연동으로 자동화합니다.
- *
- * 못 받으면 아무것도 하지 않습니다. 기존 값을 그대로 둡니다 — 조회 실패로 스트레스가
- * 0이 되면 한도가 실제보다 넉넉하게 나옵니다. 조용히 낙관적으로 틀리는 쪽이 가장 위험합니다.
- */
+/** 기준 스트레스 금리를 한국은행 통계로 갱신한다. */
 @Slf4j
 @Service
 public class StressRateService {
 
     private static final String STRESS_RATE_KEY = "loan.stressRate";
-    /** 산출 근거를 남겨 둔다. 화면이 "왜 이 값인가"를 말할 수 있어야 한다. */
+ /** 산출 근거를 남겨 둔다. 화면이 "왜 이 값인가"를 말할 수 있어야 한다. */
     private static final String SOURCE_KEY = "loan.stressRate.source";
     private static final String UPDATED_KEY = "loan.stressRate.updatedAt";
     private static final String PROFILE_KEY = "loan.regulation.profile";
     private static final String DEFAULT_PROFILE = "2025-10-15";
-    /** 규제식이 보는 기간 — 과거 5년. */
+ /** 규제식이 보는 기간. 과거 5년. */
     private static final int LOOKBACK_YEARS = 5;
 
     private final LoanRateHistoryPort loanRateHistoryPort;
@@ -61,11 +53,7 @@ public class StressRateService {
         this.cap = cap;
     }
 
-    /**
-     * 시계열을 받아 기준 스트레스 금리를 다시 정한다.
-     *
-     * @return 갱신했으면 그 근거. 조회 실패·자료 부족이면 empty이고 기존 값은 그대로다
-     */
+ /** 시계열을 받아 기준 스트레스 금리를 다시 정한다. */
     @Transactional
     public Optional<StressRateDecision> refresh() {
         if (!loanRateHistoryPort.isEnabled()) {
@@ -78,7 +66,6 @@ public class StressRateService {
 
         final Optional<StressRateDecision> decided = StressRatePolicy.decide(series, floor, cap);
         if (decided.isEmpty()) {
-            // 기존 값을 그대로 둔다. 0으로 떨어뜨리면 한도가 넉넉해진다
             log.warn("Stress rate not refreshed - no usable series. period={}~{}, points={}",
                     from, to, series.size());
             return Optional.empty();
@@ -100,8 +87,6 @@ public class StressRateService {
                                 decision.stressRate().toPlainString(), existing.valueType(),
                                 existing.description(), null, Instant.now())),
                         () -> log.warn("Stress rate param not found in profile {} - skipped.", profile));
-        // 근거는 시스템 설정에 둔다. 규제 파라미터는 숫자만 담는 자리다.
-        // 두 키의 설명이 같으면 화면에 같은 이름이 두 줄 뜬다
         putConfig(SOURCE_KEY, decision.source(), "스트레스 금리 산출 근거 (읽기 전용)");
         putConfig(UPDATED_KEY, Instant.now().toString(), "스트레스 금리 산출 시각 (읽기 전용)");
     }

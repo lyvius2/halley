@@ -13,38 +13,15 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 같은 단지·면적대의 거래 중앙값.
- *
- * 지표들이 공유합니다. 실거래 추세와 전세가율이 서로 다른 면적 기준을 쓰면
- * 다른 모집단을 비교하게 됩니다 — 전세가율은 특히 매매와 전세를 나누므로
- * 두 쪽 기준이 반드시 같아야 합니다.
- */
+/** 같은 단지·면적대의 거래 중앙값. */
 public class TradeStatCalculator {
 
-    /**
-     * 실거래 카드와 같은 기준(`ReferenceTransactionService.AREA_TOLERANCE`).
-     * 두 화면이 다른 면적대를 보면 사용자가 헷갈립니다.
-     */
+ /** 실거래 카드와 같은 기준(ReferenceTransactionService.AREA_TOLERANCE). */
     private static final BigDecimal AREA_TOLERANCE = new BigDecimal("0.15");
-    /** 이보다 짧은 단지명은 우연히 걸린다 — 판정에 쓰지 않는다. */
+ /** 이보다 짧은 단지명은 우연히 걸린다. 판정에 쓰지 않는다. */
     private static final int MIN_NAME_LENGTH = 2;
 
-    /**
-     * 위치가 아니라 연월로 자릅니다.
-     *
-     * 예전에는 리스트 인덱스로 창을 잘랐습니다. 그런데 못 받은 달은 목록에서
-     * 빠집니다 — 60개 중 다섯 달이 없으면 "최근 3개월"이 실제로는 다른 달 셋을
-     * 가리키고, 근거 문장에는 그대로 "직전 3개월"이라고 적힙니다.
-     *
-     * 구멍이 있으면 표본이 줄어들 뿐이어야 합니다. 그러면 표본 하한이
-     * 알아서 판단을 보류합니다 — 조용히 다른 달을 보는 것보다 훨씬 낫습니다.
-     *
-     * @param base         "최근"의 기준 달. 목록의 마지막이 아니라 오늘이다
-     * @param offsetMonths 몇 달 전 구간인지. 0이면 가장 최근
-     * @param windowMonths 구간 길이
-     * @param lagMonths    신고 지연으로 뺄 최근 달 수
-     */
+ /** 위치가 아니라 연월로 자릅니다. */
     public TradeStat medianOf(Property property, List<MonthlyTrades> monthly, YearMonth base,
                               int offsetMonths, int windowMonths, int lagMonths) {
         if (monthly == null || monthly.isEmpty() || base == null || windowMonths <= 0) {
@@ -58,15 +35,7 @@ public class TradeStatCalculator {
                 .toList());
     }
 
-    /**
-     * 창을 한 달씩 밀며 중앙값을 죽 뽑는다.
-     *
-     * 전고점을 찾으려면 한 달만 보면 안 됩니다. 거래가 한두 건인 달은
-     * 중앙값이 튀어 실제로는 없던 고점이 만들어집니다. 3개월씩 겹쳐 훑습니다.
-     *
-     * @param spanMonths 얼마나 거슬러 볼지. 이 기간 안에서 창을 민다
-     * @return 표본이 minSamples에 못 미치는 창은 빼고 돌려준다
-     */
+ /** 창을 한 달씩 밀며 중앙값을 죽 뽑는다. */
     public List<TradeStat> rollingMedians(Property property, List<MonthlyTrades> monthly, YearMonth base,
                                           int spanMonths, int windowMonths, int lagMonths, int minSamples) {
         final List<TradeStat> stats = new ArrayList<>();
@@ -101,10 +70,7 @@ public class TradeStatCalculator {
         return new TradeStat(median(amounts), amounts.size());
     }
 
-    /**
-     * 평균이 아니라 중앙값입니다. 표본이 얇아 대형 평형 한 건이 섞이면
-     * 평균은 통째로 끌려갑니다.
-     */
+ /** 평균이 아니라 중앙값입니다. 표본이 얇아 대형 평형 한 건이 섞이면 */
     private BigDecimal median(List<Long> sorted) {
         final int n = sorted.size();
         if (n % 2 == 1) {
@@ -114,15 +80,7 @@ public class TradeStatCalculator {
                 .divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
     }
 
-    /**
-     * 어디서 0이 됐는지 센다.
-     *
-     * 실거래 지표가 안 나올 때 이유가 넷인데 화면도 로그도 아무 말이
-     * 없었습니다 — 자료를 못 받았는지, 단지명이 안 맞는지, 평형이 다른지,
-     * 그냥 거래가 드문지. 사람이 LLM 산문을 읽고 짐작해야 했습니다.
-     *
-     * 에서 실거래 카드에 한 것과 같은 처방입니다.
-     */
+ /** 어디서 0이 됐는지 센다. */
     public MatchTally tally(Property property, List<MonthlyTrades> monthly) {
         int trades = 0;
         int nameMatched = 0;
@@ -147,13 +105,7 @@ public class TradeStatCalculator {
         return new MatchTally(trades, nameMatched, areaMatched);
     }
 
-    /**
-     * 창 안의 거래가 어디서 걸러졌는가.
-     *
-     * @param trades      받아 둔 거래 전부
-     * @param nameMatched 그중 단지명이 맞는 것
-     * @param areaMatched 그중 면적까지 맞는 것 — 지표가 실제로 세는 것
-     */
+ /** 창 안의 거래가 어디서 걸러졌는가. */
     public record MatchTally(int trades, int nameMatched, int areaMatched) {
     }
 
@@ -161,23 +113,12 @@ public class TradeStatCalculator {
         return matchesProperty(property, trade);
     }
 
-    /**
-     * 이 거래가 이 매물의 것인가.
-     *
-     * 지표마다 따로 거르면 같은 규칙이 여러 벌이 됩니다 —에서
-     * 정확히 그 일로 전망이 늘 자료 부족이었습니다.
-     */
+ /** 이 거래가 이 매물의 것인가. */
     public boolean matchesProperty(Property property, ReferenceTrade trade) {
         return sameName(property, trade) && sameArea(property, trade);
     }
 
-    /**
-     * 같은 단지인가.
-     *
-     * 규칙은 `ComplexMatch` 하나입니다. 여기서 따로
-     * 정규화하다가 괄호 안을 남겨, `상계주공7(고층)` 이 `상계주공7단지` 와 안
-     * 맞았습니다 — 그 단지는 전망이 늘 자료 부족이었습니다.
-     */
+ /** 같은 단지인가. */
     private boolean sameName(Property property, ReferenceTrade trade) {
         return ComplexMatch.same(
                 property == null ? null : property.addressJibun(),

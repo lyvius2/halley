@@ -19,7 +19,7 @@ public final class ComparativeAnalysisTable {
 
     public static final Field<Long> ID = field(name(T, "id"), Long.class);
     public static final Field<Long> PROPERTY_ID = field(name(T, "property_id"), Long.class);
-    /** `rank`는 SQL 표준 윈도우 함수 이름이라 컬럼명으로 쓰지 않는다. */
+ /** rank는 SQL 표준 윈도우 함수 이름이라 컬럼명으로 쓰지 않는다. */
     public static final Field<Integer> RANK_NO = field(name(T, "rank_no"), Integer.class);
     public static final Field<BigDecimal> SCORE = field(name(T, "score"), BigDecimal.class);
     public static final Field<String> REASON = field(name(T, "reason"), String.class);

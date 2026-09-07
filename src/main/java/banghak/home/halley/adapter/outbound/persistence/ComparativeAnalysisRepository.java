@@ -30,7 +30,7 @@ public class ComparativeAnalysisRepository {
         this.dsl = dsl;
     }
 
-    /** 매물당 한 건이라 있으면 갱신, 없으면 새로 넣는다. */
+ /** 매물당 한 건이라 있으면 갱신, 없으면 새로 넣는다. */
     public ComparativeAnalysis upsert(ComparativeAnalysis analysis) {
         final Optional<ComparativeAnalysis> existing = findByPropertyId(analysis.propertyId());
         if (existing.isPresent()) {
@@ -66,7 +66,7 @@ public class ComparativeAnalysisRepository {
                 .map(this::map);
     }
 
-    /** 순위 오름차순 — 1위가 먼저. */
+ /** 순위 오름차순. 1위가 먼저. */
     public List<ComparativeAnalysis> findAll() {
         return dsl.selectFrom(TABLE)
                 .orderBy(RANK_NO.asc().nullsLast(), PROPERTY_ID.asc())

@@ -16,15 +16,7 @@ import org.springframework.stereotype.Component;
 import java.time.Instant;
 import java.util.List;
 
-/**
- * 그룹이 없던 시절의 회원·매물을 기본 그룹으로 옮긴다.
- *
- * 이게 없으면 기동 즉시 아무도 자기 매물을 못 봅니다. 매물은 그룹으로 걸러 보여
- * 주는데 기존 자료에는 그룹이 없기 때문입니다. 회원 관점에서는 자료가 사라진 것과 같습니다.
- *
- * 한 번만 돕니다 — 그룹이 하나라도 있으면 이미 옮긴 것으로 봅니다. admin은 어느 그룹에도
- * 넣지 않습니다(규칙 5).
- */
+/** 그룹이 없던 시절의 회원·매물을 기본 그룹으로 옮긴다. */
 @Slf4j
 @Component
 @Order(5)

@@ -8,9 +8,7 @@ import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 단지명 — "단지명" 라벨이 있으면 그 값, 없으면 제목 첫 줄에서 동/호 부분을 제외한 값.
- */
+/** 단지명. "단지명" 라벨이 있으면 그 값, 없으면 제목 첫 줄에서 동/호 부분을 제외한 값. */
 public class NameExtractor implements FieldExtractor<String> {
 
     @Override

@@ -9,24 +9,7 @@ import banghak.home.halley.domain.loan.RegulationZone;
 
 import java.math.BigDecimal;
 
-/**
- * 대출 한도 계산 결과.
- *
- * `productType`이 어느 필드를 읽을지 정합니다. 매매(주담대)와 전세는 계산 구조가 달라
- * 결과 항목도 다릅니다. 한 화면이 두 상품을 다루므로 하나의 DTO로 내보내되, 해당 없는 필드는
- * null입니다.
- *
- *
- *   MORTGAGE — `ltvLimit`·`collateral*`·`leaseDeduction`·`acquisitionTax`·`zone`·`ltvRate`
- *   JEONSE — `guaranteeLimit`·`guaranteeRate`·`guaranteeCap`.
- *       취득세·방공제·LTV·담보가치가 없습니다 — 담보가 집이 아니라 보증기관의 보증입니다
- *
- *
- * 뒤쪽 공통 필드들은 화면의 대출액 슬라이더가 매번 서버를 부르지 않고 월 상환액·필요
- * 현금을 다시 계산하기 위한 값입니다.
- *
- * @param interestOnly 이자만 내는 상품인지. 전세대출은 만기일시상환이라 true
- */
+/** 대출 한도 계산 결과. */
 public record LoanEstimateResponse(
         Long propertyId,
         ProductType productType,
@@ -41,32 +24,19 @@ public record LoanEstimateResponse(
         Long askingPrice,
         Long usedAnnualIncome,
         Long usedCash,
-        /**
-         * 같은 그룹 사용자들의 보유 현금 합계.
-         *
-         * 한도 계산에는 내 현금만 들어갑니다 — 대출은 개인 명의로 받으니까요.
-         * 그런데 이 앱은 그룹이 현금을 모아 집을 사려고 만든 것이라, 화면에는 둘 다 보여야
-         * "왜 내 현금 기준으로 부족하다고 나오는가"를 오해 없이 읽을 수 있습니다.
-         */
+ /** 같은 그룹 사용자들의 보유 현금 합계. */
         Long groupCash,
         Long usedExistingLoan,
         Double monthlyRate,
-        /** DSR 한도를 역산할 때 쓴 연이율. 실금리보다 높다 */
+ /** DSR 한도를 역산할 때 쓴 연이율. 실금리보다 높다 */
         Double dsrRate,
         String rateTypeLabel,
         Integer termMonths,
-        /**
-         * 금리 출처 한 줄. `은행 12개 상품 변동금리 중앙값 (2026년 1월 공시)` 또는
-         * 못 받았을 때 `기본 금리 4% 적용 중`. 어디서 온 숫자인지 안 보이면 검증할 수 없다
-         */
+ /** 금리 출처 한 줄. 은행 12개 상품 변동금리 중앙값 (2026년 1월 공시) 또는 */
         String rateSource,
-        /**
-         * 스트레스 금리가 어디서 왔는지. 한국은행 통계로 산출했으면 그 근거,
-         * 사람이 넣은 값이면 null. 한도를 좁히는 숫자라 출처가 보여야 검증됩니다.
-         */
+ /** 스트레스 금리가 어디서 왔는지. 한국은행 통계로 산출했으면 그 근거, */
         String stressRateSource,
 
-        // ── 매매(주담대) 전용 ─────────────────────
         Long ltvLimit,
         Long acquisitionTax,
         Long collateralValue,
@@ -82,14 +52,9 @@ public record LoanEstimateResponse(
         String ownershipLabel,
         BigDecimal ltvRate,
         String ltvReason,
-        /**
-         * 규제지역 값을 믿을 수 없을 때 그 사유. 규제지역이 비면 비규제로 판정되어
-         * LTV 0.7이 잡히는데, 실제가 투기과열지구(0.4)면 한도를 과대평가한다.
-         * 조용히 틀리지 않도록 화면에 그대로 실어 보낸다. 정상이면 null
-         */
+ /** 규제지역 값을 믿을 수 없을 때 그 사유. 규제지역이 비면 비규제로 판정되어 */
         String zoneWarning,
 
-        // ── 전세 전용 ────────────────────────────
         Long guaranteeLimit,
         BigDecimal guaranteeRate,
         Long guaranteeCap

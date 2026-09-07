@@ -12,18 +12,10 @@ import java.util.StringJoiner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * LLM에 보낼 프롬프트와 그 안에 든 숫자들.
- *
- * 숫자를 따로 들고 있는 이유는 답을 검증하기 위해서입니다. 모델이 인용한 숫자가
- * 여기 없으면 지어낸 것이므로 그 요인을 버립니다(2.2-A).
- *
- * 원본 거래 목록을 넣지 않습니다. 이미 계산된 값만 넣습니다 —
- * 넣으면 모델이 산술을 하게 되고, 조용히 틀립니다.
- */
+/** LLM에 보낼 프롬프트와 그 안에 든 숫자들. */
 public record ForecastPrompt(String system, String user, Set<String> allowedNumbers) {
 
-    /** 문장에서 숫자를 뽑는다. 천 단위 쉼표와 소수점을 포함한다. */
+ /** 문장에서 숫자를 뽑는다. 천 단위 쉼표와 소수점을 포함한다. */
     private static final Pattern NUMBER = Pattern.compile("\\d[\\d,]*(?:\\.\\d+)?");
 
     private static final String SYSTEM = """
@@ -54,22 +46,12 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
             - 이것은 예측이며 틀릴 수 있습니다. 단정적인 표현을 쓰지 마세요.
             """;
 
-    /**
-     * @param factors 코드가 계산한 요인들. 코드의 종합 예측은 넣지 않습니다 —
-     *                보여 주면 모델이 끌려가 두 예측이 독립이 아니게 됩니다
-     */
+
     public static ForecastPrompt of(Property property, List<PriceFactor> factors, int horizonMonths) {
         return of(property, factors, horizonMonths, null, null);
     }
 
-    /**
-     * @param gapNote       실거래 지표가 왜 빠졌는지. 없으면 null.
-     *                      이유를 안 알려 주면 모델이 "인근 실거래 비교 자료가 없습니다"
-     *                      처럼 지어낸 추측을 씁니다 — 실제로 그랬습니다
-     * @param yearlyMedians 5년이 어떤 모양으로 움직였는가. 없으면 null.
-     *                      지표가 아니라 읽을 재료입니다 — 같은 +7.6% 라도
-     *                      꾸준히 오른 것과 올랐다 꺾인 것은 다른 이야기입니다
-     */
+ /** 이유를 안 알려 주면 모델이 "인근 실거래 비교 자료가 없습니다" */
     public static ForecastPrompt of(Property property, List<PriceFactor> factors,
                                     int horizonMonths, String gapNote, String yearlyMedians) {
         final StringJoiner sb = new StringJoiner("\n");
@@ -101,19 +83,13 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
             sb.add(yearlyMedians);
         }
         if (gapNote != null && !gapNote.isBlank()) {
-            // `※` 로 시작하는 줄은 지표가 아니라 메모다 — 시스템 프롬프트가 그렇게 못 박는다
             sb.add("※ " + gapNote);
         }
         final String user = sb.toString();
         return new ForecastPrompt(String.format(SYSTEM, horizonMonths), user, numbersIn(user));
     }
 
-    /**
-     * 프롬프트에 실제로 등장한 숫자들.
-     *
-     * 모델이 이 밖의 숫자를 인용하면 지어낸 것입니다. 쉼표를 걷어 내고 담아
-     * `12,000`과 `12000`을 같게 봅니다.
-     */
+ /** 프롬프트에 실제로 등장한 숫자들. */
     static Set<String> numbersIn(String text) {
         final Set<String> numbers = new LinkedHashSet<>();
         final Matcher matcher = NUMBER.matcher(text);
@@ -123,12 +99,7 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
         return numbers;
     }
 
-    /**
-     * 이 문장이 인용한 숫자가 전부 프롬프트에 있었는가.
-     *
-     * 한 자리 수는 봐줍니다 — "3개월"·"2건" 같은 말이 자연스럽게 섞이는데
-     * 그것까지 막으면 멀쩡한 근거가 버려집니다. 지어낸 금액·비율을 잡는 것이 목적입니다.
-     */
+ /** 이 문장이 인용한 숫자가 전부 프롬프트에 있었는가. */
     public boolean citesOnlyKnownNumbers(String evidence) {
         if (evidence == null || evidence.isBlank()) {
             return false;
@@ -148,7 +119,6 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
 
     private static String normalize(String value) {
         final String plain = value.replace(",", "");
-        // 12.0 과 12 를 같게 본다 — 모델이 소수점을 붙이거나 떼는 일이 잦다
         return plain.contains(".") ? plain.replaceAll("0+$", "").replaceAll("\\.$", "") : plain;
     }
 
@@ -169,7 +139,7 @@ public record ForecastPrompt(String system, String user, Set<String> allowedNumb
                 : String.valueOf(value);
     }
 
-    /** 프롬프트 전체 — 해시로 중복 호출을 막을 때 쓴다. */
+ /** 프롬프트 전체. 해시로 중복 호출을 막을 때 쓴다. */
     public String full() {
         final List<String> parts = new ArrayList<>();
         parts.add(system);

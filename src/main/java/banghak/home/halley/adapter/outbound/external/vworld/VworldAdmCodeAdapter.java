@@ -11,17 +11,12 @@ import tools.jackson.databind.ObjectMapper;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * V-World 행정구역 코드 어댑터.
- *
- * 응답 래퍼가 바깥과 안이 같은 이름입니다 — {"admVOList": {"admVOList": [...]}}.
- * 이름으로 찾으면 바깥 객체에 걸리므로 배열인 자식을 찾습니다.
- */
+/** V-World 행정구역 코드 어댑터. */
 @Slf4j
 @Component
 public class VworldAdmCodeAdapter implements AdmCodePort {
 
-    /** 한 시도의 시군구는 많아야 50곳 남짓이라 한 페이지면 충분하다. */
+ /** 한 시도의 시군구는 많아야 50곳 남짓이라 한 페이지면 충분하다. */
     private static final int MAX_ROWS = 1000;
 
     private final VworldAdmCodeFeignClient client;
@@ -44,7 +39,6 @@ public class VworldAdmCodeAdapter implements AdmCodePort {
     @Override
     public List<AdmArea> fetchSido() {
         if (!isEnabled()) {
-            // 키가 없어 안 부른 것과 불렀는데 실패한 것은 다른 상황이다
             log.info("Skipping VWorld sido lookup - vworld.api-key not configured.");
             return List.of();
         }
@@ -84,7 +78,7 @@ public class VworldAdmCodeAdapter implements AdmCodePort {
         }
     }
 
-    /** 바깥·안쪽 래퍼 이름이 같아 이름으로는 못 찾는다. 배열이 나올 때까지 내려간다. */
+ /** 바깥·안쪽 래퍼 이름이 같아 이름으로는 못 찾는다. 배열이 나올 때까지 내려간다. */
     private JsonNode firstArrayDescendant(JsonNode node) {
         if (node.isArray()) {
             return node;

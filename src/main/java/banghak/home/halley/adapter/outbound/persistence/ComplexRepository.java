@@ -41,10 +41,7 @@ public class ComplexRepository {
                 .map(this::map);
     }
 
-    /**
-     * 없으면 만들고, 있으면 그것을 돌려준다. 동시에 두 매물이 같은 단지를 만들 수 있어,
-     * 유일 인덱스에 부딪히면 다시 찾아 돌려준다 — 미리 잠그는 것보다 싸다.
-     */
+ /** 없으면 만들고, 있으면 그것을 돌려준다. 동시에 두 매물이 같은 단지를 만들 수 있어, */
     public Complex findOrCreate(String matchKey, Complex candidate) {
         final Optional<Complex> existing = findByMatchKey(matchKey);
         if (existing.isPresent()) {
@@ -62,7 +59,6 @@ public class ComplexRepository {
                     .component1();
             return findById(id).orElseThrow();
         } catch (DuplicateKeyException e) {
-            // 그 사이 다른 쪽이 먼저 넣었다. 그쪽 것을 쓴다
             return findByMatchKey(matchKey).orElseThrow(() -> e);
         }
     }

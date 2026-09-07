@@ -17,8 +17,6 @@ public class PriceScorer implements CriterionScorer {
             return ScoreResult.missing("호가 없음");
         }
         if (ctx.cashBudget() <= 0) {
-            // 예산상한 = 현금 + 대출한도(호가×LTV)이므로, 현금이 0이면 상한이 늘 호가보다 작아
-            // 모든 매물이 0점으로 붕괴한다. 점수를 매기는 대신 설정이 빠졌음을 알린다.
             return ScoreResult.missing("가용 예산 미설정 — 사용자 관리에서 가용 예산을 입력하세요");
         }
         final long budget = ctx.cashBudget() + ctx.loanCalculator().expectedLoanLimit(askingPrice);
@@ -33,7 +31,7 @@ public class PriceScorer implements CriterionScorer {
                 targetValue < 0 ? ", 예산상한을 넘어 0점" : ""));
     }
 
-    /** 전망 근거(`TradeTrendIndicator`)와 같은 표기를 쓴다. */
+ /** 전망 근거(TradeTrendIndicator)와 같은 표기를 쓴다. */
     private static String won(long amount) {
         return banghak.home.halley.domain.support.WonFormat.of(amount);
     }

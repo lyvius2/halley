@@ -2,12 +2,7 @@ package banghak.home.halley.config.exception;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * 회원가입이 닫혀 있을 때.
- *
- * 화면에서 링크를 숨기는 것만으로는 부족합니다 — 엔드포인트는 그대로 열려 있어
- * 주소를 아는 사람은 그냥 가입할 수 있습니다. 막는 일은 서버가 합니다.
- */
+/** 회원가입이 닫혀 있을 때. */
 public class SignUpClosedException extends BusinessException {
 
     public SignUpClosedException() {

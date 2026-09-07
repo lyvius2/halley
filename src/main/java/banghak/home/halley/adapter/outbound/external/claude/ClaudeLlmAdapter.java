@@ -11,13 +11,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
-/**
- * Claude(Anthropic Messages API) 구현체.
- *
- * 응답 본문은 `content` 배열이고 텍스트 블록만 골라 이어 붙입니다. 오류도 HTTP 200이 아닌
- * 상태코드로 오지만 Feign 예외는 FallbackFactory가 삼키므로, 여기서는 본문이 null인지와
- * `type: "error"`인지를 함께 봅니다.
- */
+/** Claude(Anthropic Messages API) 구현체. */
 @Slf4j
 @Component
 public class ClaudeLlmAdapter implements LlmPort {
@@ -67,13 +61,9 @@ public class ClaudeLlmAdapter implements LlmPort {
 
     private String requestBody(LlmMessage message) {
         final ObjectNode root = objectMapper.createObjectNode();
-        // 호출자가 모델을 고르지 않았으면 기본값을 쓴다
         root.put("model", message.model() == null || message.model().isBlank()
                 ? model : message.model());
         root.put("max_tokens", message.maxTokens());
-        // 요즘 모델은 temperature 를 받지 않는다.
-        //   400 `temperature` is deprecated for this model.
-        // 그래서 기본으로 보내지 않는다. 받는 모델로 내려갈 때만 켠다
         if (sendTemperature && message.temperature() != null) {
             root.put("temperature", message.temperature());
         }
@@ -101,10 +91,6 @@ public class ClaudeLlmAdapter implements LlmPort {
                     text.append(block.path("text").asString(""));
                 }
             }
-            // 예산이 모자라 잘렸으면 뒤에서 JSON 파싱이 실패한다. 그때 원인을 못 찾는다.
-            // 빈 답 검사보다 먼저 봅니다 — 순서가 뒤바뀌어 있어서
-            // 생각에 예산을 다 쓰고 본문을 시작도 못 한 경우에 "empty response" 만 남고
-            // 진짜 원인인 max_tokens 는 안 찍혔습니다
             final boolean cutOff = "max_tokens".equals(root.path("stop_reason").asString(null));
             if (cutOff) {
                 log.warn("Claude hit the token budget - the answer is cut off{}. "

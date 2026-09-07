@@ -52,13 +52,7 @@ public class UserCriterionScoreRepository {
                 .map(this::map);
     }
 
-    /**
-     * 매물 여러 건을 한 번에.
-     *
-     * 목록 화면이 매물마다 따로 부르면 그 수만큼 왕복이 늘어납니다 — 느린 DB에서는
-     * 그것이 그대로 체감 지연이 됩니다. 비어 있으면 질의하지 않습니다:
-     * IN () 는 dialect마다 다르게 굴어 굳이 시험할 이유가 없습니다.
-     */
+ /** 매물 여러 건을 한 번에. */
     public List<UserCriterionScore> findByPropertyIds(java.util.Collection<Long> propertyIds) {
         if (propertyIds == null || propertyIds.isEmpty()) {
             return List.of();

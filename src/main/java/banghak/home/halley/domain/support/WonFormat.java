@@ -1,14 +1,6 @@
 package banghak.home.halley.domain.support;
 
-/**
- * 금액을 억·만원으로 읽기 쉽게.
- *
- * 설명 문구 전용입니다. 계산에는 원 단위를 그대로 씁니다 — 여기서 반올림된 값이
- * 계산에 섞이면 안 됩니다.
- *
- * 채점 근거(`PriceScorer`)와 전망 근거(`TradeTrendIndicator`)가 같은 표기를 씁니다.
- * 두 화면이 같은 금액을 다르게 쓰면 사용자가 다른 값으로 읽습니다.
- */
+/** 금액을 억·만원으로 읽기 쉽게. */
 public final class WonFormat {
 
     private WonFormat() {

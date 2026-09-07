@@ -60,13 +60,7 @@ public class SystemConfigRepository {
         cache.evict(CachePort.SYSTEM_CONFIG);
     }
 
-    /**
-     * 12곳에서 읽습니다 — 특히 loan.regulation.profile 은 채점·대출·전망이
-     * 각각 물어봅니다. 담아 둡니다.
-     *
-     * 수명을 10분으로 짧게 둔 것은 관리자 화면에서 자주 만지기 때문입니다.
-     * 저장 시 지우고 있으니 수명은 안전망일 뿐입니다.
-     */
+ /** 12곳에서 읽습니다. 특히 loan.regulation.profile 은 채점·대출·전망이 */
     public Optional<SystemConfig> findById(String configKey) {
         return cache.findOne(CachePort.SYSTEM_CONFIG, configKey, LIST, () -> fetchById(configKey));
     }

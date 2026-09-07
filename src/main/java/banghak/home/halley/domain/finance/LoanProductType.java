@@ -1,11 +1,6 @@
 package banghak.home.halley.domain.finance;
 
-/**
- * 금감원이 나누는 대출 상품 구분.
- *
- * 엔드포인트가 다르고 옵션 항목도 다릅니다 — 주담대에는 담보유형(`mrtg_type`)이 있고
- * 전세자금대출에는 없습니다.
- */
+/** 금감원이 나누는 대출 상품 구분. */
 public enum LoanProductType {
 
     MORTGAGE("주택담보대출", "mortgageLoanProductsSearch"),
@@ -23,7 +18,7 @@ public enum LoanProductType {
         return label;
     }
 
-    /** 엔드포인트 경로 조각. */
+ /** 엔드포인트 경로 조각. */
     public String path() {
         return path;
     }

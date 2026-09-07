@@ -47,10 +47,7 @@ public class CriterionWeightRepository {
                 .map(this::map);
     }
 
-    /**
-     * 총점은 저장하지 않고 읽을 때마다 이 표로 다시 계산합니다.
-     * 그래서 목록을 그릴 때마다 읽힙니다 — 담아 둡니다.
-     */
+ /** 총점은 저장하지 않고 읽을 때마다 이 표로 다시 계산합니다. */
     public List<CriterionWeight> findAll() {
         return cache.get(CachePort.CRITERION_WEIGHT, ReferenceDataCache.WHOLE, LIST, this::fetchAll);
     }

@@ -27,10 +27,7 @@ public class GroupInviteRepository {
         this.dsl = dsl;
     }
 
-    /**
-     * @return 코드가 이미 있으면 false. 코드가 기본키라 동시에 같은 코드를 뽑아도
-     *         한 쪽만 성공한다 — 생성 쪽에서 확인하면 그 경우를 놓친다
-     */
+ /** 한 쪽만 성공한다. 생성 쪽에서 확인하면 그 경우를 놓친다 */
     public boolean saveIfAbsent(GroupInvite invite) {
         try {
             dsl.insertInto(TABLE)
@@ -55,12 +52,12 @@ public class GroupInviteRepository {
         dsl.deleteFrom(TABLE).where(CODE.eq(code)).execute();
     }
 
-    /** 만료된 코드를 치운다. 남겨 두면 같은 문자열을 다시 쓸 수 없다. */
+ /** 만료된 코드를 치운다. 남겨 두면 같은 문자열을 다시 쓸 수 없다. */
     public int deleteExpired(Instant now) {
         return dsl.deleteFrom(TABLE).where(EXPIRES_AT.lt(toOffset(now))).execute();
     }
 
-    /** 그룹이 사라지면 그 그룹의 초대도 무의미하다. */
+ /** 그룹이 사라지면 그 그룹의 초대도 무의미하다. */
     public void deleteByGroupId(Long groupId) {
         dsl.deleteFrom(TABLE).where(GROUP_ID.eq(groupId)).execute();
     }

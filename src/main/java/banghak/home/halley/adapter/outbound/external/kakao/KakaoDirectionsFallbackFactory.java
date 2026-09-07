@@ -18,7 +18,6 @@ public class KakaoDirectionsFallbackFactory implements FallbackFactory<KakaoDire
 
     @Override
     public KakaoDirectionsFeignClient create(Throwable cause) {
-        // 한도 때문이면 그날은 더 부르지 않는다
         quota.recordIfExhausted(cause);
         return new KakaoDirectionsFeignClient() {
 

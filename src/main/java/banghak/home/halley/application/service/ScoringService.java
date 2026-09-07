@@ -71,7 +71,7 @@ public class ScoringService {
 
     private static final String COMFORT_CODE = "COMFORT";
     private static final String LLM_CODE = "LLM_RECOMMENDATION";
-    /** 채점 한 번은 보통 수백 ms다. 이만큼 기다려도 안 풀리면 잠금이 죽은 것으로 본다. */
+ /** 채점 한 번은 보통 수백 ms다. 이만큼 기다려도 안 풀리면 잠금이 죽은 것으로 본다. */
     private static final java.time.Duration LOCK_WAIT = java.time.Duration.ofSeconds(5);
     private static final java.time.Duration LOCK_POLL = java.time.Duration.ofMillis(50);
 
@@ -86,7 +86,7 @@ public class ScoringService {
     private final PoiDataService poiDataService;
     private final CommuteDataService commuteDataService;
     private final EditVersionStore editVersionStore;
-    /** 채점·전망이 바뀐 것을 화면에 알리는 판 번호 */
+ /** 채점·전망이 바뀐 것을 화면에 알리는 판 번호 */
     private final ScoreVersionPublisher scoreVersionPublisher;
     private final RegulationParamRepository regulationParamRepository;
     private final SystemConfigRepository systemConfigRepository;
@@ -146,17 +146,10 @@ public class ScoringService {
         return list(dealType, false);
     }
 
-    /**
-     * @param archived 아카이빙한 것만 볼 것인가. 기본은 아니오 —
-     *                 치운 매물이 목록에 계속 보이면 치운 의미가 없습니다
-     */
+
     public List<ScoredPropertyResponse> list(DealType dealType, boolean archived) {
-        // admin은 전부, 회원은 자기 그룹만
         final List<Property> properties = visibleProperties(dealType, archived);
-        // 목록에 필요한 것을 한 번에 모은다. 매물마다 따로 부르면
-        // 그 수만큼 왕복이 늘어난다 — 느린 DB에서는 그게 그대로 체감 지연이다
         final ListBatch batch = loadBatch(properties);
-        // 순위표는 목록 한 번에 한 번만 읽는다
         rankMemo.set(byPriorityRank());
         try {
             return sortedList(properties, batch);
@@ -194,15 +187,8 @@ public class ScoringService {
         return ensureScored(propertyAccessGuard.require(propertyId), loadWeights());
     }
 
-    /**
-     * 화면에 보일 매물.
-     *
-     * admin은 모든 그룹을 봅니다. 회원은 자기 그룹만 보며, 그룹이 없으면 아무것도
-     * 보지 않습니다 — 그룹 없는 회원은 정상 상태가 아니므로 빈 목록이 맞습니다.
-     */
+ /** 화면에 보일 매물. */
     List<Property> visibleProperties(DealType dealType, boolean archived) {
-        // 아카이빙 여부는 한 군데에서 가른다.
-        // 저장소의 조회 메서드마다 조건을 붙이면 넷 중 하나를 반드시 빠뜨린다
         return byGroup(dealType).stream()
                 .filter(p -> (p.listingStatus() == ListingStatus.ARCHIVED) == archived)
                 .toList();
@@ -230,17 +216,7 @@ public class ScoringService {
         return rescore(property);
     }
 
-    /**
-     * 사람이 매긴 점수를 저장한다.
-     *
-     * 이미 자동 채점된 AUTO 항목은 덮어쓰지 않습니다. 화면이 칸을
-     * 추정값으로 채워 두기 때문에(I76), 쾌적함 하나만 고치고 저장해도 모든 항목이
-     * 그대로 되돌아옵니다. 그것을 전부 저장하면 자동 채점이 통째로 수동으로 굳고
-     * 산출 근거(`explanation`)도 사라집니다.
-     *
-     * 화면에서도 그 칸들을 잠그지만, 규칙은 여기가 지킵니다 — 낡은 화면이나
-     * 다른 경로로 들어와도 자동 채점이 뭉개지면 안 됩니다.
-     */
+ /** 사람이 매긴 점수를 저장한다. */
     @Transactional
     public ScoredPropertyResponse saveManualScores(Long propertyId, Map<String, BigDecimal> scores) {
         propertyRepository.findById(propertyId)
@@ -267,13 +243,7 @@ public class ScoringService {
         return rescore(propertyId);
     }
 
-    /**
-     * 자동으로 이미 값이 나온 AUTO 항목인지.
-     *
-     * HYBRID(교육여건·녹색환경)는 사람이 고치라고 만든 것이라 잠그지 않습니다.
-     * AUTO라도 산출에 실패해 값이 없으면 사람이 채울 수 있어야 합니다 — 그렇지 않으면
-     * 조회 한 번 실패한 항목이 영영 빈칸으로 남습니다.
-     */
+ /** 자동으로 이미 값이 나온 AUTO 항목인지. */
     private boolean isAutoScored(String code, Map<String, ScoringType> types,
                                  Map<String, PropertyScore> current) {
         if (types.get(code) != ScoringType.AUTO) {
@@ -291,7 +261,6 @@ public class ScoringService {
             }
             userCriterionScoreRepository.upsert(new UserCriterionScore(
                     propertyId, currentUserId(), COMFORT_CODE, v));
-            // 쾌적함은 AI 추천의 입력이다. 바뀌면 다시 묻는다
             eventPublisher.publishEvent(PropertyInsightChanged.comfortScore(
                     propertyId, nicknameOf(currentUserId()), v));
         } else {
@@ -313,30 +282,12 @@ public class ScoringService {
         return buildFromPersisted(property, persisted, criteriaByCode(), weights, null);
     }
 
-    /**
-     * 지금 배경에서 보정 중인가.
-     *
-     * 등록 응답을 기다리지 않고 돌려주므로, 목록·상세가 아직 점수가 없는 매물을
-     * 만납니다. 그때 그 자리에서 채점하면 기다림이 옮겨 갔을 뿐입니다 —
-     * 목록 한 번이 수십 초가 됩니다.
-     *
-     * 표시가 있을 때만 비켜섭니다. 없으면 평소대로 계산합니다 —
-     * 옛 매물이 어떤 이유로 점수를 잃었을 때 스스로 낫는 길(I84)을 막지 않습니다.
-     */
+ /** 지금 배경에서 보정 중인가. */
     private boolean enriching(Long propertyId) {
         return cache.get(CachePort.ENRICHING, String.valueOf(propertyId)).isPresent();
     }
 
-    /**
-     * 목록 한 번에 필요한 것을 미리 모아 둔다.
-     *
-     * 예전에는 매물마다 채점·사용자 점수·AI 추천·항목·닉네임을 따로 읽어
-     * 매물 3건에 28번이 나갔습니다. 여기서 여섯 번으로 끝냅니다.
-     *
-     * 가상 스레드로 나눠 던지는 방법도 있지만 그쪽은 쓰지 않습니다 — 커넥션 풀이
-     * 기본 10이고 운영 DB는 이미 슬롯이 빠듯합니다. 동시에 던지면 왕복 횟수는 그대로인 채
-     * 커넥션만 더 씁니다. 횟수를 줄이는 편이 언제나 낫습니다.
-     */
+ /** 목록 한 번에 필요한 것을 미리 모아 둔다. */
     private ListBatch loadBatch(List<Property> properties) {
         final List<Long> ids = properties.stream().map(Property::id).toList();
         final Map<Long, List<PropertyScore>> scores = propertyScoreRepository.findByPropertyIds(ids).stream()
@@ -347,10 +298,8 @@ public class ScoringService {
         final Set<Long> hasLlm = llmRecommendationRepository.findByPropertyIds(ids).stream()
                 .map(LlmRecommendation::propertyId)
                 .collect(Collectors.toSet());
-        // 닉네임은 매물에 이미 박혀 있는 경우가 많지만, 없는 것 때문에 매물마다 조회가 나갔다
         final Map<Long, String> nicknames = userRepository.findAll().stream()
                 .collect(Collectors.toMap(User::id, User::nickname, (a, b) -> a));
-        // 그룹명은 admin에게만 나간다 (규칙 5)
         final boolean admin = propertyAccessGuard.isAdmin();
         final Map<Long, String> groupNames = admin
                 ? userGroupRepository.findAll().stream()
@@ -362,12 +311,10 @@ public class ScoringService {
 
     private ScoredPropertyResponse ensureScored(Property property, ListBatch batch) {
         final List<PropertyScore> persisted = batch.scores().getOrDefault(property.id(), List.of());
-        // 보정 중이면 비켜선다 — 목록에서 채점하면 목록이 그만큼 멈춘다
         if (persisted.isEmpty() && enriching(property.id())) {
             return notYetScored(property.id());
         }
         if (persisted.isEmpty() || isStale(persisted, batch.hasLlm().contains(property.id()))) {
-            // 낡았으면 그 매물만 다시 계산한다. 흔한 길이 아니다
             return rescore(property);
         }
         return buildFromPersisted(property, persisted, batch.criteria(), batch.weights(), batch);
@@ -378,7 +325,7 @@ public class ScoringService {
                 .collect(Collectors.toMap(Criterion::code, c -> c));
     }
 
-    /** 목록 한 번에 쓰는 묶음. */
+ /** 목록 한 번에 쓰는 묶음. */
     private record ListBatch(
             Map<String, Criterion> criteria,
             Map<String, BigDecimal> weights,
@@ -390,19 +337,8 @@ public class ScoringService {
             boolean admin) {
     }
 
-    /**
-     * 저장된 채점이 지금 가진 입력보다 낡았는지.
-     *
-     * `property_score`는 계산 결과를 담아 두는 곳인데 입력이 비동기로 채워집니다.
-     * 등록 직후 한 번 채점될 때는 AI 추천도가 아직 없고, 보정이 그 값을 채운 뒤 다시 채점하지
-     * 않으면 비어 있던 결과가 그대로 남습니다 — 상세 모달은 AI 추천을 보여 주는데 채점 모달에는
-     * 없는 상태가 됩니다. 두 화면이 다른 곳을 읽기 때문입니다.
-     *
-     * 보정 흐름은 고쳤지만(`PropertyEnrichmentService`), 그 전에 등록된 매물은 이미
-     * 낡은 채로 저장돼 있습니다. 여기서 알아채고 스스로 고칩니다 — 사용자가 매물을 다시
-     * 수정해야 낫는다면 고친 게 아닙니다.
-     */
-    /** 배치용 — AI 추천 존재 여부를 이미 알고 있을 때. */
+ /** 저장된 채점이 지금 가진 입력보다 낡았는지. */
+ /** 배치용. AI 추천 존재 여부를 이미 알고 있을 때. */
     private boolean isStale(List<PropertyScore> persisted, boolean hasLlm) {
         final boolean scoreMissing = persisted.stream()
                 .filter(s -> LLM_CODE.equals(s.criterionCode()))
@@ -417,19 +353,7 @@ public class ScoringService {
         return scoreMissing && llmRecommendationRepository.findByPropertyId(property.id()).isPresent();
     }
 
-    /**
-     * 한 매물의 채점을 다시 계산한다. 이미 채점 중이면 하지 않습니다.
-     *
-     * 보정 완료·AI 응답 도착·수기 저장이 각각 채점을 부르는데 앞의 둘은 비동기라 겹칠 수
-     * 있습니다. 겹치면 같은 매물의 `property_score`를 동시에 쓰고, 계산 도중의 절반짜리 상태를
-     * 서로 덮어씁니다.
-     *
-     * 건너뛰지 않고 기다립니다. 사용자가 방금 저장한 점수를 반영하러 온 호출일 수 있어,
-     * 남이 돌고 있다고 저장된 값을 돌려주면 방금 매긴 점수가 화면에 안 보입니다.
-     *
-     * 기다려도 안 풀리면 그냥 진행합니다. 채점 결과는 항목마다 upsert 하므로 겹쳐도
-     * 마지막 값이 남을 뿐이고, 잠금 때문에 채점이 통째로 빠지는 편이 더 나쁩니다.
-     */
+ /** 한 매물의 채점을 다시 계산한다. 이미 채점 중이면 하지 않습니다. */
     private ScoredPropertyResponse rescore(Property property) {
         final boolean locked = acquire(property.id());
         try {
@@ -465,8 +389,6 @@ public class ScoringService {
         final PropertyScoringResult result = scoringEngine.score(
                 property, ctx, orderedScorers(), weights, manualScores);
 
-        // 항목마다 upsert 한다. 등록 시점 채점과 비동기 보정의 재채점이 겹칠 수 있어
-        // 지우고 다시 넣으면 유니크 제약에 걸린다
         propertyScoreRepository.replaceAll(property.id(), result.criteria().stream()
                 .map(criterion -> new PropertyScore(
                         null,
@@ -480,16 +402,11 @@ public class ScoringService {
                         criterion.explanation(),
                         Instant.now()))
                 .toList());
-        // 화면이 바뀐 것을 알아채는 유일한 신호다. 커밋한 뒤에 올린다
         scoreVersionPublisher.bump(property.id());
         return toResponse(property, result, weights);
     }
 
-    /**
-     * 저장된 채점으로 응답을 만든다.
-     *
-     * @param batch 목록에서 부를 때는 미리 모아 둔 묶음, 단건이면 null
-     */
+ /** 저장된 채점으로 응답을 만든다. */
     private ScoredPropertyResponse buildFromPersisted(Property property,
                                                       List<PropertyScore> persisted,
                                                       Map<String, Criterion> criteria,
@@ -528,7 +445,6 @@ public class ScoringService {
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property, batch),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property, batch)), total, views,
                 scoreVersionPublisher.current(property.id()),
-                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다
                 null);
     }
 
@@ -556,19 +472,11 @@ public class ScoringService {
         return new ScoredPropertyResponse(PropertyResponse.from(property, nicknameOf(property),
                 editVersionStore.current(versionKey(property.id())), groupNameFor(property)), result.totalScore(), views,
                 scoreVersionPublisher.current(property.id()),
-                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다
                 null);
     }
 
 
-    /**
-     * 나를 뺀 다른 사용자들의 평균.
-     *
-     * `COMFORT`는 사람마다 다르게 매기고 총점에는 평균이 들어간다. 내 점수만 보이면
-     * 왜 총점이 그렇게 나왔는지 알 수 없으므로 다른 사람들이 어떻게 봤는지 함께 보여 준다.
-     * 나를 빼는 이유는 "다른 사람은 어떻게 봤나"가 질문이기 때문이다 — 내 점수가 섞이면
-     * 내가 매긴 값에 끌려간다.
-     */
+ /** 나를 뺀 다른 사용자들의 평균. */
     private BigDecimal othersAverage(Long propertyId, String code, ListBatch batch) {
         final List<Integer> others = othersScores(propertyId, code, batch);
         if (others.isEmpty()) {
@@ -583,13 +491,7 @@ public class ScoringService {
         return count == 0 ? null : count;
     }
 
-    /**
-     * 내가 매긴 점수.
-     *
-     * `COMFORT`는 사람마다 따로 매기는데 응답에는 그룹 평균만 실려 있었습니다.
-     * 그래서 남이 매기면 화면이 그 값을 보여 주고, 나는 내가 이미 매긴 줄 알았습니다.
-     * 내 값과 그룹 값은 다른 것이므로 따로 실어 보냅니다.
-     */
+ /** 내가 매긴 점수. */
     private Integer myScore(Long propertyId, String code, ListBatch batch) {
         if (!COMFORT_CODE.equals(code)) {
             return null;
@@ -617,7 +519,7 @@ public class ScoringService {
                 .toList();
     }
 
-    /** 배치가 있으면 거기서, 없으면(단건 조회) 그때 읽는다. */
+ /** 배치가 있으면 거기서, 없으면(단건 조회) 그때 읽는다. */
     private List<UserCriterionScore> userScoresOf(Long propertyId, ListBatch batch) {
         return batch == null
                 ? userCriterionScoreRepository.findByPropertyId(propertyId)
@@ -625,13 +527,7 @@ public class ScoringService {
     }
 
 
-    /**
-     * 아직 채점하지 않은 매물의 응답.
-     *
-     * 등록 직후에는 채점하지 않습니다. 그 시점에는 공시가격·초등학교·POI·AI가 하나도 없어
-     * 거의 모든 항목이 미산출로 나오는데, 곧 보정이 끝나며 덮어씁니다. 의미 없는 계산을
-     * 요청 스레드에서 하고, 비동기 보정과 시간이 겹쳐 잠금까지 다투게 됩니다.
-     */
+ /** 아직 채점하지 않은 매물의 응답. */
     public ScoredPropertyResponse notYetScored(Long propertyId) {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
@@ -639,17 +535,11 @@ public class ScoringService {
                 PropertyResponse.from(property, nicknameOf(property),
                         editVersionStore.current(versionKey(property.id())), groupNameFor(property)),
                 null, List.of(), scoreVersionPublisher.current(property.id()),
-                // 전망은 채점의 관심사가 아니다 — 컨트롤러가 붙인다
                 null);
     }
 
 
-    /**
-     * admin에게만 보이는 그룹 이름.
-     *
-     * 회원에게는 null입니다. 자기 그룹 매물만 보므로 이름을 붙여도 전부 같은 값이고,
-     * 무엇보다 다른 그룹이 있다는 사실 자체를 알려서는 안 됩니다(규칙 7).
-     */
+ /** admin에게만 보이는 그룹 이름. */
     private String groupNameFor(Property property, ListBatch batch) {
         if (batch == null) {
             return groupNameFor(property);
@@ -677,12 +567,7 @@ public class ScoringService {
         return userGroupRepository.findById(property.groupId()).map(UserGroup::name).orElse(null);
     }
 
-    /**
-     * 매물 카드의 등록자 표시 이름.
-     *
-     * 스냅샷을 먼저 봅니다. 탈퇴하면 users 행이 사라져 조회로는 이름을 알 수 없고,
-     * 그때 카드에서 등록자가 통째로 비어 버립니다.
-     */
+ /** 매물 카드의 등록자 표시 이름. */
     private String nicknameOf(Property property) {
         if (property.createdByNickname() != null && !property.createdByNickname().isBlank()) {
             return property.createdByNickname();
@@ -698,8 +583,6 @@ public class ScoringService {
     }
 
     private ScoringContext buildContext(Property property) {
-        // 그룹 구성원만 본다. 세션이 아니라 매물의 그룹으로 좁힌다 —
-        // 배경 보정에서도 도는데 그때는 로그인 사용자가 없다
         final List<User> allUsers = userRepository.findByGroupId(property.groupId());
         final List<User> activeUsers = allUsers.stream().filter(User::enabled).toList();
         final long cashBudget = activeUsers.stream().mapToLong(User::availableBudget).sum();
@@ -708,11 +591,8 @@ public class ScoringService {
                 .map(UserCriterionScore::score)
                 .toList();
         final List<NearbyFacility> nearbyFacilities = poiDataService.ensureNearby(property);
-        // I13: 비활성 사용자도 채점 반영 (I10과 동일) — 통근은 전 사용자 기준
         final Map<Long, Integer> commuteMinutes = commuteDataService.ensureCommuteMinutes(property, allUsers);
-        // AI 추천도는 채점 루프 안에서 부르지 않는다 — 저장된 값만 읽는다
         final Optional<LlmRecommendation> llm = llmRecommendationRepository.findByPropertyId(property.id());
-        // 비교 우위도 마찬가지 — 매물 전체를 한 번에 묻는 무거운 작업이라 저장된 값만 읽는다
         final Optional<ComparativeAnalysis> comparative =
                 comparativeAnalysisRepository.findByPropertyId(property.id());
         return new ScoringContext(cashBudget, comfortScores, LocalDate.now(), loadLoanCalculator(),
@@ -732,9 +612,7 @@ public class ScoringService {
         }
     }
 
-    /**
-     * 규제 파라미터(regulation_param)에서 LTV·상한을 읽어 채점용 LoanCalculator를 구성한다.
-     */
+ /** 규제 파라미터(regulation_param)에서 LTV·상한을 읽어 채점용 LoanCalculator를 구성한다. */
     private LoanCalculator loadLoanCalculator() {
         final String profile = systemConfigRepository.findById("loan.regulation.profile")
                 .map(SystemConfig::configValue)
@@ -769,27 +647,8 @@ public class ScoringService {
                 .toList();
     }
 
-    /**
-     * 채점 항목을 가중치 순위대로 늘어놓는다.
-     *
-     * 같은 매물의 채점을 두 곳에서 만들고 있었습니다 — 읽을 때는 `buildFromPersisted`
-     * 가 DB 가 준 순서대로, 저장 뒤 재채점할 때는 `toResponse` 가 채점기 등록
-     * 순서대로. 그래서 저장을 누르면 항목이 뒤섞였습니다.
-     *
-     * 둘 다 이 비교자를 지나가게 해 순서를 하나로 맞춥니다. 그리고 그 순서는
-     * 가중치 순위입니다 — 총점에 크게 물리는 것이 위에 옵니다. 순위가 없는 항목은
-     * 뒤로 보내되 코드순으로 묶어, 무게가 0인 것들끼리도 자리가 흔들리지 않게 합니다.
-     */
-    /**
-     * 한 요청 안에서 순위표를 한 번만 읽는다.
-     *
-     * 에서 정렬을 넣으며 `byPriorityRank()` 를 매물마다 불렀습니다 —
-     * 실측하니 매물 6건에 `criterion_weight` 조회가 7회였습니다.
-     *에서 걷어낸 N+1을 제가 다시 만든 것입니다.
-     *
-     * 14행짜리 표라 눈에 안 띄지만, 매물이 늘면 그대로 늘어납니다.
-     * 캐시를 얹기 전에 이것부터입니다 — 캐시는 증상을 가릴 뿐입니다.
-     */
+ /** 채점 항목을 가중치 순위대로 늘어놓는다. */
+ /** 한 요청 안에서 순위표를 한 번만 읽는다. */
     private final ThreadLocal<Comparator<String>> rankMemo = new ThreadLocal<>();
 
     private Comparator<String> priorityOrder() {
@@ -814,15 +673,7 @@ public class ScoringService {
         return weights;
     }
 
-    /**
-     * 가중치 없는 채점 항목을 시끄럽게 알린다.
-     *
-     * 가중치가 없으면 총점에서 그 항목의 무게가 0이 됩니다 — 점수는 화면에 멀쩡히 뜨는데
-     * 총점만 꿈쩍하지 않습니다. 조용히 틀리는 쪽이라 눈으로는 못 찾습니다.
-     *
-     * 기동 때 `CriteriaBootstrap`이 메우지만, 그 뒤에 항목이 생기거나 가중치가
-     * 지워지는 일도 있습니다. 채점할 때마다 확인합니다.
-     */
+ /** 가중치 없는 채점 항목을 시끄럽게 알린다. */
     private void warnAboutUnweightedScorers(Map<String, BigDecimal> weights) {
         final List<String> unweighted = scorers.stream()
                 .map(CriterionScorer::code)
@@ -873,17 +724,7 @@ public class ScoringService {
         return "property:" + id;
     }
 
-    /**
-     * 매물별 채점 판 번호. 화면이 목록 전체를 받지 않고 바뀐 것만 알아내려고 씁니다.
-     *
-     * 목록과 같은 것을 세야 합니다. `findAllIds()` 는 그룹도
-     * 아카이빙도 안 보고 모든 매물을 돌려주고 있었습니다. 화면은 이 개수를
-     * 자기 목록 길이와 견주어 "매물이 늘거나 줄었다"를 판단하므로, 세는 대상이
-     * 다르면 3초마다 목록을 통째로 다시 받습니다.
-     *
-     * 목록이 30건씩 잘려 오기 시작하면서() 이 어긋남이 드러났습니다 —
-     * 전에도 거래유형 탭에서는 같은 일이 벌어지고 있었습니다.
-     */
+ /** 매물별 채점 판 번호. 화면이 목록 전체를 받지 않고 바뀐 것만 알아내려고 씁니다. */
     public List<ScoreVersionResponse> scoreVersions(DealType dealType, boolean archived) {
         return visibleProperties(dealType, archived).stream()
                 .map(p -> new ScoreVersionResponse(p.id(),

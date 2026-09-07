@@ -12,16 +12,7 @@ import java.lang.reflect.Method;
 @EnableFeignClients(basePackages = "banghak.home.halley.adapter.outbound.external")
 public class FeignSupportConfig {
 
-    /**
-     * 서킷브레이커·TimeLimiter의 인스턴스 이름을 `@FeignClient`의 name으로 맞춘다.
-     *
-     * 기본 규칙은 `ClaudeFeignClientmessagesStringStringString`처럼 클래스명 + 메서드 시그니처로
-     * ID를 만듭니다. 그래서 `resilience4j.*.instances.claude-llm` 설정이 어느 것에도 붙지 않고
-     * 전부 기본값으로 돌고 있었습니다 — 클라이언트별로 다르게 잡아 둔 임계값이 통째로 무시된 것입니다.
-     *
-     * 메서드 시그니처가 ID에 들어가면 파라미터를 하나 추가하는 것만으로도 설정이 조용히 떨어져
-     * 나갑니다. 이름으로 고정해 그 취약함을 없앱니다.
-     */
+ /** 서킷브레이커·TimeLimiter의 인스턴스 이름을 @FeignClient의 name으로 맞춘다. */
     @Bean
     public CircuitBreakerNameResolver feignClientNameResolver() {
         return (String feignClientName, Target<?> target, Method method) -> feignClientName;

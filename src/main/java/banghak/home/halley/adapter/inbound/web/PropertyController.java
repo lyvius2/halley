@@ -118,13 +118,13 @@ public class PropertyController {
         this.propertyAccessGuard = propertyAccessGuard;
     }
 
-    /** 비교 우위 분석 현황 — 실행 가능 여부와 저장된 순위. */
+ /** 비교 우위 분석 현황. 실행 가능 여부와 저장된 순위. */
     @GetMapping("/comparative-analysis")
     public ComparativeAnalysisStatus comparativeAnalysis() {
         return comparativeAnalysisService.status();
     }
 
-    /** 등록된 매물 전체를 견주어 순위를 매긴다. 매물이 4개 미만이면 409. */
+ /** 등록된 매물 전체를 견주어 순위를 매긴다. 매물이 4개 미만이면 409. */
     @PostMapping("/comparative-analysis")
     public ComparativeAnalysisStatus runComparativeAnalysis() {
         comparativeAnalysisService.analyse();
@@ -136,16 +136,13 @@ public class PropertyController {
         return landUseService.find(id);
     }
 
-    /** 토지이용계획을 다시 받아 온다. 거의 바뀌지 않아 평소에는 저장값을 쓴다. */
+ /** 토지이용계획을 다시 받아 온다. 거의 바뀌지 않아 평소에는 저장값을 쓴다. */
     @PostMapping("/{id}/land-use")
     public List<LandUseResponse> refreshLandUse(@PathVariable Long id) {
         return landUseService.refresh(id);
     }
 
-    /**
-     * AI 추천도. 화면이 2초 간격으로 폴링하므로 결과가 없어도 200을 돌려주고
-     * `pending`으로 '분석 중'과 '미산출'을 가른다.
-     */
+ /** AI 추천도. 화면이 2초 간격으로 폴링하므로 결과가 없어도 200을 돌려주고 */
     @GetMapping("/{id}/llm-recommendation")
     public LlmRecommendationResponse llmRecommendation(@PathVariable Long id) {
         return llmRecommendationService.find(id)
@@ -230,14 +227,7 @@ public class PropertyController {
     }
 
 
-    /**
-     * 목록 한 쪽.
-     *
-     * 줄 세우기가 서버로 넘어왔습니다. 받은 30건 안에서만 줄 세우면
-     * 2쪽의 1등이 1쪽의 꼴찌보다 앞에 옵니다 — 자르는 곳과 줄 세우는 곳은 같아야 합니다.
-     *
-     * 전망 요약은 이 쪽의 30건에만 붙입니다. 예전에는 전체에 붙였습니다.
-     */
+ /** 목록 한 쪽. */
     @GetMapping
     public ScoredPropertyPage list(
             @RequestParam(value = "dealType", required = false) DealType dealType,
@@ -247,18 +237,12 @@ public class PropertyController {
             @RequestParam(value = "archived", defaultValue = "false") boolean archived) {
         final ScoredPropertyPage found =
                 propertyListService.page(dealType, PropertySort.of(sort), page, size, archived);
-        // 전망 요약을 한 번에 붙인다. 요인 상세는 모달에서 따로 받는다
         return new ScoredPropertyPage(
                 priceForecastService.attachForecasts(found.items()),
                 found.page(), found.size(), found.total(), found.hasNext(), found.archivedTotal());
     }
 
-    /**
-     * 지도와 임장 플래너가 쓰는 전체 목록.
-     *
-     * 목록은 잘라 보내지만 지도는 전부 찍어야 합니다. 잘린 목록으로 그리면
-     * 매물이 사라진 것처럼 보입니다.
-     */
+ /** 지도와 임장 플래너가 쓰는 전체 목록. */
     @GetMapping("/pins")
     public List<PropertyPinResponse> pins(
             @RequestParam(value = "dealType", required = false) DealType dealType,
@@ -285,9 +269,6 @@ public class PropertyController {
     @ResponseStatus(HttpStatus.CREATED)
     public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
-        // 기다리지 않고 돌려준다.은 초등학교·토지이용계획·채점을
-        // 기다렸는데, ODsay 가 막혀 직주근접이 LLM 으로 넘어가면(I210) 사람당 4~5초라
-        // 등록 한 번이 수십 초가 됐다. 화면은 카드를 먼저 보여 주고 진행 표시를 띄운다
         propertyEnrichmentService.enrichAsync(created.id());
         return scoringService.notYetScored(created.id());
     }
@@ -299,13 +280,7 @@ public class PropertyController {
         return scoringService.rescore(id);
     }
 
-    /**
-     * 채점 판 번호 목록.
-     *
-     * 채점은 사용자가 보고 있는 동안 뒤에서 바뀝니다 — 보정이 끝나고, AI 응답이 옵니다.
-     * 화면이 그걸 알아채려고 목록을 통째로 다시 받으면 무겁습니다. 이 번호만 확인하고
-     * 달라진 게 있을 때만 목록을 받습니다.
-     */
+ /** 채점 판 번호 목록. */
     @GetMapping("/score-versions")
     public List<ScoreVersionResponse> scoreVersions(
             @RequestParam(value = "dealType", required = false) DealType dealType,
@@ -313,34 +288,19 @@ public class PropertyController {
         return scoringService.scoreVersions(dealType, archived);
     }
 
-    /**
-     * 자동 재채점 트리거. 매물을 수정하지 않고 점수만 다시 계산한다 —
-     * 수집 규칙 버전을 올린 뒤(`PoiDataService.POI_SCHEMA_VERSION`,) POI 재수집을 유도하거나,
-     * 외부 API 장애로 폴백된 항목을 복구할 때 쓴다.
-     */
+ /** 자동 재채점 트리거. 매물을 수정하지 않고 점수만 다시 계산한다. */
     @PostMapping("/{id}/rescore")
     public ScoredPropertyResponse rescore(@PathVariable Long id) {
         return scoringService.rescore(id);
     }
 
-    /**
-     * 미산출 항목을 다시 계산한다.
-     *
-     * 미산출은 대개 그때 외부 조회가 실패한 것입니다 — 실패는 저장하지 않으므로
-     * 다시 채점하면 다시 시도합니다. 사용자가 직장 좌표를 넣은 뒤 매물을 다시 등록할 필요가
-     * 없도록 화면에서 직접 부를 수 있게 둡니다.
-     */
+ /** 미산출 항목을 다시 계산한다. */
     @PostMapping("/{id}/scores/recompute")
     public ScoredPropertyResponse recomputeScores(@PathVariable Long id) {
         return scoringService.rescore(id);
     }
 
-    /**
-     * 가격 전망.
-     *
-     * 결과가 없어도 200을 줍니다 — 화면이 분석 중인지를 알아야 폴링을 이어갑니다.
-     * 204를 주면 "없다"와 "아직"을 구분할 수 없습니다.
-     */
+ /** 가격 전망. */
     @GetMapping("/{id}/forecast")
     public PriceForecastResponse forecast(@PathVariable Long id) {
         propertyAccessGuard.require(id);
@@ -350,18 +310,13 @@ public class PropertyController {
                 .orElseGet(() -> PriceForecastResponse.pending(id, running));
     }
 
-    /**
-     * 관련 기사.
-     *
-     * 점수에도 프롬프트에도 반영되지 않습니다. 전망 모달에 링크 목록으로만 뜹니다.
-     * 전망 계산과 분리해 둔 이유는, 기사가 안 와도 전망이 멀쩡히 나와야 하기 때문입니다.
-     */
+ /** 관련 기사. */
     @GetMapping("/{id}/news")
     public List<NewsArticleResponse> news(@PathVariable Long id) {
         return propertyNewsService.find(id).stream().map(NewsArticleResponse::from).toList();
     }
 
-    /** 사용자가 명시적으로 다시 분석할 때. */
+ /** 사용자가 명시적으로 다시 분석할 때. */
     @PostMapping("/{id}/forecast/refresh")
     public PriceForecastResponse refreshForecast(@PathVariable Long id) {
         propertyAccessGuard.require(id);

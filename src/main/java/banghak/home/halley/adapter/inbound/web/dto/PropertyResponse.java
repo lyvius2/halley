@@ -59,7 +59,7 @@ public record PropertyResponse(
         Instant createdAt,
         Long createdBy,
         String createdByNickname,
-        /** admin에게만 보이는 소속 그룹 */
+ /** admin에게만 보이는 소속 그룹 */
         Long groupId,
         String groupName,
         Long editVersion
@@ -69,7 +69,7 @@ public record PropertyResponse(
         return from(p, createdByNickname, editVersion, null);
     }
 
-    /** @param groupName admin 화면의 그룹 badge용. 회원에게는 null이다 */
+
     public static PropertyResponse from(Property p, String createdByNickname, Long editVersion,
                                         String groupName) {
         return new PropertyResponse(

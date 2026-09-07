@@ -4,10 +4,7 @@ import banghak.home.halley.domain.landuse.LandUse;
 
 import java.util.List;
 
-/**
- * 토지이용계획 조회 (V-World) —.
- * PNU(필지고유번호 19자리)로 그 필지에 걸린 지역·지구를 모두 받아 온다.
- */
+/** 토지이용계획 조회 (V-World). */
 public interface LandUsePort {
 
     boolean isEnabled();

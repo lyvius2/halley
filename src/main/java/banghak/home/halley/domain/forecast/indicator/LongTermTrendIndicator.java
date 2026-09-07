@@ -10,39 +10,21 @@ import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Optional;
 
-/**
- * 4년에 걸친 연평균 변동률.
- *
- * 실거래 추세(I130)가 3개월 대 3개월이라, 이 앱은 여태 반년 안쪽만
- * 보고 있었습니다. 60개월치를 받아 두고도 47개월은 아무도 안 읽었습니다.
- *
- * 기울기를 회귀로 구하지 않습니다. 양 끝의 12개월 중앙값을 견주어
- * 연평균으로 환산합니다 — 표본이 얇은 달이 섞여도 흔들리지 않고,
- * 근거 문장에 그대로 적을 수 있습니다. 회귀 계수는 사람이 검산할 수 없습니다.
- *
- * 단기와 어긋날 때가 이 지표의 값어치입니다.
- *
- * 장기 +2.1%/년, 최근 3개월 -5.8%  →  장기 상승 국면의 조정인가, 꺾임인가
- *
- * 그 판단은 LLM이 합니다. 여기서는 두 숫자를 나란히 놓기만 합니다.
- */
+/** 4년에 걸친 연평균 변동률. */
 public class LongTermTrendIndicator implements PriceIndicator {
 
-    /** 양 끝에서 견줄 구간. 12개월이면 계절성이 상쇄된다. */
+ /** 양 끝에서 견줄 구간. 12개월이면 계절성이 상쇄된다. */
     private static final int WINDOW_MONTHS = 12;
     private static final int REPORTING_LAG_MONTHS = 1;
     private static final int MIN_SAMPLES = 3;
-    /** 오래된 쪽 구간이 시작되는 지점. 48 + 12 = 60개월치를 쓴다. */
+ /** 오래된 쪽 구간이 시작되는 지점. 48 + 12 = 60개월치를 쓴다. */
     private static final int BASE_OFFSET_MONTHS = 48;
-    /** 두 구간 중심 사이의 햇수 — 연평균으로 환산할 때 쓴다. */
+ /** 두 구간 중심 사이의 햇수. 연평균으로 환산할 때 쓴다. */
     private static final BigDecimal YEARS = BigDecimal.valueOf(4);
 
     private final BigDecimal threshold;
 
-    /**
-     * @param threshold 연 이만큼은 움직여야 방향으로 읽는다. 임의의 값입니다 —
-     *                  물가상승률 언저리를 잡았을 뿐이라 `regulation_param`으로 조절합니다
-     */
+
     public LongTermTrendIndicator(BigDecimal threshold) {
         this.threshold = threshold;
     }

@@ -37,20 +37,20 @@ public class UserController {
         this.userService = userService;
     }
 
-    /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다. */
+ /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다. */
     @PostMapping("/sign-up")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse signUp(@RequestBody SignUpRequest request) {
         return userService.signUp(request);
     }
 
-    /** 닉네임 중복 확인 (규칙 17). */
+ /** 닉네임 중복 확인 (규칙 17). */
     @GetMapping("/nickname-check")
     public NicknameCheckResponse checkNickname(@RequestParam("nickname") String nickname) {
         return userService.checkNickname(nickname);
     }
 
-    /** 종류별 기존 부채. */
+ /** 종류별 기존 부채. */
     @GetMapping("/me/debts")
     public List<UserDebtResponse> myDebts() {
         return userService.myDebts();
@@ -61,7 +61,7 @@ public class UserController {
         return userService.replaceMyDebts(requests);
     }
 
-    /** 회원 탈퇴 (규칙 15·16). 비밀번호를 다시 받는다. */
+ /** 회원 탈퇴 (규칙 15·16). 비밀번호를 다시 받는다. */
     @PostMapping("/me/withdraw")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@RequestBody WithdrawRequest request) {

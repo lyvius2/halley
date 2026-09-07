@@ -50,15 +50,7 @@ public class PropertyImageService {
         this.heicImageDecoder = heicImageDecoder;
     }
 
-    /**
-     * 이미지 한 장을 올린다.
-     *
-     * 평면도는 매물당 한 장입니다.
-     * 다시 올리면 기존 평면도를 지우고 대체합니다 — 도면이 여러 장 쌓이면 어느 것이 맞는지 알 수 없습니다.
-     * 매물사진은 여러 장 쌓입니다.
-     *
-     * 정렬은 평면도가 항상 먼저(0), 매물사진이 그 뒤로 붙습니다. 목록에서 도면을 먼저 보게 하기 위한 것입니다.
-     */
+ /** 이미지 한 장을 올린다. */
     public PropertyImageResponse upload(Long propertyId, MultipartFile file, ImageType type) {
         propertyAccessGuard.require(propertyId);
         if (file == null || file.isEmpty()) {
@@ -138,7 +130,7 @@ public class PropertyImageService {
         }
     }
 
-    /** 평면도는 0번, 매물사진은 기존 사진 뒤에 붙는다. */
+ /** 평면도는 0번, 매물사진은 기존 사진 뒤에 붙는다. */
     private int nextSortOrder(Long propertyId, ImageType type) {
         if (type == ImageType.FLOOR_PLAN) {
             return 0;
@@ -155,7 +147,7 @@ public class PropertyImageService {
                 .forEach(this::removeImage);
     }
 
-    /** 잘못 올린 사진을 지운다. 파일 삭제가 실패해도 레코드는 지운다 — 화면에 남는 편이 더 나쁘다. */
+ /** 잘못 올린 사진을 지운다. 파일 삭제가 실패해도 레코드는 지운다. 화면에 남는 편이 더 나쁘다. */
     public void delete(Long propertyId, Long imageId) {
         propertyAccessGuard.require(propertyId);
         final PropertyImage image = propertyImageRepository.findById(imageId)
@@ -171,7 +163,7 @@ public class PropertyImageService {
         propertyImageRepository.delete(image.id());
     }
 
-    /** 원본과 썸네일은 파일명 규칙(`_original`/`_thumb`)으로 짝지어 저장돼 있다. */
+ /** 원본과 썸네일은 파일명 규칙(_original/_thumb)으로 짝지어 저장돼 있다. */
     private void deleteFiles(PropertyImage image) {
         try {
             final String fileName = Paths.get(image.storagePath()).getFileName().toString();
@@ -184,7 +176,7 @@ public class PropertyImageService {
         }
     }
 
-    /** 평면도가 먼저, 그다음 매물사진 순. */
+ /** 평면도가 먼저, 그다음 매물사진 순. */
     public List<PropertyImageResponse> list(Long propertyId) {
         propertyAccessGuard.require(propertyId);
         return propertyImageRepository.findByPropertyId(propertyId).stream()

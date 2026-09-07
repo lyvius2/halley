@@ -12,7 +12,6 @@ public class NaverSearchFallbackFactory implements FallbackFactory<NaverSearchFe
 
     @Override
     public NaverSearchFeignClient create(Throwable cause) {
-        // 검색어는 단지명이라 로그에 남겨도 된다. 키는 남기지 않는다
         return (clientId, clientSecret, query, display, sort) -> {
             log.warn("Naver news search failed - returning no articles. query={}, cause={}",
                     query, describe(cause));

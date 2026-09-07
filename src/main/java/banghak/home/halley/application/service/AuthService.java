@@ -31,7 +31,7 @@ import java.util.Objects;
 @Service
 public class AuthService {
 
-    /** 로그인 상태 유지 기간. 30일 — 그 뒤에는 다시 물어본다 */
+ /** 로그인 상태 유지 기간. 30일. 그 뒤에는 다시 물어본다 */
     private static final Duration REMEMBER_DURATION = Duration.ofDays(30);
 
     private final AuthenticationManager authenticationManager;
@@ -46,9 +46,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    /**
-     * @param rememberMe 켜면 로그아웃할 때까지 유지한다
-     */
+
     public AuthResponse login(String loginId, String password, boolean rememberMe,
                               HttpServletRequest request, HttpServletResponse response) {
         try {
@@ -66,23 +64,10 @@ public class AuthService {
         }
     }
 
-    /**
-     * 로그인 상태를 오래 끈다.
-     *
-     * 두 가지를 같이 해야 합니다 — 하나만 하면 안 됩니다.
-     *
-     *
-     *   서버 쪽 수명(`maxInactiveInterval`)을 늘린다 — 안 늘리면 30분 뒤 세션이 사라진다
-     *   쿠키에 만료를 준다 — 안 주면 브라우저를 닫는 순간 쿠키가 날아간다
-     *
-     *
-     * 세션은 메모리에 있습니다. 서버를 다시 띄우면 유지 여부와 상관없이
-     * 전부 로그아웃됩니다 — 배포할 때마다 그렇습니다.
-     */
+ /** 로그인 상태를 오래 끈다. */
     private void rememberSession(HttpServletRequest request, HttpServletResponse response) {
         final HttpSession session = request.getSession(true);
         session.setMaxInactiveInterval((int) REMEMBER_DURATION.toSeconds());
-        // 스킴을 그대로 따른다 — 로컬(http)에서 secure 를 켜면 쿠키가 아예 안 실린다
         final ResponseCookie cookie = ResponseCookie.from("JSESSIONID", session.getId())
                 .path("/")
                 .httpOnly(true)
@@ -140,16 +125,7 @@ public class AuthService {
                 remainingSessionSeconds(request));
     }
 
-    /**
-     * 세션이 얼마나 남았는지.
-     *
-     * 로그인 응답에서는 세션이 아직 없습니다. Spring Security가 인증을 저장하기 전이라
-     * getSession(false)가 null을 돌려주고, 그러면 화면이 남은 시간을 모르는 채로
-     * 시작합니다 — 세션 경고가 영영 뜨지 않았습니다.
-     *
-     * 그래서 없으면 만들어 답합니다. 어차피 로그인 직후 첫 요청에서 만들어질
-     * 세션이고, 여기서 만드나 거기서 만드나 같습니다.
-     */
+ /** 세션이 얼마나 남았는지. */
     private Integer remainingSessionSeconds(HttpServletRequest request) {
         final jakarta.servlet.http.HttpSession session = request.getSession(true);
         if (session == null) {

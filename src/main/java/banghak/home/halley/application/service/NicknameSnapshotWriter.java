@@ -5,15 +5,7 @@ import banghak.home.halley.adapter.outbound.persistence.PropertyRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-/**
- * 탈퇴 직전에 닉네임을 값으로 남긴다.
- *
- * 탈퇴하면 users 행이 사라지므로 조회로는 이름을 알 수 없습니다. 그런데 매물과 코멘트는
- * 그룹이 살아 있는 한 남고(규칙 15), 거기에는 누가 올렸는지가 보여야 합니다.
- *
- * users 행을 익명화해 남기는 방법도 있지만 그러면 탈퇴자가 닉네임을 영구 점유해
- * 규칙 17(닉네임 중복 불가)과 부딪힙니다.
- */
+/** 탈퇴 직전에 닉네임을 값으로 남긴다. */
 @Slf4j
 @Service
 public class NicknameSnapshotWriter {

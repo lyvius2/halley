@@ -39,60 +39,28 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
-/**
- * 지표를 놓고 LLM에게 방향을 묻는다.
- *
- * 흐름은 이렇습니다.
- *
- *
- *   지표 계산 (코드)
- *         ├──→ 코드 예측   ← LLM에게 넘기지 않는다 (앵커링 차단, 4.5)
- *         └──→ LLM 판단    ← 결론
- *
- *
- * 방향은 LLM이 정하지만, 판단이 아니라 사실의 문제인 것은 코드가 강제합니다(2.2-A).
- */
+/** 지표를 놓고 LLM에게 방향을 묻는다. */
 @Slf4j
 @Service
 public class PriceForecastService {
 
-    /**
-     * 예산이 모자라면 답이 JSON 중간에서 잘립니다.
-     *
-     * 1,500으로 뒀다가 운영에서 정확히 다 쓰고 잘렸습니다. 요인이 여섯으로 늘어(I148)
-     * 답이 길어진 데다, 요즘 모델은 생각(thinking)에도 예산을 씁니다 —
-     * 그날 549토큰이 생각에 나갔습니다.
-     *
-     * 잘리면 파싱이 실패해 코드 예측으로 되돌아갑니다. 조용히는 아닙니다
-     * (I144의 경고가 잡습니다) — 다만 LLM을 부르고도 안 쓴 셈이라 값만 치릅니다.
-     */
+ /** 예산이 모자라면 답이 JSON 중간에서 잘립니다. */
     private final int maxTokens;
-    /**
-     * 실거래 표본이 이보다 적으면 LLM이 뭐라 하든 UNCERTAIN입니다.
-     * 3건으로는 누구도 알 수 없습니다 — 판단의 문제가 아니라 사실의 문제입니다.
-     */
+ /** 실거래 표본이 이보다 적으면 LLM이 뭐라 하든 UNCERTAIN입니다. */
     private static final int MIN_TRADE_SAMPLES = 3;
-    /**
-     * 실거래를 실제로 세어 본 지표들.
-     *
-     * 둘 중 하나라도 값을 냈으면 표본이 있었다는 뜻입니다 — 각 지표가 이미
-     * 3건 미만이면 내지 않습니다(I130 · I148). 그래서 요인의 존재로 가립니다.
-     *
-     * 금리 국면과 용적률 여유는 여기 없습니다. 그 둘은 실거래를 안 봅니다 —
-     * ECOS 통계와 건축물대장이라 아무리 나와도 이 매물의 표본과는 무관합니다.
-     */
+ /** 실거래를 실제로 세어 본 지표들. */
     private static final Set<String> TRADE_BASED_FACTORS = Set.of("실거래 추세", "장기 추세");
 
-    /** 실거래가 어디서 걸러졌는지 세는 데만 쓴다 */
+ /** 실거래가 어디서 걸러졌는지 세는 데만 쓴다 */
     private final banghak.home.halley.domain.forecast.indicator.TradeStatCalculator tradeStats =
             new banghak.home.halley.domain.forecast.indicator.TradeStatCalculator();
 
-    /** 5년의 모양을 한 줄로 */
+ /** 5년의 모양을 한 줄로 */
     private final banghak.home.halley.domain.forecast.indicator.YearlyMedians yearlyMedians =
             new banghak.home.halley.domain.forecast.indicator.YearlyMedians();
 
     private final LlmPort llmPort;
-    /** 전망이 끝난 것을 목록 화면에 알린다 */
+ /** 전망이 끝난 것을 목록 화면에 알린다 */
     private final ScoreVersionPublisher scoreVersionPublisher;
     private final LlmModelService llmModelService;
     private final ForecastIndicatorFactory indicatorFactory;
@@ -142,17 +110,12 @@ public class PriceForecastService {
         this.maxTokens = maxTokens;
     }
 
-    /** 화면이 "지금 분석 중인가"를 물어볼 키. */
+ /** 화면이 "지금 분석 중인가"를 물어볼 키. */
     public static String jobKey(Long propertyId) {
         return "forecast:" + propertyId;
     }
 
-    /**
-     * 매물 하나의 전망을 낸다 — 재료를 모으고, 판단하고, 저장한다.
-     *
-     * 같은 지표면 다시 묻지 않습니다(I59). 60개월 조회는 캐시가 받고,
-     * LLM은 프롬프트 해시가 받습니다.
-     */
+ /** 매물 하나의 전망을 낸다. 재료를 모으고, 판단하고, 저장한다. */
     public Optional<PriceForecast> refresh(Long propertyId) {
         final Optional<Property> found = propertyRepository.findById(propertyId);
         if (found.isEmpty()) {
@@ -179,55 +142,20 @@ public class PriceForecastService {
                     saved.codeDirection(), saved.strong());
             return Optional.of(saved);
         } finally {
-            // 성공이든 실패든 지운다. 결과는 DB에 있고, 표시가 남으면
-            // 화면이 영영 돕니다 — completed 를 따로 볼 이유가 없습니다
             jobCache.clear(jobKey(propertyId));
-            // 목록이 다시 받도록 판 번호를 올린다.
-            // 전망은 채점보다 한참 뒤에 끝나는데 예전에는 아무 신호도 없어,
-            // 카드가 「분석 중」 표시(◌)에서 화살표로 바뀌지 않았습니다.
-            // 저장했든 그대로든 실패했든 `running` 표시가 풀린 것은 같으므로 여기서 올립니다
             scoreVersionPublisher.bump(propertyId);
         }
     }
 
-    /**
-     * 판정 규칙 판 번호.
-     *
-     * 규칙을 고치면 이 값을 올립니다. 그러면 해시가 달라져 전부 다시 냅니다.
-     *
-     * 의 "같은 입력이면 다시 안 묻는다"는 입력이 같아도 규칙이 바뀌면
-     * 다시 내야 한다는 경우를 못 가렸습니다.에서 다수결을 넣고,
-     *에서 셈법을 다시 짜고,에서 AI 우선을 넣었는데 — 지표가 그대로면
-     * 프롬프트도 그대로라 해시가 같았고, 새 판정을 계산해 놓고 버렸습니다.
-     * 그래서 화면은 몇 번을 고쳐도 옛 결론 그대로였습니다.
-     *
-     * 채점이 scoreVersion 으로 푼 문제와 같습니다().
-     *
-     * 프롬프트를 고칠 때는 안 올려도 됩니다 — 그건 해시가 이미 잡습니다.
-     * 올릴 때는 지표를 읽는 방식이나 결론을 정하는 방식이 바뀌었을 때입니다.
-     */
+ /** 판정 규칙 판 번호. */
     private static final String VERDICT_RULES_VERSION = "I249";
 
-    /**
-     * 저장할 프롬프트 해시.
-     *
-     * 답을 받았을 때만 남깁니다. 실패한 호출에 해시를 붙이면 다음 호출이
-     * "같은 지표니 다시 안 묻는다"(I59)로 건너뛰어, 일시적 장애가 영구적인 답이 됩니다.
-     *
-     * 프롬프트가 만들어졌다는 것과 답을 받았다는 것은 다릅니다 — 키가 없어도,
-     * 400을 맞아도, 답이 읽히지 않아도 프롬프트는 남습니다.
-     */
+ /** 저장할 프롬프트 해시. */
     static String hashToStore(ForecastVerdict verdict) {
         return verdict.llmAnswered() ? sha256(VERDICT_RULES_VERSION + "\n" + verdict.prompt().full()) : null;
     }
 
-    /**
-     * 저장할 모델 이름.
-     *
-     * 답을 못 받았으면 비워 둡니다. "claude가 냈다"고 적어 두면
-     * 사후 검증(구현 10)이 호출 실패를 모델의 판단으로 세게 됩니다 —
-     * 적중률이 통째로 틀어집니다.
-     */
+ /** 저장할 모델 이름. */
     static String modelToStore(ForecastVerdict verdict, String provider) {
         return verdict.llmAnswered() ? provider : null;
     }
@@ -236,14 +164,7 @@ public class PriceForecastService {
         return forecastRepository.findByPropertyId(propertyId);
     }
 
-    /**
-     * 목록에 전망 요약을 붙인다.
-     *
-     * 한 번에 읽습니다. 매물마다 따로 부르면 목록의 N+1이 되살아납니다(I124).
-     *
-     * 진행 여부는 캐시를 봐야 하므로 매물마다 확인하지만, 인메모리·Redis 조회라
-     * DB 왕복과는 무게가 다릅니다.
-     */
+ /** 목록에 전망 요약을 붙인다. */
     public List<ScoredPropertyResponse> attachForecasts(List<ScoredPropertyResponse> scored) {
         if (scored.isEmpty()) {
             return scored;
@@ -256,7 +177,7 @@ public class PriceForecastService {
                 .toList();
     }
 
-    /** 단건. */
+ /** 단건. */
     public ScoredPropertyResponse attachForecast(ScoredPropertyResponse scored) {
         final Long id = scored.property().id();
         return scored.withForecast(summaryOf(id, forecastRepository.findByPropertyId(id).orElse(null)));
@@ -269,19 +190,14 @@ public class PriceForecastService {
                 : ForecastSummary.from(forecast, running);
     }
 
-    /** 지금 분석 중인가 — 화면 폴링용. */
+ /** 지금 분석 중인가. 화면 폴링용. */
     public boolean isRunning(Long propertyId) {
         return jobCache.get(jobKey(propertyId))
                 .map(banghak.home.halley.domain.llm.LlmJobState::isRunning)
                 .orElse(false);
     }
 
-    /**
-     * 재료를 모은다.
-     *
-     * 실거래 60개월은 캐시가 받고(I128), 금리는 ECOS(I116), 용도지역은 토지이용계획(I69),
-     * 용적률은 건축물대장(I132)입니다. 하나가 없어도 나머지로 갑니다.
-     */
+ /** 재료를 모은다. */
     private ForecastInput gather(Property property) {
         final String lawdCd = legalDongCodeService.deriveSigunguCode(property.addressJibun())
                 .orElse(null);
@@ -310,30 +226,20 @@ public class PriceForecastService {
         }
     }
 
-    /**
-     * 지표를 계산하고, 코드와 LLM이 각각 판단한다.
-     *
-     * LLM이 죽어도 지표는 그대로 나옵니다. 그게 지표를 먼저 만든 이유입니다.
-     */
+ /** 지표를 계산하고, 코드와 LLM이 각각 판단한다. */
     public ForecastVerdict forecast(ForecastInput input) {
         final PriceOutlook byCode = indicatorFactory.forecaster().forecast(input);
         final int horizon = indicatorFactory.horizonMonths();
 
         if (byCode.factors().isEmpty()) {
-            // 재료가 없으면 묻지 않는다 — 일반론이 돌아온다
             log.info("Skipping forecast LLM call - no indicators. propertyId={}",
                     input.property() == null ? null : input.property().id());
             return new ForecastVerdict(byCode, byCode, null, null, false);
         }
-        // 어느 지표가 값을 냈는지 남긴다. 개수만 남기면 판단이 보류될 때
-        // 무엇이 없어서인지 알 수 없다 — 실거래 추세가 빠진 것인지, 전세가율이 빠진 것인지
         log.info("Forecast indicators produced values. names=[{}]", byCode.factors().stream()
                 .map(banghak.home.halley.domain.forecast.PriceFactor::name)
                 .collect(java.util.stream.Collectors.joining(", ")));
-        // 실거래 지표가 빠졌으면 왜 빠졌는지 함께 넘긴다.
-        // 안 알려 주면 모델이 "인근 실거래 비교 자료가 없습니다" 처럼 지어낸 추측을 쓴다
         final String gapNote = hasEnoughTradeSamples(byCode) ? null : tradeGapNote(input);
-        // 5년이 어떤 모양으로 움직였는지. 지표가 아니라 읽을 재료다
         final String shape = yearlyMedians.describe(input.property(), input.monthlyTrades(),
                 input.baseMonth().getYear());
         final ForecastPrompt prompt = ForecastPrompt.of(
@@ -341,33 +247,23 @@ public class PriceForecastService {
 
         if (!enabled || !llmPort.isEnabled()) {
             log.info("Skipping forecast LLM call - provider not enabled. provider={}", llmPort.provider());
-            // 키를 나중에 넣으면 다시 물어야 한다. 해시를 남기면 그 기회가 사라진다
             return new ForecastVerdict(byCode, byCode, null, prompt, false);
         }
         final Optional<PriceOutlook> byLlm = ask(prompt, horizon);
         return byLlm
                 .map(llm -> new ForecastVerdict(
                         guard(llm, byCode, input), byCode, llm.direction(), prompt, true))
-                // 못 받았으면 코드 예측으로 답하되, 답한 것처럼 굳히지는 않는다
                 .orElseGet(() -> new ForecastVerdict(byCode, byCode, null, prompt, false));
     }
 
-    /**
-     * LLM에 묻는다. 못 받으면 비어 있다.
-     *
-     * 예전에는 코드 예측을 대신 돌려줬는데, 부른 쪽에서 답을 받은 것과 구분할 수
-     * 없었습니다. 그래서 실패한 호출에도 프롬프트 해시가 저장됐고, 다시 물으면
-     * 해시가 같아 영영 건너뛰었습니다.
-     */
+ /** LLM에 묻는다. 못 받으면 비어 있다. */
     private Optional<PriceOutlook> ask(ForecastPrompt prompt, int horizon) {
-        // 자리마다 고른 모델을 쓴다 — 환경변수 하나로 묶여 있었다
         final String model = llmModelService.modelFor(LlmFeature.PRICE_FORECAST);
         log.info("Asking LLM for price forecast. model={}, knownNumbers={}, promptChars={}",
                 model, prompt.allowedNumbers().size(), prompt.user().length());
         log.debug("Forecast prompt.\n{}", prompt.user());
 
         final long askedAt = System.currentTimeMillis();
-        // 판단 작업이라 흔들리면 안 된다
         final LlmResult result = llmPort.complete(
                 LlmMessage.deterministic(prompt.system(), prompt.user(), maxTokens, model));
         log.info("LLM forecast responded. model={}, present={}, elapsedMs={}",
@@ -385,24 +281,8 @@ public class PriceForecastService {
         return parsed;
     }
 
-    /**
-     * 코드가 못 박는 것.
-     *
-     * 표본이 얇으면 LLM이 뭐라 하든 UNCERTAIN입니다. 3건으로는 누구도 알 수 없으니
-     * 판단에 맡길 문제가 아닙니다.
-     *
-     * 요인이 전부 걸러졌다면(지어낸 숫자만 인용했다면) 그 답은 믿을 수 없습니다.
-     */
-    /**
-     * 실거래 지표가 왜 빠졌는지.
-     *
-     * 이유가 넷인데 화면도 로그도 아무 말이 없었습니다 — 자료를 못 받았는지,
-     * 단지명이 안 맞는지, 평형이 다른지, 그냥 거래가 드문지.
-     * 사람이 LLM 산문을 읽고 짐작해야 했습니다.
-     *
-     * 이 문장은 LLM 에도 갑니다. 이유를 알려 주면 "인근 실거래 비교 자료가
-     * 없습니다" 같은 지어낸 추측 대신 정확한 이유를 씁니다.
-     */
+ /** 코드가 못 박는 것. */
+ /** 실거래 지표가 왜 빠졌는지. */
     String tradeGapNote(ForecastInput input) {
         final var tally = tradeStats.tally(input.property(), input.monthlyTrades());
         final String name = input.property() == null || input.property().name() == null
@@ -421,7 +301,6 @@ public class PriceForecastService {
                     tally.trades(), tally.nameMatched(),
                     input.property() == null ? "?" : String.valueOf(input.property().areaExclusiveM2()));
         }
-        // 총량이 아니라 구간마다 안 찬 것이다 — "14건뿐"이라고 하면 틀린 말이 된다
         return String.format("이름·면적이 맞는 실거래는 %d건이지만 비교 구간마다 %d건을 "
                 + "채우지 못해 실거래 지표를 넣지 못했습니다 — 거래가 여러 달에 흩어져 "
                 + "있습니다", tally.areaMatched(), MIN_TRADE_SAMPLES);
@@ -433,8 +312,6 @@ public class PriceForecastService {
             return tallied(byCode, new ArrayList<>(byCode.caveats()), false);
         }
         final List<String> caveats = new ArrayList<>(byLlm.caveats());
-        // 이 매물의 실거래가 모자라면 방향은 말하되 확신은 하지 않습니다.
-        // 금리 국면은 ECOS 통계라 아무리 나와도 이 단지의 표본과는 무관합니다
         final boolean thinEvidence = !hasEnoughTradeSamples(byCode);
         if (thinEvidence) {
             log.info("No trade-based indicator - counting the rest. required={}, got=[{}]",
@@ -446,26 +323,13 @@ public class PriceForecastService {
         return tallied(byLlm, caveats, thinEvidence);
     }
 
-    /**
-     * 결론은 지표에서 계산합니다.
-     *
-     * LLM 이 스스로 낸 방향은 쓰지 않습니다 — LLM 은 지표와 근거만 주고
-     * 판정은 우리가 합니다. 규칙이 전부 "지표 중에서"로 되어 있어서입니다.
-     *
-     * 이렇게 하면 화면에 보이는 화살표들과 결론이 어긋날 수 없습니다.
-     * 전에는 지표가 ▲▼▼▲ 인데 결론이 "판단 보류"로 떴습니다 — 세어 보면 2:2 동수라
-     * 상승이어야 했습니다.
-     */
+ /** 결론은 지표에서 계산합니다. */
     private PriceOutlook tallied(PriceOutlook outlook, List<String> caveats, boolean thinEvidence) {
         final ForecastDirection said = outlook.direction();
-        // LLM 이 방향을 말했으면 그대로 따릅니다.
-        // 유지·판단 보류는 "방향을 말하지 않은 것"입니다 — 그때만 우리가 셉니다
         final boolean committed = said == ForecastDirection.UP || said == ForecastDirection.DOWN;
         final ForecastDirection direction = committed
                 ? said
                 : FactorTally.of(outlook.factors()).direction();
-        // 표본이 얇거나 우리가 대신 정했으면 확신도를 낮춥니다.
-        // 우리가 세어 넣은 판단에 "확신도 높음"을 붙일 수는 없습니다
         final ForecastConfidence confidence = (thinEvidence || !committed)
                 ? ForecastConfidence.LOW
                 : outlook.confidence();
@@ -477,17 +341,7 @@ public class PriceForecastService {
                 outlook.horizonMonths(), outlook.factors(), caveats);
     }
 
-    /**
-     * 실거래 표본이 없을 때.
-     *
-     * 전에는 곧바로 `UNCERTAIN` 이었습니다. 그런데 실제로 써 보니
-     * 거의 모든 매물이 판단 보류였습니다 — 금리·전세가율·용도지역 같은
-     * 지표가 여럿 나와 있는데도 그랬습니다. 알아낸 것을 안 보여 준 셈입니다.
-     *
-     * 이제 지표들이 가리키는 쪽을 세어 말하되, 확신도는 낮게 두고
-     * 무엇이 빠졌는지 함께 적습니다. 방향을 감추는 것과 근거를 밝히는 것 중
-     * 뒤쪽이 낫습니다.
-     */
+ /** 실거래 표본이 없을 때. */
     private PriceOutlook withoutTradeSamples(PriceOutlook byLlm, PriceOutlook byCode) {
         log.info("No trade-based indicator - falling back to a majority read. required={}, got=[{}]",
                 TRADE_BASED_FACTORS, byCode.factors().stream()
@@ -497,23 +351,9 @@ public class PriceForecastService {
                 "이 단지·면적대의 실거래 표본이 %d건 미만이라", MIN_TRADE_SAMPLES));
     }
 
-    /**
-     * 지표를 세어 방향을 낸다.
-     *
-     * LLM 이 낸 요인을 먼저 봅니다 — 그게 결론의 근거로 화면에 뜨는 것입니다.
-     * 비어 있으면 규칙 예측의 요인을 씁니다.
-     *
-     * 확신도는 언제나 LOW 입니다. 세어서 고른 것이지 확신이 있어서가 아닙니다.
-     */
+ /** 지표를 세어 방향을 낸다. */
 
-    /**
-     * 지표를 세어 방향을 낸다.
-     *
-     * LLM 이 낸 요인을 먼저 봅니다 — 그게 결론의 근거로 화면에 뜨는 것입니다.
-     * 비어 있으면 규칙 예측의 요인을 씁니다.
-     *
-     * 확신도는 언제나 LOW 입니다. 세어서 고른 것이지 확신이 있어서가 아닙니다.
-     */
+ /** 지표를 세어 방향을 낸다. */
     private PriceOutlook majorityRead(PriceOutlook byLlm, PriceOutlook byCode, String because) {
         final List<banghak.home.halley.domain.forecast.PriceFactor> factors =
                 byLlm.factors().isEmpty() ? byCode.factors() : byLlm.factors();
@@ -530,40 +370,18 @@ public class PriceForecastService {
                 byLlm.horizonMonths(), factors, caveats);
     }
 
-    /**
-     * 실거래 표본이 있었는가.
-     *
-     * 예전에는 실거래 추세 하나만 봤습니다. 그 지표는 3개월 창이라,
-     * 장기 표본이 넉넉해도 최근 석 달이 한산하면 판단이 덮였습니다.
-     *
-     * §2.2-A의 취지는 "3건으로는 누구도 알 수 없다"입니다 — 3개월 창이 얇은 것과
-     * 실거래 자료가 없는 것은 다른 얘기인데 둘을 같게 보고 있었습니다.
-     * 장기 추세(12개월 창 둘)가 나왔다면 표본은 이미 충분합니다.
-     */
+ /** 실거래 표본이 있었는가. */
     private boolean hasEnoughTradeSamples(PriceOutlook byCode) {
         return byCode.factors().stream().anyMatch(f -> TRADE_BASED_FACTORS.contains(f.name()));
     }
 
-    /**
-     * 두 예측과 프롬프트.
-     *
-     * @param conclusion 결론 — LLM이 있으면 LLM, 없으면 코드
-     * @param byCode     코드 예측. 화면의 참고 문구에만 씁니다
-     * @param prompt     해시로 중복 호출을 막을 때 쓴다. 안 부른 경우 null
-     * @param llmAnswered LLM이 실제로 답했는가.
-     *                   프롬프트가 만들어졌다고 답을 받은 것은 아니다 — 키가 없거나
-     *                   400을 맞아도 프롬프트는 남는다. 이걸 구분하지 않으면
-     *                   실패가 해시로 굳어 다시 물을 수 없게 된다.
-     */
-    /**
-     * @param llmDirection LLM 이 스스로 낸 결론. 답을 못 받았으면 null.
-     *                     conclusion 은 규칙까지 거친 최종 결론이라 둘이 다를 수 있다
-     */
+ /** 두 예측과 프롬프트. */
+ /** conclusion 은 규칙까지 거친 최종 결론이라 둘이 다를 수 있다 */
     public record ForecastVerdict(PriceOutlook conclusion, PriceOutlook byCode,
                                   ForecastDirection llmDirection,
                                   ForecastPrompt prompt, boolean llmAnswered) {
 
-        /** 둘이 같은 방향인가 — 모달 문구를 가른다. */
+ /** 둘이 같은 방향인가. 모달 문구를 가른다. */
         public boolean agreed() {
             return conclusion.direction() == byCode.direction();
         }

@@ -20,7 +20,6 @@ public class MaintenanceFeeExtractor implements FieldExtractor<Integer> {
 
     @Override
     public ParseResult<Integer> extract(TextDocument doc) {
-        // 상단 요약(18만원)보다 하단 상세의 '월 평균'(23만 4,762원)이 실제에 가깝다 —
         final Optional<String> average = doc.valueAfter("월 평균");
         if (average.isPresent()) {
             final Long won = WonConverter.toWon(average.get());

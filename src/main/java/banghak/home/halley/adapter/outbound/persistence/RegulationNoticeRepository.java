@@ -43,7 +43,7 @@ public class RegulationNoticeRepository {
         return dsl.selectFrom(TABLE).fetch().map(this::map);
     }
 
-    /** 규제당 한 행만 두므로 있으면 갱신, 없으면 삽입한다. */
+ /** 규제당 한 행만 두므로 있으면 갱신, 없으면 삽입한다. */
     public void save(RegulationNoticeState state) {
         final int updated = dsl.update(TABLE)
                 .set(NOTICE_NO, state.noticeNo())

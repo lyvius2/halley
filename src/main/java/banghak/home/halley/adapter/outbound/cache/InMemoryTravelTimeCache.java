@@ -12,9 +12,7 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * local/개발용 인메모리 캐시 (TTL 7일). live에서는 RedisTravelTimeCache가 사용된다.
- */
+/** local/개발용 인메모리 캐시 (TTL 7일). live에서는 RedisTravelTimeCache가 사용된다. */
 @Component
 @Profile("!live")
 public class InMemoryTravelTimeCache implements TravelTimeCache {

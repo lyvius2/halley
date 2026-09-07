@@ -2,10 +2,7 @@ package banghak.home.halley.config.exception;
 
 import org.springframework.http.HttpStatus;
 
-/**
- * 비교 우위 분석은 매물이 최소 4개 있어야 실행할 수 있다.
- * 두셋으로는 '비교 우위'라는 말이 성립하지 않는다.
- */
+/** 비교 우위 분석은 매물이 최소 4개 있어야 실행할 수 있다. */
 public class InsufficientPropertiesException extends BusinessException {
 
     public InsufficientPropertiesException(int required, int actual) {

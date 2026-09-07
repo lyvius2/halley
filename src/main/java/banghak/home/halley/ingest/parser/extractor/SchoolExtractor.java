@@ -8,10 +8,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * 배정 초등학교명 — 블록에서 "초등학교/중학교"로 끝나는 이름을 추출한다.
- * UI 문구("상세내용 숨기기" 등)는 건너뛴다.
- */
+/** 배정 초등학교명. 블록에서 "초등학교/중학교"로 끝나는 이름을 추출한다. */
 public class SchoolExtractor implements FieldExtractor<String> {
 
     private static final Pattern SCHOOL = Pattern.compile("([^\\s]*?초등학교|[^\\s]*?중학교)");
