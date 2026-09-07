@@ -16,6 +16,7 @@ public class BudgetPlanService {
     private final HouseholdBudgetItemCatalogRepository catalogRepository;
     private final PropertyAccessGuard accessGuard;
     private final BudgetCalculator calculator = new BudgetCalculator();
+    private final BudgetCostEstimator costEstimator = new BudgetCostEstimator();
 
     public BudgetPlanService(HouseholdBudgetPlanRepository planRepository,
                              HouseholdBudgetAssetRepository assetRepository,
@@ -141,6 +142,13 @@ public class BudgetPlanService {
                     item.alternativeFetchStatus(), item.note(), item.createdAt(), item.updatedAt()));
         }
         return planRepository.update(withScenario(plan, scenario));
+    }
+
+    public BudgetCostEstimate estimateCosts(Long planId) {
+        final BudgetPlan plan = requirePlan(planId);
+        final BudgetFinancing financing = financingRepository.findByPlanId(planId)
+                .orElseGet(() -> emptyFinancing(planId));
+        return costEstimator.estimate(plan, financing);
     }
 
     public BudgetFinancing saveFinancing(BudgetFinancing financing) {

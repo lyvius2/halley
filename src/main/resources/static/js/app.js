@@ -165,6 +165,7 @@ function halley() {
         budgetItemFilter: '',
         showBudgetPropertyPicker: false,
         budgetAdvice: null,
+        budgetCostEstimate: null,
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -918,6 +919,24 @@ function halley() {
                 await this.loadBudget();
                 await this.loadBudgetPlans();
             }
+        },
+
+        async estimateBudgetCosts() {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId) return;
+            const { ok, body } = await this.request('/api/budget/plans/' + planId + '/cost-estimate', { method: 'POST' });
+            this.budgetCostEstimate = ok ? body : null;
+        },
+
+        applyBudgetCostEstimate() {
+            const plan = this.budgetAggregate?.plan;
+            const estimate = this.budgetCostEstimate;
+            if (!plan || !estimate) return;
+            plan.acquisitionTax = estimate.acquisitionTax;
+            plan.brokerageFee = estimate.brokerageFee;
+            plan.registrationFee = estimate.registrationFee;
+            plan.movingCost = estimate.movingCost;
+            plan.cleaningCost = estimate.cleaningCost;
         },
 
         async addBudgetAsset() {

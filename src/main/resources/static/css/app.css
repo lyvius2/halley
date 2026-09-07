@@ -2589,7 +2589,10 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-picker-list small { grid-column: 1 / -1; }
  .budget-advice { margin-top: .75rem; background: #f5efe5; padding: .75rem; border-radius: 8px; }
  .budget-advice pre { white-space: pre-wrap; font: inherit; margin: 0 0 .5rem; }
- .budget-form-grid input { width: 100%; box-sizing: border-box; }
+.budget-form-grid input { width: 100%; box-sizing: border-box; }
+.budget-cost-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.budget-cost-estimate { display: grid; gap: .45rem; margin-top: .75rem; padding: .75rem; border: 1px solid var(--teal, #147a78); border-radius: 8px; background: #f5efe5; }
+.budget-cost-estimate span { line-height: 1.6; }
  .budget-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-top: 1rem; }
  .budget-summary-grid div { background: #f5efe5; border-radius: 8px; padding: .75rem; display: grid; gap: .25rem; }
  @media (max-width: 700px) { .budget-summary-grid, .budget-form-grid, .budget-item-row { grid-template-columns: 1fr; } .budget-card label { width: 100%; } }

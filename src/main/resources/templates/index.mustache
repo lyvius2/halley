@@ -287,7 +287,10 @@
                                         <label>월 관리비(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.monthlyManagementFee"></label>
                                         <label>기타 월 주거비(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.monthlyOtherHousingCost"></label>
                                     </div>
-                                    <button class="btn btn-primary" @click="saveBudget()">주택 예산 저장</button>
+                                    <div class="budget-cost-actions"><button class="btn btn-sm" type="button" @click="estimateBudgetCosts()">부대비용 자동 추정</button><button class="btn btn-primary" @click="saveBudget()">주택 예산 저장</button></div>
+                                    <article class="budget-cost-estimate" x-show="budgetCostEstimate">
+                                        <b>참고 추정값</b><span>취득세 <strong x-text="fmtWon(budgetCostEstimate?.acquisitionTax)"></strong> · 중개보수 <strong x-text="fmtWon(budgetCostEstimate?.brokerageFee)"></strong> · 법무사·등기 <strong x-text="fmtWon(budgetCostEstimate?.registrationFee)"></strong> · 이사 <strong x-text="fmtWon(budgetCostEstimate?.movingCost)"></strong> · 입주청소 <strong x-text="fmtWon(budgetCostEstimate?.cleaningCost)"></strong></span><button type="button" class="btn btn-sm" @click="applyBudgetCostEstimate()">입력칸에 적용</button><template x-for="caution in (budgetCostEstimate?.cautions || [])"><small x-text="caution"></small></template>
+                                    </article>
                                     <section class="budget-assets">
                                         <h3>그룹 자산</h3>
                                         <div class="budget-form-grid">

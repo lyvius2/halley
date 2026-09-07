@@ -12,6 +12,7 @@ import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductPreview;
 import banghak.home.halley.domain.budget.BudgetScenario;
 import banghak.home.halley.domain.budget.BudgetAdvice;
+import banghak.home.halley.domain.budget.BudgetCostEstimate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
@@ -104,6 +105,11 @@ public class BudgetController {
     @PutMapping("/{id}/scenario")
     public BudgetPlan applyScenario(@PathVariable Long id, @RequestParam BudgetScenario scenario) {
         return service.applyScenario(id, scenario);
+    }
+
+    @PostMapping("/{id}/cost-estimate")
+    public BudgetCostEstimate estimateCosts(@PathVariable Long id) {
+        return service.estimateCosts(id);
     }
 
     @PostMapping("/{id}/advice")

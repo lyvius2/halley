@@ -11,6 +11,7 @@ import banghak.home.halley.domain.budget.RepaymentType;
 import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductFetchStatus;
 import banghak.home.halley.domain.budget.BudgetScenario;
+import banghak.home.halley.domain.budget.BudgetCostEstimate;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -122,5 +123,20 @@ class BudgetControllerTest {
         // then
         assertThat(result).isNull();
         verify(service).applyScenario(10L, BudgetScenario.MINIMUM);
+    }
+
+    @Test
+    @DisplayName("부대비용 자동 추정 요청을 계획 Service에 전달한다")
+    void estimateCostsDelegatesToService() {
+        // given
+        final BudgetCostEstimate expected = new BudgetCostEstimate(1L, 2L, 3L, 4L, 5L, List.of(), List.of());
+        when(service.estimateCosts(10L)).thenReturn(expected);
+
+        // when
+        final BudgetCostEstimate actual = controller.estimateCosts(10L);
+
+        // then
+        assertThat(actual).isEqualTo(expected);
+        verify(service).estimateCosts(10L);
     }
 }
