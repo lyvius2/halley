@@ -280,6 +280,18 @@
                                         <label>이사·청소 비용(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.movingCost"></label>
                                     </div>
                                     <button class="btn btn-primary" @click="saveBudget()">주택 예산 저장</button>
+                                    <section class="budget-assets">
+                                        <h3>그룹 자산</h3>
+                                        <div class="budget-form-grid">
+                                            <label>유형 <select x-model="budgetAssetForm.assetType"><option value="FINANCIAL">금융</option><option value="REAL_ESTATE">부동산</option><option value="VEHICLE">자동차</option><option value="OTHER">기타</option></select></label>
+                                            <label>자산명 <input x-model="budgetAssetForm.assetName" placeholder="예: 예금"></label>
+                                            <label>평가금액(원) <input type="number" min="0" x-model.number="budgetAssetForm.estimatedValue"></label>
+                                            <label>투입 가능 금액(원) <input type="number" min="0" :max="budgetAssetForm.estimatedValue" x-model.number="budgetAssetForm.investableAmount"></label>
+                                        </div>
+                                        <label><input type="checkbox" x-model="budgetAssetForm.excluded"> 예산 투입에서 제외</label>
+                                        <button class="btn btn-sm" @click="addBudgetAsset()">자산 추가</button>
+                                        <ul class="budget-asset-list"><template x-for="asset in budgetAggregate.assets" :key="asset.id"><li><b x-text="asset.assetName"></b><span x-text="fmtWon(asset.investableAmount) + (asset.excluded ? ' · 제외' : '')"></span></li></template></ul>
+                                    </section>
                                     <div class="budget-summary-grid">
                                         <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
                                         <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>

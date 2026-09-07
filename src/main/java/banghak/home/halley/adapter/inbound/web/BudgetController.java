@@ -3,6 +3,7 @@ package banghak.home.halley.adapter.inbound.web;
 import banghak.home.halley.application.service.BudgetPlanAggregate;
 import banghak.home.halley.application.service.BudgetPlanService;
 import banghak.home.halley.domain.budget.BudgetPlan;
+import banghak.home.halley.domain.budget.BudgetAsset;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -42,5 +43,13 @@ public class BudgetController {
             throw new IllegalArgumentException("plan id does not match path");
         }
         return service.update(plan);
+    }
+
+    @PostMapping("/{id}/assets")
+    public BudgetAsset addAsset(@PathVariable Long id, @RequestBody BudgetAsset asset) {
+        if (!id.equals(asset.planId())) {
+            throw new IllegalArgumentException("plan id does not match path");
+        }
+        return service.addAsset(asset);
     }
 }

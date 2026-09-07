@@ -161,6 +161,7 @@ function halley() {
         budgetPlanId: null,
         budgetAggregate: null,
         budgetPlans: [],
+        budgetAssetForm: { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false },
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -913,6 +914,21 @@ function halley() {
             if (ok) {
                 await this.loadBudget();
                 await this.loadBudgetPlans();
+            }
+        },
+
+        async addBudgetAsset() {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId || !this.budgetAssetForm.assetName?.trim()) {
+                return;
+            }
+            const asset = { ...this.budgetAssetForm, planId, userId: this.session.userId, sourceType: 'MANUAL' };
+            const { ok } = await this.request('/api/budget/plans/' + planId + '/assets', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(asset)
+            });
+            if (ok) {
+                this.budgetAssetForm = { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false };
+                await this.loadBudget();
             }
         },
 
