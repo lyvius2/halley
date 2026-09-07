@@ -160,6 +160,7 @@ function halley() {
         view: 'list',
         budgetPlanId: null,
         budgetAggregate: null,
+        budgetPlans: [],
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -864,8 +865,30 @@ function halley() {
                 this.loadVisited();
             }
             if (view === 'budget') {
-                this.loadBudget();
+                this.loadBudgetPlans();
             }
+        },
+
+        async loadBudgetPlans() {
+            const { ok, body } = await this.request('/api/budget/plans');
+            if (!ok) {
+                return;
+            }
+            this.budgetPlans = body || [];
+            if (!this.budgetPlanId && this.budgetPlans.length > 0) {
+                this.budgetPlanId = this.budgetPlans[0].id;
+                await this.loadBudget();
+            }
+        },
+
+        async createDefaultBudget() {
+            const { ok, body } = await this.request('/api/budget/plans/default', { method: 'POST' });
+            if (!ok) {
+                return;
+            }
+            this.budgetPlanId = body.id;
+            await this.loadBudgetPlans();
+            await this.loadBudget();
         },
 
         async loadBudget() {

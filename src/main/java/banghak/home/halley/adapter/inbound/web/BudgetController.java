@@ -30,4 +30,9 @@ public class BudgetController {
     public BudgetPlan create(@RequestBody BudgetPlan plan) {
         return service.create(plan);
     }
+
+    @PostMapping("/default")
+    public BudgetPlan createDefault() {
+        return service.createDefault();
+    }
 }

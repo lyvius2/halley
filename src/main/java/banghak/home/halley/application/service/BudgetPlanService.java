@@ -3,6 +3,7 @@ package banghak.home.halley.application.service;
 import banghak.home.halley.adapter.outbound.persistence.*;
 import banghak.home.halley.config.exception.NoGroupException;
 import banghak.home.halley.domain.budget.*;
+import banghak.home.halley.domain.user.User;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
@@ -56,6 +57,14 @@ public class BudgetPlanService {
                 catalog.candidateName(), catalog.candidateUrl(), null, catalog.alternativeName(), catalog.alternativeUrl(),
                 null, ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, catalog.note(), null, null)));
         return saved;
+    }
+
+    public BudgetPlan createDefault() {
+        final Long groupId = requireGroupId();
+        final Long userId = accessGuard.currentUser().map(User::id).orElseThrow(NoGroupException::new);
+        return create(new BudgetPlan(null, groupId, userId, "새 신혼 예산 계획", BudgetScenario.RECOMMENDED,
+                null, HousingType.SALE, null, null, 0L, null, 0L, 0L, 0L, 0L, 0L,
+                0L, 0L, 0L, 0L, 0L, 0L, 0L, null, null));
     }
 
     private boolean selectedFor(BudgetScenario scenario, BudgetItemCatalog catalog) {
