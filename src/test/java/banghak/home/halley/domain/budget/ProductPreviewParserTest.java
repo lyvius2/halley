@@ -28,9 +28,15 @@ class ProductPreviewParserTest {
         final var naver = policy.requireAllowed("https://shopping.naver.com/product/123");
         final var samsung = policy.requireAllowed("https://www.samsung.com/kr/refrigerators/123");
         final var eleven = policy.requireAllowed("https://www.11st.co.kr/products/123");
+        final var coupang = policy.requireAllowed("https://www.coupang.com/vp/products/123");
+        final var amazonUs = policy.requireAllowed("https://www.amazon.com/dp/B000000000");
+        final var amazonJp = policy.requireAllowed("https://www.amazon.co.jp/dp/B000000000");
         // then
         assertThat(naver.getHost()).isEqualTo("shopping.naver.com");
         assertThat(samsung.getHost()).isEqualTo("www.samsung.com");
         assertThat(eleven.getHost()).isEqualTo("www.11st.co.kr");
+        assertThat(coupang.getHost()).isEqualTo("www.coupang.com");
+        assertThat(amazonUs.getHost()).isEqualTo("www.amazon.com");
+        assertThat(amazonJp.getHost()).isEqualTo("www.amazon.co.jp");
     }
 }
