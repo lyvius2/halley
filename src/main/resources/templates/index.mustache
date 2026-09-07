@@ -272,8 +272,11 @@
                                     <div class="budget-form-grid">
                                         <label>시나리오 <select x-model="budgetAggregate.plan.scenario" @change="applyBudgetScenario()"><option value="MINIMUM">최소 시작</option><option value="RECOMMENDED">현실적인 추천</option><option value="COMFORTABLE">여유 있는 시작</option><option value="CUSTOM" disabled>사용자 정의</option></select></label>
                                         <label>계획 이름 <input x-model="budgetAggregate.plan.planName"></label>
+                                        <label>거래유형 <select x-model="budgetAggregate.plan.housingType"><option value="SALE">매매</option><option value="JEONSE">전세</option><option value="OTHER_RENT">월세·기타 임차</option></select></label>
+                                        <label>지역 <input x-model="budgetAggregate.plan.region" placeholder="예: 서울특별시 성동구"></label>
                                         <label>주택명 <input x-model="budgetAggregate.plan.houseName"><button type="button" class="btn btn-sm" @click="openBudgetPropertyPicker()">등록 매물 선택</button></label>
                                         <label>매매가격(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.purchasePrice"></label>
+                                        <label>전용면적(㎡) <input type="number" min="0" step="0.01" x-model.number="budgetAggregate.plan.exclusiveAreaM2"></label>
                                         <label>계약금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.contractCash"></label>
                                         <label>잔금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.balanceCash"></label>
                                         <label>취득세(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.acquisitionTax" @input="markBudgetCostManual('acquisitionTaxSource')"><small x-text="budgetAggregate.plan.acquisitionTaxSource === 'AUTO_ESTIMATE' ? '자동 추정' : '수기 입력'"></small></label>

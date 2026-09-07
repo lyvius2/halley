@@ -17,7 +17,7 @@ public class HouseholdBudgetCatalogBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) throws Exception {
-        final String sql = new ClassPathResource("household-budget-items-seed.sql")
+        final String sql = new ClassPathResource("data.sql")
                 .getContentAsString(StandardCharsets.UTF_8);
         int applied = 0;
         for (final String statement : sql.split(";")) {

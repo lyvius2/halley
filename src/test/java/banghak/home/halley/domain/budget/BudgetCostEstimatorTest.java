@@ -25,6 +25,7 @@ class BudgetCostEstimatorTest {
         assertThat(result.registrationFee()).isEqualTo(1_400_000L);
         assertThat(result.movingCost()).isEqualTo(1_208_000L);
         assertThat(result.cleaningCost()).isEqualTo(1_108_000L);
+        assertThat(result.cautions()).contains("중개보수는 서울 매매 상한요율 참고값입니다. 해당 지역 조례를 확인하세요.");
     }
 
     @Test

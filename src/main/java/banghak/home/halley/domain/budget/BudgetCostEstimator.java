@@ -24,6 +24,7 @@ public final class BudgetCostEstimator {
                         "법무사·등기: 기본 50만원 + 매매가 0.15% + 대출금 0.05% 참고",
                         "이사·입주청소: 전용면적 ㎡당 각 1만 2천원과 기본비 참고"),
                 List.of("확정 세액·수수료·견적이 아닙니다. 주택 수·지역·거래 조건 및 실제 견적을 확인하세요.",
+                        regionCaution(plan.region()),
                         "면적이 없으면 이사·입주청소 비용은 추정하지 않습니다."));
     }
 
@@ -46,5 +47,11 @@ public final class BudgetCostEstimator {
 
     private long roundedArea(BigDecimal area) {
         return area == null || area.signum() <= 0 ? 0L : area.setScale(0, RoundingMode.UP).longValue();
+    }
+
+    private String regionCaution(String region) {
+        return region != null && region.contains("서울")
+                ? "중개보수는 서울 매매 상한요율을 참고했습니다."
+                : "중개보수는 서울 매매 상한요율 참고값입니다. 해당 지역 조례를 확인하세요.";
     }
 }

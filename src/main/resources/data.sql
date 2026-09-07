@@ -1,6 +1,6 @@
 -- 신혼 생활 시작 예산 계획 PoC 혼수 품목 seed (35개)
 --
--- 이 파일은 household_budget_item_catalog 테이블을 만드는 3단계 DDL 뒤에 적용한다.
+-- Spring SQL 초기화와 운영 bootstrap이 household_budget_item_catalog DDL 뒤에 적용한다.
 -- 금액은 원 단위이며, 원본 정적 PoC의 만 원 단위 값을 10,000배 했다.
 -- 상품 가격은 실시간 판매가나 확정 견적이 아닌 계획용 예상값이다.
 --
