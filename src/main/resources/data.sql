@@ -1,16 +1,16 @@
 -- 신혼 생활 시작 예산 계획 PoC 혼수 품목 seed (35개)
 --
--- Spring SQL 초기화와 운영 bootstrap이 household_budget_item_catalog DDL 뒤에 적용한다.
+-- H2 로컬 초기화용. PostgreSQL 운영 DB는 docs/DML-budget-items.sql을 적용한다.
 -- 금액은 원 단위이며, 원본 정적 PoC의 만 원 단위 값을 10,000배 했다.
 -- 상품 가격은 실시간 판매가나 확정 견적이 아닌 계획용 예상값이다.
 --
 -- 컬럼: seed_key, category, item_name, required, recommended, default_budget_amount_won,
 --        candidate_name, candidate_url, alternative_name, alternative_url, note
 
-INSERT INTO household_budget_item_catalog (
+MERGE INTO household_budget_item_catalog (
     seed_key, category, item_name, required, recommended, default_budget_amount_won,
     candidate_name, candidate_url, alternative_name, alternative_url, note
-) VALUES
+) KEY (seed_key) VALUES
   ('seed-00', '가전', 'TV', TRUE, FALSE, 2000000, 'LG OLED65B5FNA · 65인치 OLED', 'https://prod.danawa.com/info/?pcode=80821166', 'LG OLED65C5SNA · 상위 화질', 'https://plan.danawa.com/info/?nPlanSeq=11279', NULL),
   ('seed-01', '가전', '냉장고', TRUE, FALSE, 1800000, 'LG T875MEE012 · 870L / 4도어', 'https://prod.danawa.com/info/?pcode=64380341', '냉장고장 실측 후 소형 모델 비교', NULL, '구형 모델 재고·판매가 확인 필요'),
   ('seed-02', '가전', '세탁기', TRUE, FALSE, 1100000, 'LG F24WDWP · 드럼 24kg', 'https://prod.danawa.com/info/?pcode=18544589', '같은 용량의 별도형 세트 견적 비교', NULL, '건조기와 독립된 제품'),
@@ -46,7 +46,6 @@ INSERT INTO household_budget_item_catalog (
   ('seed-32', '가구', '거실장', FALSE, FALSE, 350000, '밝은 나무색 제품 · 미정', NULL, '실측 후 선택', NULL, NULL),
   ('seed-33', '가구', '화장대·거울·의자', FALSE, FALSE, 250000, '목제 테이블 겸용 구성 · 미정', NULL, '기존 서랍장 활용', NULL, NULL),
   ('seed-34', '가구', '전신거울', FALSE, FALSE, 50000, '제품 미정', NULL, '옷장 거울 활용', NULL, NULL)
-ON CONFLICT (seed_key) DO NOTHING;
+;
 
--- 같은 파일을 여러 번 실행해도 seed가 중복되지 않도록 3단계 DDL에서
--- household_budget_item_catalog(seed_key) UNIQUE 제약을 둔다.
+-- H2 MERGE의 KEY(seed_key)로 여러 번 실행해도 seed가 중복되지 않는다.
