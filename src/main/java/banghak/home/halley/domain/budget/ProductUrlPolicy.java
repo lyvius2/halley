@@ -5,7 +5,9 @@ import java.util.Set;
 
 /** 상품 preview에 허용된 공개 판매 페이지 URL만 통과시킨다. */
 public final class ProductUrlPolicy {
-    private static final Set<String> ALLOWED_HOSTS = Set.of("ikea.com", "mujikorea.co.kr", "danawa.com", "nosearch.com", "lgecds.com");
+    private static final Set<String> ALLOWED_HOSTS = Set.of(
+            "ikea.com", "mujikorea.co.kr", "danawa.com", "nosearch.com", "lgecds.com",
+            "shopping.naver.com", "samsung.com", "11st.co.kr");
 
     public URI requireAllowed(String rawUrl) {
         final URI uri;

@@ -21,4 +21,16 @@ class ProductPreviewParserTest {
         assertThrows(IllegalArgumentException.class, () -> policy.requireAllowed("http://127.0.0.1/private"));
         assertThrows(IllegalArgumentException.class, () -> policy.requireAllowed("https://example.com/product"));
     }
+    @Test @DisplayName("허용된 쇼핑몰 상품 URL을 통과시킨다") void allowsApprovedShoppingUrls() {
+        // given
+        final ProductUrlPolicy policy = new ProductUrlPolicy();
+        // when
+        final var naver = policy.requireAllowed("https://shopping.naver.com/product/123");
+        final var samsung = policy.requireAllowed("https://www.samsung.com/kr/refrigerators/123");
+        final var eleven = policy.requireAllowed("https://www.11st.co.kr/products/123");
+        // then
+        assertThat(naver.getHost()).isEqualTo("shopping.naver.com");
+        assertThat(samsung.getHost()).isEqualTo("www.samsung.com");
+        assertThat(eleven.getHost()).isEqualTo("www.11st.co.kr");
+    }
 }
