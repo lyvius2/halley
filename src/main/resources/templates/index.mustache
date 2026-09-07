@@ -268,11 +268,24 @@
                             </label>
                             <p class="empty-hint" x-show="budgetPlans.length===0">새 계획을 만들면 혼수 35개 기본 항목이 함께 준비됩니다.</p>
                             <template x-if="budgetAggregate">
-                                <div class="budget-summary-grid">
-                                    <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
-                                    <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>
-                                    <div><span>추가 필요 자금</span><b x-text="fmtWon(budgetAggregate.summary.additionalFunds)"></b></div>
-                                    <div><span>예상 월 주거비</span><b x-text="fmtWon(budgetAggregate.summary.monthlyFixedHousingCost)"></b></div>
+                                <div>
+                                    <div class="budget-form-grid">
+                                        <label>계획 이름 <input x-model="budgetAggregate.plan.planName"></label>
+                                        <label>주택명 <input x-model="budgetAggregate.plan.houseName"></label>
+                                        <label>매매가격(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.purchasePrice"></label>
+                                        <label>계약금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.contractCash"></label>
+                                        <label>잔금 자기자금(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.balanceCash"></label>
+                                        <label>취득세(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.acquisitionTax"></label>
+                                        <label>중개보수(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.brokerageFee"></label>
+                                        <label>이사·청소 비용(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.movingCost"></label>
+                                    </div>
+                                    <button class="btn btn-primary" @click="saveBudget()">주택 예산 저장</button>
+                                    <div class="budget-summary-grid">
+                                        <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
+                                        <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>
+                                        <div><span>추가 필요 자금</span><b x-text="fmtWon(budgetAggregate.summary.additionalFunds)"></b></div>
+                                        <div><span>예상 월 주거비</span><b x-text="fmtWon(budgetAggregate.summary.monthlyFixedHousingCost)"></b></div>
+                                    </div>
                                 </div>
                             </template>
                         </div>

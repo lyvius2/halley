@@ -67,6 +67,16 @@ public class BudgetPlanService {
                 0L, 0L, 0L, 0L, 0L, 0L, 0L, null, null));
     }
 
+    public BudgetPlan update(BudgetPlan plan) {
+        final BudgetPlan existing = requirePlan(plan.id());
+        return planRepository.update(new BudgetPlan(existing.id(), existing.groupId(), existing.createdBy(),
+                plan.planName(), plan.scenario(), plan.selectedPropertyId(), plan.housingType(), plan.region(),
+                plan.houseName(), plan.purchasePrice(), plan.exclusiveAreaM2(), plan.contractCash(), plan.balanceCash(),
+                plan.acquisitionTax(), plan.brokerageFee(), plan.registrationFee(), plan.movingCost(), plan.cleaningCost(),
+                plan.otherInitialCost(), plan.parentSupport(), plan.otherFunds(), plan.monthlyManagementFee(),
+                plan.monthlyOtherHousingCost(), existing.createdAt(), existing.updatedAt()));
+    }
+
     private boolean selectedFor(BudgetScenario scenario, BudgetItemCatalog catalog) {
         return switch (scenario) {
             case MINIMUM -> catalog.required();

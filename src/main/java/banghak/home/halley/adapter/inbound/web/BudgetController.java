@@ -35,4 +35,12 @@ public class BudgetController {
     public BudgetPlan createDefault() {
         return service.createDefault();
     }
+
+    @PutMapping("/{id}")
+    public BudgetPlan update(@PathVariable Long id, @RequestBody BudgetPlan plan) {
+        if (!id.equals(plan.id())) {
+            throw new IllegalArgumentException("plan id does not match path");
+        }
+        return service.update(plan);
+    }
 }

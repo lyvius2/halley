@@ -902,6 +902,20 @@ function halley() {
             }
         },
 
+        async saveBudget() {
+            const plan = this.budgetAggregate?.plan;
+            if (!plan?.id) {
+                return;
+            }
+            const { ok } = await this.request('/api/budget/plans/' + plan.id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(plan)
+            });
+            if (ok) {
+                await this.loadBudget();
+                await this.loadBudgetPlans();
+            }
+        },
+
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */
         openSettings() {
             if (this.session.role !== 'ADMIN') {

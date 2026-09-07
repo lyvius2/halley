@@ -2570,6 +2570,9 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-card { background: var(--surface, #fff); border: 1px solid var(--line, #ddd); border-radius: 12px; padding: 1rem; }
  .budget-card label { display: inline-flex; gap: .5rem; align-items: center; }
  .budget-card input { width: 8rem; }
+ .budget-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+ .budget-form-grid label { display: grid; gap: .3rem; }
+ .budget-form-grid input { width: 100%; box-sizing: border-box; }
  .budget-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; margin-top: 1rem; }
  .budget-summary-grid div { background: #f5efe5; border-radius: 8px; padding: .75rem; display: grid; gap: .25rem; }
- @media (max-width: 700px) { .budget-summary-grid { grid-template-columns: 1fr; } .budget-card label { width: 100%; } }
+ @media (max-width: 700px) { .budget-summary-grid, .budget-form-grid { grid-template-columns: 1fr; } .budget-card label { width: 100%; } }
