@@ -96,6 +96,15 @@ public class BudgetPlanService {
         return itemRepository.save(item);
     }
 
+    public BudgetItem updateItem(BudgetItem item) {
+        final BudgetPlan plan = requirePlan(item.planId());
+        final BudgetItem existing = itemRepository.findById(item.id()).orElseThrow(NoGroupException::new);
+        if (!plan.id().equals(existing.planId())) {
+            throw new NoGroupException();
+        }
+        return itemRepository.update(item);
+    }
+
     public BudgetFinancing saveFinancing(BudgetFinancing financing) {
         requirePlan(financing.planId());
         financingRepository.deleteByPlanId(financing.planId());

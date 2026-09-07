@@ -302,6 +302,20 @@
                                         </div>
                                         <button class="btn btn-sm" @click="saveBudgetFinancing()">대출 조건 저장</button>
                                     </section>
+                                    <section class="budget-assets">
+                                        <h3>혼수·가구·생활용품 <small>금액은 계획용 예상값이며 실시간 판매가나 확정 견적이 아닙니다.</small></h3>
+                                        <label>품목 검색 <input x-model="budgetItemFilter" placeholder="품목 또는 카테고리"></label>
+                                        <div class="budget-item-list">
+                                            <template x-for="item in filteredBudgetItems()" :key="item.id">
+                                                <div class="budget-item-row">
+                                                    <div><b x-text="item.itemName"></b> <small x-text="item.category"></small></div>
+                                                    <label><input type="checkbox" x-model="item.selected" @change="saveBudgetItem(item)"> 구매</label>
+                                                    <label><input type="checkbox" x-model="item.owned" @change="saveBudgetItem(item)"> 보유</label>
+                                                    <input aria-label="품목 예산" type="number" min="0" x-model.number="item.budgetAmountWon" @change="saveBudgetItem(item)">
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </section>
                                     <div class="budget-summary-grid">
                                         <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
                                         <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>

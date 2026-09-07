@@ -6,6 +6,8 @@ import banghak.home.halley.domain.budget.AssetType;
 import banghak.home.halley.domain.budget.BudgetAsset;
 import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.RepaymentType;
+import banghak.home.halley.domain.budget.BudgetItem;
+import banghak.home.halley.domain.budget.ProductFetchStatus;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -67,5 +69,22 @@ class BudgetControllerTest {
         // then
         assertThat(saved).isEqualTo(financing);
         verify(service).saveFinancing(financing);
+    }
+
+    @Test
+    @DisplayName("계획과 품목 경로가 일치하면 혼수 품목을 수정한다")
+    void updateItemDelegatesToService() {
+        // given
+        final BudgetItem item = new BudgetItem(3L, 10L, "seed-1", "가전", "냉장고", true,
+                true, true, false, 1_000_000L, null, null, null, null, null, null,
+                ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, null, null, null);
+        when(service.updateItem(item)).thenReturn(item);
+
+        // when
+        final BudgetItem saved = controller.updateItem(10L, 3L, item);
+
+        // then
+        assertThat(saved).isEqualTo(item);
+        verify(service).updateItem(item);
     }
 }

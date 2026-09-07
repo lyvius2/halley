@@ -61,4 +61,12 @@ public class BudgetController {
         }
         return service.saveFinancing(financing);
     }
+
+    @PutMapping("/{planId}/items/{itemId}")
+    public BudgetItem updateItem(@PathVariable Long planId, @PathVariable Long itemId, @RequestBody BudgetItem item) {
+        if (!planId.equals(item.planId()) || !itemId.equals(item.id())) {
+            throw new IllegalArgumentException("item does not match path");
+        }
+        return service.updateItem(item);
+    }
 }

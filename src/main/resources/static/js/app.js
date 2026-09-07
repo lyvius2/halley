@@ -162,6 +162,7 @@ function halley() {
         budgetAggregate: null,
         budgetPlans: [],
         budgetAssetForm: { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false },
+        budgetItemFilter: '',
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -939,6 +940,25 @@ function halley() {
             }
             const { ok } = await this.request('/api/budget/plans/' + financing.planId + '/financing', {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(financing)
+            });
+            if (ok) {
+                await this.loadBudget();
+            }
+        },
+
+        filteredBudgetItems() {
+            const items = this.budgetAggregate?.items || [];
+            const query = this.budgetItemFilter.trim().toLowerCase();
+            return query ? items.filter(item => item.itemName.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)) : items;
+        },
+
+        async saveBudgetItem(item) {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId || !item?.id) {
+                return;
+            }
+            const { ok } = await this.request('/api/budget/plans/' + planId + '/items/' + item.id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item)
             });
             if (ok) {
                 await this.loadBudget();
