@@ -270,6 +270,7 @@
                             <template x-if="budgetAggregate">
                                 <div>
                                     <div class="budget-form-grid">
+                                        <label>시나리오 <select x-model="budgetAggregate.plan.scenario" @change="applyBudgetScenario()"><option value="MINIMUM">최소 시작</option><option value="RECOMMENDED">현실적인 추천</option><option value="COMFORTABLE">여유 있는 시작</option><option value="CUSTOM" disabled>사용자 정의</option></select></label>
                                         <label>계획 이름 <input x-model="budgetAggregate.plan.planName"></label>
                                         <label>주택명 <input x-model="budgetAggregate.plan.houseName"><button type="button" class="btn btn-sm" @click="openBudgetPropertyPicker()">등록 매물 선택</button></label>
                                         <label>매매가격(원) <input type="number" min="0" x-model.number="budgetAggregate.plan.purchasePrice"></label>

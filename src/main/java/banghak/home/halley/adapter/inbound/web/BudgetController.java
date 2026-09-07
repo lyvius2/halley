@@ -9,6 +9,7 @@ import banghak.home.halley.domain.budget.BudgetAsset;
 import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductPreview;
+import banghak.home.halley.domain.budget.BudgetScenario;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -79,5 +80,10 @@ public class BudgetController {
     @PostMapping("/product-preview")
     public ProductPreview previewProduct(@RequestBody ProductPreviewRequest request) {
         return productPreviewService.preview(request.url());
+    }
+
+    @PutMapping("/{id}/scenario")
+    public BudgetPlan applyScenario(@PathVariable Long id, @RequestParam BudgetScenario scenario) {
+        return service.applyScenario(id, scenario);
     }
 }

@@ -102,7 +102,23 @@ public class BudgetPlanService {
         if (!plan.id().equals(existing.planId())) {
             throw new NoGroupException();
         }
-        return itemRepository.update(item);
+        final BudgetItem saved = itemRepository.update(item);
+        if (plan.scenario() != BudgetScenario.CUSTOM) {
+            planRepository.update(withScenario(plan, BudgetScenario.CUSTOM));
+        }
+        return saved;
+    }
+
+    public BudgetPlan applyScenario(Long planId, BudgetScenario scenario) {
+        final BudgetPlan plan = requirePlan(planId);
+        for (final BudgetItem item : itemRepository.findByPlanId(planId)) {
+            itemRepository.update(new BudgetItem(item.id(), item.planId(), item.seedKey(), item.category(),
+                    item.itemName(), item.required(), item.recommended(), selectedFor(scenario, item), item.owned(),
+                    item.budgetAmountWon(), item.candidateName(), item.candidateUrl(), item.candidatePriceWon(),
+                    item.alternativeName(), item.alternativeUrl(), item.alternativePriceWon(), item.candidateFetchStatus(),
+                    item.alternativeFetchStatus(), item.note(), item.createdAt(), item.updatedAt()));
+        }
+        return planRepository.update(withScenario(plan, scenario));
     }
 
     public BudgetFinancing saveFinancing(BudgetFinancing financing) {
@@ -126,5 +142,22 @@ public class BudgetPlanService {
     private BudgetFinancing emptyFinancing(Long planId) {
         return new BudgetFinancing(null, planId, 0L, null, java.math.BigDecimal.ZERO, 360,
                 RepaymentType.AMORTIZED, 0L, true, null, null);
+    }
+
+    private boolean selectedFor(BudgetScenario scenario, BudgetItem item) {
+        return switch (scenario) {
+            case MINIMUM -> item.required();
+            case RECOMMENDED -> item.recommended();
+            case COMFORTABLE -> true;
+            case CUSTOM -> item.selected();
+        };
+    }
+
+    private BudgetPlan withScenario(BudgetPlan plan, BudgetScenario scenario) {
+        return new BudgetPlan(plan.id(), plan.groupId(), plan.createdBy(), plan.planName(), scenario,
+                plan.selectedPropertyId(), plan.housingType(), plan.region(), plan.houseName(), plan.purchasePrice(),
+                plan.exclusiveAreaM2(), plan.contractCash(), plan.balanceCash(), plan.acquisitionTax(), plan.brokerageFee(),
+                plan.registrationFee(), plan.movingCost(), plan.cleaningCost(), plan.otherInitialCost(), plan.parentSupport(),
+                plan.otherFunds(), plan.monthlyManagementFee(), plan.monthlyOtherHousingCost(), plan.createdAt(), plan.updatedAt());
     }
 }

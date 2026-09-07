@@ -9,6 +9,7 @@ import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.RepaymentType;
 import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductFetchStatus;
+import banghak.home.halley.domain.budget.BudgetScenario;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -88,5 +89,20 @@ class BudgetControllerTest {
         // then
         assertThat(saved).isEqualTo(item);
         verify(service).updateItem(item);
+    }
+
+    @Test
+    @DisplayName("선택한 시나리오를 계획 Service에 전달한다")
+    void applyScenarioDelegatesToService() {
+        // given
+        final BudgetPlan plan = null;
+        when(service.applyScenario(10L, BudgetScenario.MINIMUM)).thenReturn(plan);
+
+        // when
+        final BudgetPlan result = controller.applyScenario(10L, BudgetScenario.MINIMUM);
+
+        // then
+        assertThat(result).isNull();
+        verify(service).applyScenario(10L, BudgetScenario.MINIMUM);
     }
 }

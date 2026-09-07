@@ -987,6 +987,17 @@ function halley() {
             await this.saveBudgetItem(item);
         },
 
+        async applyBudgetScenario() {
+            const plan = this.budgetAggregate?.plan;
+            if (!plan?.id || plan.scenario === 'CUSTOM') {
+                return;
+            }
+            const { ok } = await this.request('/api/budget/plans/' + plan.id + '/scenario?scenario=' + encodeURIComponent(plan.scenario), { method: 'PUT' });
+            if (ok) {
+                await this.loadBudget();
+            }
+        },
+
         openBudgetPropertyPicker() {
             this.showBudgetPropertyPicker = true;
             if (this.properties.length === 0) {
