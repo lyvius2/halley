@@ -18,6 +18,8 @@ public final class JooqMapping {
         return instant == null ? null : instant.atOffset(ZoneOffset.UTC);
     }
 
+    public static Instant toInstant(Object value) { if (value == null) return null; if (value instanceof Instant instant) return instant; return ((OffsetDateTime) value).toInstant(); }
+
     public static Instant toInstant(OffsetDateTime offsetDateTime) {
         return offsetDateTime == null ? null : offsetDateTime.toInstant();
     }

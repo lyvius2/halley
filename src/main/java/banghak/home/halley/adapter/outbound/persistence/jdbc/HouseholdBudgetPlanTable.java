@@ -1,0 +1,10 @@
+package banghak.home.halley.adapter.outbound.persistence.jdbc;
+import org.jooq.Field; import org.jooq.Record; import org.jooq.Table; import java.math.BigDecimal; import java.time.Instant;
+import static org.jooq.impl.DSL.field; import static org.jooq.impl.DSL.name; import static org.jooq.impl.DSL.table;
+public final class HouseholdBudgetPlanTable {
+ private static final String T="household_budget_plan"; public static final Table<Record> TABLE=table(name(T));
+ public static final Field<Long> ID=field(name(T,"id"),Long.class), GROUP_ID=field(name(T,"group_id"),Long.class), CREATED_BY=field(name(T,"created_by"),Long.class), SELECTED_PROPERTY_ID=field(name(T,"selected_property_id"),Long.class);
+ public static final Field<String> PLAN_NAME=field(name(T,"plan_name"),String.class), SCENARIO=field(name(T,"scenario"),String.class), HOUSING_TYPE=field(name(T,"housing_type"),String.class), REGION=field(name(T,"region"),String.class), HOUSE_NAME=field(name(T,"house_name"),String.class);
+ public static final Field<Long> PURCHASE_PRICE=field(name(T,"purchase_price"),Long.class), CONTRACT_CASH=field(name(T,"contract_cash"),Long.class), BALANCE_CASH=field(name(T,"balance_cash"),Long.class), ACQUISITION_TAX=field(name(T,"acquisition_tax"),Long.class), BROKERAGE_FEE=field(name(T,"brokerage_fee"),Long.class), REGISTRATION_FEE=field(name(T,"registration_fee"),Long.class), MOVING_COST=field(name(T,"moving_cost"),Long.class), CLEANING_COST=field(name(T,"cleaning_cost"),Long.class), OTHER_INITIAL_COST=field(name(T,"other_initial_cost"),Long.class), PARENT_SUPPORT=field(name(T,"parent_support"),Long.class), OTHER_FUNDS=field(name(T,"other_funds"),Long.class), MONTHLY_MANAGEMENT_FEE=field(name(T,"monthly_management_fee"),Long.class), MONTHLY_OTHER_HOUSING_COST=field(name(T,"monthly_other_housing_cost"),Long.class);
+ public static final Field<BigDecimal> EXCLUSIVE_AREA=field(name(T,"exclusive_area_m2"),BigDecimal.class); public static final Field<Object> CREATED_AT=field(name(T,"created_at"),Object.class), UPDATED_AT=field(name(T,"updated_at"),Object.class); private HouseholdBudgetPlanTable() { }
+}
