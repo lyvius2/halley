@@ -2579,6 +2579,8 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-item-list { margin-top: .75rem; max-height: 24rem; overflow-y: auto; }
  .budget-item-row { display: grid; grid-template-columns: 1fr auto auto 8rem; gap: .5rem; align-items: center; border-top: 1px solid var(--line, #ddd); padding: .5rem 0; }
  .budget-item-row input[type="number"] { width: 100%; box-sizing: border-box; }
+ .budget-item-products { grid-column: 1 / -1; }
+ .budget-item-products summary { cursor: pointer; color: var(--teal, #147a78); }
  .budget-property-picker { width: min(32rem, calc(100vw - 2rem)); }
  .budget-picker-list { display: grid; gap: .5rem; max-height: 60vh; overflow-y: auto; }
  .budget-picker-list button { text-align: left; display: grid; grid-template-columns: 1fr auto; gap: .2rem .75rem; padding: .75rem; background: var(--surface, #fff); border: 1px solid var(--line, #ddd); border-radius: 8px; }
