@@ -291,7 +291,7 @@
                                         </div>
                                         <label><input type="checkbox" x-model="budgetAssetForm.excluded"> 예산 투입에서 제외</label>
                                         <button class="btn btn-sm" @click="addBudgetAsset()">자산 추가</button>
-                                        <ul class="budget-asset-list"><template x-for="asset in budgetAggregate.assets" :key="asset.id"><li><b x-text="asset.assetName"></b><span x-text="fmtWon(asset.investableAmount) + (asset.excluded ? ' · 제외' : '')"></span></li></template></ul>
+                                        <ul class="budget-asset-list"><template x-for="asset in budgetAggregate.assets" :key="asset.id"><li><div class="budget-asset-edit"><b x-text="asset.assetName"></b><small x-text="asset.userId === session.userId ? '내 자산' : '그룹 구성원 자산'"></small><input aria-label="자산 평가금액" type="number" min="0" x-model.number="asset.estimatedValue" @change="saveBudgetAsset(asset)"><input aria-label="투입 가능 금액" type="number" min="0" :max="asset.estimatedValue" x-model.number="asset.investableAmount" @change="saveBudgetAsset(asset)"><label><input type="checkbox" x-model="asset.excluded" @change="saveBudgetAsset(asset)"> 제외</label></div><button class="btn btn-sm" x-show="asset.userId === session.userId" @click="deleteBudgetAsset(asset)">삭제</button></li></template></ul>
                                     </section>
                                     <section class="budget-assets">
                                         <h3>대출 조건 <small>금융기관 확정 심사 결과가 아닌 참고용 추정치입니다.</small></h3>

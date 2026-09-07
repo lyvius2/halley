@@ -935,6 +935,22 @@ function halley() {
             }
         },
 
+        async saveBudgetAsset(asset) {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId || !asset?.id) return;
+            const { ok } = await this.request('/api/budget/plans/' + planId + '/assets/' + asset.id, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(asset)
+            });
+            if (ok) await this.loadBudget();
+        },
+
+        async deleteBudgetAsset(asset) {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId || !asset?.id) return;
+            const { ok } = await this.request('/api/budget/plans/' + planId + '/assets/' + asset.id, { method: 'DELETE' });
+            if (ok) await this.loadBudget();
+        },
+
         async saveBudgetFinancing() {
             const financing = this.budgetAggregate?.financing;
             if (!financing?.planId) {

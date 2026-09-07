@@ -2576,6 +2576,8 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-assets h3 { margin: 0 0 .5rem; }
  .budget-asset-list { list-style: none; margin: .75rem 0 0; padding: 0; }
  .budget-asset-list li { display: flex; justify-content: space-between; border-top: 1px solid var(--line, #ddd); padding: .5rem 0; }
+ .budget-asset-edit { display: grid; grid-template-columns: 1fr 8rem 8rem auto; gap: .4rem; align-items: center; }
+ .budget-asset-edit small { grid-column: 1 / -1; }
  .budget-item-list { margin-top: .75rem; max-height: 24rem; overflow-y: auto; }
  .budget-item-row { display: grid; grid-template-columns: 1fr auto auto 8rem; gap: .5rem; align-items: center; border-top: 1px solid var(--line, #ddd); padding: .5rem 0; }
  .budget-item-row input[type="number"] { width: 100%; box-sizing: border-box; }

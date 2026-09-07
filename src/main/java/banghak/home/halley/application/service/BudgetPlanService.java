@@ -88,7 +88,29 @@ public class BudgetPlanService {
 
     public BudgetAsset addAsset(BudgetAsset asset) {
         requirePlan(asset.planId());
-        return assetRepository.save(asset);
+        return assetRepository.save(new BudgetAsset(null, asset.planId(), currentUserId(), asset.assetType(),
+                asset.assetName(), asset.estimatedValue(), asset.excluded(), asset.investableAmount(),
+                asset.sourceType(), asset.note(), null, null));
+    }
+
+    public BudgetAsset updateAsset(BudgetAsset asset) {
+        requirePlan(asset.planId());
+        final BudgetAsset existing = assetRepository.findById(asset.id()).orElseThrow(NoGroupException::new);
+        if (!existing.planId().equals(asset.planId()) || !existing.userId().equals(currentUserId())) {
+            throw new NoGroupException();
+        }
+        return assetRepository.update(new BudgetAsset(existing.id(), existing.planId(), existing.userId(),
+                asset.assetType(), asset.assetName(), asset.estimatedValue(), asset.excluded(), asset.investableAmount(),
+                asset.sourceType(), asset.note(), existing.createdAt(), existing.updatedAt()));
+    }
+
+    public void deleteAsset(Long planId, Long assetId) {
+        requirePlan(planId);
+        final BudgetAsset existing = assetRepository.findById(assetId).orElseThrow(NoGroupException::new);
+        if (!existing.planId().equals(planId) || !existing.userId().equals(currentUserId())) {
+            throw new NoGroupException();
+        }
+        assetRepository.delete(assetId);
     }
 
     public BudgetItem addItem(BudgetItem item) {
@@ -137,6 +159,10 @@ public class BudgetPlanService {
 
     private Long requireGroupId() {
         return accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+    }
+
+    private Long currentUserId() {
+        return accessGuard.currentUser().map(User::id).orElseThrow(NoGroupException::new);
     }
 
     private BudgetFinancing emptyFinancing(Long planId) {

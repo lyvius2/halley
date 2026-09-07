@@ -61,6 +61,22 @@ class BudgetControllerTest {
     }
 
     @Test
+    @DisplayName("자산 경로가 일치하면 수정 Service에 전달한다")
+    void updateAssetDelegatesToService() {
+        // given
+        final BudgetAsset asset = new BudgetAsset(3L, 10L, 2L, AssetType.FINANCIAL,
+                "예금", 1_000_000L, true, 0L, "MANUAL", null, null, null);
+        when(service.updateAsset(asset)).thenReturn(asset);
+
+        // when
+        final BudgetAsset saved = controller.updateAsset(10L, 3L, asset);
+
+        // then
+        assertThat(saved).isEqualTo(asset);
+        verify(service).updateAsset(asset);
+    }
+
+    @Test
     @DisplayName("계획 경로와 일치하는 대출 조건을 Service에 전달한다")
     void saveFinancingDelegatesToService() {
         // given

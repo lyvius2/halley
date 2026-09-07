@@ -67,6 +67,19 @@ public class BudgetController {
         return service.addAsset(asset);
     }
 
+    @PutMapping("/{planId}/assets/{assetId}")
+    public BudgetAsset updateAsset(@PathVariable Long planId, @PathVariable Long assetId, @RequestBody BudgetAsset asset) {
+        if (!planId.equals(asset.planId()) || !assetId.equals(asset.id())) {
+            throw new IllegalArgumentException("asset does not match path");
+        }
+        return service.updateAsset(asset);
+    }
+
+    @DeleteMapping("/{planId}/assets/{assetId}")
+    public void deleteAsset(@PathVariable Long planId, @PathVariable Long assetId) {
+        service.deleteAsset(planId, assetId);
+    }
+
     @PutMapping("/{id}/financing")
     public BudgetFinancing saveFinancing(@PathVariable Long id, @RequestBody BudgetFinancing financing) {
         if (!id.equals(financing.planId())) {
