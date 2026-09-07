@@ -23,6 +23,11 @@ public record BudgetPlan(
         long registrationFee,
         long movingCost,
         long cleaningCost,
+        CostInputSource acquisitionTaxSource,
+        CostInputSource brokerageFeeSource,
+        CostInputSource registrationFeeSource,
+        CostInputSource movingCostSource,
+        CostInputSource cleaningCostSource,
         long otherInitialCost,
         long parentSupport,
         long otherFunds,
@@ -41,6 +46,11 @@ public record BudgetPlan(
         }
         scenario = scenario == null ? BudgetScenario.RECOMMENDED : scenario;
         housingType = housingType == null ? HousingType.SALE : housingType;
+        acquisitionTaxSource = acquisitionTaxSource == null ? CostInputSource.MANUAL : acquisitionTaxSource;
+        brokerageFeeSource = brokerageFeeSource == null ? CostInputSource.MANUAL : brokerageFeeSource;
+        registrationFeeSource = registrationFeeSource == null ? CostInputSource.MANUAL : registrationFeeSource;
+        movingCostSource = movingCostSource == null ? CostInputSource.MANUAL : movingCostSource;
+        cleaningCostSource = cleaningCostSource == null ? CostInputSource.MANUAL : cleaningCostSource;
         validateNonNegative(purchasePrice, "purchasePrice");
         validateNonNegative(contractCash, "contractCash");
         validateNonNegative(balanceCash, "balanceCash");
@@ -60,5 +70,18 @@ public record BudgetPlan(
         if (value < 0) {
             throw new IllegalArgumentException(name + " must not be negative");
         }
+    }
+
+    public BudgetPlan(Long id, Long groupId, Long createdBy, String planName, BudgetScenario scenario,
+                      Long selectedPropertyId, HousingType housingType, String region, String houseName,
+                      long purchasePrice, BigDecimal exclusiveAreaM2, long contractCash, long balanceCash,
+                      long acquisitionTax, long brokerageFee, long registrationFee, long movingCost,
+                      long cleaningCost, long otherInitialCost, long parentSupport, long otherFunds,
+                      long monthlyManagementFee, long monthlyOtherHousingCost, Instant createdAt, Instant updatedAt) {
+        this(id, groupId, createdBy, planName, scenario, selectedPropertyId, housingType, region, houseName,
+                purchasePrice, exclusiveAreaM2, contractCash, balanceCash, acquisitionTax, brokerageFee,
+                registrationFee, movingCost, cleaningCost, CostInputSource.MANUAL, CostInputSource.MANUAL,
+                CostInputSource.MANUAL, CostInputSource.MANUAL, CostInputSource.MANUAL, otherInitialCost,
+                parentSupport, otherFunds, monthlyManagementFee, monthlyOtherHousingCost, createdAt, updatedAt);
     }
 }

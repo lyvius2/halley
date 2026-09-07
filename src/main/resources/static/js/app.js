@@ -937,6 +937,16 @@ function halley() {
             plan.registrationFee = estimate.registrationFee;
             plan.movingCost = estimate.movingCost;
             plan.cleaningCost = estimate.cleaningCost;
+            plan.acquisitionTaxSource = 'AUTO_ESTIMATE';
+            plan.brokerageFeeSource = 'AUTO_ESTIMATE';
+            plan.registrationFeeSource = 'AUTO_ESTIMATE';
+            plan.movingCostSource = 'AUTO_ESTIMATE';
+            plan.cleaningCostSource = 'AUTO_ESTIMATE';
+        },
+
+        markBudgetCostManual(sourceField) {
+            const plan = this.budgetAggregate?.plan;
+            if (plan) plan[sourceField] = 'MANUAL';
         },
 
         async addBudgetAsset() {

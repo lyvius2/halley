@@ -26,7 +26,9 @@ class HouseholdBudgetRepositoryIntegrationTest {
         final BudgetPlan plan = new BudgetPlan(null, 1L, 1L, "테스트 계획", BudgetScenario.RECOMMENDED,
                 null, HousingType.SALE, "서울", "테스트 주택", 500_000_000L, new BigDecimal("59.9"),
                 50_000_000L, 100_000_000L, 5_000_000L, 2_000_000L, 1_000_000L, 3_000_000L,
-                1_000_000L, 0L, 10_000_000L, 0L, 200_000L, 50_000L, null, null);
+                1_000_000L, CostInputSource.AUTO_ESTIMATE, CostInputSource.AUTO_ESTIMATE,
+                CostInputSource.AUTO_ESTIMATE, CostInputSource.AUTO_ESTIMATE, CostInputSource.AUTO_ESTIMATE,
+                0L, 10_000_000L, 0L, 200_000L, 50_000L, null, null);
 
         // when
         final BudgetPlan savedPlan = plans.save(plan);
@@ -40,7 +42,8 @@ class HouseholdBudgetRepositoryIntegrationTest {
                 RepaymentType.AMORTIZED, 1_432_000L, true, null, null));
 
         // then
-        assertThat(plans.findById(savedPlan.id())).isPresent();
+        assertThat(plans.findById(savedPlan.id())).hasValueSatisfying(reloaded ->
+                assertThat(reloaded.registrationFeeSource()).isEqualTo(CostInputSource.AUTO_ESTIMATE));
         assertThat(assets.findByPlanId(savedPlan.id())).extracting(BudgetAsset::id).contains(savedAsset.id());
         assertThat(items.findByPlanId(savedPlan.id())).extracting(BudgetItem::id).contains(savedItem.id());
         assertThat(financing.findByPlanId(savedPlan.id())).contains(savedFinancing);

@@ -443,12 +443,20 @@ CREATE TABLE IF NOT EXISTS household_budget_plan (
     balance_cash BIGINT NOT NULL DEFAULT 0, acquisition_tax BIGINT NOT NULL DEFAULT 0,
     brokerage_fee BIGINT NOT NULL DEFAULT 0, registration_fee BIGINT NOT NULL DEFAULT 0,
     moving_cost BIGINT NOT NULL DEFAULT 0, cleaning_cost BIGINT NOT NULL DEFAULT 0,
+    acquisition_tax_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL', brokerage_fee_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
+    registration_fee_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL', moving_cost_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
+    cleaning_cost_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
     other_initial_cost BIGINT NOT NULL DEFAULT 0, parent_support BIGINT NOT NULL DEFAULT 0,
     other_funds BIGINT NOT NULL DEFAULT 0, monthly_management_fee BIGINT NOT NULL DEFAULT 0,
     monthly_other_housing_cost BIGINT NOT NULL DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+ALTER TABLE household_budget_plan ADD COLUMN IF NOT EXISTS acquisition_tax_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE household_budget_plan ADD COLUMN IF NOT EXISTS brokerage_fee_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE household_budget_plan ADD COLUMN IF NOT EXISTS registration_fee_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE household_budget_plan ADD COLUMN IF NOT EXISTS moving_cost_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
+ALTER TABLE household_budget_plan ADD COLUMN IF NOT EXISTS cleaning_cost_source VARCHAR(20) NOT NULL DEFAULT 'MANUAL';
 CREATE INDEX IF NOT EXISTS ix_household_budget_plan_group ON household_budget_plan (group_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS household_budget_asset (

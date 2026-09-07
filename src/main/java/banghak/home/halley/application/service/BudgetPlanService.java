@@ -65,7 +65,8 @@ public class BudgetPlanService {
         final Long userId = accessGuard.currentUser().map(User::id).orElseThrow(NoGroupException::new);
         return create(new BudgetPlan(null, groupId, userId, "새 신혼 예산 계획", BudgetScenario.RECOMMENDED,
                 null, HousingType.SALE, null, null, 0L, null, 0L, 0L, 0L, 0L, 0L,
-                0L, 0L, 0L, 0L, 0L, 0L, 0L, null, null));
+                0L, 0L, CostInputSource.MANUAL, CostInputSource.MANUAL, CostInputSource.MANUAL,
+                CostInputSource.MANUAL, CostInputSource.MANUAL, 0L, 0L, 0L, 0L, 0L, null, null));
     }
 
     public BudgetPlan update(BudgetPlan plan) {
@@ -74,6 +75,7 @@ public class BudgetPlanService {
                 plan.planName(), plan.scenario(), plan.selectedPropertyId(), plan.housingType(), plan.region(),
                 plan.houseName(), plan.purchasePrice(), plan.exclusiveAreaM2(), plan.contractCash(), plan.balanceCash(),
                 plan.acquisitionTax(), plan.brokerageFee(), plan.registrationFee(), plan.movingCost(), plan.cleaningCost(),
+                plan.acquisitionTaxSource(), plan.brokerageFeeSource(), plan.registrationFeeSource(), plan.movingCostSource(), plan.cleaningCostSource(),
                 plan.otherInitialCost(), plan.parentSupport(), plan.otherFunds(), plan.monthlyManagementFee(),
                 plan.monthlyOtherHousingCost(), existing.createdAt(), existing.updatedAt()));
     }
@@ -191,7 +193,8 @@ public class BudgetPlanService {
         return new BudgetPlan(plan.id(), plan.groupId(), plan.createdBy(), plan.planName(), scenario,
                 plan.selectedPropertyId(), plan.housingType(), plan.region(), plan.houseName(), plan.purchasePrice(),
                 plan.exclusiveAreaM2(), plan.contractCash(), plan.balanceCash(), plan.acquisitionTax(), plan.brokerageFee(),
-                plan.registrationFee(), plan.movingCost(), plan.cleaningCost(), plan.otherInitialCost(), plan.parentSupport(),
+                plan.registrationFee(), plan.movingCost(), plan.cleaningCost(), plan.acquisitionTaxSource(), plan.brokerageFeeSource(),
+                plan.registrationFeeSource(), plan.movingCostSource(), plan.cleaningCostSource(), plan.otherInitialCost(), plan.parentSupport(),
                 plan.otherFunds(), plan.monthlyManagementFee(), plan.monthlyOtherHousingCost(), plan.createdAt(), plan.updatedAt());
     }
 }
