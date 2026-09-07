@@ -12,17 +12,20 @@ public class BudgetPlanService {
     private final HouseholdBudgetAssetRepository assetRepository;
     private final HouseholdBudgetItemRepository itemRepository;
     private final HouseholdBudgetFinancingRepository financingRepository;
+    private final HouseholdBudgetItemCatalogRepository catalogRepository;
     private final PropertyAccessGuard accessGuard;
 
     public BudgetPlanService(HouseholdBudgetPlanRepository planRepository,
                              HouseholdBudgetAssetRepository assetRepository,
                              HouseholdBudgetItemRepository itemRepository,
                              HouseholdBudgetFinancingRepository financingRepository,
+                             HouseholdBudgetItemCatalogRepository catalogRepository,
                              PropertyAccessGuard accessGuard) {
         this.planRepository = planRepository;
         this.assetRepository = assetRepository;
         this.itemRepository = itemRepository;
         this.financingRepository = financingRepository;
+        this.catalogRepository = catalogRepository;
         this.accessGuard = accessGuard;
     }
 
@@ -41,7 +44,22 @@ public class BudgetPlanService {
         if (!groupId.equals(plan.groupId())) {
             throw new NoGroupException();
         }
-        return planRepository.save(plan);
+        final BudgetPlan saved = planRepository.save(plan);
+        catalogRepository.findAll().forEach(catalog -> itemRepository.save(new BudgetItem(
+                null, saved.id(), catalog.seedKey(), catalog.category(), catalog.itemName(), catalog.required(),
+                catalog.recommended(), selectedFor(plan.scenario(), catalog), false, catalog.defaultBudgetAmountWon(),
+                catalog.candidateName(), catalog.candidateUrl(), null, catalog.alternativeName(), catalog.alternativeUrl(),
+                null, ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, catalog.note(), null, null)));
+        return saved;
+    }
+
+    private boolean selectedFor(BudgetScenario scenario, BudgetItemCatalog catalog) {
+        return switch (scenario) {
+            case MINIMUM -> catalog.required();
+            case RECOMMENDED -> catalog.recommended();
+            case COMFORTABLE -> true;
+            case CUSTOM -> catalog.required();
+        };
     }
 
     public BudgetAsset addAsset(BudgetAsset asset) {
