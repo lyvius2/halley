@@ -98,6 +98,7 @@ public class BudgetPlanService {
 
     public BudgetFinancing saveFinancing(BudgetFinancing financing) {
         requirePlan(financing.planId());
+        financingRepository.deleteByPlanId(financing.planId());
         return financingRepository.save(financing);
     }
 

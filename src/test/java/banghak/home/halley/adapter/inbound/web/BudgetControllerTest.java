@@ -4,6 +4,9 @@ import banghak.home.halley.application.service.BudgetPlanService;
 import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.AssetType;
 import banghak.home.halley.domain.budget.BudgetAsset;
+import banghak.home.halley.domain.budget.BudgetFinancing;
+import banghak.home.halley.domain.budget.RepaymentType;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,5 +51,21 @@ class BudgetControllerTest {
         // then
         assertThat(saved).isEqualTo(asset);
         verify(service).addAsset(asset);
+    }
+
+    @Test
+    @DisplayName("계획 경로와 일치하는 대출 조건을 Service에 전달한다")
+    void saveFinancingDelegatesToService() {
+        // given
+        final BudgetFinancing financing = new BudgetFinancing(null, 10L, 100_000_000L, null,
+                new BigDecimal("3.5"), 360, RepaymentType.AMORTIZED, 0L, true, null, null);
+        when(service.saveFinancing(financing)).thenReturn(financing);
+
+        // when
+        final BudgetFinancing saved = controller.saveFinancing(10L, financing);
+
+        // then
+        assertThat(saved).isEqualTo(financing);
+        verify(service).saveFinancing(financing);
     }
 }

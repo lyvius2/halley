@@ -292,6 +292,16 @@
                                         <button class="btn btn-sm" @click="addBudgetAsset()">자산 추가</button>
                                         <ul class="budget-asset-list"><template x-for="asset in budgetAggregate.assets" :key="asset.id"><li><b x-text="asset.assetName"></b><span x-text="fmtWon(asset.investableAmount) + (asset.excluded ? ' · 제외' : '')"></span></li></template></ul>
                                     </section>
+                                    <section class="budget-assets">
+                                        <h3>대출 조건 <small>금융기관 확정 심사 결과가 아닌 참고용 추정치입니다.</small></h3>
+                                        <div class="budget-form-grid">
+                                            <label>대출금(원) <input type="number" min="0" x-model.number="budgetAggregate.financing.loanAmount"></label>
+                                            <label>연 이자율(%) <input type="number" min="0" step="0.01" x-model.number="budgetAggregate.financing.interestRate"></label>
+                                            <label>기간(개월) <input type="number" min="1" x-model.number="budgetAggregate.financing.termMonths"></label>
+                                            <label>상환 방식 <select x-model="budgetAggregate.financing.repaymentType"><option value="AMORTIZED">원리금균등</option><option value="PRINCIPAL_EQUAL">원금균등</option><option value="INTEREST_ONLY">만기일시</option></select></label>
+                                        </div>
+                                        <button class="btn btn-sm" @click="saveBudgetFinancing()">대출 조건 저장</button>
+                                    </section>
                                     <div class="budget-summary-grid">
                                         <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
                                         <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>

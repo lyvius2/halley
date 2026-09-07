@@ -4,6 +4,7 @@ import banghak.home.halley.application.service.BudgetPlanAggregate;
 import banghak.home.halley.application.service.BudgetPlanService;
 import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.BudgetAsset;
+import banghak.home.halley.domain.budget.BudgetFinancing;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -51,5 +52,13 @@ public class BudgetController {
             throw new IllegalArgumentException("plan id does not match path");
         }
         return service.addAsset(asset);
+    }
+
+    @PutMapping("/{id}/financing")
+    public BudgetFinancing saveFinancing(@PathVariable Long id, @RequestBody BudgetFinancing financing) {
+        if (!id.equals(financing.planId())) {
+            throw new IllegalArgumentException("plan id does not match path");
+        }
+        return service.saveFinancing(financing);
     }
 }
