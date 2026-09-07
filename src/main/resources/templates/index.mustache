@@ -266,8 +266,9 @@
                             <template x-if="budgetAggregate">
                                 <div class="budget-summary-grid">
                                     <div><span>주택 가격</span><b x-text="fmtWon(budgetAggregate.plan.purchasePrice)"></b></div>
-                                    <div><span>혼수 품목</span><b x-text="budgetAggregate.items.length + '개'"></b></div>
-                                    <div><span>자산</span><b x-text="budgetAggregate.assets.length + '건'"></b></div>
+                                    <div><span>전체 초기 필요자금</span><b x-text="fmtWon(budgetAggregate.summary.totalInitialNeed)"></b></div>
+                                    <div><span>추가 필요 자금</span><b x-text="fmtWon(budgetAggregate.summary.additionalFunds)"></b></div>
+                                    <div><span>예상 월 주거비</span><b x-text="fmtWon(budgetAggregate.summary.monthlyFixedHousingCost)"></b></div>
                                 </div>
                             </template>
                         </div>

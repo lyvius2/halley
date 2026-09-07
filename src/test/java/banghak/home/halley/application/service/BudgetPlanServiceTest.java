@@ -40,6 +40,8 @@ class BudgetPlanServiceTest {
         // then
         assertThat(aggregate.plan()).isEqualTo(plan);
         assertThat(aggregate.assets()).isEmpty();
+        assertThat(aggregate.summary().totalInitialNeed()).isZero();
+        assertThat(aggregate.summary().monthlyFixedHousingCost()).isZero();
         verify(financing).findByPlanId(10L);
     }
 }

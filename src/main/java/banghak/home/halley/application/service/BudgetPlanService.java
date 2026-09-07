@@ -14,6 +14,7 @@ public class BudgetPlanService {
     private final HouseholdBudgetFinancingRepository financingRepository;
     private final HouseholdBudgetItemCatalogRepository catalogRepository;
     private final PropertyAccessGuard accessGuard;
+    private final BudgetCalculator calculator = new BudgetCalculator();
 
     public BudgetPlanService(HouseholdBudgetPlanRepository planRepository,
                              HouseholdBudgetAssetRepository assetRepository,
@@ -35,8 +36,12 @@ public class BudgetPlanService {
 
     public BudgetPlanAggregate get(Long planId) {
         final BudgetPlan plan = requirePlan(planId);
-        return new BudgetPlanAggregate(plan, financingRepository.findByPlanId(planId).orElse(null),
-                assetRepository.findByPlanId(planId), itemRepository.findByPlanId(planId));
+        final BudgetFinancing financing = financingRepository.findByPlanId(planId)
+                .orElseGet(() -> emptyFinancing(planId));
+        final List<BudgetAsset> assets = assetRepository.findByPlanId(planId);
+        final List<BudgetItem> items = itemRepository.findByPlanId(planId);
+        return new BudgetPlanAggregate(plan, financing, assets, items,
+                calculator.calculate(plan, financing, assets, items));
     }
 
     public BudgetPlan create(BudgetPlan plan) {
@@ -87,5 +92,10 @@ public class BudgetPlanService {
 
     private Long requireGroupId() {
         return accessGuard.currentGroupId().orElseThrow(NoGroupException::new);
+    }
+
+    private BudgetFinancing emptyFinancing(Long planId) {
+        return new BudgetFinancing(null, planId, 0L, null, java.math.BigDecimal.ZERO, 360,
+                RepaymentType.AMORTIZED, 0L, true, null, null);
     }
 }
