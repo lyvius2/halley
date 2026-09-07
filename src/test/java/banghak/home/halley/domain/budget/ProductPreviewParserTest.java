@@ -31,6 +31,7 @@ class ProductPreviewParserTest {
         final var coupang = policy.requireAllowed("https://www.coupang.com/vp/products/123");
         final var amazonUs = policy.requireAllowed("https://www.amazon.com/dp/B000000000");
         final var amazonJp = policy.requireAllowed("https://www.amazon.co.jp/dp/B000000000");
+        final var aliexpress = policy.requireAllowed("https://www.aliexpress.com/item/1005000000000.html");
         // then
         assertThat(naver.getHost()).isEqualTo("shopping.naver.com");
         assertThat(samsung.getHost()).isEqualTo("www.samsung.com");
@@ -38,5 +39,6 @@ class ProductPreviewParserTest {
         assertThat(coupang.getHost()).isEqualTo("www.coupang.com");
         assertThat(amazonUs.getHost()).isEqualTo("www.amazon.com");
         assertThat(amazonJp.getHost()).isEqualTo("www.amazon.co.jp");
+        assertThat(aliexpress.getHost()).isEqualTo("www.aliexpress.com");
     }
 }

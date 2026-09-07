@@ -7,7 +7,7 @@ import java.util.Set;
 public final class ProductUrlPolicy {
     private static final Set<String> ALLOWED_HOSTS = Set.of(
             "ikea.com", "mujikorea.co.kr", "danawa.com", "nosearch.com", "lgecds.com",
-            "shopping.naver.com", "samsung.com", "11st.co.kr", "coupang.com", "amazon.com", "amazon.co.jp");
+            "shopping.naver.com", "samsung.com", "11st.co.kr", "coupang.com", "amazon.com", "amazon.co.jp", "aliexpress.com");
 
     public URI requireAllowed(String rawUrl) {
         final URI uri;
