@@ -126,3 +126,9 @@ OAuth·잔액조회 서비스 신청, API Key 등록, Callback URL 등록을 확
 OAuth access token과 refresh token은 AES-256-GCM 암호문으로만 저장한다. 암호화 키는
 `KFTC_TOKEN_ENCRYPTION_KEY`에 Base64로 인코딩한 32바이트 값을 설정한다. `state`는 로그인 세션에
 10분 동안만 저장하고, callback 검증 시 한 번 사용한 뒤 즉시 삭제한다.
+
+## 3단계 구현: 연결 정보 영속화
+
+`open_banking_connection`, `open_banking_account`, `open_banking_sync_log` 테이블을 추가한다.
+토큰과 핀테크이용번호는 암호문만 저장한다. 핀테크이용번호의 SHA-256 해시는 연결 내 중복 계좌를
+식별하는 용도로만 사용하며, 화면·로그·외부 서비스에 노출하지 않는다.
