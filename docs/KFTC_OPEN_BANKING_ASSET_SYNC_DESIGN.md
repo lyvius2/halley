@@ -98,3 +98,24 @@ DELETE /api/open-banking/connection
 - 계좌 목록 API의 실제 사용 권한과 참여 금융기관 범위
 
 이 확인이 끝나기 전에는 실제 OAuth endpoint나 금융결제원 호출 코드를 추가하지 않는다.
+
+## 1단계 구현: 연동 준비 상태 점검
+
+애플리케이션은 실제 금융결제원 API를 호출하지 않고 아래 환경 변수와 이용기관 확인 상태만 점검한다.
+값 자체는 로그에 남기지 않으며, 누락된 변수명만 기록한다.
+
+```text
+KFTC_OPEN_BANKING_ENABLED=true
+KFTC_OPEN_BANKING_ENVIRONMENT=test
+KFTC_API_KEY=...
+KFTC_CLIENT_ID=...
+KFTC_CLIENT_SECRET=...
+KFTC_CLIENT_USE_CODE=...
+KFTC_CALLBACK_URL=https://.../api/open-banking/oauth/callback
+KFTC_OAUTH_SERVICE_CONFIRMED=true
+KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED=true
+```
+
+`KFTC_OAUTH_SERVICE_CONFIRMED`와 `KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED`는 개발자 사이트에서
+OAuth·잔액조회 서비스 신청, API Key 등록, Callback URL 등록을 확인한 뒤에만 `true`로 설정한다.
+이 값은 금융결제원 승인 상태를 API로 조회하는 기능이 아니라 운영자가 확인을 완료했다는 표시다.
