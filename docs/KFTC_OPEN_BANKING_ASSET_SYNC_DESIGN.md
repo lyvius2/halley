@@ -98,3 +98,37 @@ DELETE /api/open-banking/connection
 - 계좌 목록 API의 실제 사용 권한과 참여 금융기관 범위
 
 이 확인이 끝나기 전에는 실제 OAuth endpoint나 금융결제원 호출 코드를 추가하지 않는다.
+
+## 1단계 구현: 연동 준비 상태 점검
+
+애플리케이션은 실제 금융결제원 API를 호출하지 않고 아래 환경 변수와 이용기관 확인 상태만 점검한다.
+값 자체는 로그에 남기지 않으며, 누락된 변수명만 기록한다.
+
+```text
+KFTC_OPEN_BANKING_ENABLED=true
+KFTC_OPEN_BANKING_ENVIRONMENT=test
+KFTC_API_KEY=...
+KFTC_CLIENT_ID=...
+KFTC_CLIENT_SECRET=...
+KFTC_CLIENT_USE_CODE=...
+KFTC_CALLBACK_URL=https://.../api/open-banking/oauth/callback
+KFTC_TOKEN_ENCRYPTION_KEY=...
+KFTC_OAUTH_SERVICE_CONFIRMED=true
+KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED=true
+```
+
+`KFTC_OAUTH_SERVICE_CONFIRMED`와 `KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED`는 개발자 사이트에서
+OAuth·잔액조회 서비스 신청, API Key 등록, Callback URL 등록을 확인한 뒤에만 `true`로 설정한다.
+이 값은 금융결제원 승인 상태를 API로 조회하는 기능이 아니라 운영자가 확인을 완료했다는 표시다.
+
+## 2단계 구현: OAuth 보안 기반
+
+OAuth access token과 refresh token은 AES-256-GCM 암호문으로만 저장한다. 암호화 키는
+`KFTC_TOKEN_ENCRYPTION_KEY`에 Base64로 인코딩한 32바이트 값을 설정한다. `state`는 로그인 세션에
+10분 동안만 저장하고, callback 검증 시 한 번 사용한 뒤 즉시 삭제한다.
+
+## 3단계 구현: 연결 정보 영속화
+
+`open_banking_connection`, `open_banking_account`, `open_banking_sync_log` 테이블을 추가한다.
+토큰과 핀테크이용번호는 암호문만 저장한다. 핀테크이용번호의 SHA-256 해시는 연결 내 중복 계좌를
+식별하는 용도로만 사용하며, 화면·로그·외부 서비스에 노출하지 않는다.
