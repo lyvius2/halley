@@ -22,6 +22,7 @@ public record KftcOpenBankingReadiness(boolean enabled, List<String> missingRequ
         addIfBlank(missingRequirements, properties.getClientSecret(), "KFTC_CLIENT_SECRET");
         addIfBlank(missingRequirements, properties.getClientUseCode(), "KFTC_CLIENT_USE_CODE");
         addIfBlank(missingRequirements, properties.getCallbackUrl(), "KFTC_CALLBACK_URL");
+        addIfBlank(missingRequirements, properties.getTokenEncryptionKey(), "KFTC_TOKEN_ENCRYPTION_KEY");
         if (!properties.isOauthServiceConfirmed()) {
             missingRequirements.add("KFTC_OAUTH_SERVICE_CONFIRMED=true");
         }

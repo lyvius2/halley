@@ -78,6 +78,8 @@ kftc:
     client-secret: ${KFTC_CLIENT_SECRET:}
     client-use-code: ${KFTC_CLIENT_USE_CODE:}
     callback-url: ${KFTC_CALLBACK_URL:}
+    token-encryption-key: ${KFTC_TOKEN_ENCRYPTION_KEY:}
+    oauth-state-ttl: ${KFTC_OAUTH_STATE_TTL:10m}
     oauth-service-confirmed: ${KFTC_OAUTH_SERVICE_CONFIRMED:false}
     balance-inquiry-service-confirmed: ${KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED:false}
 

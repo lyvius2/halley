@@ -4,6 +4,8 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
+
 /** 금융결제원 오픈뱅킹 연동의 환경 설정값이다. */
 @Getter
 @Setter
@@ -16,6 +18,8 @@ public class KftcOpenBankingProperties {
     private String clientSecret = "";
     private String clientUseCode = "";
     private String callbackUrl = "";
+    private String tokenEncryptionKey = "";
+    private Duration oauthStateTtl = Duration.ofMinutes(10);
     private boolean oauthServiceConfirmed;
     private boolean balanceInquiryServiceConfirmed;
 

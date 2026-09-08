@@ -112,6 +112,7 @@ KFTC_CLIENT_ID=...
 KFTC_CLIENT_SECRET=...
 KFTC_CLIENT_USE_CODE=...
 KFTC_CALLBACK_URL=https://.../api/open-banking/oauth/callback
+KFTC_TOKEN_ENCRYPTION_KEY=...
 KFTC_OAUTH_SERVICE_CONFIRMED=true
 KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED=true
 ```
@@ -119,3 +120,9 @@ KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED=true
 `KFTC_OAUTH_SERVICE_CONFIRMED`와 `KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED`는 개발자 사이트에서
 OAuth·잔액조회 서비스 신청, API Key 등록, Callback URL 등록을 확인한 뒤에만 `true`로 설정한다.
 이 값은 금융결제원 승인 상태를 API로 조회하는 기능이 아니라 운영자가 확인을 완료했다는 표시다.
+
+## 2단계 구현: OAuth 보안 기반
+
+OAuth access token과 refresh token은 AES-256-GCM 암호문으로만 저장한다. 암호화 키는
+`KFTC_TOKEN_ENCRYPTION_KEY`에 Base64로 인코딩한 32바이트 값을 설정한다. `state`는 로그인 세션에
+10분 동안만 저장하고, callback 검증 시 한 번 사용한 뒤 즉시 삭제한다.

@@ -37,7 +37,8 @@ class KftcOpenBankingReadinessTest {
         assertThat(readiness.isReady()).isFalse();
         assertThat(readiness.missingRequirements())
                 .contains("KFTC_CLIENT_ID", "KFTC_CLIENT_SECRET", "KFTC_CLIENT_USE_CODE",
-                        "KFTC_CALLBACK_URL", "KFTC_OAUTH_SERVICE_CONFIRMED=true",
+                        "KFTC_CALLBACK_URL", "KFTC_TOKEN_ENCRYPTION_KEY",
+                        "KFTC_OAUTH_SERVICE_CONFIRMED=true",
                         "KFTC_BALANCE_INQUIRY_SERVICE_CONFIRMED=true");
     }
 
@@ -64,6 +65,7 @@ class KftcOpenBankingReadinessTest {
         properties.setClientSecret("client-secret");
         properties.setClientUseCode("client-use-code");
         properties.setCallbackUrl("https://halley.example.com/api/open-banking/oauth/callback");
+        properties.setTokenEncryptionKey("MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=");
         properties.setOauthServiceConfirmed(true);
         properties.setBalanceInquiryServiceConfirmed(true);
         return properties;
