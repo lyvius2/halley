@@ -71,6 +71,8 @@ Halley — 부동산 매물 비교·평가 웹앱. 2인 전용 폐쇄형 서비�
 - **테스트 예외 검증은 `catchThrowableOfType()`(deprecated) 대신 JUnit `assertThrows()`를 사용한다.**
 - **Jackson JSON 노드 값 추출은 `.asText()` 대신 `.asString()`을 사용한다.**
 - **소스코드에 설계 문서 내용을 발췌하거나, 의도가 설계 문서의 어느 부분에 정의되어 있다는 식의 과도한 주석을 넣지 않는다.** 소스코드만으로 의도를 파악하기 어려운 변수값이나 처리 로직에만 그 이유를 간략히 주석으로 남긴다.
+- **프로덕션 코드의 설명 주석은 Javadoc(`/** ... */`) 형식을 표준으로 한다.** 코드로 표현할 수 없는 의도·제약·주의사항만 남기고, 코드 내용을 반복하거나 구현 이력·작성자·설계 문서 참조를 적지 않는다. Javadoc 태그와 예외 규칙은 [`docs/COMMENT_GUIDELINES.md`](docs/COMMENT_GUIDELINES.md)를 따른다.
+- **Swagger/OpenAPI가 적용된 Controller의 엔드포인트 설명은 주석 대신 Swagger 애너테이션으로 작성한다.** 요청·응답·오류 조건도 API 명세 애너테이션으로 문서화한다.
 - **패키지명을 모두 포함한 클래스명(Fully Qualified Class Name)을 코드에 직접 쓰지 않는다.** 이름 충돌 등 불가피한 경우가 아니라면 `import` 또는 `import static`을 사용한다.
 - **객체 생성은 Factory Pattern을 적극적으로 활용한다.** 생성 로직이 복잡하거나 여러 곳에서 같은 방식으로 만들어질 때 팩토리 메서드/팩토리 클래스로 캡슐화한다.
 - **외부 API 호출은 OpenFeign `@FeignClient`로 선언하고, 각 FeignClient마다 `FallbackFactory` 클래스를 반드시 구현한다.** 타임아웃·서킷브레이커 임계값은 API별로 다르게 설정한다.
