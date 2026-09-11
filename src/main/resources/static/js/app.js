@@ -989,7 +989,7 @@ function halley() {
                 method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(financing)
             });
             if (ok) {
-                await this.loadBudget();
+                await this.saveBudget();
             }
         },
 
@@ -1051,10 +1051,10 @@ function halley() {
             this.budgetAdvice = ok ? body : null;
         },
 
-        openBudgetPropertyPicker() {
+        async openBudgetPropertyPicker() {
             this.showBudgetPropertyPicker = true;
             if (this.properties.length === 0) {
-                this.loadProperties();
+                await this.loadProperties();
             }
         },
 
@@ -1066,10 +1066,11 @@ function halley() {
             }
             plan.selectedPropertyId = property.id;
             plan.houseName = property.name;
-            plan.purchasePrice = property.price || 0;
-            plan.exclusiveAreaM2 = property.exclusiveAreaM2 || null;
+            plan.purchasePrice = property.priceDeposit || 0;
+            plan.exclusiveAreaM2 = property.areaExclusiveM2 || null;
             this.showBudgetPropertyPicker = false;
             await this.saveBudget();
+            await this.estimateBudgetCosts();
         },
 
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */
@@ -4590,6 +4591,7 @@ function halley() {
                 ['showPropertyForm', () => this.closePropertyForm()],
                 ['showM2', () => this.closeDetail()],
                 ['showCompare', () => this.closeCompare()],
+                ['showBudgetPropertyPicker', () => { this.showBudgetPropertyPicker = false; }],
                 // 이 목록에 없으면 <b>배경을 눌렀을 때 엉뚱한 모달이 닫힌다</b> (설계 I274)
                 ['showItinUnavailable', () => this.closeItinUnavailable()],
                 ['showSoldOutAlert', () => this.closeSoldOutAlert()],
