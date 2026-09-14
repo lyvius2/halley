@@ -12,6 +12,7 @@ import banghak.home.halley.domain.budget.BudgetItem;
 import banghak.home.halley.domain.budget.ProductFetchStatus;
 import banghak.home.halley.domain.budget.BudgetScenario;
 import banghak.home.halley.domain.budget.BudgetCostEstimate;
+import banghak.home.halley.domain.budget.CatalogItemsImportResult;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -108,6 +109,38 @@ class BudgetControllerTest {
         // then
         assertThat(saved).isEqualTo(item);
         verify(service).updateItem(item);
+    }
+
+    @Test
+    @DisplayName("계획 경로와 일치하는 새 혼수 품목을 Service에 전달한다")
+    void addItemDelegatesToService() {
+        // given
+        final BudgetItem item = new BudgetItem(null, 10L, null, "가구", "협탁", false,
+                false, true, false, 150_000L, null, null, null, null, null, null,
+                ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, null, null, null);
+        when(service.addItem(10L, item)).thenReturn(item);
+
+        // when
+        final BudgetItem saved = controller.addItem(10L, item);
+
+        // then
+        assertThat(saved).isEqualTo(item);
+        verify(service).addItem(10L, item);
+    }
+
+    @Test
+    @DisplayName("기본 혼수 품목 누락분 추가 요청을 Service에 전달한다")
+    void addMissingCatalogItemsDelegatesToService() {
+        // given
+        final CatalogItemsImportResult expected = new CatalogItemsImportResult(3);
+        when(service.addMissingCatalogItems(10L)).thenReturn(expected);
+
+        // when
+        final CatalogItemsImportResult actual = controller.addMissingCatalogItems(10L);
+
+        // then
+        assertThat(actual).isEqualTo(expected);
+        verify(service).addMissingCatalogItems(10L);
     }
 
     @Test

@@ -163,9 +163,15 @@ function halley() {
         budgetPlans: [],
         budgetAssetForm: { assetType: 'FINANCIAL', assetName: '', estimatedValue: 0, investableAmount: 0, excluded: false },
         budgetItemFilter: '',
+        budgetItemCategoryFilter: 'ALL',
+        budgetCatalogSyncMessage: '',
+        budgetItemForm: { category: '가전', itemName: '', budgetAmountWon: 0, selected: true, owned: false,
+            candidateName: '', candidateUrl: '', candidatePriceWon: null, alternativeName: '', alternativeUrl: '',
+            alternativePriceWon: null, note: '' },
         showBudgetPropertyPicker: false,
         budgetAdvice: null,
         budgetCostEstimate: null,
+        budgetLoanEstimateMessage: '',
         mobileSheetExpanded: false,
         mobileSheetDragging: false,
         mobileSheetOffsetPx: null,
@@ -993,10 +999,80 @@ function halley() {
             }
         },
 
+        async applyBudgetLoanEstimate(propertyId) {
+            const financing = this.budgetAggregate?.financing;
+            if (!propertyId || !financing) {
+                return;
+            }
+            const { ok, body } = await this.request(`/api/properties/${propertyId}/loan-estimate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mortgageInsured: true, rateType: 'VARIABLE' })
+            }).catch(() => ({ ok: false }));
+            if (!ok || !body) {
+                this.budgetLoanEstimateMessage = '대출 추정을 불러오지 못했습니다. 대출 조건을 직접 입력해 주세요.';
+                return;
+            }
+            financing.loanAmount = body.finalLimit || 0;
+            financing.loanRatio = body.ltvRate == null ? null : Math.round(Number(body.ltvRate) * 1000) / 10;
+            financing.interestRate = body.monthlyRate == null ? 0
+                : Math.round(body.monthlyRate * 12 * 10_000) / 100;
+            financing.termMonths = body.termMonths || financing.termMonths;
+            financing.repaymentType = body.interestOnly ? 'INTEREST_ONLY' : 'AMORTIZED';
+            financing.monthlyPayment = body.monthlyPayment || 0;
+            financing.estimate = true;
+            this.budgetLoanEstimateMessage = `${body.productLabel || '대출'} 참고 추정값을 채웠습니다. 필요하면 직접 수정하세요.`;
+            await this.saveBudgetFinancing();
+        },
+
         filteredBudgetItems() {
             const items = this.budgetAggregate?.items || [];
             const query = this.budgetItemFilter.trim().toLowerCase();
-            return query ? items.filter(item => item.itemName.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)) : items;
+            return items.filter(item =>
+                (this.budgetItemCategoryFilter === 'ALL' || item.category === this.budgetItemCategoryFilter)
+                && (!query || item.itemName.toLowerCase().includes(query) || item.category.toLowerCase().includes(query)));
+        },
+
+        budgetItemCategories() {
+            const categories = (this.budgetAggregate?.items || []).map(item => item.category);
+            return ['ALL', ...new Set(['가전', '가구', '식기', '생활용품', '기타', ...categories])];
+        },
+
+        catalogBudgetItemCount() {
+            return (this.budgetAggregate?.items || []).filter(item => item.seedKey).length;
+        },
+
+        async addMissingCatalogItems() {
+            const planId = this.budgetAggregate?.plan?.id;
+            if (!planId) {
+                return;
+            }
+            const { ok, body } = await this.request('/api/budget/plans/' + planId + '/items/catalog', { method: 'POST' });
+            if (!ok) {
+                return;
+            }
+            await this.loadBudget();
+            this.budgetCatalogSyncMessage = body.addedCount > 0
+                ? `기본 품목 ${body.addedCount}개를 이 계획에 추가했습니다.`
+                : '이 계획에는 모든 기본 품목이 이미 들어 있습니다.';
+        },
+
+        async addBudgetItem() {
+            const planId = this.budgetAggregate?.plan?.id;
+            const item = this.budgetItemForm;
+            if (!planId || !item.itemName?.trim()) {
+                return;
+            }
+            const { ok } = await this.request('/api/budget/plans/' + planId + '/items', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...item, planId, itemName: item.itemName.trim() })
+            });
+            if (ok) {
+                this.budgetItemForm = { category: item.category, itemName: '', budgetAmountWon: 0, selected: true,
+                    owned: false, candidateName: '', candidateUrl: '', candidatePriceWon: null, alternativeName: '',
+                    alternativeUrl: '', alternativePriceWon: null, note: '' };
+                await this.loadBudget();
+            }
         },
 
         async saveBudgetItem(item) {
@@ -1069,7 +1145,9 @@ function halley() {
             plan.purchasePrice = property.priceDeposit || 0;
             plan.exclusiveAreaM2 = property.areaExclusiveM2 || null;
             this.showBudgetPropertyPicker = false;
+            this.budgetLoanEstimateMessage = '';
             await this.saveBudget();
+            await this.applyBudgetLoanEstimate(property.id);
             await this.estimateBudgetCosts();
         },
 

@@ -2627,6 +2627,7 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-form-grid :is(input:not([type=checkbox]):not([type=radio]):not([type=file]), select) { width: 100%; box-sizing: border-box; }
  .budget-assets > label > input:not([type=checkbox]) { width: min(100%, 360px); box-sizing: border-box; }
  .budget-section { margin-top: 16px; padding: 20px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+ .budget-editor > .budget-section:first-child { margin-top: 0; }
  .budget-section-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
  .budget-section-head h3 { margin: 2px 0 0; font-family: 'Noto Serif KR', serif; font-size: 17px; }
  .budget-section-head > p { max-width: 280px; margin: 4px 0 0; color: var(--ink3); font-size: 11.5px; line-height: 1.5; }
@@ -2645,6 +2646,22 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-asset-edit { display: grid; grid-template-columns: 1fr 8rem 8rem auto; gap: .4rem; align-items: center; }
  .budget-asset-edit small { grid-column: 1 / -1; }
  .budget-item-list { display: grid; gap: 8px; margin-top: 14px; max-height: 32rem; overflow-y: auto; padding-right: 4px; }
+ .budget-item-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) 160px; gap: 12px; margin-top: 18px; }
+ .budget-item-toolbar label { display: grid; gap: 6px; color: var(--ink2); font-size: 11.5px; font-weight: 500; }
+ .budget-catalog-callout { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; padding: 12px; border-radius: 8px; background: #f5efe5; }
+ .budget-catalog-callout div { display: grid; gap: 3px; }
+ .budget-catalog-callout b { color: var(--ink2); font-size: 12px; }
+ .budget-catalog-callout span { color: var(--ink3); font-size: 11px; line-height: 1.5; }
+ .budget-catalog-callout strong { color: var(--ocean); }
+ .budget-catalog-callout .btn { flex: 0 0 auto; white-space: nowrap; }
+ .budget-catalog-result { margin: 8px 0 0; color: var(--ocean); font-size: 11.5px; }
+ .budget-estimate-result { margin: 0 0 .75rem; color: var(--ocean); font-size: .82rem; line-height: 1.5; }
+ .budget-filter-hint { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0 0; color: var(--ink3); font-size: 11px; line-height: 1.5; }
+ .budget-filter-hint b { flex: 0 0 auto; color: var(--ocean); font-weight: 600; }
+ .budget-item-create { margin-top: 14px; padding: 14px; border: 1px dashed var(--line); border-radius: 8px; background: #faf8f3; }
+ .budget-item-create summary { cursor: pointer; color: var(--ocean); font-size: 12px; font-weight: 700; }
+ .budget-item-create .budget-form-grid { margin-bottom: 14px; }
+ .budget-check-row { display: inline-flex; align-items: center; gap: 7px; min-height: 42px; color: var(--ink2); font-size: 13px; font-weight: 400; }
  .budget-item-row { display: grid; grid-template-columns: 1fr auto auto 8rem; gap: 10px; align-items: center; padding: 12px; border: 1px solid var(--line2); border-radius: 8px; background: var(--paper); }
  .budget-item-row input[type="number"] { width: 100%; box-sizing: border-box; }
  .budget-item-products { grid-column: 1 / -1; }
@@ -2656,7 +2673,7 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-advice { margin-top: .75rem; background: #f5efe5; padding: .75rem; border-radius: 8px; }
  .budget-advice pre { white-space: pre-wrap; font: inherit; margin: 0 0 .5rem; }
 .budget-form-grid input { width: 100%; box-sizing: border-box; }
-.budget-cost-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+.budget-cost-actions { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: 1rem; }
 .budget-cost-estimate { display: grid; gap: .45rem; margin-top: .75rem; padding: .75rem; border: 1px solid var(--teal, #147a78); border-radius: 8px; background: #f5efe5; }
 .budget-cost-estimate span { line-height: 1.6; }
  .budget-summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: .75rem; }
@@ -2675,6 +2692,10 @@ tr.dragging { opacity: .5; background: var(--line2); }
      .budget-card { padding: 12px; }
      .budget-section, .budget-overview-card { padding: 16px; }
      .budget-summary-grid, .budget-form-grid, .budget-item-row { grid-template-columns: 1fr; }
+     .budget-item-toolbar { grid-template-columns: 1fr; }
+     .budget-catalog-callout { align-items: flex-start; flex-direction: column; }
+     .budget-catalog-callout .btn { width: 100%; }
+     .budget-filter-hint { display: grid; gap: 2px; }
      .budget-card label { width: 100%; }
      .budget-section-head { flex-direction: column; gap: 8px; }
      .budget-section-head > p { max-width: none; }

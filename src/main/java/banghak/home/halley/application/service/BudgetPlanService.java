@@ -5,7 +5,9 @@ import banghak.home.halley.config.exception.NoGroupException;
 import banghak.home.halley.domain.budget.*;
 import banghak.home.halley.domain.user.User;
 import org.springframework.stereotype.Service;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class BudgetPlanService {
@@ -52,11 +54,7 @@ public class BudgetPlanService {
             throw new NoGroupException();
         }
         final BudgetPlan saved = planRepository.save(plan);
-        catalogRepository.findAll().forEach(catalog -> itemRepository.save(new BudgetItem(
-                null, saved.id(), catalog.seedKey(), catalog.category(), catalog.itemName(), catalog.required(),
-                catalog.recommended(), selectedFor(plan.scenario(), catalog), false, catalog.defaultBudgetAmountWon(),
-                catalog.candidateName(), catalog.candidateUrl(), null, catalog.alternativeName(), catalog.alternativeUrl(),
-                null, ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, catalog.note(), null, null)));
+        catalogRepository.findAll().forEach(catalog -> itemRepository.save(catalogItem(saved, catalog)));
         return saved;
     }
 
@@ -89,6 +87,13 @@ public class BudgetPlanService {
         };
     }
 
+    private BudgetItem catalogItem(BudgetPlan plan, BudgetItemCatalog catalog) {
+        return new BudgetItem(null, plan.id(), catalog.seedKey(), catalog.category(), catalog.itemName(), catalog.required(),
+                catalog.recommended(), selectedFor(plan.scenario(), catalog), false, catalog.defaultBudgetAmountWon(),
+                catalog.candidateName(), catalog.candidateUrl(), null, catalog.alternativeName(), catalog.alternativeUrl(),
+                null, ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, catalog.note(), null, null);
+    }
+
     public BudgetAsset addAsset(BudgetAsset asset) {
         requirePlan(asset.planId());
         return assetRepository.save(new BudgetAsset(null, asset.planId(), currentUserId(), asset.assetType(),
@@ -116,9 +121,34 @@ public class BudgetPlanService {
         assetRepository.delete(assetId);
     }
 
-    public BudgetItem addItem(BudgetItem item) {
-        requirePlan(item.planId());
-        return itemRepository.save(item);
+    public BudgetItem addItem(Long planId, BudgetItem item) {
+        final BudgetPlan plan = requirePlan(planId);
+        final BudgetItem saved = itemRepository.save(new BudgetItem(null, planId, null, item.category(), item.itemName(),
+                false, false, item.selected(), item.owned(), item.budgetAmountWon(), item.candidateName(),
+                item.candidateUrl(), item.candidatePriceWon(), item.alternativeName(), item.alternativeUrl(),
+                item.alternativePriceWon(), null, null, item.note(), null, null));
+        if (plan.scenario() != BudgetScenario.CUSTOM) {
+            planRepository.update(withScenario(plan, BudgetScenario.CUSTOM));
+        }
+        return saved;
+    }
+
+    public CatalogItemsImportResult addMissingCatalogItems(Long planId) {
+        final BudgetPlan plan = requirePlan(planId);
+        final Set<String> existingSeedKeys = new HashSet<>();
+        for (final BudgetItem item : itemRepository.findByPlanId(planId)) {
+            if (item.seedKey() != null) {
+                existingSeedKeys.add(item.seedKey());
+            }
+        }
+        int addedCount = 0;
+        for (final BudgetItemCatalog catalog : catalogRepository.findAll()) {
+            if (existingSeedKeys.add(catalog.seedKey())) {
+                itemRepository.save(catalogItem(plan, catalog));
+                addedCount++;
+            }
+        }
+        return new CatalogItemsImportResult(addedCount);
     }
 
     public BudgetItem updateItem(BudgetItem item) {

@@ -9,6 +9,7 @@ import banghak.home.halley.domain.budget.BudgetPlan;
 import banghak.home.halley.domain.budget.BudgetAsset;
 import banghak.home.halley.domain.budget.BudgetFinancing;
 import banghak.home.halley.domain.budget.BudgetItem;
+import banghak.home.halley.domain.budget.CatalogItemsImportResult;
 import banghak.home.halley.domain.budget.ProductPreview;
 import banghak.home.halley.domain.budget.BudgetScenario;
 import banghak.home.halley.domain.budget.BudgetAdvice;
@@ -95,6 +96,19 @@ public class BudgetController {
             throw new IllegalArgumentException("item does not match path");
         }
         return service.updateItem(item);
+    }
+
+    @PostMapping("/{planId}/items")
+    public BudgetItem addItem(@PathVariable Long planId, @RequestBody BudgetItem item) {
+        if (!planId.equals(item.planId())) {
+            throw new IllegalArgumentException("plan id does not match path");
+        }
+        return service.addItem(planId, item);
+    }
+
+    @PostMapping("/{id}/items/catalog")
+    public CatalogItemsImportResult addMissingCatalogItems(@PathVariable Long id) {
+        return service.addMissingCatalogItems(id);
     }
 
     @PostMapping("/product-preview")

@@ -278,6 +278,10 @@ POST /api/budget-plan/{id}/items/{itemId}/alternative/preview
 추가 필요자금이 양수이면 부족, 음수이면 잔여로 표시한다. 대출금과 월 원리금은 금융기관
 확정 심사가 아닌 입력 기반 참고용 추정치임을 상시 표시한다.
 
+등록 매물을 선택하면 기존 매물 대출 추정 API의 결과를 예산 계획에 적용한다. 대출금, LTV 비율,
+연 이자율, 기간, 상환 방식, 예상 월 원리금을 자동으로 채우며 사용자가 언제든 수정할 수 있다.
+추정에 실패하면 값은 비워 두고 수기 입력을 안내한다.
+
 ## 7. API 목록
 
 ```text
@@ -293,6 +297,8 @@ PUT    /api/budget-plans/{id}/assets/{assetId}
 DELETE /api/budget-plans/{id}/assets/{assetId}
 
 GET    /api/budget-plans/{id}/items
+POST   /api/budget-plans/{id}/items
+POST   /api/budget-plans/{id}/items/catalog
 PUT    /api/budget-plans/{id}/items/{itemId}
 POST   /api/budget-plans/{id}/items/{itemId}/candidate/preview
 POST   /api/budget-plans/{id}/items/{itemId}/alternative/preview

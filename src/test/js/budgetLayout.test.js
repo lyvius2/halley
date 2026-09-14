@@ -24,6 +24,9 @@ test('예산 화면에서는 공용 지도를 숨기고 예산 전용 레이아�
     assert.ok(template.includes('class="budget-overview"'));
     assert.match(stylesheet, /\.budget-workspace \{ grid-template-columns: minmax\(0, 1fr\) minmax\(320px, 390px\)/);
     assert.match(stylesheet, /\.budget-card :is\(input:not\(\[type=checkbox\]\):not\(\[type=radio\]\):not\(\[type=file\]\), select\)/);
+    assert.match(stylesheet, /\.budget-editor > \.budget-section:first-child \{ margin-top: 0; \}/);
+    assert.match(stylesheet, /\.budget-cost-actions \{[\s\S]*margin-top: 1rem;/);
     assert.match(stylesheet, /\.empty-hint \{[\s\S]*background: #f5efe5/);
     assert.ok(template.includes("'전용면적 입력 필요'"));
+    assert.ok(template.includes('기본 품목과 직접 추가한 품목을 목록에서 빠르게 찾습니다.'));
 });

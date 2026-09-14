@@ -314,9 +314,11 @@
                                         <ul class="budget-asset-list"><template x-for="asset in budgetAggregate.assets" :key="asset.id"><li><div class="budget-asset-edit"><b x-text="asset.assetName"></b><small x-text="asset.userId === session.userId ? '내 자산' : '그룹 구성원 자산'"></small><input aria-label="자산 평가금액" type="number" min="0" x-model.number="asset.estimatedValue" @change="saveBudgetAsset(asset)"><input aria-label="투입 가능 금액" type="number" min="0" :max="asset.estimatedValue" x-model.number="asset.investableAmount" @change="saveBudgetAsset(asset)"><label><input type="checkbox" x-model="asset.excluded" @change="saveBudgetAsset(asset)"> 제외</label></div><button class="btn btn-sm" x-show="asset.userId === session.userId" @click="deleteBudgetAsset(asset)">삭제</button></li></template></ul>
                                     </section>
                                     <section class="budget-section budget-assets">
-                                        <div class="budget-section-head"><div><p class="budget-step">4. 대출</p><h3>대출 조건 <small>금융기관 확정 심사 결과가 아닌 참고용 추정치입니다.</small></h3></div></div>
+                                        <div class="budget-section-head"><div><p class="budget-step">4. 대출</p><h3>대출 조건 <small>등록 매물을 고르면 참고 추정값을 자동으로 채웁니다. 금융기관 확정 심사 결과가 아닙니다.</small></h3></div></div>
+                                        <p class="budget-estimate-result" x-show="budgetLoanEstimateMessage" x-text="budgetLoanEstimateMessage"></p>
                                         <div class="budget-form-grid">
                                             <label>대출금(원) <input type="number" min="0" x-model.number="budgetAggregate.financing.loanAmount"></label>
+                                            <label>대출 비율(%) <input type="number" min="0" max="100" step="0.1" x-model.number="budgetAggregate.financing.loanRatio"></label>
                                             <label>연 이자율(%) <input type="number" min="0" step="0.01" x-model.number="budgetAggregate.financing.interestRate"></label>
                                             <label>기간(개월) <input type="number" min="1" x-model.number="budgetAggregate.financing.termMonths"></label>
                                             <label>상환 방식 <select x-model="budgetAggregate.financing.repaymentType"><option value="AMORTIZED">원리금균등</option><option value="PRINCIPAL_EQUAL">원금균등</option><option value="INTEREST_ONLY">만기일시</option></select></label>
@@ -327,7 +329,32 @@
                                     </section>
                                     <section class="budget-section budget-assets">
                                         <div class="budget-section-head"><div><p class="budget-step">5. 혼수</p><h3>혼수·가구·생활용품 <small>금액은 계획용 예상값이며 실시간 판매가나 확정 견적이 아닙니다.</small></h3></div></div>
-                                        <label>품목 검색 <input x-model="budgetItemFilter" placeholder="품목 또는 카테고리"></label>
+                                        <div class="budget-catalog-callout">
+                                            <div><b>기본 혼수 목록</b><span>새 계획을 만들 때 catalog의 기본 항목을 이 계획에 복사합니다. 현재 <strong x-text="catalogBudgetItemCount()"></strong>개가 들어 있습니다.</span></div>
+                                            <button type="button" class="btn btn-sm" @click="addMissingCatalogItems()">기본 품목 추가</button>
+                                        </div>
+                                        <p class="budget-catalog-result" x-show="budgetCatalogSyncMessage" x-text="budgetCatalogSyncMessage"></p>
+                                        <div class="budget-item-toolbar">
+                                            <label>목록에서 찾기 <input x-model="budgetItemFilter" aria-label="혼수 목록에서 품목 또는 카테고리 찾기" placeholder="품목명 또는 카테고리"></label>
+                                            <label>카테고리 <select x-model="budgetItemCategoryFilter"><template x-for="category in budgetItemCategories()" :key="category"><option :value="category" x-text="category === 'ALL' ? '전체' : category"></option></template></select></label>
+                                        </div>
+                                        <p class="budget-filter-hint"><span>기본 품목과 직접 추가한 품목을 목록에서 빠르게 찾습니다.</span><b x-text="filteredBudgetItems().length + '개 표시' "></b></p>
+                                        <details class="budget-item-create">
+                                            <summary>직접 품목 추가</summary>
+                                            <div class="budget-form-grid">
+                                                <label>카테고리 <select x-model="budgetItemForm.category"><option>가전</option><option>가구</option><option>식기</option><option>생활용품</option><option>기타</option></select></label>
+                                                <label>품목명 <input x-model="budgetItemForm.itemName" placeholder="예: 식탁 조명"></label>
+                                                <label>예상 예산(원) <input type="number" min="0" x-model.number="budgetItemForm.budgetAmountWon"></label>
+                                                <label>구매 여부 <span class="budget-check-row"><input type="checkbox" x-model="budgetItemForm.selected"> 구매 대상</span></label>
+                                                <label>후보 상품명 <input x-model="budgetItemForm.candidateName"></label>
+                                                <label>후보 상품 URL <input type="url" x-model="budgetItemForm.candidateUrl" placeholder="https://"></label>
+                                                <label>후보 예상가(원) <input type="number" min="0" x-model.number="budgetItemForm.candidatePriceWon"></label>
+                                                <label>대안 상품명 <input x-model="budgetItemForm.alternativeName"></label>
+                                                <label>대안 상품 URL <input type="url" x-model="budgetItemForm.alternativeUrl" placeholder="https://"></label>
+                                                <label>대안 예상가(원) <input type="number" min="0" x-model.number="budgetItemForm.alternativePriceWon"></label>
+                                            </div>
+                                            <button type="button" class="btn btn-primary" @click="addBudgetItem()" :disabled="!budgetItemForm.itemName.trim()">품목 추가</button>
+                                        </details>
                                         <div class="budget-item-list">
                                             <template x-for="item in filteredBudgetItems()" :key="item.id">
                                                 <div class="budget-item-row">
