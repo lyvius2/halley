@@ -17,6 +17,10 @@ server:
   servlet:
     session:
       timeout: 30m
+      cookie:
+        # 다른 사이트에서 시작된 요청에는 세션 쿠키를 안 붙인다 (설계 I297). CSRF 의 두 번째 방어선이다
+        same-site: lax
+        http-only: true
 
 # 알림에 붙일 매물 주소의 앞부분 (설계 I189). 비우면 링크를 안 단다 —
 # 서버는 자기 주소를 모르므로 알려 줘야 한다

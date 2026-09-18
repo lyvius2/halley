@@ -27,6 +27,13 @@ public class SecurityConfig {
         return configuration.getAuthenticationManager();
     }
 
+    /** 토큰 쿠키에도 SameSite 를 건다 (설계 I297) — 세션 쿠키와 같은 규칙이다. */
+    private static CookieCsrfTokenRepository csrfCookies() {
+        final CookieCsrfTokenRepository repository = CookieCsrfTokenRepository.withHttpOnlyFalse();
+        repository.setCookieCustomizer(cookie -> cookie.sameSite("Lax"));
+        return repository;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    AccountSetupFilter accountSetupFilter,
@@ -36,7 +43,7 @@ public class SecurityConfig {
                 // 내려가고 화면이 X-XSRF-TOKEN 헤더로 되돌려 보낸다 — 다른 출처의 문서는
                 // 이 쿠키를 읽을 수 없어 헤더를 못 만든다. 쿠키는 스크립트가 읽어야 하므로 HttpOnly 가 아니다
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRepository(csrfCookies())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
                 // 토큰은 누가 읽어야 쿠키에 적힌다. 첫 GET 에서부터 적히도록 한 번 건드린다
                 .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)

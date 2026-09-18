@@ -23,3 +23,13 @@ halley:
   admin:
     # 운영은 최초 admin 비밀번호를 환경변수로 받는다 (설계 I296) — 로그에 남기지 않는다
     initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD}
+
+server:
+  servlet:
+    session:
+      cookie:
+        # HTTPS 로만 세션 쿠키를 보낸다 (설계 I297). 로컬은 http 라 여기(live)에만 둔다
+        secure: true
+  # 프록시(nginx·ALB) 뒤에서 X-Forwarded-* 를 믿는다 (설계 I297). 없으면 isSecure() 가
+  # false 라 Secure 쿠키가 안 나가고, 로그인 제한이 프록시 주소 하나로 묶인다
+  forward-headers-strategy: native

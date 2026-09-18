@@ -11,9 +11,11 @@ import org.springframework.http.MediaType;
 import org.springframework.security.web.FilterChainProxy;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -77,10 +79,17 @@ class CsrfProtectionTest {
         // given — 기본 요청에 쿠키가 실려 있으면 새로 발급할 일이 없다. 맨 요청으로 본다
         final MockMvc bare = bareMockMvc();
 
-        // when / then — 브라우저가 받는 것은 Set-Cookie 헤더다
-        bare.perform(get("/"))
+        // when
+        final MvcResult result = bare.perform(get("/"))
                 .andExpect(status().isOk())
-                .andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")));
+                .andExpect(header().string("Set-Cookie", containsString("XSRF-TOKEN=")))
+                .andReturn();
+
+        // then — SameSite 는 쿠키 객체의 속성으로 실린다 (설계 I297). Tomcat 은 그것을 헤더에
+        // 쓰지만 MockHttpServletResponse 는 헤더 문자열로 안 옮기므로 속성을 직접 본다
+        final Cookie issued = result.getResponse().getCookie("XSRF-TOKEN");
+        assertThat(issued).isNotNull();
+        assertThat(issued.getAttribute("SameSite")).isEqualTo("Lax");
     }
 
     /** 시험 지원의 기본 쿠키·헤더 없이, 실제 보안 필터만 건 MockMvc. */
