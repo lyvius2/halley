@@ -299,6 +299,10 @@ itinerary:
   route-cache-hours: ${ITINERARY_ROUTE_CACHE_HOURS:24}
 
 halley:
+  admin:
+    # 최초 admin 비밀번호 (설계 I296). 비우면 만들어서 로그에 적는다 — 로컬용이다.
+    # 운영은 application-live.yaml 이 환경변수를 강제한다
+    initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD:}
   cache:
     reference:
       # 기준 정보 캐시 (설계 I239). 끄면 늘 원본에서 읽는다 — 답은 같다
@@ -306,7 +310,8 @@ halley:
 
 membership:
   sign-up:
-    open: ${MEMBERSHIP_SIGN_UP_OPEN:true}
+    # 기본은 닫힘 (설계 I296). 2인 전용 폐쇄형이다 — 열 때만 명시한다
+    open: ${MEMBERSHIP_SIGN_UP_OPEN:false}
 
 # ── 로깅 (설계 I162) ────────────────────────────────────────────────
 # 자세한 출력 모양·파일 회전은 logback-spring.xml 에 있다. 여기는 무엇을 얼마나

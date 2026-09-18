@@ -25,7 +25,7 @@ public class AuthController {
     private final boolean signUpOpen;
 
     public AuthController(AuthService authService,
-                          @Value("${membership.sign-up.open:true}") boolean signUpOpen) {
+                          @Value("${membership.sign-up.open:false}") boolean signUpOpen) {
         this.authService = authService;
         this.signUpOpen = signUpOpen;
     }

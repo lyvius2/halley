@@ -2,8 +2,9 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/halley}
     driver-class-name: org.postgresql.Driver
-    username: ${DB_USERNAME:halley}
-    password: ${DB_PASSWORD:halley}
+    # 기본값을 두지 않는다 (설계 I296) — 없으면 기동이 실패한다. halley/halley 로 조용히 뜨는 것보다 낫다
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: ${DB_POOL_MAX:10}
       minimum-idle: ${DB_POOL_MIN_IDLE:1}
@@ -17,3 +18,8 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+
+halley:
+  admin:
+    # 운영은 최초 admin 비밀번호를 환경변수로 받는다 (설계 I296) — 로그에 남기지 않는다
+    initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD}

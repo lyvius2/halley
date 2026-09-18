@@ -68,7 +68,7 @@ public class UserService {
     public UserService(UserRepository userRepository, UserGroupRepository userGroupRepository,
                        GroupService groupService, NicknameSnapshotWriter nicknameSnapshotWriter,
                        UserDebtRepository userDebtRepository,
-                       @Value("${membership.sign-up.open:true}") boolean signUpOpen,
+                       @Value("${membership.sign-up.open:false}") boolean signUpOpen,
                        PasswordEncoder passwordEncoder,
                        ScoringService scoringService,
                        ApplicationEventPublisher eventPublisher) {
