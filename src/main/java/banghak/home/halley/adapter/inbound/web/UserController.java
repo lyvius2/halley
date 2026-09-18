@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import jakarta.validation.Valid;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateStatusRequest;
@@ -40,7 +41,7 @@ public class UserController {
     /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다. */
     @PostMapping("/sign-up")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse signUp(@RequestBody SignUpRequest request) {
+    public UserResponse signUp(@Valid @RequestBody SignUpRequest request) {
         return userService.signUp(request);
     }
 
@@ -85,7 +86,7 @@ public class UserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse create(@RequestBody CreateUserRequest request) {
+    public UserResponse create(@Valid @RequestBody CreateUserRequest request) {
         return userService.create(request);
     }
 

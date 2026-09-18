@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import jakarta.validation.Valid;
 import banghak.home.halley.adapter.inbound.web.dto.AuthResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoginRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PasswordChangeRequest;
@@ -31,7 +32,7 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest request,
+    public AuthResponse login(@Valid @RequestBody LoginRequest request,
                               HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         return authService.login(request.loginId(), request.password(), request.remember(),
                 httpRequest, httpResponse);
@@ -45,7 +46,7 @@ public class AuthController {
 
     @PostMapping("/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void changePassword(@RequestBody PasswordChangeRequest request) {
+    public void changePassword(@Valid @RequestBody PasswordChangeRequest request) {
         authService.changePassword(request.currentPassword(), request.newPassword());
     }
 

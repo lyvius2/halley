@@ -1,5 +1,7 @@
 package banghak.home.halley.adapter.inbound.web.dto;
 
+import jakarta.validation.constraints.Size;
+
 import banghak.home.halley.domain.property.DealType;
 import banghak.home.halley.domain.property.FloorBand;
 import banghak.home.halley.domain.property.MoveInType;
@@ -8,7 +10,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record PropertyRequest(
-        String name,
+        @Size(max = 200) String name,
         String dongHo,
         DealType dealType,
         Long priceDeposit,

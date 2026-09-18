@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import jakarta.validation.Valid;
 import banghak.home.halley.adapter.inbound.web.dto.AgentResponse;
 import banghak.home.halley.adapter.inbound.web.dto.CommentRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ComparativeAnalysisStatus;
@@ -283,7 +284,7 @@ public class PropertyController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ScoredPropertyResponse create(@RequestBody PropertyRequest request) {
+    public ScoredPropertyResponse create(@Valid @RequestBody PropertyRequest request) {
         final PropertyResponse created = propertyService.create(request);
         // <b>기다리지 않고 돌려준다 (설계 I220).</b> [I110]은 초등학교·토지이용계획·채점을
         // 기다렸는데, ODsay 가 막혀 직주근접이 LLM 으로 넘어가면(I210) 사람당 4~5초라
@@ -293,7 +294,7 @@ public class PropertyController {
     }
 
     @PutMapping("/{id}")
-    public ScoredPropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request,
+    public ScoredPropertyResponse update(@PathVariable Long id, @Valid @RequestBody PropertyRequest request,
                                          @RequestHeader(value = "X-Edit-Version", required = false) Long editVersion) {
         final PropertyResponse updated = propertyService.update(id, request, editVersion);
         return scoringService.rescore(propertyAccessGuard.require(id));
