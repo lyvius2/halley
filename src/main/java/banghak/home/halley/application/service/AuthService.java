@@ -37,13 +37,17 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    /** 무차별 대입 방어 (설계 I298) */
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public AuthService(AuthenticationManager authenticationManager,
                        UserRepository userRepository,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       LoginAttemptLimiter loginAttemptLimiter) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.loginAttemptLimiter = loginAttemptLimiter;
     }
 
     /**
@@ -51,17 +55,24 @@ public class AuthService {
      */
     public AuthResponse login(String loginId, String password, boolean rememberMe,
                               HttpServletRequest request, HttpServletResponse response) {
+        // 비밀번호를 보기 전에 센다 — 잠겼으면 맞는 비밀번호도 막는다 (설계 I298).
+        // 프록시 뒤에서는 forward-headers-strategy 가 있어야 이 주소가 실제 손님이다 (설계 I297)
+        final String address = request.getRemoteAddr();
+        loginAttemptLimiter.check(loginId, address);
         try {
             final Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginId, password));
             SecurityContextHolder.getContext().setAuthentication(auth);
+            loginAttemptLimiter.reset(loginId, address);
             if (rememberMe) {
                 rememberSession(request, response);
             }
             return toAuthResponse((HalleyUserDetails) Objects.requireNonNull(auth.getPrincipal()), request);
         } catch (DisabledException e) {
+            // 비활성 계정은 비밀번호가 틀린 것이 아니다 — 세지 않는다
             throw new AccountDisabledException();
         } catch (AuthenticationException e) {
+            loginAttemptLimiter.recordFailure(loginId, address);
             throw new InvalidCredentialsException();
         }
     }

@@ -99,6 +99,15 @@ public interface CachePort {
      */
     String DRIVE_ROUTE = "driveroute";
 
+    /**
+     * 로그인 실패 횟수 (설계 I298). 키는 <b>계정|주소</b>.
+     *
+     * <p>공개 주소로 운영하면 비밀번호 무차별 대입에 무방비였습니다. 한 계정을 한 주소에서
+     * 다섯 번 틀리면 15분 동안 막습니다 — 맞는 비밀번호를 넣어도 막힙니다.
+     * 수명이 곧 잠금 시간이므로 따로 풀 일이 없습니다.
+     */
+    String LOGIN_FAILURES = "loginfail";
+
     Optional<String> get(String namespace, String key);
 
     void put(String namespace, String key, String json, Duration ttl);
