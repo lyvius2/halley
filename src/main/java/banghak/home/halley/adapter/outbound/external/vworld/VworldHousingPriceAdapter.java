@@ -15,33 +15,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * V-World 공시가격 속성조회 어댑터 (설계 I54).
- *
- * <p>이 API는 인증 실패도 HTTP 200으로 돌려주고 본문에 `resultCode`를 담는다. 그래서 Feign 예외만으로는
- * 실패를 알 수 없어 본문을 먼저 확인한다. 응답 래퍼 이름(`response`·`apartHousingPrices`)과 항목 배열 키는
- * 서비스·상황마다 다르므로 <b>루트 아래 첫 배열</b>을 항목 목록으로 삼는다.
- *
- * <p><b>연도를 반드시 지정한다.</b> `stdrYear` 없이 부르면 그 필지의 전 연도가 <b>오래된 순으로</b> 나온다.
- * 실측(은마아파트 PNU)에서 `totalCount = 110,600 = 4,424세대 × 25년`이었고 첫 페이지가 2006년치였다.
- * 그대로 쓰면 20년 전 공시가격이 저장된다.
- */
 @Slf4j
 @Component
 public class VworldHousingPriceAdapter implements HousingPricePort {
 
-    /** API 최대치. 대단지는 한 해에도 수천 세대가 나와 페이지를 넘겨야 한다. */
+    /** API 최대치. 대단지는 한 해에도 수천 세대가 나와 페이지를 넘겨야 한다.  */
     private static final int MAX_ROWS = 1000;
-    /**
-     * 한 필지의 한 해 자료가 세대 수보다 많이 나온다 — 실측(은마 4,424세대)에서 `totalCount = 8,848`로
-     * <b>세대 수의 2배</b>였습니다. 5페이지로 잡았을 때 56%만 받아 나머지가 조용히 잘렸습니다(설계 I70).
-     * 잘리면 특정 면적대가 통째로 빠져 엉뚱한 값이 붙을 수 있으므로 넉넉히 잡고, 그래도 모자라면 경고합니다.
-     */
     private static final int MAX_PAGES = 15;
-    /** 공동주택가격 공시는 매년 4월 말이라, 연초에는 올해 자료가 아직 없다. 최대 이만큼 거슬러 본다. */
+    /** 공동주택가격 공시는 매년 4월 말이라, 연초에는 올해 자료가 아직 없다. 최대 이만큼 거슬러 본다.  */
     private static final int YEAR_LOOKBACK = 2;
 
-    /** 공동주택은 `pblntfPc`(공시가격), 개별주택은 `housePc`(주택가격)로 필드명이 다르다. */
+    /** 공동주택은 `pblntfPc`(공시가격), 개별주택은 `housePc`(주택가격)로 필드명이 다르다.  */
     private static final List<String> PRICE_KEYS = List.of("pblntfPc", "housePc", "pblntfPclnd");
     private static final List<String> AREA_KEYS = List.of("prvuseAr", "ladRegstrAr", "bildngAr");
 
@@ -69,7 +53,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
                 client.fetchDetachedHousePrice(apiKey, pnu, year, "json", rows, page));
     }
 
-    /** 연도 하나를 정한 뒤 그 해 자료만 모은다. */
+    /** 연도 하나를 정한 뒤 그 해 자료만 모은다.  */
     private List<OfficialPrice> fetch(String pnu, String kind, PageCall call) {
         if (apiKey == null || apiKey.isBlank()) {
             log.info("Skipping VWorld price lookup - api key not configured. kind={}", kind);
@@ -109,9 +93,6 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
         return prices;
     }
 
-    /**
-     * 자료가 있는 가장 최근 연도를 찾는다. `numOfRows=1`로 `totalCount`만 보므로 호출 비용이 작다.
-     */
     private Optional<YearCount> resolveYear(String pnu, String kind, PageCall call) {
         final int thisYear = Year.now().getValue();
         for (int year = thisYear; year >= thisYear - YEAR_LOOKBACK; year--) {
@@ -183,10 +164,6 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
         }
     }
 
-    /**
-     * 정상 응답은 `resultCode`가 <b>빈 문자열</b>로 온다(`{"apartHousingPrices": {"resultCode": "", …}}`).
-     * 인증·파라미터 오류일 때만 `INVALID_KEY` 같은 코드가 채워지므로, 값이 있고 성공 코드가 아닐 때만 거절로 본다.
-     */
     private boolean isRejected(JsonNode wrapper) {
         final String resultCode = wrapper.path("resultCode").asString(null);
         if (resultCode == null || resultCode.isBlank()) {
@@ -195,7 +172,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
         return !"NORMAL_SERVICE".equals(resultCode) && !"00".equals(resultCode);
     }
 
-    /** 응답은 `{"apartHousingPrices": {...}}` 또는 `{"response": {...}}`처럼 래퍼 하나로 감싸여 온다. */
+    /** 응답은 `{"apartHousingPrices": {...}}` 또는 `{"response": {...}}`처럼 래퍼 하나로 감싸여 온다.  */
     private JsonNode firstObjectChild(JsonNode root) {
         for (final Map.Entry<String, JsonNode> entry : root.properties()) {
             if (entry.getValue().isObject()) {
@@ -205,7 +182,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
         return root;
     }
 
-    /** 항목 배열의 키(`field`)가 서비스마다 흔들릴 수 있어 이름 대신 타입으로 찾는다. */
+    /** 항목 배열의 키(`field`)가 서비스마다 흔들릴 수 있어 이름 대신 타입으로 찾는다.  */
     private JsonNode firstArrayChild(JsonNode wrapper) {
         for (final Map.Entry<String, JsonNode> entry : wrapper.properties()) {
             if (entry.getValue().isArray()) {
@@ -253,7 +230,7 @@ public class VworldHousingPriceAdapter implements HousingPricePort {
         }
     }
 
-    /** 페이지 단위 호출 — 공동주택·개별주택 두 엔드포인트를 같은 흐름으로 다루기 위한 것. */
+    /** 페이지 단위 호출 — 공동주택·개별주택 두 엔드포인트를 같은 흐름으로 다루기 위한 것.  */
     @FunctionalInterface
     private interface PageCall {
         String get(String stdrYear, int numOfRows, int pageNo);

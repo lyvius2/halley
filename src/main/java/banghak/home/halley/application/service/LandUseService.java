@@ -17,20 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * 토지이용계획 (설계 I69).
- *
- * <p>매물 필지에 걸린 지역·지구를 받아 저장합니다. <b>토지거래허가구역</b>(실거주 의무 — 갭투자 불가)과
- * <b>정비구역</b>(재건축)은 매수 판단을 가르는 정보라 화면에서 강조합니다.
- *
- * <p>규제지역(투기과열지구·조정대상지역)은 <b>여기 없습니다.</b> 그건 「주택법」상 지정이라
- * 토지이용계획에 등재되지 않습니다 — 실측으로 확인했습니다(설계 I69).
- */
 @Slf4j
 @Service
 public class LandUseService {
 
-    /** 중개사·토지이용계획은 거의 안 바뀐다 (설계 I158). */
+    /** 중개사·토지이용계획은 거의 안 바뀐다.  */
     private static final java.time.Duration DETAIL_TTL = java.time.Duration.ofHours(24);
 
     private final LandUsePort landUsePort;
@@ -39,7 +30,7 @@ public class LandUseService {
     private final GeoService geoService;
     private final CachePort cache;
     private final ObjectMapper objectMapper;
-    /** 사용자 요청은 여기를 지난다 (설계 I294). 배경 보정(ensureLandUse)은 안 지난다 */
+    /** 사용자 요청은 여기를 지난다. 배경 보정(ensureLandUse)은 안 지난다  */
     private final PropertyAccessGuard propertyAccessGuard;
 
     public LandUseService(LandUsePort landUsePort,
@@ -58,18 +49,12 @@ public class LandUseService {
         this.propertyAccessGuard = propertyAccessGuard;
     }
 
-    /**
-     * 저장된 값만 읽는다 — 외부를 부르지 않는다.
-     *
-     * <p>캐시를 먼저 본다 (설계 I158). 토지이용계획은 거의 바뀌지 않는데 상세 모달을
-     * 열 때마다 DB를 왕복했다.
-     */
     public List<LandUseResponse> find(Long propertyId) {
         propertyAccessGuard.require(propertyId);
         return load(propertyId);
     }
 
-    /** 그룹 확인 없이 읽는다 — 배경 보정과 위 {@link #find} 가 함께 쓴다. */
+    /** 그룹 확인 없이 읽는다 — 배경 보정과 위 {@link #find} 가 함께 쓴다.  */
     private List<LandUseResponse> load(Long propertyId) {
         final Optional<String> cached = cache.get(CachePort.LAND_USE, String.valueOf(propertyId));
         if (cached.isPresent()) {
@@ -90,16 +75,12 @@ public class LandUseService {
         return fresh;
     }
 
-    /**
-     * 필요하면 조회해 저장한다. 이미 있으면 그대로 둔다 — 토지이용계획은 거의 바뀌지 않습니다.
-     * 실패해도 예외를 던지지 않습니다.
-     */
     @Transactional
     public List<LandUseResponse> ensureLandUse(Long propertyId) {
         return refresh(propertyId, false);
     }
 
-    /** 사용자가 명시적으로 다시 받으려 할 때. */
+    /** 사용자가 명시적으로 다시 받으려 할 때.  */
     @Transactional
     public List<LandUseResponse> refresh(Long propertyId) {
         propertyAccessGuard.require(propertyId);
@@ -107,7 +88,7 @@ public class LandUseService {
     }
 
     private List<LandUseResponse> refresh(Long propertyId, boolean force) {
-        // 다시 받기 전에 버린다 — 남겨 두면 방금 받은 값 대신 옛것을 돌려준다 (설계 I158)
+        // 다시 받기 전에 버린다 — 남겨 두면 방금 받은 값 대신 옛것을 돌려준다
         cache.evict(CachePort.LAND_USE, String.valueOf(propertyId));
         if (!force && !landUseRepository.findByPropertyId(propertyId).isEmpty()) {
             return load(propertyId);
@@ -133,7 +114,7 @@ public class LandUseService {
         return find(propertyId);
     }
 
-    /** 저장된 PNU를 먼저 쓰고, 없으면 주소로 조립한다 (설계 I54). */
+    /** 저장된 PNU를 먼저 쓰고, 없으면 주소로 조립한다.  */
     private Optional<String> resolvePnu(Property property) {
         if (property.pnu() != null && property.pnu().length() == 19) {
             return Optional.of(property.pnu());

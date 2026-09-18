@@ -28,13 +28,13 @@ public class RegulationParamBootstrap implements ApplicationRunner {
             new Seed("loan.termYears", "30", RegulationValueType.INT, "대출 기간(년)"),
             new Seed("tax.acquisitionRate", "0.01", RegulationValueType.DECIMAL, "취득세율"),
             new Seed("tax.firstHomeDiscount", "0.5", RegulationValueType.DECIMAL, "생애최초 취득세 감면율"),
-            // 방공제·현실화율은 시행령·고시로 바뀐다. 값의 근거와 기준일을 설명에 남긴다 (설계 I64)
+            // 방공제·현실화율은 시행령·고시로 바뀐다. 값의 근거와 기준일을 설명에 남긴다
             new Seed("ltv.leaseDeduction", "55000000", RegulationValueType.DECIMAL,
                     "방공제(소액임차보증금 최우선변제금, 원) — 서울 기준. "
                             + "주택임대차보호법 시행령 개정 시 갱신 필요. MCI/MCG 가입 시 미차감"),
             new Seed("valuation.officialPriceRatio", "0.7", RegulationValueType.DECIMAL,
                     "공시가격 현실화율 — 공시가격을 담보가치로 환산할 때 나누는 값. 매년 갱신 필요"),
-            // 가격 전망의 요인 판정 임계값 (설계 I133).
+            // 가격 전망의 요인 판정 임계값.
             // 전부 임의의 값이다 — 결론도 화살표도 정하지 않고 모달의 참고 문구에만
             // 영향을 주므로 위험은 작지만, 사후 검증(구현 10)에서 조정할 거리다
             new Seed("forecast.trend.threshold", "0.02", RegulationValueType.DECIMAL,
@@ -43,14 +43,14 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     "이 위면 실거주 수요가 하방을 받친다고 본다"),
             new Seed("forecast.jeonse.low", "0.50", RegulationValueType.DECIMAL,
                     "이 아래면 매매가에 기대가 많이 실려 있다고 본다"),
-            // 장기 지표 (설계 I148). 60개월치를 받아 두고 13개월만 쓰던 것을 실제로 쓴다
+            // 장기 지표. 60개월치를 받아 두고 13개월만 쓰던 것을 실제로 쓴다
             new Seed("forecast.longterm.threshold", "0.02", RegulationValueType.DECIMAL,
                     "장기 추세를 방향으로 읽는 연평균 변동률. 물가상승률 언저리를 잡았다"),
             new Seed("forecast.peak.near", "0.95", RegulationValueType.DECIMAL,
                     "5년 전고점 대비 이 위면 고점에 붙었다고 본다 — 더 오를 여력이 적다"),
             new Seed("forecast.peak.far", "0.80", RegulationValueType.DECIMAL,
                     "5년 전고점 대비 이 아래면 고점과 멀다고 본다"),
-            // 용적률 상한은 지자체 조례다 (설계 I132). 지역마다 달라 반드시 확인 후 조정
+            // 용적률 상한은 지자체 조례다. 지역마다 달라 반드시 확인 후 조정
             new Seed("forecast.far.제1종일반주거지역", "1.5", RegulationValueType.DECIMAL,
                     "용적률 상한 — 지자체 조례. 서울 기준"),
             new Seed("forecast.far.제2종일반주거지역", "2.5", RegulationValueType.DECIMAL,
@@ -59,7 +59,7 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     "용적률 상한 — 지자체 조례. 서울 기준"),
             new Seed("forecast.far.준주거지역", "4.0", RegulationValueType.DECIMAL,
                     "용적률 상한 — 지자체 조례. 서울 기준"),
-            // LTV 매트릭스 (설계 I66) — 지역 × 보유주택. 고시로 자주 바뀌므로 반드시 확인 후 조정
+            // LTV 매트릭스 — 지역 × 보유주택. 고시로 자주 바뀌므로 반드시 확인 후 조정
             new Seed("ltv.rate.normal.none", "0.7", RegulationValueType.DECIMAL, "비규제·무주택 LTV"),
             new Seed("ltv.rate.normal.one", "0.6", RegulationValueType.DECIMAL, "비규제·1주택 LTV"),
             new Seed("ltv.rate.normal.multi", "0.6", RegulationValueType.DECIMAL, "비규제·다주택 LTV"),
@@ -73,7 +73,7 @@ public class RegulationParamBootstrap implements ApplicationRunner {
                     "생애최초 우대 LTV — 지역·보유와 무관하게 적용"),
             new Seed("ltv.cap.firstHome", "600000000", RegulationValueType.DECIMAL,
                     "생애최초 대출 총액 상한(원)"),
-            // 전세자금대출 (설계 I67) — 보증기관·정책마다 다르고 자주 바뀐다
+            // 전세자금대출 — 보증기관·정책마다 다르고 자주 바뀐다
             new Seed("jeonse.guaranteeRate", "0.8", RegulationValueType.DECIMAL,
                     "전세자금대출 보증비율 — 보증금의 몇 %까지 보증하는지"),
             new Seed("jeonse.guaranteeCap", "222000000", RegulationValueType.DECIMAL,

@@ -15,24 +15,14 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * 한국은행 ECOS 어댑터 (설계 I116).
- *
- * <p>통계 `121Y006`(예금은행 대출금리, 신규취급액 기준)에서 가계대출 항목만 골라 옵니다.
- * 한 통계 안에 대출평균·기업대출·가계대표 등 여러 항목이 섞여 오므로 <b>`ITEM_CODE1`으로
- * 걸러야</b> 합니다 — 안 거르면 기업대출 금리가 섞여 들어옵니다.
- *
- * <p><b>항목 코드를 프로퍼티로 둡니다.</b> 한국은행이 코드 체계를 바꾸면 코드 수정 없이
- * 설정만 고쳐 대응합니다.
- */
 @Slf4j
 @Component
 public class EcosLoanRateAdapter implements LoanRateHistoryPort {
 
     private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("yyyyMM");
-    /** 5년 = 60개월. 넉넉히 잡아도 한 번에 받는 편이 호출을 줄인다. */
+    /** 5년 = 60개월. 넉넉히 잡아도 한 번에 받는 편이 호출을 줄인다.  */
     private static final int MAX_ROWS = 1000;
-    /** ECOS는 퍼센트로 준다 (`UNIT_NAME: 연%`). 도메인은 소수로 통일한다. */
+    /** ECOS는 퍼센트로 준다 (`UNIT_NAME: 연%`). 도메인은 소수로 통일한다.  */
     private static final BigDecimal PERCENT = BigDecimal.valueOf(100);
 
     private final EcosFeignClient client;

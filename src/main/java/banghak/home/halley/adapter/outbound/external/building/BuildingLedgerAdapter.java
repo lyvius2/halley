@@ -15,27 +15,13 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Optional;
 
-/**
- * 건축물대장 어댑터 (설계 I132).
- *
- * <p>PNU 19자리를 쪼개 넣습니다.
- *
- * <pre>
- *   41597   10500   1   0525   0000
- *     │       │     │     │      └── ji        (부번 4)
- *     │       │     │     └───────── bun       (본번 4)
- *     │       │     └─────────────── 산 여부    → platGbCd 로 변환
- *     │       └───────────────────── bjdongCd  (법정동 5)
- *     └───────────────────────────── sigunguCd (시군구 5)
- * </pre>
- */
 @Slf4j
 @Component
 public class BuildingLedgerAdapter implements BuildingLedgerPort {
 
     private static final int PNU_LENGTH = 19;
     private static final DateTimeFormatter YMD = DateTimeFormatter.ofPattern("yyyyMMdd");
-    /** 한 필지에 총괄표제부가 여럿일 이유는 없지만, 있으면 첫 건만 본다. */
+    /** 한 필지에 총괄표제부가 여럿일 이유는 없지만, 있으면 첫 건만 본다.  */
     private static final int MAX_ROWS = 5;
 
     private final BuildingLedgerFeignClient client;
@@ -51,10 +37,6 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
         this.serviceKey = decodeIfEncoded(serviceKey);
     }
 
-    /**
-     * 공공데이터포털은 인증키를 Encoding/Decoding 두 형태로 발급합니다. Encoding 키를 그대로
-     * 넘기면 Feign이 `%`를 한 번 더 인코딩해 403이 납니다 — 실거래가에서 겪은 것과 같습니다.
-     */
     static String decodeIfEncoded(String key) {
         if (key == null || !key.contains("%")) {
             return key;
@@ -86,12 +68,6 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
         return parse(body, pnu);
     }
 
-    /**
-     * PNU의 산 여부를 건축물대장 코드로 바꾼다.
-     *
-     * <p><b>체계가 다릅니다.</b> PNU는 `1`=대지·`2`=산, 대장은 `0`=대지·`1`=산·`2`=블록.
-     * 그대로 넘기면 <b>엉뚱한 필지</b>를 봅니다.
-     */
     private String platGbCd(char pnuMountainFlag) {
         return pnuMountainFlag == '2' ? "1" : "0";
     }
@@ -128,10 +104,6 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
                 date(item, "useAprDay")));
     }
 
-    /**
-     * 결과가 1건이면 배열이 아니라 <b>객체로 오는</b> 공공 API가 있습니다.
-     * 실측에서는 배열이었지만 둘 다 받습니다.
-     */
     private JsonNode firstItem(JsonNode root) {
         final JsonNode items = root.path("response").path("body").path("items").path("item");
         if (items.isArray()) {
@@ -145,7 +117,7 @@ public class BuildingLedgerAdapter implements BuildingLedgerPort {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    /** 숫자로 올 수도 문자열로 올 수도 있습니다 — 실측에서 `numOfRows`가 문자열이었습니다. */
+    /** 숫자로 올 수도 문자열로 올 수도 있습니다 — 실측에서 `numOfRows`가 문자열이었습니다.  */
     private BigDecimal decimal(JsonNode item, String field) {
         final JsonNode node = item.path(field);
         if (node.isMissingNode() || node.isNull()) {

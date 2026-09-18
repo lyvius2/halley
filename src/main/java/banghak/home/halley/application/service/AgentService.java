@@ -25,7 +25,7 @@ import java.util.Optional;
 @Service
 public class AgentService {
 
-    /** 중개사·토지이용계획은 거의 안 바뀐다 (설계 I158). */
+    /** 중개사·토지이용계획은 거의 안 바뀐다.  */
     private static final java.time.Duration DETAIL_TTL = java.time.Duration.ofHours(24);
 
     private final AgentRepository agentRepository;
@@ -65,10 +65,6 @@ public class AgentService {
                 request.registrationNo(), request.address(), request.lat(), request.lng())));
     }
 
-    /**
-     * 중개사 정보를 고치면 <b>그 중개사가 붙은 매물 전부</b>가 낡는다 (설계 I158).
-     * 어느 매물인지 되짚는 것보다 통째로 버리는 편이 단순하고, 중개사 수정은 드물다.
-     */
     public AgentResponse update(Long id, AgentRequest request) {
         final Agent existing = agentRepository.findById(id).orElseThrow(NotFoundListingsException::new);
         cache.evictAll(CachePort.AGENTS);
@@ -97,10 +93,6 @@ public class AgentService {
         return propertyAgents(propertyId);
     }
 
-    /**
-     * 붙여넣기로 들어온 중개사를 등록·연결한다 (설계 I53).
-     * 등록번호가 같으면 기존 중개사를 최신 값으로 갱신하고, 없으면 새로 만든 뒤 대표 중개사로 연결한다.
-     */
     @Transactional
     public void upsertFromPaste(Long propertyId, AgentRequest request) {
         if (request == null || isEmpty(request)) {
@@ -132,13 +124,6 @@ public class AgentService {
                 r.registrationNo(), r.address(), r.lat(), r.lng());
     }
 
-    /**
-     * 매물에 붙은 중개사 (설계 I158).
-     *
-     * <p>중개사마다 `agent` 를 한 번씩 더 읽으므로 왕복이 늘어난다. 거의 안 바뀌는 값이라
-     * 캐시를 먼저 본다. <b>접근 검사는 캐시보다 앞에 둔다</b> — 캐시가 있다고 남의 그룹
-     * 매물을 보여 주면 안 된다.
-     */
     public List<PropertyAgentResponse> propertyAgents(Long propertyId) {
         propertyAccessGuard.require(propertyId);
         final Optional<String> cached = cache.get(CachePort.AGENTS, String.valueOf(propertyId));

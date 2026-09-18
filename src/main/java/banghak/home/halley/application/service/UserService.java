@@ -59,7 +59,7 @@ public class UserService {
     private final GroupService groupService;
     private final NicknameSnapshotWriter nicknameSnapshotWriter;
     private final UserDebtRepository userDebtRepository;
-    /** 회원가입 개방 여부 (설계 I95). */
+    /** 회원가입 개방 여부.  */
     private final boolean signUpOpen;
     private final PasswordEncoder passwordEncoder;
     private final ScoringService scoringService;
@@ -104,31 +104,25 @@ public class UserService {
         final User updated = userRepository.update(new User(
                 user.id(), user.loginId(), nickname, user.groupId(), user.passwordHash(), user.role(),
                 request.workplaceName(), request.workplaceLat(), request.workplaceLng(),
-                // 저장했다는 것은 본인이 값을 보고 넘어갔다는 뜻이다 (설계 I100)
+                // 저장했다는 것은 본인이 값을 보고 넘어갔다는 뜻이다
                 user.mustChangePassword(), true, newBudget,
                 request.annualIncome() != null ? request.annualIncome() : user.annualIncomeOrZero(),
                 request.existingLoan() != null ? request.existingLoan() : user.existingLoanOrZero(),
                 user.enabled(), user.disabledAt(), user.disabledBy(), user.createdAt()));
         refreshProfileFlag(updated);
 
-        // 예산 상한이 바뀌면 전 매물 PRICE가 달라진다 (설계 5.2.1)
+        // 예산 상한이 바뀌면 전 매물 PRICE가 달라진다
         if (newBudget != user.availableBudget()) {
             scoringService.rescoreAll();
         }
-        // 직장 위치는 AI 추천도의 입력이다 (설계 I60)
+        // 직장 위치는 AI 추천도의 입력이다
         if (workplaceChanged(user, updated)) {
             eventPublisher.publishEvent(new WorkplacesChangedEvent("profile:" + updated.id()));
         }
         return toResponse(updated);
     }
 
-    /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다. */
-    /**
-     * 세션에 든 값을 갱신한다 (설계 I100).
-     *
-     * <p>세션 응답은 DB가 아니라 <b>로그인할 때 담아 둔 principal</b>에서 읽습니다. 저장만
-     * 하고 여기를 안 고치면 방금 확인한 프로필인데도 확인 화면이 다시 뜹니다.
-     */
+    /** 프로필을 채우면 AccountSetupFilter가 더 이상 막지 않도록 세션의 principal을 갱신한다.  */
     private void refreshProfileFlag(User updated) {
         final Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.getPrincipal() instanceof HalleyUserDetails principal) {
@@ -150,15 +144,6 @@ public class UserService {
     }
 
 
-    /**
-     * 회원이 속할 그룹을 정한다 (설계 I87).
-     *
-     * <p><b>회원은 반드시 어느 그룹엔가 속합니다.</b> 그룹 없는 회원은 매물을 등록할 수도,
-     * 볼 수도 없어 아무것도 못 하는 상태가 됩니다. admin이 지정하지 않았으면 새 그룹을
-     * 만들어 넣습니다 — 이름은 무작위 한국어이고 나중에 그룹의 누구나 바꿉니다(규칙 14).
-     *
-     * <p>admin은 어느 그룹에도 속하지 않습니다(규칙 5).
-     */
     private Long resolveGroupId(UserRole role, Long requested) {
         if (role == UserRole.ADMIN) {
             return null;
@@ -173,17 +158,9 @@ public class UserService {
     }
 
 
-    /**
-     * 스스로 하는 회원가입 (설계 I89 · 규칙 13·14).
-     *
-     * <p><b>새 그룹이 함께 만들어집니다.</b> 그룹 없는 회원은 매물을 등록할 수도 볼 수도 없어
-     * 아무것도 못 하는 상태가 됩니다. 이름은 무작위 한국어이고 나중에 누구나 바꿉니다.
-     *
-     * <p>가입은 <b>회원(MEMBER)만</b> 됩니다 — 관리자를 스스로 만들 수 있으면 안 됩니다.
-     */
     @Transactional
     public UserResponse signUp(SignUpRequest request) {
-        // 화면에서 링크를 숨기는 것만으로는 부족하다 — 주소를 아는 사람은 그냥 부른다 (설계 I95)
+        // 화면에서 링크를 숨기는 것만으로는 부족하다 — 주소를 아는 사람은 그냥 부른다
         if (!signUpOpen) {
             throw new SignUpClosedException();
         }
@@ -193,12 +170,12 @@ public class UserService {
                 UserRole.MEMBER, null, null, null, 0L, 0L, 0L), false);
     }
 
-    /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다. */
+    /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다.  */
     public NicknameCheckResponse checkNickname(String nickname) {
         // 익명이면 null 이다. currentUserId() 는 401 을 던지므로 여기서는 못 쓴다 — 예전에는
-        // 그걸 써서 가입이 열려 있어도 가입 화면의 닉네임 확인이 401 이었다 (설계 I300)
+        // 그걸 써서 가입이 열려 있어도 가입 화면의 닉네임 확인이 401 이었다
         final Long myId = currentAdminId();
-        // 로그인 전 확인은 가입 화면을 위한 것이다. 가입이 닫혀 있으면 함께 닫는다 (설계 I300) —
+        // 로그인 전 확인은 가입 화면을 위한 것이다. 가입이 닫혀 있으면 함께 닫는다 —
         // 열어 두면 로그인 없이 어떤 닉네임이 있는지 하나씩 물어볼 수 있다
         if (myId == null && !signUpOpen) {
             throw new SignUpClosedException();
@@ -213,15 +190,6 @@ public class UserService {
         return new NicknameCheckResponse(trimmed, !taken);
     }
 
-    /**
-     * 회원 탈퇴 (규칙 15·16).
-     *
-     * <p><b>닉네임을 빼고 모두 지웁니다.</b> 다만 이 회원이 남긴 매물·코멘트·쾌적함 점수는
-     * 그룹이 살아 있는 한 그대로 둡니다 — 함께 보던 사람에게는 여전히 필요한 자료입니다.
-     * 화면에 이름이 남아야 하므로 <b>닉네임은 매물·코멘트에 값으로 복사해</b> 둡니다(I88).
-     *
-     * <p>마지막 한 사람이 나가면 그룹과 매물이 함께 사라집니다(규칙 4).
-     */
     @Transactional
     public void withdraw(WithdrawRequest request) {
         final User me = get(currentUserId());
@@ -242,12 +210,6 @@ public class UserService {
     }
 
 
-    /**
-     * 종류별 기존 부채 (설계 I92 · 로드맵 5단계).
-     *
-     * <p>연간 상환액을 함께 돌려줍니다 — 같은 1억이라도 신용대출이면 주담대의 서너 배로
-     * 잡히는데, 숫자만 보면 그 이유를 알 수 없습니다.
-     */
     public List<UserDebtResponse> myDebts() {
         final double rate = defaultAnnualRate();
         return userDebtRepository.findByUserId(currentUserId()).stream()
@@ -265,7 +227,7 @@ public class UserService {
         return myDebts();
     }
 
-    /** 부담을 보여 주기 위한 기준 금리. 실제 계산은 대출 산정이 시장 금리로 다시 한다(I81). */
+    /** 부담을 보여 주기 위한 기준 금리. 실제 계산은 대출 산정이 시장 금리로 다시 한다.  */
     private double defaultAnnualRate() {
         return RegulationParams.defaults().interestRate().doubleValue()
                 + RegulationParams.defaults().stressRate().doubleValue();
@@ -275,12 +237,6 @@ public class UserService {
         return create(request, true);
     }
 
-    /**
-     * @param mustChangePassword 첫 로그인에 비밀번호를 바꾸게 할지 (설계 I100).
-     *                           <b>관리자가 만든 계정은 그렇습니다</b> — 남이 정한 비밀번호를
-     *                           그대로 쓰면 안 됩니다. 스스로 가입한 사람은 방금 자기가
-     *                           정했으므로 다시 묻지 않습니다
-     */
     public UserResponse create(CreateUserRequest request, boolean mustChangePassword) {
         if (userRepository.findByLoginId(request.loginId()).isPresent()) {
             throw new DuplicateLoginIdException();
@@ -320,7 +276,7 @@ public class UserService {
         if (!user.nickname().equals(request.nickname()) && userRepository.findByNickname(request.nickname()).isPresent()) {
             throw new DuplicateNicknameException();
         }
-        // 그룹을 안 보내면 지금 그룹을 그대로 둔다 (설계 I103)
+        // 그룹을 안 보내면 지금 그룹을 그대로 둔다
         final Long targetGroup = request.groupId() == null
                 ? user.groupId()
                 : resolveGroupId(user.role(), request.groupId());
@@ -404,14 +360,14 @@ public class UserService {
         return new ResetPasswordResponse(temporaryPassword);
     }
 
-    /** 직장 위치(이름·좌표)가 실제로 달라졌는지. 예산만 고친 경우까지 LLM을 부르지 않는다. */
+    /** 직장 위치(이름·좌표)가 실제로 달라졌는지. 예산만 고친 경우까지 LLM을 부르지 않는다.  */
     private boolean workplaceChanged(User before, User after) {
         return !Objects.equals(before.workplaceName(), after.workplaceName())
                 || compare(before.workplaceLat(), after.workplaceLat()) != 0
                 || compare(before.workplaceLng(), after.workplaceLng()) != 0;
     }
 
-    /** BigDecimal은 scale이 달라도 같은 값일 수 있어 equals 대신 compareTo로 본다. */
+    /** BigDecimal은 scale이 달라도 같은 값일 수 있어 equals 대신 compareTo로 본다.  */
     private int compare(BigDecimal before, BigDecimal after) {
         if (before == null && after == null) {
             return 0;
@@ -439,7 +395,7 @@ public class UserService {
         return null;
     }
 
-    /** 관리자 목록에서 누가 어느 그룹인지 보여야 옮길 판단을 할 수 있다 (설계 I103). */
+    /** 관리자 목록에서 누가 어느 그룹인지 보여야 옮길 판단을 할 수 있다.  */
     private String groupNameOf(Long groupId) {
         return groupId == null ? null
                 : userGroupRepository.findById(groupId).map(UserGroup::name).orElse(null);

@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 public record CreateUserRequest(
         @NotBlank @Size(max = 50) String loginId,
         @NotBlank @Size(max = 50) String nickname,
-        /** 넣을 그룹 (설계 I87 · 규칙 12). 비우면 새 그룹을 만들어 배정한다 */
+        /** 넣을 그룹. 비우면 새 그룹을 만들어 배정한다  */
         Long groupId,
         @NotBlank @Size(min = 8, max = 100) String password,
         UserRole role,

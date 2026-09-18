@@ -21,7 +21,7 @@ public class AdminBootstrap implements ApplicationRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    /** 정해 준 최초 비밀번호. 비어 있으면 만들어 쓴다 (설계 I296) */
+    /** 정해 준 최초 비밀번호. 비어 있으면 만들어 쓴다  */
     private final String configuredPassword;
 
     public AdminBootstrap(UserRepository userRepository, PasswordEncoder passwordEncoder,
@@ -47,7 +47,7 @@ public class AdminBootstrap implements ApplicationRunner {
         log.info("==========================================================");
         log.info("  Admin account initialized. username : {}", ADMIN_LOGIN);
         if (configured) {
-            // 정해 준 비밀번호는 로그에 남기지 않는다 (설계 I296) — 중앙 수집·백업에 자격증명이 남는다
+            // 정해 준 비밀번호는 로그에 남기지 않는다 — 중앙 수집·백업에 자격증명이 남는다
             log.info("  password : (HALLEY_ADMIN_INITIAL_PASSWORD 에서 받음)");
         } else {
             log.warn("  password : {}", password);

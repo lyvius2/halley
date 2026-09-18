@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** local/개발용 인메모리 캐시 (TTL 7일). live에서는 RedisStartLocationCache가 사용된다. */
+/** local/개발용 인메모리 캐시 (TTL 7일). live에서는 RedisStartLocationCache가 사용된다.  */
 @Component
 @Profile("!live")
 public class InMemoryStartLocationCache implements StartLocationCache {

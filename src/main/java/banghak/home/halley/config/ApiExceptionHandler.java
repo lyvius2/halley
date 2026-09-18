@@ -26,10 +26,6 @@ public class ApiExceptionHandler {
         return ResponseEntity.status(ex.getStatus()).body(body);
     }
 
-    /**
-     * 요청 DTO 검증 실패 (설계 I299). 첫 번째 어긋난 칸만 말한다 — 화면은 한 줄만 보여 준다.
-     * 어느 칸인지는 말하되 <b>보낸 값은 되돌려 주지 않는다</b>.
-     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
         final FieldError first = ex.getBindingResult().getFieldError();

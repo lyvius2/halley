@@ -18,7 +18,7 @@ public class ClaudeFallbackFactory implements FallbackFactory<ClaudeFeignClient>
 
     @Override
     public ClaudeFeignClient create(Throwable cause) {
-        // 차단기가 막은 것이면 <b>다시 물어도 소용없다</b> (설계 I271)
+        // 차단기가 막은 것이면 다시 물어도 소용없다
         availability.recordIfBlocked(cause);
         return (apiKey, version, body) -> {
             log.warn("Claude call failed - returning fallback (no recommendation). cause={}", describe(cause));

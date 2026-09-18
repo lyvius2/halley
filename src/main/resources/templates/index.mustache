@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Halley — 부동산 매물 비교</title>
-    <!-- 파비콘 (설계 I174). 32px 는 탭, 180px 는 iOS 홈 화면 -->
+
     <link rel="icon" type="image/png" sizes="32x32" href="/image/favicon-32.png">
     <link rel="apple-touch-icon" href="/image/apple-touch-icon.png">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,14 +13,13 @@
     <link rel="stylesheet" href="/css/app.css?v={{assetVersion}}">
     <script defer src="/js/app.js?v={{assetVersion}}"></script>
     <script defer src="/js/vendor/alpine.min.js"></script>
-    <!-- 카카오(다음) 우편번호 서비스 — 주소 검색 팝업 -->
+
     <script src="https://t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
     {{#kakaoJsKey}}
     <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey={{kakaoJsKey}}&autoload=false"></script>
     {{/kakaoJsKey}}
 </head>
-<!-- 주소는 x-effect 가 맞춘다 (설계 I211). $watch 로 플래그를 열거하려 했으나
-     Alpine 안에서 Object.keys(this) 가 빈 배열이라 <b>하나도 안 걸렸다</b> -->
+
 <body x-data="halley()" x-init="init()" x-effect="syncRoute()"
       @keydown.escape.window="closeTopModal()"
       @keydown.arrow-left.window="onViewerKey(-1)" @keydown.arrow-right.window="onViewerKey(1)">
@@ -29,8 +28,7 @@
     <div class="topbar">
         <div class="topbar-in">
             <a class="wordmark" href="/">
-                <!-- 64px 원본을 24px 로 줄여 쓴다 — 고해상도 화면에서 흐려지지 않는다.
-                     원본(1254px · 940KB)을 그대로 걸면 헤더 하나에 1MB 를 쓴다 (설계 I174) -->
+
                 <img class="wordmark-logo" src="/image/logo-64.png" alt="" width="24" height="24">
                 <span>Halley</span>
             </a>
@@ -41,9 +39,7 @@
                     <button class="nav-btn desktop-nav-only" :class="{on: view==='weights'}" x-show="session.role==='ADMIN'" @click="setView('weights')">기준</button>
                     <button class="nav-btn desktop-nav-only" :class="{on: showUsers}" x-show="session.role==='ADMIN'" @click="openUsers()">사용자</button>
                     <button class="nav-btn desktop-nav-only" :class="{on: showSettings}" x-show="session.role==='ADMIN'" @click="openSettings()">설정</button>
-                    <!-- 「{그룹명}의 {닉네임}」 (설계 I170).
-                         한 문장으로 읽히지만 <b>가는 곳이 둘</b>이라 버튼도 둘이다 —
-                         앞은 그룹 정보(I123), 뒤는 내 프로필(I153). 사이의 구분선만 지운다 -->
+
                     <button class="nav-btn nav-mine desktop-nav-only" type="button" x-show="myGroup"
                             :class="{on: view==='group'}" @click="setView('group')"
                             :title="'그룹 정보 · ' + (myGroup ? myGroup.name : '')">
@@ -51,8 +47,7 @@
                     </button>
                     <button class="nav-btn nav-mine nav-mine-tail desktop-nav-only" type="button"
                             :class="{on: view==='me'}" @click="setView('me')" title="내 프로필">
-                        <!-- 닉네임이 이미 '관리자'면 ' · 관리자'를 붙이지 않는다 (설계 I186).
-                             기본 관리자 계정의 닉네임이 그것이라 '관리자 · 관리자'가 됐다 -->
+
                         <span x-text="session.nickname"></span><span
                                 x-text="session.role==='ADMIN' && session.nickname !== '관리자'
                                         ? ' · 관리자' : ''"></span>
@@ -109,8 +104,7 @@
                     <div x-show="view==='list'">
                         <div class="sec-head sec-head-actions">
                             <h2>매물</h2>
-                            <!-- 몇 건 중 몇 건을 보고 있는지 (설계 I240). 30건씩 받으므로
-                                 그냥 '30건'이라고 하면 <b>정말 30건인 줄</b> 안다 -->
+
                             <span class="sec-sub"
                                   x-text="propertyTotal > properties.length
                                       ? properties.length + ' / ' + propertyTotal + '건'
@@ -125,16 +119,14 @@
                             <button :class="{on: dealTypeFilter==='ALL'}" @click="setDealTypeFilter('ALL')">전체</button>
                             <button :class="{on: dealTypeFilter==='SALE'}" @click="setDealTypeFilter('SALE')">매매</button>
                             <button :class="{on: dealTypeFilter==='JEONSE'}" @click="setDealTypeFilter('JEONSE')">전세</button>
-                            <!-- 치워 둔 매물 (설계 I241). 뱃지가 없으면 <b>치웠다는 사실 자체를
-                                 잊습니다</b> — 0건이면 뱃지를 안 답니다 -->
+
                             <button class="tab-archive" :class="{on: dealTypeFilter==='ARCHIVE'}"
                                     @click="setDealTypeFilter('ARCHIVE')">
                                 아카이빙
                                 <span class="tab-badge" x-show="archivedTotal > 0" x-cloak
                                       x-text="archivedTotal"></span>
                             </button>
-                            <!-- 판매완료 숨김을 없앴다 (설계 I221). 생존 확인 배치를
-                                 걷어낸 뒤(I157) 그 값을 갱신하는 것이 아무것도 없다 -->
+
                             <div class="sort-picker" @click.outside="sortOpen = false">
                                 <button class="sort-trigger" @click="sortOpen = !sortOpen">
                                     <span x-text="sortLabel()"></span>
@@ -149,7 +141,7 @@
                             </div>
                         </div>
                         <div class="property-list">
-                            <!-- 목록이 오기 전에는 '없습니다'가 아니라 기다리는 중임을 말한다 (설계 I122) -->
+
                             <div class="progress-strip" x-show="isLoading('properties')" x-cloak>
                                 <span class="progress-strip-label">데이터 로딩 중입니다…</span>
                                 <div class="progress-strip-bar"><i></i></div>
@@ -167,22 +159,19 @@
                                          :id="'prop-' + r.property.id" @click="focusProperty(r)">
                                     <div class="property-card-header">
                                         <div class="property-card-title-row">
-                                            <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I265).
-                                                 없으면 카드가 전부 같은 이름으로 보인다 -->
+
                                             <button class="property-card-name" type="button"
                                                     @click.stop="revealPropertyOnMap(r)"
                                                     :title="propertyTitle(r.property)"
                                                     x-text="propertyTitle(r.property)"></button>
-                                            <!-- 가격 전망 (설계 I136). 화살표는 오직 LLM 예측만 나타낸다 —
-                                                 코드 예측과 갈려도 색을 흐리지 않는다. 그 사실은 모달에서 말한다 -->
+
                                             <button class="forecast-arrow" type="button"
                                                     x-show="forecastArrow(r)"
                                                     :class="forecastArrowClass(r)"
                                                     :title="forecastTitle(r)"
                                                     @click.stop="openForecast(r)"
                                                     x-text="forecastArrow(r)"></button>
-                                            <!-- 전망이 없는 매물은 매매가를 눌러 분석시킨다 (설계 I142).
-                                                 이미 낸 적이 있으면 누를 수 없다 — UNCERTAIN 이라도 그건 답이다 -->
+
                                             <span class="property-card-price"
                                                   :class="{'price-triggerable': canTriggerForecast(r)}"
                                                   :title="forecastPriceTitle(r)"
@@ -190,7 +179,7 @@
                                                   x-text="fmtWon(r.property.priceDeposit)"></span>
                                         </div>
                                         <div class="property-card-badges">
-                                            <!-- 좁은 화면에서는 이름·가격과 다른 줄에 둔다 (설계 I289). -->
+
                                             <span class="owner-badge" x-show="r.property.createdByNickname"
                                                   :title="'등록: ' + r.property.createdByNickname">
                                                 <i class="owner-initial" x-text="ownerInitial(r.property.createdByNickname)"></i>
@@ -212,13 +201,11 @@
                                         <span x-show="floorLabel(r.property)" x-text="floorLabel(r.property)"></span>
                                         <span x-show="r.property.areaSupplyM2" x-text="'공급 ' + fmtArea(r.property.areaSupplyM2)"></span>
                                         <span x-show="r.property.areaExclusiveM2" x-text="'전용 ' + fmtArea(r.property.areaExclusiveM2)"></span>
-                                        <!-- 등록 직후에는 점수가 없다 (설계 I220). 배경에서
-                                             채워지는 중임을 말해 준다 — 몇 초 뒤 저절로 바뀐다 -->
+
                                         <span class="score-pill is-pending" x-show="scoring(r)">
                                             <i class="dot-spin"></i><i>분석 중</i>
                                         </span>
-                                        <!-- 못 잰 것을 <b>나쁜 점수처럼</b> 칠하지 않는다 (설계 I284).
-                                             점수가 없으면 붉은 score-low 가 아니라 무채색이다 -->
+
                                         <span class="score-pill" x-show="!scoring(r)"
                                               :class="r.totalScore == null ? 'is-unscored'
                                                       : (r.totalScore >= 50 ? 'score-high' : 'score-low')">
@@ -233,22 +220,18 @@
                                         <button class="btn-link" @click="openLoanModal(r)">대출</button>
                                         <button class="btn-link" @click="openRefModal(r)">실거래</button>
                                         <button class="btn-link" @click="openEditProperty(r)">수정</button>
-                                        <!-- 치우기는 수정 옆에 (설계 I241). 되돌릴 수 있는 일이라
-                                             삭제와 나란히 두면 잘못 누르기 쉽다 -->
+
                                         <button class="btn-link" x-show="!archiveTab"
                                                 @click="archiveProperty(r)">아카이브</button>
                                         <button class="btn-link" x-show="archiveTab" x-cloak
                                                 @click="unarchiveProperty(r)">복구</button>
-                                        <!-- 삭제만 맨 오른쪽으로 떨어뜨린다 — 되돌릴 수 없는 것은
-                                             손이 미끄러지는 자리에 두지 않는다 -->
+
                                         <button class="btn-link danger act-last"
                                                 @click="removeProperty(r)">삭제</button>
                                     </div>
                                 </article>
                             </template>
-                            <!-- 무한 스크롤의 감시점 (설계 I240).
-                                 늘 자리에 둡니다 — 숨기면(display:none) 관찰이 안 걸려
-                                 <b>다음 쪽을 영영 안 부릅니다.</b> -->
+
                             <div id="list-sentinel" class="list-sentinel">
                                 <span x-show="loadingMore" x-cloak>더 불러오는 중…</span>
                                 <span x-show="!loadingMore &amp;&amp; !propertyHasNext &amp;&amp; propertyTotal > PAGE_SIZE"
@@ -312,7 +295,7 @@
                                         <option value="TRANSIT">대중교통</option>
                                     </select>
                                 </label>
-                                <!-- 지나간 시각으로는 못 짠다 (설계 I207) -->
+
                                 <label>임장 날짜
                                     <input type="date" x-model="itinDate" :min="todayIso()"
                                            @change="normalizeItinStart()">
@@ -324,12 +307,10 @@
                                     <input type="number" min="5" x-model="itinStay">
                                 </label>
                             </div>
-                            <!-- 목록은 30건씩 잘려 오지만 임장 대상은 <b>전부</b> 고를 수
-                                 있어야 한다 (설계 I240) — 얇은 전체 목록을 쓴다 -->
+
                             <div class="itin-props">
                                 <template x-for="p in pins" :key="p.id">
-                                    <!-- 이미 다녀온 곳은 흐리게 (설계 I225).
-                                         고를 수는 있다 — 다시 갈 이유는 사람이 안다 -->
+
                                     <label class="itin-check" :class="{done: isVisited(p.id)}"
                                            :title="isVisited(p.id) ? '이미 다녀온 곳입니다' : ''">
                                         <input type="checkbox" :checked="itinProperties.includes(p.id)"
@@ -341,10 +322,7 @@
                                 </template>
                             </div>
                             <p class="form-error" x-show="error" x-text="error"></p>
-                            <!-- 계획 저장을 없앴다 (설계 I197). 계산이 곧 저장이었고,
-                                 저장이 더 주던 것은 방문 체크 하나였다 — 결과 층으로 옮겼다.
-                                 초기화는 반대쪽 끝에 둔다 (설계 I206) — 계산 옆에 붙여 두면
-                                 눌러야 할 것 옆에 지우는 것이 있게 된다 -->
+
                             <div class="itin-actions">
                                 <button class="btn btn-ghost" @click="clearItineraryResult()"
                                         x-show="itinResult" :disabled="loading">경로 초기화</button>
@@ -355,11 +333,10 @@
                         <template x-if="itinResult">
                             <div class="itin-result card">
                                 <p class="itin-total">예상 이동시간 합계: <b x-text="itinResult.totalMinutes + '분'"></b></p>
-                                <!-- 합계를 믿을 수 있는지 함께 말한다 (설계 I270) -->
+
                                 <p class="itin-warn" x-show="itinTotalNote()" x-text="itinTotalNote()"></p>
 
-                                <!-- 지도 색이 무엇을 뜻하는지 (설계 I195).
-                                     범례가 없으면 빨간 선이 정체인지 다른 노선인지 알 수 없다 -->
+
                                 <div class="itin-legend" x-show="itinMode === 'DRIVING'">
                                     <span class="lg"><i style="background:#d64545"></i>정체</span>
                                     <span class="lg"><i style="background:#e08b2f"></i>지체</span>
@@ -373,25 +350,22 @@
                                     </template>
                                 </div>
 
-                                <!-- 순서와 가는 길을 <b>한 묶음으로</b> 엮는다 (설계 I192).
-                                     따로 두면 "2번 집에 어떻게 가지"를 눈으로 맞춰 봐야 한다 -->
+
                                 <ol class="itin-route">
                                     <template x-for="(id, i) in itinResult.orderedPropertyIds" :key="id">
                                         <li class="itin-route-item">
                                             <div class="itin-stop" :class="{done: isVisited(id)}">
                                                 <span class="itin-num" x-text="i + 1"></span>
                                                 <span x-text="propertyName(id)"></span>
-                                                <!-- 몇 시에 닿는지 (설계 I194) -->
+
                                                 <span class="itin-time" x-show="legFor(i) && arrivalAt(i)"
                                                       x-text="arrivalAt(i) + ' 도착'"></span>
-                                                <!-- 방문완료 (설계 I197). 현장에서 누르는 것이라 순번 줄에 둔다 -->
-                                                <!-- 쾌적함으로 켜진 것은 못 끈다 (설계 I228).
-                                                     근거가 채점이므로 끄려면 그 점수를 지워야 하는데,
-                                                     그건 채점 화면의 일이다 -->
+
+
                                                 <label class="itin-visit"
                                                        :class="{locked: visitedByComfort(id)}"
                                                        :title="visitedByComfort(id)
-                                                           ? '공간의 쾌적함을 매겨 다녀온 곳으로 봅니다 (설계 I121)'
+                                                           ? '공간의 쾌적함을 매겨 다녀온 곳으로 봅니다'
                                                            : ''">
                                                     <input type="checkbox" :checked="isVisited(id)"
                                                            :disabled="visitedByComfort(id)"
@@ -411,9 +385,7 @@
                                                             <span x-text="legStepText(step)"></span>
                                                         </div>
                                                     </template>
-                                                    <!-- 자가용인데 도로를 못 받았으면 시간만이라도.
-                                                         <b>시간마저 못 받았으면 이 줄을 안 그린다</b> (설계 I270) —
-                                                         "약 null분" 이 그것이었다 -->
+
                                                     <div class="itin-step is-road"
                                                          x-show="!(legFor(i).steps || []).length
                                                                  && legFor(i).minutes != null">
@@ -432,8 +404,7 @@
 
                     <div x-show="view==='me'">
                         <div class="sec-head"><h2>내 프로필</h2></div>
-                        <!-- 순서는 쓰는 빈도다 (설계 I168): 수정 → 부채 → 비밀번호 → 그룹 → 탈퇴.
-                             읽기 전용 요약 카드는 뺐다 — 바로 아래 수정 폼에 같은 값이 있다 -->
+
                         <template x-if="profile">
                         <div>
                         <div class="card profile-panel">
@@ -601,8 +572,7 @@
                         </template>
                     </div>
 
-                    <!-- 그룹 정보 (설계 I123). 모달이 아니라 화면이다 —
-                         구성원·초대 코드까지 함께 보는 자리라 좁은 상자에 넣지 않는다 -->
+
                     <div x-show="view==='group'">
                         <div class="sec-head"><h2>그룹 정보</h2></div>
                         <div class="progress-strip" x-show="isLoading('groupDetail')" x-cloak>
@@ -618,7 +588,7 @@
                         </template>
                         <template x-if="groupDetail">
                             <div class="group-view">
-                                <!-- 이 앱은 모아서 집을 사려고 만든 것이라 합계가 먼저 보인다 -->
+
                                 <div class="group-stats">
                                     <div class="group-stat">
                                         <span>그룹 보유 현금</span>
@@ -669,7 +639,7 @@
                                         <template x-for="m in groupDetail.members" :key="m.id">
                                             <tr>
                                                 <td x-text="m.nickname"></td>
-                                                <!-- 칸이 좁아 줄바꿈되므로 전체 주소는 툴팁으로 (설계 I165) -->
+
                                                 <td :title="m.workplaceName || ''" x-text="m.workplaceName || '-'"></td>
                                                 <td class="num" x-text="fmtWon(m.availableBudget)"></td>
                                                 <td><span class="badge" :class="m.enabled ? 'b-on' : 'b-off'"
@@ -707,7 +677,7 @@
     </main>
 </div>
 
-<!-- D1 로그인 모달 -->
+
 <div class="modal" x-show="showLogin" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
@@ -721,8 +691,7 @@
         </div>
         <form class="form" @submit.prevent="login()">
             <label>ID
-                <!-- 커서는 focusLogin() 이 옮긴다 (설계 I209).
-                     x-effect 는 x-show 모달에서 showLogin 이 거짓일 때 한 번 돌고 말았다 -->
+
                 <input id="loginId" type="text" x-model="loginForm.loginId" autocomplete="username"
                        placeholder="admin" required>
             </label>
@@ -730,7 +699,7 @@
                 <input id="loginPassword" type="password" x-model="loginForm.password"
                        autocomplete="current-password" placeholder="••••••••" required>
             </label>
-            <!-- ID 저장은 브라우저에, 로그인 유지는 서버 세션에 (설계 I190) -->
+
             <div class="login-options">
                 <label class="check">
                     <input type="checkbox" x-model="loginForm.rememberId">
@@ -745,7 +714,7 @@
             <button class="btn btn-primary btn-block" type="submit" :disabled="loading">
                 <span x-text="loading ? '로그인 중…' : '로그인'"></span>
             </button>
-            <!-- 회원가입이 닫혀 있으면 링크 자체를 감춘다 (설계 I95). 서버도 막는다 -->
+
             <p class="login-alt" x-show="signUpOpen">
                 처음이신가요?
                 <a href="#" @click.prevent="openSignUp()">회원 가입</a>
@@ -754,7 +723,7 @@
     </div>
 </div>
 
-<!-- D1-2 회원 가입 모달 (설계 I89 · 규칙 13·14) -->
+
 <div class="modal" x-show="showSignUp" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
@@ -795,7 +764,7 @@
     </div>
 </div>
 
-<!-- D2 비밀번호 강제 변경 모달 -->
+
 <div class="modal" x-show="showPassword" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-login">
@@ -819,15 +788,15 @@
     </div>
 </div>
 
-<!-- D2-2 프로필 확인 (강제 — 설계 6.1 · I48 · I100) -->
+
 <div class="modal" x-show="showProfileSetup" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
-    <!-- 로그인·비밀번호 화면과 같은 결로 (설계 I121). 초기 설정 흐름은 하나로 읽혀야 한다 -->
+
     <div class="modal-card modal-wide modal-login">
         <div class="modal-head">
             <span class="modal-kicker">최초 설정</span>
             <h3>프로필을 확인해 주세요</h3>
-            <!-- 관리자가 대신 넣은 값은 채워져 있을 뿐이다. 맞는지는 본인만 안다 (설계 I100) -->
+
             <p>관리자가 미리 넣어 둔 값이 있으면 아래에 채워져 있습니다.
                 <b>맞으면 그대로 넘어가고, 다르면 여기서 고치세요.</b>
                 직장 위치와 보유 현금은 <b>직주근접</b>·<b>가격</b> 채점에, 연소득은 <b>대출 한도</b>에 씁니다.</p>
@@ -881,7 +850,7 @@
     </div>
 </div>
 
-<!-- D8 등록 방식 선택 모달 -->
+
 <div class="modal" x-show="showAddMenu" x-cloak>
     <div class="modal-backdrop" @click="closeAddMenu()"></div>
     <div class="modal-card">
@@ -903,7 +872,7 @@
     </div>
 </div>
 
-<!-- D9 붙여넣기 등록 모달 -->
+
 <div class="modal" x-show="showPasteModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide modal-tall">
@@ -938,7 +907,7 @@
                         </label>
                     </template>
                 </div>
-                <!-- 붙여넣기 텍스트에는 URL이 없어 사람이 직접 붙인다 (설계 I62) -->
+
                 <div class="paste-extra">
                     <label class="paste-field">
                         <span class="paste-field-head">
@@ -952,8 +921,7 @@
                             넣어 두면 <b>판매완료를 자동으로 감지</b>합니다.</span>
                     </label>
                 </div>
-                <!-- 사진도 여기서 고른다 (설계 I204). 매물이 아직 없어 지금은 못 올리므로
-                     브라우저가 들고 있다가 '매물 등록' 뒤에 올린다 -->
+
                 <div class="paste-extra paste-images">
                     <span class="paste-field-head"><b>사진</b>
                         <span class="badge b-mem">등록 후 함께 올라갑니다</span></span>
@@ -996,7 +964,7 @@
     </div>
 </div>
 
-<!-- D3 세션 만료 경고 모달 -->
+
 <div class="modal" x-show="showSessionWarn" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
@@ -1012,7 +980,7 @@
     </div>
 </div>
 
-<!-- 비밀번호 변경 (자발) 모달 -->
+
 <div class="modal" x-show="showChangePw" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
@@ -1033,7 +1001,7 @@
     </div>
 </div>
 
-<!-- D4/D5 사용자 생성·수정 모달 -->
+
 <div class="modal modal-stacked" x-show="showUserForm" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -1041,15 +1009,14 @@
             <span class="modal-kicker">사용자 관리</span>
             <h3 x-text="editingUserId ? '사용자 정보 수정' : '사용자 추가'"></h3>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('groups')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
         </div>
         <form class="form" @submit.prevent="saveUser()">
             <div class="form-grid">
-                <!-- label이 아니라 div다 (설계 I104). label 안에 버튼을 두면 라벨 아무 데나
-                     눌러도 버튼이 눌려, 주변을 클릭할 때마다 그룹이 만들어졌다 -->
+
                 <div class="span2 group-admin">
                     <div class="group-admin-head">
                         <b>지금 있는 그룹</b>
@@ -1078,8 +1045,7 @@
                 <label>닉네임
                     <input type="text" x-model="userForm.nickname" required>
                 </label>
-                <!-- x-if 템플릿은 자식이 여럿이면 첫 번째만 렌더링한다 (설계 I100).
-                     그래서 비밀번호·역할이 화면에서 사라져 있었다. 각 칸에 x-show를 건다 -->
+
                 <label>소속 그룹
                     <select x-model="userForm.groupId">
                         <option value="" x-text="editingUserId ? '그대로 두기' : '새 그룹 자동 생성'"></option>
@@ -1090,7 +1056,7 @@
                     </select>
                     <span class="settings-note" x-show="!editingUserId">비워 두면 이 회원만의 새 그룹이
                         만들어집니다. 관리자는 그룹에 속하지 않습니다.</span>
-                    <!-- 마지막 한 사람이 빠지면 그 그룹과 매물이 함께 사라진다 (규칙 4) -->
+
                     <span class="settings-note" x-show="editingUserId">
                         옮기면 원래 그룹의 매물은 이 회원에게 보이지 않습니다.
                         <b>원래 그룹에 아무도 남지 않으면 그 그룹과 매물이 모두 삭제됩니다.</b>
@@ -1108,7 +1074,7 @@
                                placeholder="주소 검색 버튼을 눌러 선택하세요" readonly>
                         <button class="btn" type="button" @click="searchPostcodeFor('user')">주소 검색</button>
                     </div>
-                    <!-- 좌표는 주소를 고르면 자동으로 채워진다. 직접 넣을 값이 아니라 바로 아래 둔다 -->
+
                     <span class="coord-row">
                         <span class="coord-cell">
                             <i>위도</i>
@@ -1153,7 +1119,7 @@
     </div>
 </div>
 
-<!-- D11 중개인 관리 모달 -->
+
 <div class="modal" x-show="showAgentModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -1211,7 +1177,7 @@
     </div>
 </div>
 
-<!-- D12 사진 업로드 모달 -->
+
 <div class="modal" x-show="showPhotoModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -1221,13 +1187,13 @@
             <h3 x-text="propertyTitle(photoProperty?.property)"></h3>
             <p>업로드 시 EXIF 방향을 보정하고 원본(최대 1920)·썸네일(320)로 저장합니다.</p>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('photos')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
         </div>
 
-        <!-- 평면도: 매물당 한 장. 올리면 기존 것을 대체한다 (설계 I63) -->
+
         <section class="img-sec">
             <div class="img-sec-head">
                 <h4>평면도</h4>
@@ -1247,7 +1213,7 @@
             </label>
         </section>
 
-        <!-- 매물사진: 여러 장 -->
+
         <section class="img-sec">
             <div class="img-sec-head">
                 <h4>매물사진</h4>
@@ -1275,18 +1241,18 @@
     </div>
 </div>
 
-<!-- D13 사진 뷰어 라이트박스 -->
+
 <div class="lightbox" x-show="photoViewerIndex >= 0" x-cloak @click.self="closePhotoViewer()">
     <button class="lightbox-close" @click="closePhotoViewer()">×</button>
     <button class="lightbox-nav prev" @click="photoPrev()" x-show="photoViewerIndex > 0">‹</button>
     <img :src="photoViewerIndex >= 0 && viewerImages[photoViewerIndex] ? viewerImages[photoViewerIndex].storagePath : ''" alt="">
     <button class="lightbox-nav next" @click="photoNext()" x-show="photoViewerIndex < viewerImages.length - 1">›</button>
-    <!-- 몇 번째 장인지 (설계 I203). 방향키로 넘길 수 있다는 표시이기도 하다 -->
+
     <span class="lightbox-count" x-show="viewerImages.length > 1"
           x-text="(photoViewerIndex + 1) + ' / ' + viewerImages.length"></span>
 </div>
 
-<!-- D17 확인 모달 -->
+
 <div class="modal modal-top" x-show="confirmState" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
@@ -1302,7 +1268,7 @@
     </div>
 </div>
 
-<!-- M3 사용자 관리 모달 (ADMIN 전용) -->
+
 <div class="modal" x-show="showUsers" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
@@ -1313,8 +1279,7 @@
             <p>가입 절차가 없는 폐쇄형 서비스입니다. 계정은 관리자가 이곳에서 만들고 관리합니다.</p>
         </div>
 
-        <!-- 발급한 임시 비밀번호 (설계 I213). 서버는 이때 한 번만 알려 준다 —
-             저장된 것은 해시라 닫으면 아무도 다시 못 읽는다 -->
+
         <template x-if="tempPassword">
             <div class="temp-pw">
                 <div class="temp-pw-head">
@@ -1327,13 +1292,13 @@
                             x-text="tempPassword.copied ? '복사됨' : '복사'"></button>
                 </div>
                 <p class="temp-pw-note">
-                    <b x-text="tempPassword.loginId"></b> 계정으로 이 비밀번호를 전달하십시오.
+                    <b x-text="tempPassword.loginId"></b> 계정 사용자에게 이 비밀번호를 전달해 주세요.
                     <b>닫으면 다시 볼 수 없습니다</b> — 저장된 값은 해시라 서버도 모릅니다.
                     첫 로그인 때 본인이 새 비밀번호를 정하게 됩니다.
                 </p>
             </div>
         </template>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('users')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -1372,7 +1337,7 @@
     </div>
 </div>
 
-<!-- M6 시스템 설정 모달 (ADMIN 전용) -->
+
 <div class="modal" x-show="showSettings" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
@@ -1380,7 +1345,7 @@
         <div class="modal-head">
             <span class="modal-kicker">시스템 설정</span>
             <h3>배치 · 대출 파라미터</h3>
-            <p>런타임에 조정이 필요한 값만 DB에 둡니다. 채점 상수는 코드에 고정되어 있습니다(설계 I41).</p>
+            <p>런타임에 조정이 필요한 값만 DB에 둡니다. 채점 상수는 코드에 고정되어 있습니다.</p>
         </div>
         <template x-for="cat in settingCategories()" :key="cat">
             <div class="settings-section">
@@ -1392,8 +1357,7 @@
                         <template x-for="s in settingsByCategory(cat)" :key="s.configKey">
                             <tr>
                                 <td class="strong" x-text="s.description"></td>
-                                <!-- 배치가 쓰는 값은 고칠 수 없다 (설계 I185).
-                                     입력칸을 열어 두면 고칠 수 있는 것처럼 보이는데 다음 배치가 덮어쓴다 -->
+
                                 <td>
                                     <input class="settings-input" type="text" x-show="settingEditable(s)"
                                            x-model="settingsForm[s.configKey]">
@@ -1410,13 +1374,13 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <button class="btn btn-primary settings-save" @click="saveSettings()" :disabled="savingKey === 'settings'">설정 저장</button>
 
-        <!-- AI 모델 (설계 I267). 자리마다 따로 고른다 — 성격이 서로 다르다 -->
+
         <div class="settings-section">
             <h4>AI 모델</h4>
             <p class="settings-note">
                 AI를 쓰는 자리마다 모델을 따로 고릅니다. <b>비워 두면 기본 모델</b>을 씁니다.
                 목록은 Anthropic 에서 받아 48시간 담아 둡니다 — 새 모델이 곧바로 안 보이면
-                그 때문입니다. <b>*</b> 표시는 Fable 계열처럼 성격이 다른 모델입니다(설계 I278).
+                그 때문입니다. <b>*</b> 표시는 Fable 계열처럼 성격이 다른 모델입니다.
             </p>
             <template x-if="!llmModels">
                 <p class="m2-empty">모델 목록을 받지 못했습니다. API 키를 확인해 주십시오.</p>
@@ -1432,12 +1396,7 @@
                                     <td class="strong" x-text="f.label"></td>
                                     <td x-text="f.description"></td>
                                     <td>
-                                        <!--
-                                          :selected 를 함께 겁니다 (설계 I280).
-                                          x-model 만 두면 <option> 이 x-for 로 붙기 <b>전에</b> 값이
-                                          적용돼, 브라우저가 첫 항목("기본 모델")으로 되돌립니다 —
-                                          저장은 됐는데 화면만 안 고른 것처럼 보였습니다.
-                                        -->
+
                                         <select class="settings-input" x-model="llmForm[f.key]">
                                             <option value="">기본 모델</option>
                                             <template x-for="m in llmModels.models" :key="m.id">
@@ -1457,7 +1416,7 @@
             </template>
         </div>
 
-        <!-- 규제 파라미터 (설계 I68) -->
+
         <div class="settings-section">
             <h4>규제 파라미터</h4>
             <p class="settings-note">
@@ -1502,7 +1461,7 @@
             <button class="btn btn-primary settings-save" @click="saveRegParams()" :disabled="savingKey === 'regParams'">규제 파라미터 저장</button>
         </div>
 
-        <!-- 규제지역 (설계 I68) -->
+
         <div class="settings-section">
             <h4>규제지역</h4>
             <p class="settings-note">
@@ -1569,8 +1528,7 @@
 
         <div class="settings-section">
             <h4>알림 이력</h4>
-            <!-- 스위치가 환경변수에만 있어, 켜 두고도 등록 알림만 안 오는 이유를
-                 화면에서 알 길이 없었다 (설계 I215). 읽기 전용이다 -->
+
             <template x-if="notifySettings">
                 <div class="notify-state">
                     <span class="badge" :class="notifySettings.enabled ? 'b-on' : 'b-off'">
@@ -1612,7 +1570,7 @@
     </div>
 </div>
 
-<!-- M2 매물 상세 모달 -->
+
 <div class="modal modal-detail" x-show="showM2" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <template x-if="detailItem">
@@ -1622,7 +1580,7 @@
                 <span class="modal-kicker">매물 상세</span>
                 <h3 x-text="propertyTitle(detailItem.property)"></h3>
             </div>
-            <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
             <div class="progress-strip" x-show="isLoading('detail')" x-cloak>
                 <span class="progress-strip-label">데이터 로딩 중입니다…</span>
                 <div class="progress-strip-bar"><i></i></div>
@@ -1642,7 +1600,7 @@
                       x-text="detailItem.property.groupName"></span>
             </div>
 
-            <!-- 등록 직후에는 학교·규제·채점이 아직이다 (설계 I220) -->
+
             <div class="progress-strip" x-show="scoring(detailItem)" x-cloak>
                 <span class="progress-strip-label">등록한 매물을 분석하고 있습니다… 잠시 뒤 저절로 채워집니다</span>
                 <div class="progress-strip-bar"><i></i></div>
@@ -1693,7 +1651,7 @@
                         </div>
                         <div class="m2-row"><span>입주</span><b x-text="moveInLabel(detailItem.property)"></b></div>
                         <div class="m2-row"><span>매물번호</span><b x-text="detailItem.property.naverArticleNo || '-'"></b></div>
-                        <!-- 공시가격·토지이용계획 조회 키. 값이 비면 그 둘이 왜 안 뜨는지 바로 알 수 있다 -->
+
                         <div class="m2-row">
                             <span>PNU</span>
                             <b class="m2-mono" x-text="detailItem.property.pnu || '-'"></b>
@@ -1716,9 +1674,7 @@
                     </template>
                 </section>
 
-                <!-- 순서는 읽는 순서다 (설계 I208): 기본 → 비용 → 입지 → 중개사 → 평면도 → 사진.
-                     사진이 없으면 <b>칸 자체를 안 그린다</b> — "없습니다" 한 줄이 격자에
-                     빈자리를 만들어 뒤 칸을 밀어낸다 -->
+
                 <template x-if="detailFloorPlan">
                     <section class="m2-sec">
                         <h4>평면도</h4>
@@ -1732,7 +1688,7 @@
                 <template x-if="detailPhotos.length > 0">
                     <section class="m2-sec m2-sec-wide">
                         <h4>사진 <span class="m2-count" x-text="detailPhotos.length + '장'"></span></h4>
-                        <!-- 끌어서 넘긴다 (설계 I214). 조금이라도 끌었으면 클릭이 아니다 -->
+
                         <div class="m2-photos" @pointerdown.prevent="startPhotoDrag($event)">
                             <template x-for="img in detailPhotos" :key="img.id">
                                 <button class="m2-figure" @click="openPhotoViewer(detailImages.indexOf(img), detailImages)"
@@ -1777,14 +1733,14 @@
 
                 <section class="m2-sec m2-sec-wide">
                     <h4>AI 추천도</h4>
-                    <!-- 처음 분석이 도는 중이면 진행 표시 (설계 I72) -->
+
                     <template x-if="!detailLlm && llmPending">
                         <div class="progress-strip">
                             <span class="progress-strip-label">AI가 데이터를 분석 중입니다…</span>
                             <div class="progress-strip-bar"><i></i></div>
                         </div>
                     </template>
-                    <!-- 재질의는 쾌적함·코멘트가 바뀔 때 백엔드에서 트리거된다 (설계 I78) -->
+
                     <template x-if="!detailLlm && !llmPending">
                         <p class="m2-empty">아직 산출되지 않았습니다.</p>
                     </template>
@@ -1806,19 +1762,15 @@
 
                 <section class="m2-sec m2-sec-wide">
                     <h4>국토교통부 실거래가</h4>
-                    <!-- 얼마나 찾아본 것인지 말해 준다 (설계 I98). '없습니다'만 뜨면
-                         조회를 못 한 것인지 정말 거래가 없는 것인지 알 수 없다 -->
-                    <!-- 받아 오는 중이면 <b>없다고 단정하지 않는다</b> (설계 I259).
-                         화면은 기다리지 않고 배경에서 받아 오는데(I106), 그동안
-                         "거래내역이 없습니다"를 띄우고 있었다 -->
+
+
                     <template x-if="detailRef?.looking">
                         <div class="progress-strip">
                             <span class="progress-strip-label">국토부 실거래를 받아 오는 중입니다…</span>
                             <div class="progress-strip-bar"><i></i></div>
                         </div>
                     </template>
-                    <!-- 기다리다 지친 것과 <b>정말 없는 것</b>은 다르다 (설계 I262).
-                         둘을 같은 문장으로 말하면 "없습니다"가 거짓이 된다 -->
+
                     <template x-if="detailRef?.timedOut && detailRef.transactions.length === 0">
                         <p class="m2-empty">
                             아직 받아 오는 중입니다. 잠시 뒤 다시 열어 주십시오.
@@ -1857,7 +1809,7 @@
                 </section>
             </div>
 
-            <!-- 원본 매물 페이지. 상세를 다 읽고 마지막에 직접 확인하러 가는 자리라 하단에 둔다 -->
+
             <template x-if="detailItem.property.sourceUrl">
                 <a class="m2-source" :href="detailItem.property.sourceUrl"
                    :title="detailItem.property.sourceUrl"
@@ -1878,7 +1830,7 @@
     </template>
 </div>
 
-<!-- D10 매물 수기 등록/수정 모달 -->
+
 <div class="modal" x-show="showPropertyForm" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -1892,8 +1844,7 @@
                 <label class="span2">매물명
                     <input type="text" x-model="propertyForm.name" placeholder="예: 한빛아파트" required>
                 </label>
-                <!-- 같은 단지 매물이 여럿이면 <b>동·호가 유일한 구분</b>이다 (설계 I269).
-                     지도 좌표도 이 값으로 갈린다 (설계 I268) -->
+
                 <label class="span2">동/호
                     <input type="text" x-model="propertyForm.dongHo" placeholder="예: 102동 1503호">
                 </label>
@@ -1903,8 +1854,7 @@
                         <option value="JEONSE">전세</option>
                     </select>
                 </label>
-                <!-- 금액은 type=text + 숫자만 (설계 I160). number 는 화살표가 붙고 휠로 값이
-                     바뀌며, 자릿수 많은 원 단위에서 실수를 부른다 -->
+
                 <label>보증금/매매가 (원)
                     <span class="money-row">
                         <input type="text" inputmode="numeric" style="width:50%"
@@ -1925,8 +1875,7 @@
                               x-text="moneyHint(propertyForm.maintenanceFee)"></span>
                     </span>
                 </label>
-                <!-- KB시세는 대출 한도(LTV)를 가르는 값이다 (설계 I160). 파싱이 놓치거나
-                     은행이 다르게 볼 때 사람이 고칠 수 있어야 한다 -->
+
                 <label>KB시세 (원)
                     <span class="money-row">
                         <input type="text" inputmode="numeric" style="width:50%"
@@ -1974,8 +1923,7 @@
                 <label>공급면적 (㎡)
                     <input type="number" step="0.01" min="0" x-model="propertyForm.areaSupplyM2" placeholder="112.0">
                 </label>
-                <!-- 층은 숫자만이 아니다 (설계 I286). 네이버가 저층을 감추면 `저/15층`
-                     처럼 밴드로 온다 — number 칸이면 그 값을 아예 못 적는다 -->
+
                 <label>층
                     <input type="text" inputmode="text" maxlength="2"
                            x-model="propertyForm.floorRaw"
@@ -2014,8 +1962,7 @@
                 </label>
             </div>
             <p class="form-error" x-show="error" x-text="error"></p>
-            <!-- 등록은 초등학교·토지이용계획·채점이 끝나야 응답이 온다 (설계 I110).
-                 몇 초 걸리므로 무엇을 기다리는지 말해 준다 -->
+
             <div class="progress-strip" x-show="loading">
                 <span class="progress-strip-label"
                       x-text="propertyForm.id ? '저장 중입니다…'
@@ -2029,7 +1976,7 @@
     </div>
 </div>
 
-<!-- D14 평가 채점 모달 -->
+
 <div class="modal" x-show="showScoreModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
@@ -2039,7 +1986,7 @@
             <h3 x-text="propertyTitle(scoreProperty?.property)"></h3>
             <p>자동으로 계산되지 않은 항목은 직접 점수를 넣을 수 있습니다. 입력한 값은 자동 점수보다 우선합니다.</p>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('score')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -2057,7 +2004,7 @@
             </div>
         </div>
 
-        <!-- 등록 직후에는 채점이 아직이다 (설계 I220) -->
+
         <div class="progress-strip" x-show="scoring(scoreProperty)" x-cloak>
             <span class="progress-strip-label">채점하고 있습니다… 학교·규제·직주근접을 확인하는 중입니다</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -2071,8 +2018,7 @@
                         <span class="badge b-jeonse" x-show="s.scoringType==='HYBRID' && s.scoreSource==='AUTO'">추정</span>
                     </div>
 
-                    <!-- 잠긴 항목은 <b>읽기용 막대</b>, 열린 항목은 <b>끌어서 매기는 슬라이더</b>
-                         (설계 I172). 같은 자리에 같은 모양으로 두어 눈이 옮겨 다니지 않는다 -->
+
                     <div class="score-item-gauge" x-show="scoreLocked(s)">
                         <div class="gauge-track">
                             <div class="gauge-fill" :class="s.scoreSource==='MANUAL' ? 'is-manual' : ''"
@@ -2081,11 +2027,9 @@
                         <span class="gauge-value" x-text="fmtScore(s.effectiveScore)"></span>
                     </div>
 
-                    <!-- 이미 자동 채점된 AUTO 항목은 잠근다 (설계 I111). 열어 두면
-                         추정값으로 채워진 칸이 그대로 저장돼 자동 채점이 수동으로 굳는다 -->
+
                     <div class="score-item-slider" x-show="!scoreLocked(s)">
-                        <!-- 지나온 쪽만 색을 채운다 (설계 I200). 손잡이 위치만으로는
-                             1점인지 5점인지 눈에 안 들어온다 -->
+
                         <input type="range" class="score-range"
                                :min="scoreMin(s)" :max="scoreMax(s)" :step="scoreStep(s)"
                                :value="scoreSliderValue(s)"
@@ -2093,30 +2037,27 @@
                                @input="scoreForm[s.code] = $event.target.value"
                                :aria-label="s.name + ' 점수'"
                                :aria-valuetext="scoreValueText(s)">
-                        <!-- 손잡이 자리와 점수는 다르다 (설계 I287). 쾌적함은 손대지 않아도
-                             그 값으로 저장되므로 그대로 보여 주고, 미산출은 손잡이가
-                             어디에 있든 '–' 다 — 0점을 받은 것이 아니다 -->
+
                         <span class="gauge-value" x-text="scoreDisplayValue(s)"></span>
                     </div>
 
                     <p class="score-item-reason" x-show="s.fallbackReason">
                         <span x-text="s.fallbackReason"></span>
-                        <!-- 미산출은 대개 그때 조회가 실패한 것이다. 다시 눌러 볼 수 있게 한다 (설계 I119).
-                             이미 점수가 있으면 버튼은 안 보인다 -->
+
                         <button class="btn btn-xs" type="button"
                                 x-show="s.effectiveScore == null"
                                 :disabled="isLoading('recompute')"
                                 @click="recomputeScores()">재산출</button>
                     </p>
                     <p class="score-item-why" x-show="s.explanation && s.scoreSource === 'AUTO'" x-text="s.explanation"></p>
-                    <!-- 남이 매겼는지가 아니라 '내가' 매겼는지로 가른다 (설계 I118) -->
+
                     <p class="score-item-invite" x-show="s.code === 'COMFORT' && s.myScore == null">
                         방문하셨나요? 공간은 어땠습니까? 점수로 매겨주세요.
                     </p>
                     <p class="score-item-mine" x-show="s.code === 'COMFORT' && s.myScore != null">
                         내가 매긴 점수 <b x-text="s.myScore + '점'"></b>
                     </p>
-                    <!-- 총점에는 사용자들의 평균이 들어간다. 내 점수만 보이면 왜 그 총점인지 알 수 없다 -->
+
                     <p class="score-item-others" x-show="s.othersAverage != null">
                         다른 사용자들은 평균 <b x-text="s.othersAverage"></b>점으로 평가했습니다.
                         <span class="score-item-others-n" x-text="'(' + s.othersCount + '명)'"></span>
@@ -2136,7 +2077,7 @@
     </div>
 </div>
 
-<!-- D16-2 국토부 실거래가 참고 카드 모달 -->
+
 <div class="modal" x-show="showRefModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -2146,7 +2087,7 @@
             <p>국토부 실거래가 참고용입니다. 채점에는 반영되지 않습니다.</p>
         </div>
         <div class="form-grid">
-            <!-- 빈 칸이면 지번주소에서 뽑아 씁니다. 무엇으로 물었는지 아래에 적습니다 (설계 I227) -->
+
             <label>법정동코드 (5자리)
                 <input type="text" x-model="refForm.legalDongCode"
                        :placeholder="refCard?.lawdCd || '주소에서 자동'" maxlength="5">
@@ -2172,8 +2113,7 @@
         <p class="form-error" x-show="error" x-text="error"></p>
         <template x-if="refCard">
             <div class="ref-card">
-                <!-- 비었으면 <b>어느 단계에서 걸렸는지</b> 말한다 (설계 I232).
-                     "없습니다" 한 줄로는 코드 문제인지 이름 문제인지 면적 문제인지 알 수 없었다 -->
+
                 <template x-if="refCard.looking">
                     <div class="progress-strip">
                         <span class="progress-strip-label">국토부 실거래를 받아 오는 중입니다…</span>
@@ -2183,8 +2123,7 @@
                 <template x-if="!refCard.looking && refCard.transactions.length === 0">
                     <p class="ref-empty" x-text="refEmptyReason()"></p>
                 </template>
-                <!-- 면적을 함께 보여 준다 (설계 I232). 없으면 "우리 집과 같은 평형인지"
-                     알 수 없다 — 실제로 전용면적에 공급면적이 들어간 것을 못 알아챘다 -->
+
                 <p class="ref-other-area" x-show="refCard.areaMismatch">
                     전용 <b x-text="fmtArea(refProperty?.property?.areaExclusiveM2)"></b> 와 맞는 거래가 없어
                     <b>같은 단지의 다른 평형</b>을 보여 줍니다. 호가 대비 괴리는 내지 않습니다 —
@@ -2206,7 +2145,7 @@
     </div>
 </div>
 
-<!-- D16 대출 한도 시뮬레이션 모달 -->
+
 <div class="modal" x-show="showLoanModal" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide loan-modal">
@@ -2216,7 +2155,7 @@
             <h3 x-text="propertyTitle(loanProperty?.property)"></h3>
             <p>내 프로필의 연소득·보유 현금으로 바로 계산했습니다. 자체 추정이며 실제 한도는 은행 가심사가 필요합니다.</p>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('loan')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -2224,7 +2163,7 @@
 
         <template x-if="loanResult">
             <div>
-                <!-- 한도 요약 -->
+
                 <div class="loan-hero">
                     <div class="loan-hero-main">
                         <span class="loan-hero-label" x-text="loanResult.productLabel + ' 최종 한도'"></span>
@@ -2242,7 +2181,7 @@
                     </div>
                 </div>
 
-                <!-- 어떤 규정으로 이 LTV가 나왔는지 (설계 I66) — 매매 전용 -->
+
                 <div class="loan-policy" x-show="loanResult.productType === 'MORTGAGE'">
                     <span class="badge" :class="loanResult.zone === 'NORMAL' ? 'b-mem' : 'b-off'"
                           x-text="loanResult.zoneLabel"></span>
@@ -2250,7 +2189,7 @@
                     <span class="loan-policy-reason" x-text="loanResult.ltvReason"></span>
                 </div>
 
-                <!-- 담보가치 — LTV의 기준. 호가와 다르고 출처마다 신뢰도가 다르다 (설계 I64·I65) -->
+
                 <div class="loan-collateral" x-show="loanResult.productType === 'MORTGAGE'"
                      :class="loanResult.collateralReliable ? '' : 'weak'">
                     <div class="loan-collateral-main">
@@ -2271,7 +2210,7 @@
                     </div>
                 </div>
 
-                <!-- 전세 전용 — 담보가 집이 아니라 보증기관의 보증이다 (설계 I67) -->
+
                 <div class="loan-collateral" x-show="loanResult.productType === 'JEONSE'">
                     <div class="loan-collateral-main">
                         <span>보증 기준</span>
@@ -2285,7 +2224,7 @@
                     </div>
                 </div>
 
-                <!-- 매매가 대비 구성 -->
+
                 <div class="loan-stack">
                     <div class="loan-stack-bar">
                         <span class="seg seg-loan" :style="`width:${loanPercent(loanAmount, loanResult.askingPrice)}%`"></span>
@@ -2301,7 +2240,7 @@
                     </div>
                 </div>
 
-                <!-- 대출액 조정 -->
+
                 <div class="loan-slider">
                     <div class="loan-slider-head">
                         <label for="loanAmountRange">대출 희망액</label>
@@ -2315,7 +2254,7 @@
                     </div>
                 </div>
 
-                <!-- 조정 결과 -->
+
                 <div class="loan-cards">
                     <div class="loan-card">
                         <span>월 상환액</span>
@@ -2323,16 +2262,15 @@
                         <small x-text="loanResult.interestOnly
                             ? `${loanResult.termMonths / 12}년 만기일시 · 이자만`
                             : `${loanResult.termMonths / 12}년 원리금균등`"></small>
-                        <!-- 어디서 온 금리인지 안 보이면 사용자는 검증할 수 없다 (설계 I81) -->
+
                         <small class="loan-rate-source" x-show="loanResult.rateSource"
                                x-text="fmtRate(loanResult.monthlyRate) + ' · ' + loanResult.rateSource"></small>
-                        <!-- 한도는 스트레스 금리로 역산한다. 실제로 내는 돈과 다르다 (설계 I97) -->
+
                         <small class="loan-rate-source" x-show="loanResult.dsrRate">
                             한도 산정은 <b x-text="(loanResult.dsrRate * 100).toFixed(2) + '%'"></b>
                             (스트레스 DSR · <span x-text="loanResult.rateTypeLabel"></span>)
                         </small>
-                        <!-- 스트레스 금리도 어디서 왔는지 밝힌다 (설계 I116).
-                             한도를 좁히는 숫자라 출처가 없으면 검증할 수 없다 -->
+
                         <small class="loan-rate-source" x-show="loanResult.stressRateSource"
                                x-text="loanResult.stressRateSource"></small>
                     </div>
@@ -2355,7 +2293,7 @@
                     </div>
                 </div>
 
-                <!-- 계산 전제 -->
+
                 <div class="loan-assume">
                     <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'">
                         <input type="checkbox" x-model="loanForm.firstHome" @change="runLoanEstimate()">
@@ -2364,7 +2302,7 @@
                     <label class="loan-check" x-show="loanResult.productType === 'MORTGAGE'">
                         <input type="checkbox" x-model="loanForm.mortgageInsured" @change="runLoanEstimate()">
                         <span>MCI/MCG 가입</span>
-                        <!-- 5,500만원을 좌우하는 항목인데 이름만으로는 무엇인지 알 수 없다 -->
+
                         <button class="help-dot" type="button"
                                 @click.prevent.stop="showMciHelp = !showMciHelp"
                                 :aria-expanded="showMciHelp" aria-label="MCI/MCG 설명">?</button>
@@ -2390,7 +2328,7 @@
                     </label>
                     <span class="loan-assume-item">연소득 <b x-text="fmtWon(loanResult.usedAnnualIncome)"></b></span>
                     <span class="loan-assume-item">보유 현금 <b x-text="fmtWon(loanResult.usedCash)"></b>
-                        <!-- 한도에는 내 현금만 들어간다. 그룹이 모을 수 있는 돈도 함께 본다 (설계 I114) -->
+
                         <small x-show="loanResult.groupCash != null && loanResult.groupCash !== loanResult.usedCash"
                                x-text="'(그룹 합산 ' + fmtWon(loanResult.groupCash) + ')'"></small>
                     </span>
@@ -2402,7 +2340,7 @@
                             x-text="loanShowInputs ? '접기' : '값 바꿔보기'"></button>
                 </div>
 
-                <!-- MCI/MCG 설명 — 이름만으로는 무엇인지 알 수 없는데 한도를 5,500만원 좌우한다 -->
+
                 <div class="loan-help" x-show="showMciHelp" x-cloak>
                     <p>
                         <b>방공제</b>부터 — 집이 경매로 넘어가면 소액 세입자가 은행보다 먼저 보증금 일부를
@@ -2424,7 +2362,7 @@
                     </p>
                 </div>
 
-                <!-- 임시 조건 변경 — 프로필은 건드리지 않는다 -->
+
                 <div class="loan-override" x-show="loanShowInputs" x-cloak>
                     <div class="form-grid">
                         <label>연소득 (원)
@@ -2471,8 +2409,8 @@
     </div>
 </div>
 
-<!-- D25 매물 코멘트 모달 (설계 I56) -->
-<!-- 가격 전망 상세 (설계 I136) -->
+
+
 <div class="modal" x-show="showForecast" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-wide">
@@ -2481,7 +2419,7 @@
             <span class="modal-kicker">가격 전망</span>
             <h3 x-text="forecastProperty ? propertyTitle(forecastProperty.property) : ''"></h3>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('forecast')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -2492,9 +2430,9 @@
                 <div class="forecast-verdict">
                     <span class="forecast-verdict-arrow" :class="arrowClassOf(forecastDetail.direction)"
                           x-text="arrowOf(forecastDetail.direction)"></span>
-                    <!-- 상승·하락만 이름을 갖는다. 그 외에는 판단 보류 (설계 I247) -->
+
                     <b x-text="forecastVerdictLabel(forecastDetail.direction, forecastDetail.directionLabel)"></b>
-                    <!-- AI 와 지표 셈이 따로 같은 결론에 닿았다 (설계 I249) -->
+
                     <span class="forecast-strong" x-show="forecastDetail.strong" x-cloak
                           title="AI 판단과 지표를 센 결과가 같은 쪽입니다">(유력)</span>
                     <span class="forecast-verdict-meta" x-show="forecastDetail.confidenceLabel"
@@ -2503,7 +2441,7 @@
                           x-text="'향후 ' + forecastDetail.horizonMonths + '개월'"></span>
                 </div>
 
-                <!-- 요인별 근거를 접지 않고 펼쳐 둔다. 결론만 크게 띄우면 근거를 아무도 안 본다 -->
+
                 <template x-if="forecastDetail.factors && forecastDetail.factors.length">
                     <div class="forecast-factors">
                         <template x-for="f in forecastDetail.factors" :key="f.name">
@@ -2524,7 +2462,7 @@
                     <p class="m2-empty">아직 산출된 지표가 없습니다.</p>
                 </template>
 
-                <!-- 코드 예측과 갈렸으면 문장으로 말한다 (설계 5.2). 경고가 아니라 참고다 -->
+
                 <p class="forecast-note" x-show="forecastCompareNote()"
                    x-text="forecastCompareNote()"></p>
 
@@ -2536,7 +2474,7 @@
                     </div>
                 </template>
 
-                <!-- 관련 기사 (설계 I137). 점수에도 프롬프트에도 반영되지 않는다 -->
+
                 <template x-if="forecastNews.length">
                     <div class="forecast-news">
                         <h4 class="card-title">관련 기사
@@ -2579,7 +2517,7 @@
             <h3 x-text="propertyTitle(commentProperty?.property)"></h3>
             <p>이 매물에 대한 각자의 생각을 남깁니다. 한 사람당 한 건이며 언제든 고쳐 쓸 수 있습니다.</p>
         </div>
-        <!-- 응답이 늦으면 진행 막대를 띄운다 (설계 I115) -->
+
         <div class="progress-strip" x-show="isLoading('comments')" x-cloak>
             <span class="progress-strip-label">데이터 로딩 중입니다…</span>
             <div class="progress-strip-bar"><i></i></div>
@@ -2613,13 +2551,10 @@
             </template>
         </div>
 
-        <!-- 아직 안 남겼을 때만 입력칸을 연다 -->
+
         <div class="comment-new" x-show="!myComment" x-cloak>
             <label for="commentNew">내 코멘트</label>
-            <!-- 애플펜슬(Scribble)로 쓰는 것을 염두에 둔다 (설계 I236).
-                 별도 구현은 필요 없다 — 표준 textarea 면 iPadOS 가 알아서 받는다.
-                 대신 <b>손으로 쓸 자리</b>가 있어야 하고(.comment-input),
-                 쓰다 만 글은 담아 둔다(@input) -->
+
             <textarea id="commentNew" class="comment-input" rows="4"
                       x-model="commentNewText" maxlength="2000"
                       @input.debounce.500ms="saveCommentDraft()"
@@ -2635,7 +2570,7 @@
     </div>
 </div>
 
-<!-- D26 비교 우위 분석 모달 (설계 I61) -->
+
 <div class="modal" x-show="showCompare" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card modal-xwide">
@@ -2696,7 +2631,7 @@
     </div>
 </div>
 
-<!-- D21 판매완료 알림 확인 모달 -->
+
 <div class="modal" x-show="showSoldOutAlert" x-cloak>
     <div class="modal-backdrop" @click="closeTopModal()"></div>
     <div class="modal-card">
@@ -2725,8 +2660,7 @@
     </div>
 </div>
 
-<!-- 경로를 아예 못 낸 경우 (설계 I274).
-     구간 하나도 못 받았으면 순서도 뜻이 없다 — 결과를 보여 주는 대신 말한다 -->
+
 <div class="modal" x-show="showItinUnavailable" x-cloak>
     <div class="modal-backdrop" @click="closeItinUnavailable()"></div>
     <div class="modal-card">
@@ -2734,7 +2668,7 @@
             <span class="modal-kicker">알림</span>
             <h3>최적 경로를 산출하지 못했습니다</h3>
         </div>
-        <!-- 문구는 <b>서버가 준 것</b>을 그대로 (설계 I274). 화면에 또 적으면 두 벌이 된다 -->
+
         <p class="itin-unavailable" x-text="itinUnavailableMessage"></p>
         <div class="paste-actions">
             <button class="btn btn-primary" @click="closeItinUnavailable()">확인</button>
@@ -2742,7 +2676,7 @@
     </div>
 </div>
 
-<!-- D23 로드뷰 모달 -->
+
 <div class="modal modal-roadview" x-show="showRoadview" x-cloak>
     <div id="roadview" class="rv-canvas"></div>
     <div class="rv-fallback" x-show="roadviewState === 'missing'">

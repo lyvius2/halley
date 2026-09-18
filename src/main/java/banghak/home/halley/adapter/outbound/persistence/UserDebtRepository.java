@@ -32,12 +32,6 @@ public class UserDebtRepository {
                         .map(this::map);
     }
 
-    /**
-     * 한 사람의 부채를 통째로 갈아 끼운다.
-     *
-     * <p>0원짜리는 <b>저장하지 않고 지웁니다.</b> 남겨 두면 화면에 빈 줄이 쌓이고,
-     * 계산에도 의미가 없습니다.
-     */
     public void replaceAll(Long userId, List<ExistingDebt> debts) {
         dsl.deleteFrom(TABLE).where(USER_ID.eq(userId)).execute();
         for (final ExistingDebt debt : debts) {
