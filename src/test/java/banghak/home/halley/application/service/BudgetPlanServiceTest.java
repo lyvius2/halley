@@ -102,11 +102,37 @@ class BudgetPlanServiceTest {
                 ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, null, null, null));
     }
 
+    @Test
+    @DisplayName("추천 시나리오는 필수 품목과 추천 품목을 함께 선택한다")
+    void recommendedScenarioIncludesRequiredAndRecommendedItems() {
+        // given
+        final BudgetPlan plan = new BudgetPlan(10L, 20L, 1L, "계획", BudgetScenario.MINIMUM,
+                null, HousingType.SALE, null, null, 0L, null, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, null, null);
+        final BudgetItem required = new BudgetItem(1L, 10L, "bed", "가구", "침대", true,
+                false, false, false, 1_000_000L, null, null, null, null, null, null,
+                ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, null, null, null);
+        final BudgetItem recommended = new BudgetItem(2L, 10L, "dishwasher", "가전", "식기세척기", false,
+                true, false, false, 1_000_000L, null, null, null, null, null, null,
+                ProductFetchStatus.NOT_FETCHED, ProductFetchStatus.NOT_FETCHED, null, null, null);
+        when(plans.findById(10L)).thenReturn(Optional.of(plan));
+        when(accessGuard.currentGroupId()).thenReturn(Optional.of(20L));
+        when(accessGuard.isAdmin()).thenReturn(false);
+        when(items.findByPlanId(10L)).thenReturn(List.of(required, recommended));
+        when(plans.update(any(BudgetPlan.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // when
+        service.applyScenario(10L, BudgetScenario.RECOMMENDED);
+
+        // then
+        verify(items).update(argThat(item -> item.id().equals(required.id()) && item.selected()));
+        verify(items).update(argThat(item -> item.id().equals(recommended.id()) && item.selected()));
+    }
+
     private BudgetPlan withScenario(BudgetPlan plan, BudgetScenario scenario) {
         return new BudgetPlan(plan.id(), plan.groupId(), plan.createdBy(), plan.planName(), scenario,
                 plan.selectedPropertyId(), plan.housingType(), plan.region(), plan.houseName(), plan.purchasePrice(),
                 plan.exclusiveAreaM2(), plan.contractCash(), plan.balanceCash(), plan.acquisitionTax(), plan.brokerageFee(),
-                plan.registrationFee(), plan.movingCost(), plan.cleaningCost(), plan.acquisitionTaxSource(), plan.brokerageFeeSource(),
+                plan.registrationFee(), plan.movingCost(), plan.cleaningCost(), plan.householdReserveCost(), plan.acquisitionTaxSource(), plan.brokerageFeeSource(),
                 plan.registrationFeeSource(), plan.movingCostSource(), plan.cleaningCostSource(), plan.otherInitialCost(),
                 plan.parentSupport(), plan.otherFunds(), plan.monthlyManagementFee(), plan.monthlyOtherHousingCost(),
                 plan.createdAt(), plan.updatedAt());

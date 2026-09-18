@@ -950,6 +950,28 @@ function halley() {
             plan.cleaningCostSource = 'AUTO_ESTIMATE';
         },
 
+        budgetCostsAreEmpty(plan) {
+            return plan && ['acquisitionTax', 'brokerageFee', 'registrationFee', 'movingCost', 'cleaningCost']
+                .every(field => !plan[field]);
+        },
+
+        budgetCashInstallmentWarning() {
+            const plan = this.budgetAggregate?.plan;
+            const financing = this.budgetAggregate?.financing;
+            if (!plan || !financing) {
+                return '';
+            }
+            const installments = (plan.contractCash || 0) + (plan.balanceCash || 0);
+            if (!installments) {
+                return '';
+            }
+            const expected = Math.max(0, (plan.purchasePrice || 0) - (financing.loanAmount || 0));
+            if (installments === expected) {
+                return '';
+            }
+            return `계약금·잔금 합계 ${this.fmtWon(installments)}과 예상 자기자금 ${this.fmtWon(expected)}이 다릅니다.`;
+        },
+
         markBudgetCostManual(sourceField) {
             const plan = this.budgetAggregate?.plan;
             if (plan) plan[sourceField] = 'MANUAL';
@@ -1144,11 +1166,18 @@ function halley() {
             plan.houseName = property.name;
             plan.purchasePrice = property.priceDeposit || 0;
             plan.exclusiveAreaM2 = property.areaExclusiveM2 || null;
+            plan.housingType = property.dealType === 'JEONSE' ? 'JEONSE' : 'SALE';
+            plan.region = property.addressRoad || property.addressJibun || plan.region;
+            const shouldApplyCostEstimate = this.budgetCostsAreEmpty(plan);
             this.showBudgetPropertyPicker = false;
             this.budgetLoanEstimateMessage = '';
             await this.saveBudget();
             await this.applyBudgetLoanEstimate(property.id);
             await this.estimateBudgetCosts();
+            if (shouldApplyCostEstimate && this.budgetCostEstimate) {
+                this.applyBudgetCostEstimate();
+                await this.saveBudget();
+            }
         },
 
         /** 시스템 설정은 ADMIN 전용이다. 메뉴는 x-show로 숨기지만, 여는 경로에서도 한 번 더 막는다. */

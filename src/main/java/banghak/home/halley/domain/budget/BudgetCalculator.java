@@ -20,12 +20,13 @@ public final class BudgetCalculator {
         final long ownHousingCash = ownHousingCash(plan, financing);
         final long housingAncillary = add(plan.acquisitionTax(), plan.brokerageFee(),
                 plan.registrationFee(), plan.otherInitialCost());
-        final long householdBudget = safeItems.stream()
+        final long householdItemsBudget = safeItems.stream()
                 .filter(BudgetItem::includedInBudget)
                 .mapToLong(BudgetItem::budgetAmountWon)
                 .sum();
+        final long householdBudget = add(householdItemsBudget, plan.householdReserveCost());
         final long movingCost = add(plan.movingCost(), plan.cleaningCost());
-        final long totalInitialNeed = add(ownHousingCash, housingAncillary,
+        final long totalInitialNeed = add(plan.purchasePrice(), housingAncillary,
                 householdBudget, movingCost);
         final long investableAssets = safeAssets.stream()
                 .mapToLong(BudgetAsset::effectiveInvestableAmount)
@@ -37,7 +38,7 @@ public final class BudgetCalculator {
         final long monthlyFixedCost = add(monthlyPayment, plan.monthlyManagementFee(),
                 plan.monthlyOtherHousingCost());
         return new BudgetSummary(plan.purchasePrice(), ownHousingCash, housingAncillary,
-                householdBudget, movingCost, totalInitialNeed, financing.loanAmount(),
+                householdBudget, plan.householdReserveCost(), movingCost, totalInitialNeed, financing.loanAmount(),
                 investableAssets, supportFunds, securedFunds, additionalFunds,
                 monthlyPayment, monthlyFixedCost);
     }

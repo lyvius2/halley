@@ -8,14 +8,15 @@ test('등록 매물을 고르면 호가와 전용면적을 예산 계획에 반�
     // given
     const { window } = bootWindow();
     const app = mountHalley(window);
-    app.budgetAggregate = { plan: {} };
+    app.budgetAggregate = { plan: {}, financing: {} };
     app.showBudgetPropertyPicker = true;
     app.saveBudget = async () => {};
     let loanEstimatePropertyId = null;
     app.applyBudgetLoanEstimate = async id => { loanEstimatePropertyId = id; };
     let estimated = false;
     app.estimateBudgetCosts = async () => { estimated = true; };
-    const item = { property: { id: 7, name: 'Halley 아파트', priceDeposit: 650_000_000, areaExclusiveM2: 84.97 } };
+    const item = { property: { id: 7, name: 'Halley 아파트', priceDeposit: 650_000_000, areaExclusiveM2: 84.97,
+        dealType: 'SALE', addressRoad: '서울특별시 성동구 Halley로 7' } };
 
     // when
     await app.selectBudgetProperty(item);
@@ -25,9 +26,26 @@ test('등록 매물을 고르면 호가와 전용면적을 예산 계획에 반�
     assert.equal(app.budgetAggregate.plan.houseName, 'Halley 아파트');
     assert.equal(app.budgetAggregate.plan.purchasePrice, 650_000_000);
     assert.equal(app.budgetAggregate.plan.exclusiveAreaM2, 84.97);
+    assert.equal(app.budgetAggregate.plan.housingType, 'SALE');
+    assert.equal(app.budgetAggregate.plan.region, '서울특별시 성동구 Halley로 7');
     assert.equal(app.showBudgetPropertyPicker, false);
     assert.equal(loanEstimatePropertyId, 7);
     assert.equal(estimated, true);
+});
+
+test('계약금과 잔금이 예상 자기자금과 다르면 확인 문구를 보여 준다', () => {
+    // given
+    const { window } = bootWindow();
+    const app = mountHalley(window);
+    app.budgetAggregate = { plan: { purchasePrice: 500_000_000, contractCash: 50_000_000, balanceCash: 100_000_000 },
+        financing: { loanAmount: 300_000_000 } };
+
+    // when
+    const warning = app.budgetCashInstallmentWarning();
+
+    // then
+    assert.match(warning, /계약금·잔금 합계/);
+    assert.match(warning, /예상 자기자금/);
 });
 
 test('등록 매물 대출 추정값을 예산 금융 조건에 반영한다', async () => {

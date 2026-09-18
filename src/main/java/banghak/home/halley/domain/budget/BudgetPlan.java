@@ -23,6 +23,7 @@ public record BudgetPlan(
         long registrationFee,
         long movingCost,
         long cleaningCost,
+        long householdReserveCost,
         CostInputSource acquisitionTaxSource,
         CostInputSource brokerageFeeSource,
         CostInputSource registrationFeeSource,
@@ -59,6 +60,7 @@ public record BudgetPlan(
         validateNonNegative(registrationFee, "registrationFee");
         validateNonNegative(movingCost, "movingCost");
         validateNonNegative(cleaningCost, "cleaningCost");
+        validateNonNegative(householdReserveCost, "householdReserveCost");
         validateNonNegative(otherInitialCost, "otherInitialCost");
         validateNonNegative(parentSupport, "parentSupport");
         validateNonNegative(otherFunds, "otherFunds");
@@ -80,7 +82,7 @@ public record BudgetPlan(
                       long monthlyManagementFee, long monthlyOtherHousingCost, Instant createdAt, Instant updatedAt) {
         this(id, groupId, createdBy, planName, scenario, selectedPropertyId, housingType, region, houseName,
                 purchasePrice, exclusiveAreaM2, contractCash, balanceCash, acquisitionTax, brokerageFee,
-                registrationFee, movingCost, cleaningCost, CostInputSource.MANUAL, CostInputSource.MANUAL,
+                registrationFee, movingCost, cleaningCost, 0L, CostInputSource.MANUAL, CostInputSource.MANUAL,
                 CostInputSource.MANUAL, CostInputSource.MANUAL, CostInputSource.MANUAL, otherInitialCost,
                 parentSupport, otherFunds, monthlyManagementFee, monthlyOtherHousingCost, createdAt, updatedAt);
     }

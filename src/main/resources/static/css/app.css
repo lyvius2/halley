@@ -2656,6 +2656,9 @@ tr.dragging { opacity: .5; background: var(--line2); }
  .budget-catalog-callout .btn { flex: 0 0 auto; white-space: nowrap; }
  .budget-catalog-result { margin: 8px 0 0; color: var(--ocean); font-size: 11.5px; }
  .budget-estimate-result { margin: 0 0 .75rem; color: var(--ocean); font-size: .82rem; line-height: 1.5; }
+ .budget-input-warning { margin: -4px 0 0; color: var(--lava); font-size: 11.5px; line-height: 1.5; }
+ .budget-reserve-input { display: grid !important; gap: 6px !important; max-width: 360px; margin-top: 14px; color: var(--ink2); font-size: 11.5px; font-weight: 500; }
+ .budget-reserve-input small { color: var(--ink3); font-size: 10.5px; font-weight: 400; }
  .budget-filter-hint { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0 0; color: var(--ink3); font-size: 11px; line-height: 1.5; }
  .budget-filter-hint b { flex: 0 0 auto; color: var(--ocean); font-weight: 600; }
  .budget-item-create { margin-top: 14px; padding: 14px; border: 1px dashed var(--line); border-radius: 8px; background: #faf8f3; }

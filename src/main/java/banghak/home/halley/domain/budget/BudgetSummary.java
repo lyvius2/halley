@@ -6,6 +6,7 @@ public record BudgetSummary(
         long ownHousingCash,
         long housingAncillaryCost,
         long householdBudget,
+        long householdReserveCost,
         long movingAndSettlingCost,
         long totalInitialNeed,
         long loanAmount,

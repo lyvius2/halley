@@ -809,6 +809,7 @@ CREATE TABLE IF NOT EXISTS household_budget_plan (
     registration_fee           BIGINT NOT NULL DEFAULT 0,
     moving_cost                BIGINT NOT NULL DEFAULT 0,
     cleaning_cost              BIGINT NOT NULL DEFAULT 0,
+    household_reserve_cost     BIGINT NOT NULL DEFAULT 0,
     acquisition_tax_source     VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
     brokerage_fee_source       VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
     registration_fee_source    VARCHAR(20) NOT NULL DEFAULT 'MANUAL',
@@ -824,7 +825,7 @@ CREATE TABLE IF NOT EXISTS household_budget_plan (
     CONSTRAINT ck_household_budget_plan_amounts CHECK (
         purchase_price >= 0 AND contract_cash >= 0 AND balance_cash >= 0
         AND acquisition_tax >= 0 AND brokerage_fee >= 0 AND registration_fee >= 0
-        AND moving_cost >= 0 AND cleaning_cost >= 0 AND other_initial_cost >= 0
+        AND moving_cost >= 0 AND cleaning_cost >= 0 AND household_reserve_cost >= 0 AND other_initial_cost >= 0
         AND parent_support >= 0 AND other_funds >= 0
         AND monthly_management_fee >= 0 AND monthly_other_housing_cost >= 0
     )

@@ -14,7 +14,7 @@ class BudgetCalculatorTest {
     private final BudgetCalculator calculator = new BudgetCalculator();
 
     @Test
-    @DisplayName("주택 부대비용과 선택한 혼수만 초기 필요자금에 포함한다")
+    @DisplayName("주택 가격과 부대비용 및 선택한 혼수를 초기 필요자금에 포함한다")
     void calculatesInitialNeed() {
         // given
         final BudgetPlan plan = plan(500_000_000L, 100_000_000L, 300_000_000L,
@@ -31,7 +31,7 @@ class BudgetCalculatorTest {
         assertThat(summary.ownHousingCash()).isEqualTo(400_000_000L);
         assertThat(summary.housingAncillaryCost()).isEqualTo(17_000_000L);
         assertThat(summary.householdBudget()).isEqualTo(20_000_000L);
-        assertThat(summary.totalInitialNeed()).isEqualTo(441_000_000L);
+        assertThat(summary.totalInitialNeed()).isEqualTo(541_000_000L);
     }
 
     @Test
@@ -51,7 +51,7 @@ class BudgetCalculatorTest {
         // then
         assertThat(summary.investableAssets()).isEqualTo(40_000_000L);
         assertThat(summary.securedFunds()).isEqualTo(155_000_000L);
-        assertThat(summary.additionalFunds()).isEqualTo(45_000_000L);
+        assertThat(summary.additionalFunds()).isEqualTo(145_000_000L);
         assertThat(summary.hasShortfall()).isTrue();
     }
 
