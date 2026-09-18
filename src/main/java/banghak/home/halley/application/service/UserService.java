@@ -195,11 +195,18 @@ public class UserService {
 
     /** 닉네임을 쓸 수 있는지 (규칙 17). 자기 닉네임은 그대로 둘 수 있어야 한다. */
     public NicknameCheckResponse checkNickname(String nickname) {
+        // 익명이면 null 이다. currentUserId() 는 401 을 던지므로 여기서는 못 쓴다 — 예전에는
+        // 그걸 써서 가입이 열려 있어도 가입 화면의 닉네임 확인이 401 이었다 (설계 I300)
+        final Long myId = currentAdminId();
+        // 로그인 전 확인은 가입 화면을 위한 것이다. 가입이 닫혀 있으면 함께 닫는다 (설계 I300) —
+        // 열어 두면 로그인 없이 어떤 닉네임이 있는지 하나씩 물어볼 수 있다
+        if (myId == null && !signUpOpen) {
+            throw new SignUpClosedException();
+        }
         if (nickname == null || nickname.isBlank()) {
             return new NicknameCheckResponse(nickname, false);
         }
         final String trimmed = nickname.trim();
-        final Long myId = currentUserId();
         final boolean taken = userRepository.findByNickname(trimmed)
                 .filter(u -> myId == null || !u.id().equals(myId))
                 .isPresent();

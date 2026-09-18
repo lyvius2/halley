@@ -39,6 +39,14 @@ class SignUpDefaultClosedTest {
     }
 
     @Test
+    @DisplayName("로그인 전 닉네임 확인도 함께 닫힌다 — 계정 열거 창구가 된다 (설계 I300)")
+    void nicknameCheckIsClosedToo() throws Exception {
+        // when / then
+        mockMvc.perform(get("/api/users/nickname-check").param("nickname", "admin"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("가입 요청은 서버가 막는다")
     void signUpIsRejected() throws Exception {
         // when / then
