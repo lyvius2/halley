@@ -9271,6 +9271,89 @@ Thumbnailator 디코딩 단계에서 실패했습니다.
 
 ---
 
+### I297. 세션 쿠키에 Secure·SameSite 가 없었다 · **[확정 — 구현됨]** · [I295] 후속
+
+yaml 에도 Java 에도 쿠키 플래그가 없었습니다. 브라우저 기본값에 기대고 있었던 것입니다.
+`server.servlet.session.cookie.same-site=lax` · `http-only=true` 를 기본에 두고, live 에만
+`secure=true` 를 둡니다 — 로컬은 http 라 켜면 로그인이 안 됩니다.
+
+**프록시 뒤에서는 그것만으로 부족합니다.** nginx·ALB 가 TLS 를 벗기면 앱은
+`isSecure()=false` 로 봅니다 — Secure 쿠키가 안 나가고, 로그인 제한([I298])이 손님 주소가
+아니라 프록시 주소 하나로 묶입니다. live 에 `server.forward-headers-strategy=native` 를 둡니다.
+
+XSRF 토큰 쿠키([I295])에도 같은 SameSite 를 겁니다(`setCookieCustomizer`).
+
+#### 시험이 엉뚱한 층을 보고 있었다
+
+"토큰 쿠키에 `SameSite=Lax` 가 붙는가" 를 `Set-Cookie` 헤더 문자열로 재니 실패했습니다.
+`javap` 로 `saveToken` 을 열어 보니 Spring Security 7 은 SameSite 가 있으면 문자열 헤더가
+아니라 <b>`Cookie` 객체의 속성</b>으로 실어 `response.addCookie()` 로 내보냅니다. Tomcat 은
+그 속성을 헤더에 쓰지만 `MockHttpServletResponse` 는 헤더 문자열로 안 옮깁니다. 쿠키 객체를
+꺼내 속성을 직접 봅니다 — 운영이 틀린 게 아니라 시험이 보는 층이 틀렸던 것입니다.
+
+---
+
+### I298. 로그인 시도 제한이 없었다 · **[확정 — 구현됨]**
+
+공개 주소로 운영하는데 실패 횟수 제한이 없어 비밀번호 무차별 대입에 무방비였습니다.
+
+`LoginAttemptLimiter` 가 <b>계정|주소</b> 로 실패를 셉니다. 계정만 세면 남이 내 계정을
+잠글 수 있고, 주소만 세면 한 주소에서 계정을 돌려 가며 시도할 수 있습니다. 다섯 번 틀리면
+15분 동안 429 — <b>맞는 비밀번호를 넣어도</b> 막습니다. 비밀번호를 보기 <b>전에</b> 세므로
+잠긴 뒤에는 맞는지 틀린지도 알 수 없습니다. 성공하면 처음부터 셉니다.
+
+캐시(`CachePort.LOGIN_FAILURES`)에 둡니다. 세션·rate limit 은 Redis 의 몫이고(AGENTS.md),
+수명이 곧 잠금 시간이라 풀어 주는 코드가 없습니다. Redis 가 죽으면 제한이 풀립니다 —
+로그인 자체가 막히는 것보다 낫습니다. 비활성 계정([AccountDisabledException])은 비밀번호가
+틀린 것이 아니므로 세지 않습니다.
+
+---
+
+### I299. 요청 검증이 없었다 · **[확정 — 구현됨]**
+
+Bean Validation starter 도 `@Valid` 도 없었습니다. 길이·형식 제한 없이 서비스까지 내려갔습니다.
+
+로그인·가입·비밀번호 변경·회원 생성 DTO 에 `@NotBlank`·`@Size`·`@Pattern` 을 두고
+컨트롤러에서 `@Valid` 로 받습니다. 매물명은 `@Size(max=200)` 만 둡니다 — 비어 있음은
+서비스가 이미 제 말로 거절하고 있어([InvalidPropertyRequestException]) 그 메시지를 바꾸지
+않으려는 것입니다.
+
+어긋난 칸 이름은 말하되 <b>보낸 값은 되돌려 주지 않습니다</b>(`VALIDATION_FAILED`, 400).
+
+---
+
+### I300. 로그인 전 닉네임 확인이 열려 있었다 — 그리고 사실은 깨져 있었다 · **[확정 — 구현됨]** · [I296] 후속
+
+`/api/users/nickname-check` 가 `permitAll` 이라 로그인 없이 어떤 닉네임이 있는지 하나씩
+물어볼 수 있다고 봤습니다. 가입이 닫혀 있으면 함께 닫습니다(403).
+
+#### 고치다 보니 잠재 버그가 나왔다
+
+시험을 돌리니 익명 요청이 403 이 아니라 <b>401</b> 이었습니다. `checkNickname` 이
+`currentUserId()` 를 쓰는데, 그것은 익명이면 <b>401 을 던지는</b> 헬퍼였습니다. 원래 코드의
+`myId == null ||` 은 죽은 분기였고 — 가입이 <b>열려 있어도</b> 가입 화면의 닉네임 확인은
+늘 401 이었습니다. 그것을 재는 시험이 없어 아무도 몰랐습니다.
+
+null 을 돌려주는 `currentAdminId()` 로 바꿉니다. 닫힘(익명 → 403)과 열림(익명 → 200)을
+각각 시험으로 둡니다(`SignUpDefaultClosedTest` · `SignUpOpenTest`).
+
+> **안 되던 것을 "막혀 있다"로 오독하면, 고칠 때 도로 열립니다.** 시험을 먼저 두지 않았다면
+> 그렇게 됐을 것입니다.
+
+---
+
+### I301. Gradle 데몬 힙이 모자라 시험이 조용히 안 돌았다 · **[확정 — 구현됨]**
+
+시험 결과 XML 이 한 클래스 것만 남고 나머지가 없었습니다. 데몬(기본 512MiB)이
+`compileAotTestJava` 에서 GC 스래싱으로 죽어 <b>시험이 아예 돌지 않은 채</b> 낡은 결과만
+남은 것입니다. 감사([ARCHITECTURE_SERVICE_AUDIT] §5 "기본 빌드 경로가 무겁다")가 그대로
+재현됐습니다. `gradle.properties` 에 `-Xmx2g -XX:MaxMetaspaceSize=1g` 를 둡니다.
+
+> **결과 파일 수가 줄면 통과가 아니라 실행 실패를 의심하라.** 집계 스크립트도 실행된
+> 클래스 수를 함께 찍게 하는 편이 안전하다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```
