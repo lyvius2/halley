@@ -143,6 +143,26 @@ function floorText(p) {
     return p?.floorNo ?? '';
 }
 
+/**
+ * CSRF 토큰 헤더 (설계 I295).
+ *
+ * <p>서버가 XSRF-TOKEN 쿠키로 내려 준 값을 X-XSRF-TOKEN 헤더로 되돌려 보낸다. 다른 출처의
+ * 문서는 이 쿠키를 읽을 수 없으므로, 헤더가 맞으면 우리 화면이 보낸 요청이다.
+ * 상태를 바꾸는 요청(GET·HEAD 외)에만 붙인다.
+ */
+function csrfHeader() {
+    const found = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/);
+    return found ? { 'X-XSRF-TOKEN': decodeURIComponent(found[1]) } : {};
+}
+
+function withCsrf(options) {
+    const method = String(options?.method || 'GET').toUpperCase();
+    if (method === 'GET' || method === 'HEAD') {
+        return options;
+    }
+    return { ...options, headers: { ...csrfHeader(), ...(options?.headers || {}) } };
+}
+
 function emptyRegAreaForm() {
     return {
         codePrefix: '',
@@ -575,7 +595,7 @@ function halley() {
         },
 
         async request(url, options) {
-            const res = await fetch(url, options);
+            const res = await fetch(url, withCsrf(options));
             let body = null;
             try {
                 body = await res.json();
@@ -2389,10 +2409,10 @@ function halley() {
                     const form = new FormData();
                     form.append('file', file);
                     form.append('imageType', imageType);
-                    const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, {
+                    const res = await fetch(`/api/properties/${this.photoProperty.property.id}/images`, withCsrf({
                         method: 'POST',
                         body: form
-                    });
+                    }));
                     if (!res.ok) {
                         this.error = await this.imageUploadFailureMessage(res, file.name);
                         break;
@@ -2685,7 +2705,7 @@ function halley() {
 
         async logout() {
             try {
-                await fetch('/api/auth/logout', { method: 'POST' });
+                await fetch('/api/auth/logout', withCsrf({ method: 'POST' }));
             } catch (e) {
                 // ignore
             }
@@ -3986,7 +4006,7 @@ function halley() {
                 const form = new FormData();
                 form.append('file', file);
                 form.append('imageType', imageType);
-                const res = await fetch(`/api/properties/${id}/images`, { method: 'POST', body: form })
+                const res = await fetch(`/api/properties/${id}/images`, withCsrf({ method: 'POST', body: form }))
                     .catch(() => ({ ok: false }));
                 if (!res.ok) {
                     failed.push(file);

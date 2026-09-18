@@ -6,7 +6,9 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.authentication.www.BasicAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -30,7 +32,14 @@ public class SecurityConfig {
                                                    AccountSetupFilter accountSetupFilter,
                                                    JsonAuthenticationEntryPoint entryPoint) throws Exception {
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                // 세션 쿠키 인증이므로 CSRF 를 켠다 (설계 I295). 토큰은 XSRF-TOKEN 쿠키로
+                // 내려가고 화면이 X-XSRF-TOKEN 헤더로 되돌려 보낸다 — 다른 출처의 문서는
+                // 이 쿠키를 읽을 수 없어 헤더를 못 만든다. 쿠키는 스크립트가 읽어야 하므로 HttpOnly 가 아니다
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()))
+                // 토큰은 누가 읽어야 쿠키에 적힌다. 첫 GET 에서부터 적히도록 한 번 건드린다
+                .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
                 .securityContext(securityContext -> securityContext.requireExplicitSave(false))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/login").permitAll()
