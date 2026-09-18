@@ -296,7 +296,7 @@ public class PropertyController {
     public ScoredPropertyResponse update(@PathVariable Long id, @RequestBody PropertyRequest request,
                                          @RequestHeader(value = "X-Edit-Version", required = false) Long editVersion) {
         final PropertyResponse updated = propertyService.update(id, request, editVersion);
-        return scoringService.rescore(id);
+        return scoringService.rescore(propertyAccessGuard.require(id));
     }
 
     /**
@@ -320,7 +320,7 @@ public class PropertyController {
      */
     @PostMapping("/{id}/rescore")
     public ScoredPropertyResponse rescore(@PathVariable Long id) {
-        return scoringService.rescore(id);
+        return scoringService.rescore(propertyAccessGuard.require(id));
     }
 
     /**
@@ -332,7 +332,7 @@ public class PropertyController {
      */
     @PostMapping("/{id}/scores/recompute")
     public ScoredPropertyResponse recomputeScores(@PathVariable Long id) {
-        return scoringService.rescore(id);
+        return scoringService.rescore(propertyAccessGuard.require(id));
     }
 
     /**
@@ -372,7 +372,7 @@ public class PropertyController {
 
     @PutMapping("/{id}/scores")
     public ScoredPropertyResponse updateScores(@PathVariable Long id, @RequestBody UpdateScoresRequest request) {
-        return scoringService.saveManualScores(id, request.scores());
+        return scoringService.saveManualScores(propertyAccessGuard.require(id), request.scores());
     }
 
     @DeleteMapping("/{id}")

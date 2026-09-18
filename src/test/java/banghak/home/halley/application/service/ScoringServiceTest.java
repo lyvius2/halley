@@ -44,6 +44,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @ActiveProfiles("local")
 class ScoringServiceTest {
 
+    /** 사용자 경로는 Property 를 받는다 — 길목을 지나야 손에 들어온다 (설계 I294) */
+    @Autowired
+    private PropertyAccessGuard propertyAccessGuard;
+
     @TestConfiguration
     static class StubConfig {
 
@@ -130,9 +134,9 @@ class ScoringServiceTest {
         final PropertyResponse cheap = propertyService.create(request("싼 매물", DealType.SALE, 300_000_000L));
         final PropertyResponse expensive = propertyService.create(request("비싼 매물", DealType.SALE, 800_000_000L));
         final PropertyResponse jeonse = propertyService.create(request("전세 매물", DealType.JEONSE, 400_000_000L));
-        scoringService.rescore(cheap.id());
-        scoringService.rescore(expensive.id());
-        scoringService.rescore(jeonse.id());
+        scoringService.rescore(propertyAccessGuard.require(cheap.id()));
+        scoringService.rescore(propertyAccessGuard.require(expensive.id()));
+        scoringService.rescore(propertyAccessGuard.require(jeonse.id()));
 
         // when
         final List<ScoredPropertyResponse> saleList = scoringService.list(DealType.SALE);
@@ -159,7 +163,7 @@ class ScoringServiceTest {
 
         // when — 저장하면 재채점이 돈다. 여기가 다른 순서를 만들던 자리다
         final List<String> afterSave = scoringService
-                .saveManualScores(created.id(), Map.of("COMFORT", new BigDecimal("4")))
+                .saveManualScores(propertyAccessGuard.require(created.id()), Map.of("COMFORT", new BigDecimal("4")))
                 .scores().stream()
                 .map(CriterionScoreView::code)
                 .toList();
@@ -203,7 +207,7 @@ class ScoringServiceTest {
 
         // when — 화면이 추정값으로 채워 둔 칸을 그대로 되돌려 보낸다
         final ScoredPropertyResponse result = scoringService.saveManualScores(
-                created.id(), Map.of("AGE", new BigDecimal("80")));
+                propertyAccessGuard.require(created.id()), Map.of("AGE", new BigDecimal("80")));
 
         // then — 무시한다. 받아들이면 자동 채점이 수동으로 굳고 산출 근거도 사라진다
         final CriterionScoreView age = result.scores().stream()
@@ -223,7 +227,7 @@ class ScoringServiceTest {
 
         // when
         final ScoredPropertyResponse result = scoringService.saveManualScores(
-                created.id(), Map.of("PRICE", new BigDecimal("80")));
+                propertyAccessGuard.require(created.id()), Map.of("PRICE", new BigDecimal("80")));
 
         // then
         final CriterionScoreView price = result.scores().stream()
@@ -242,7 +246,7 @@ class ScoringServiceTest {
         assertThat(ageBefore.explanation()).isNotNull();
 
         // when — 실제로 사람이 고친 것은 쾌적함 하나뿐이다
-        scoringService.saveManualScores(created.id(), Map.of("COMFORT", new BigDecimal("4")));
+        scoringService.saveManualScores(propertyAccessGuard.require(created.id()), Map.of("COMFORT", new BigDecimal("4")));
 
         // then — 이게 무너져서 채점 전체가 수동으로 바뀌고 근거가 사라졌었다
         final CriterionScoreView ageAfter = scoreOf(created.id(), "AGE");
@@ -263,7 +267,7 @@ class ScoringServiceTest {
         // given — 등록 시점에 채점된다. 그때는 AI 추천도가 아직 없다
         final PropertyResponse created = propertyService.create(
                 request("나중에 AI 붙는 매물", DealType.SALE, 400_000_000L));
-        scoringService.rescore(created.id());
+        scoringService.rescore(propertyAccessGuard.require(created.id()));
         assertThat(llmScoreOf(created.id())).isNull();
 
         // when — 보정이 뒤늦게 AI 추천을 저장한다 (비동기라 채점보다 늦게 끝난다)
@@ -293,7 +297,7 @@ class ScoringServiceTest {
         final long before = scoringService.getScored(created.id()).scoreVersion();
 
         // when — 사용자가 점수를 수기로 바꾼다
-        scoringService.saveManualScores(created.id(), Map.of("PRICE", new BigDecimal("80")));
+        scoringService.saveManualScores(propertyAccessGuard.require(created.id()), Map.of("PRICE", new BigDecimal("80")));
 
         // then
         assertThat(scoringService.getScored(created.id()).scoreVersion()).isGreaterThan(before);
@@ -305,7 +309,7 @@ class ScoringServiceTest {
         // given
         final PropertyResponse a = propertyService.create(request("버전A", DealType.SALE, 300_000_000L));
         final PropertyResponse b = propertyService.create(request("버전B", DealType.SALE, 500_000_000L));
-        scoringService.rescore(a.id());
+        scoringService.rescore(propertyAccessGuard.require(a.id()));
 
         // when
         final List<ScoreVersionResponse> versions = scoringService.scoreVersions(null, false);
@@ -326,7 +330,7 @@ class ScoringServiceTest {
         // when
         final InvalidScoreException ex = assertThrows(
                 InvalidScoreException.class,
-                () -> scoringService.saveManualScores(created.id(), Map.of("PRICE", new BigDecimal("150"))));
+                () -> scoringService.saveManualScores(propertyAccessGuard.require(created.id()), Map.of("PRICE", new BigDecimal("150"))));
 
         // then
         assertThat(ex.getCode()).isEqualTo("INVALID_SCORE");

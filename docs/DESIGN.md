@@ -9185,6 +9185,39 @@ Thumbnailator 디코딩 단계에서 실패했습니다.
 
 ---
 
+### I294. 매물 하위 API 여섯 경로가 그룹 길목을 안 지났다 · **[확정 — 구현됨]** · [I87] 후속
+
+`PropertyAccessGuard` 는 스스로를 "단 하나의 길목"이라 했는데(I87), 여섯 경로가 지나지
+않고 있었습니다 — `rescore` · `scores/recompute` · `scores`(수기 점수 **쓰기**) ·
+`land-use`(둘) · `llm-recommendation`. 자세한 확인은 `docs/GROUP_ACCESS_BOUNDARY.md`.
+
+#### 배경 작업이 같은 메서드를 쓴다
+
+`ScoringService.rescore(Long)` 은 사용자 요청과 보정·AI 배경 작업이 **함께** 부릅니다.
+배경에는 로그인 사용자가 없어 길목을 못 지납니다. 그래서 AOP 나 "메서드 첫 줄에 guard"
+로는 안 됩니다 — 배경이 통째로 막히거나(I284 증상), 잊으면 다시 샙니다.
+
+**타입으로 갈랐습니다.** 사용자용 `rescore(Property)` · `saveManualScores(Property, …)` 는
+번호가 아니라 `Property` 를 받습니다. 사용자 경로에서 그것을 얻는 길은
+`propertyAccessGuard.require(id)` 뿐이라, 잊으면 새는 게 아니라 **컴파일이 안 됩니다.**
+배경용은 `rescoreBackground(Long)` 으로 이름을 갈라 헷갈리지 않게 했습니다.
+
+`LandUseService` · `LlmRecommendationService` 는 배경 호출이 없어 메서드 안에서 길목을
+부릅니다. 단, `LandUseService.find` 는 배경 보정(`ensureLandUse`)이 내부에서 쓰던
+읽기라 길목 없는 `load` 를 따로 두었습니다.
+
+#### 시험이 가려진 구멍을 못 봤다
+
+여섯 경로 표 시험(`GroupBoundaryApiTest`)을 두고 뮤테이션을 돌렸는데,
+`llm-recommendation` 의 `find` 길목을 빼도 **통과했습니다.** 추천도가 비어 있으면
+`orElseGet` 의 `isRunning` 길목이 대신 막아 주어 새는 것이 안 보인 것입니다.
+추천도를 하나 심어 두고 나서야 잡혔습니다.
+
+> **뮤테이션이 통과하면 시험이 아니라 뮤테이션을 의심하라.** 두 번째 방어선이 첫 번째의
+> 부재를 가려 줄 수 있다 — 그 상황 자체가 시험 설계의 구멍이다.
+
+---
+
 ### I252. 거래가 드문 단지도 추세를 낸다 · **[확정 — 구현됨]** · [I130]·[I147] 조정
 
 ```

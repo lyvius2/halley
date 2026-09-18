@@ -223,8 +223,16 @@ public class ScoringService {
                 : propertyRepository.findByGroupIdAndDealType(groupId, dealType);
     }
 
+    /**
+     * 배경 작업이 부르는 재채점 (설계 I294).
+     *
+     * <p>보정·AI 응답은 <b>이미 인가된 매물 번호</b>로 돌고, 로그인 사용자가 없어 그룹
+     * 길목({@code PropertyAccessGuard})을 지날 수 없습니다. 그래서 번호를 받습니다.
+     * <b>사용자 요청에서 부르면 안 됩니다</b> — 남의 그룹 매물이 그대로 나옵니다.
+     * 사용자 경로는 {@link #rescore(Property)} 입니다.
+     */
     @Transactional
-    public ScoredPropertyResponse rescore(Long propertyId) {
+    public ScoredPropertyResponse rescoreBackground(Long propertyId) {
         final Property property = propertyRepository.findById(propertyId)
                 .orElseThrow(NotFoundListingsException::new);
         return rescore(property);
@@ -242,9 +250,9 @@ public class ScoringService {
      * 다른 경로로 들어와도 자동 채점이 뭉개지면 안 됩니다.
      */
     @Transactional
-    public ScoredPropertyResponse saveManualScores(Long propertyId, Map<String, BigDecimal> scores) {
-        propertyRepository.findById(propertyId)
-                .orElseThrow(NotFoundListingsException::new);
+    public ScoredPropertyResponse saveManualScores(Property property, Map<String, BigDecimal> scores) {
+        // 번호가 아니라 Property 를 받는다 — 길목을 지나야만 손에 들어온다 (설계 I294)
+        final Long propertyId = property.id();
         if (scores != null) {
             final Map<String, ScoringType> types = criterionRepository.findAll().stream()
                     .collect(java.util.stream.Collectors.toMap(Criterion::code, Criterion::scoringType));
@@ -264,7 +272,7 @@ public class ScoringService {
                 applyManualScore(propertyId, entry.getKey(), entry.getValue());
             }
         }
-        return rescore(propertyId);
+        return rescore(property);
     }
 
     /**
@@ -430,7 +438,15 @@ public class ScoringService {
      * <p>기다려도 안 풀리면 <b>그냥 진행합니다.</b> 채점 결과는 항목마다 upsert 하므로 겹쳐도
      * 마지막 값이 남을 뿐이고, 잠금 때문에 채점이 통째로 빠지는 편이 더 나쁩니다.
      */
-    private ScoredPropertyResponse rescore(Property property) {
+    /**
+     * 사용자 요청의 재채점 (설계 I294).
+     *
+     * <p>번호가 아니라 <b>{@code Property} 를 받습니다.</b> 사용자 경로에서 이것을 얻는 길은
+     * {@code PropertyAccessGuard.require(id)} 뿐이라, 그룹 확인을 잊으면 새는 게 아니라
+     * <b>컴파일이 안 됩니다</b>(`docs/GROUP_ACCESS_BOUNDARY.md` §5 ②).
+     */
+    @Transactional
+    public ScoredPropertyResponse rescore(Property property) {
         final boolean locked = acquire(property.id());
         try {
             return doRescore(property);

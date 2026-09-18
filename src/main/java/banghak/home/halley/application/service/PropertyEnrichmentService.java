@@ -265,7 +265,7 @@ public class PropertyEnrichmentService {
      */
     private void rescore(Long propertyId) {
         try {
-            scoringService.rescore(propertyId);
+            scoringService.rescoreBackground(propertyId);
         } catch (RuntimeException e) {
             // 채점이 실패해도 보정으로 채운 값 자체는 살아 있어야 한다
             log.warn("Rescore after enrichment failed. propertyId={}, cause={}",

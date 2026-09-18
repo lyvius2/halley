@@ -159,7 +159,7 @@ class LlmRecommendationServiceTest {
         final LlmPort port = countingPort(calls, LlmResult.of("{\"score\": 70}", "m"));
         final LlmRecommendationService service = new LlmRecommendationService(
                 port, llmModels(), recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, false);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, propertyAccessGuard, false);
         when(recommendationRepository.findByPropertyId(1L)).thenReturn(Optional.empty());
 
         // when
@@ -464,11 +464,13 @@ class LlmRecommendationServiceTest {
             mock(UserCriterionScoreRepository.class);
     private final PropertyCommentRepository commentRepository = mock(PropertyCommentRepository.class);
     private final ScoringService scoringService = mock(ScoringService.class);
+    /** 단위 시험은 인가를 보지 않는다 — 길목은 통합 시험에서 본다 (설계 I294) */
+    private final PropertyAccessGuard propertyAccessGuard = mock(PropertyAccessGuard.class);
 
     private LlmRecommendationService service(LlmPort port) {
         return new LlmRecommendationService(
                 port, llmModels(), recommendationRepository, jobCache, propertyRepository, userRepository,
-                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, true);
+                poiDataService, userCriterionScoreRepository, commentRepository, scoringService, objectMapper, propertyAccessGuard, true);
     }
 
     private LlmPort stub(LlmResult result) {

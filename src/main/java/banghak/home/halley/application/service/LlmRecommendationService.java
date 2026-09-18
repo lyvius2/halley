@@ -81,6 +81,8 @@ public class LlmRecommendationService {
     private final ScoringService scoringService;
     private final ObjectMapper objectMapper;
     private final boolean enabled;
+    /** 사용자 읽기는 여기를 지난다 (설계 I294). 배경 분석은 안 지난다 */
+    private final PropertyAccessGuard propertyAccessGuard;
 
     public LlmRecommendationService(LlmPort llmPort,
                                     LlmModelService llmModelService,
@@ -93,8 +95,10 @@ public class LlmRecommendationService {
                                     PropertyCommentRepository commentRepository,
                                     ScoringService scoringService,
                                     ObjectMapper objectMapper,
+                                    PropertyAccessGuard propertyAccessGuard,
                                     @Value("${llm.enabled:true}") boolean enabled) {
         this.llmPort = llmPort;
+        this.propertyAccessGuard = propertyAccessGuard;
         this.llmModelService = llmModelService;
         this.recommendationRepository = recommendationRepository;
         this.jobCache = jobCache;
@@ -124,6 +128,7 @@ public class LlmRecommendationService {
      * 보여주게 되므로, 미스가 나면 반드시 DB를 보고 캐시를 다시 채웁니다.
      */
     public Optional<LlmRecommendation> find(Long propertyId) {
+        propertyAccessGuard.require(propertyId);
         final String key = jobKey(propertyId);
         final Optional<LlmRecommendation> fromCache = jobCache.get(key)
                 .filter(state -> !state.isRunning())
@@ -160,6 +165,7 @@ public class LlmRecommendationService {
      * 캐시가 비었으면(TTL 만료·Redis 재시작) 진행 중이 아닌 것으로 본다 — 호출 측이 DB를 본다.
      */
     public boolean isRunning(Long propertyId) {
+        propertyAccessGuard.require(propertyId);
         return jobCache.get(jobKey(propertyId)).map(LlmJobState::isRunning).orElse(false);
     }
 
@@ -454,7 +460,7 @@ public class LlmRecommendationService {
      */
     private void rescore(Long propertyId) {
         try {
-            scoringService.rescore(propertyId);
+            scoringService.rescoreBackground(propertyId);
         } catch (RuntimeException e) {
             // 채점이 실패해도 방금 받은 추천 자체는 살아 있어야 한다
             log.warn("Rescore after LLM recommendation failed. propertyId={}, cause={}",

@@ -180,7 +180,7 @@ class PropertyEnrichmentServiceTest {
         verify(housingPricePort, never()).fetchApartmentPrices(anyString());
         verify(referenceTransactionService, never()).prefetch(anyLong());
         verify(landUseService).ensureLandUse(1L);
-        verify(scoringService, atLeastOnce()).rescore(1L);
+        verify(scoringService, atLeastOnce()).rescoreBackground(1L);
         assertThat(captureSaved().schoolName()).isEqualTo("서울대곡초등학교");
     }
 
