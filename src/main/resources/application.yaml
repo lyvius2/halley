@@ -304,8 +304,8 @@ itinerary:
 
 halley:
   admin:
-    # 최초 admin 비밀번호 (설계 I296). 비우면 만들어서 로그에 적는다 — 로컬용이다.
-    # 운영은 application-live.yaml 이 환경변수를 강제한다
+    # 최초 admin 비밀번호 (설계 I296). 주면 그것을 쓰고 로그에 남기지 않는다.
+    # 비우면 만들어서 로그에 적는다 — 운영에서도 강제하지 않는다 (I296 조정)
     initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD:}
   cache:
     reference:

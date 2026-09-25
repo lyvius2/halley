@@ -19,11 +19,6 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-halley:
-  admin:
-    # 운영은 최초 admin 비밀번호를 환경변수로 받는다 (설계 I296) — 로그에 남기지 않는다
-    initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD}
-
 server:
   servlet:
     session:
