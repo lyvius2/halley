@@ -4,637 +4,198 @@
 
 ![Java](https://img.shields.io/badge/Java-25-ED8B00?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.x-6DB33F?logo=springboot&logoColor=white)
-![jOOQ](https://img.shields.io/badge/jOOQ-3.21-FF6D00?logo=databricks&logoColor=white)
-![Gradle](https://img.shields.io/badge/Gradle-build-02303A?logo=gradle&logoColor=white)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-database-4169E1?logo=postgresql&logoColor=white)
-![Redis](https://img.shields.io/badge/Redis-cache%20%C2%B7%20session-FF4438?logo=redis&logoColor=white)
-![Alpine.js](https://img.shields.io/badge/Alpine.js-frontend-8BC0D0?logo=alpinedotjs&logoColor=black)
-![Kakao Map](https://img.shields.io/badge/Kakao%20Map-SDK-FFCD00?logo=kakao&logoColor=black)
-![Claude](https://img.shields.io/badge/AI-Claude-D97757?logo=claude&logoColor=white)
-![DeepSeek](https://img.shields.io/badge/Scaffolding-DeepSeek%20V4%20Flash-4D6BFE?logo=deepseek&logoColor=white)
-[![Codex Audit](https://img.shields.io/badge/Codex-Audit%20in%20progress-000000?logo=openai&logoColor=white)](docs/ARCHITECTURE_SERVICE_AUDIT_2026-09-03.md)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Redis](https://img.shields.io/badge/Redis-FF4438?logo=redis&logoColor=white)
+![Alpine.js](https://img.shields.io/badge/Alpine.js-8BC0D0?logo=alpinedotjs&logoColor=black)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
 
-**같은 집을 함께 찾는 사람들을 위한 매물 비교·평가 도구입니다.**
+Halley는 함께 살 집을 찾는 두 사람이 매물을 모으고, 같은 기준으로 비교하고, 임장 결과를 공유하는 폐쇄형 웹앱입니다.
+네이버 부동산에서 복사한 매물 상세 텍스트를 붙여넣으면 정보를 읽고, 채점·대출·실거래 참고 정보와 임장 동선을 한 화면에 제공합니다.
 
-네이버 부동산 매물을 붙여넣으면 40여 개 필드를 파싱하고, 14개 기준으로 채점해 순위를 매깁니다.
-그룹에 속한 사람들의 **현금을 합산해** 대출 한도와 예산을 계산하고, 함께 코멘트를 남기며 임장 동선을 짭니다.
+> 현재 저장소는 기능을 고정하는 프리징 단계입니다. 새로운 기능보다 보안·버그 수정과 운영 안정성을 우선합니다.
 
----
+## 빠른 시작
 
-## 목차
+### 필요한 환경
 
-1. [프로젝트 개요](#프로젝트-개요)
-2. [주요 기능](#주요-기능)
-3. [채점 기준](#채점-기준)
-4. [아키텍처](#아키텍처)
-5. [매물 등록 흐름](#매물-등록-흐름)
-6. [기술 스택](#기술-스택)
-7. [외부 연동](#외부-연동)
-8. [시작하기](#시작하기)
-9. [환경변수](#환경변수)
-10. [API](#api)
-11. [배치 작업](#배치-작업)
-12. [운영 메모](#운영-메모)
-13. [용어](#용어)
-14. [문서](#문서)
-15. [상태](#상태)
-16. [라이선스](#라이선스)
+- JDK 25
+- Docker 및 Docker Compose (PostgreSQL·Redis를 로컬에서 사용할 때)
+- 아이폰 사진(HEIC)을 처리하려면 libheif 1.16 이상과 HEIC 디코더
 
----
+~~~bash
+# macOS
+brew install libheif
 
-## 프로젝트 개요
+# Amazon Linux 2023
+sudo dnf install libheif
 
-집을 살 때 사람은 **여러 매물을 동시에 저울질**합니다. 그런데 비교할 정보가 흩어져 있습니다 —
-호가는 네이버에, 실거래는 국토부에, 공시가격은 V-World에, 규제지역은 법제처 고시에,
-대출 한도는 은행 창구에 있습니다.
+# Debian / Ubuntu
+sudo apt-get install libheif-dev
+~~~
 
-Halley는 그것을 **한 화면에 모아** 같은 기준으로 견줍니다. 그리고 혼자가 아니라
-**그룹**이 함께 봅니다 — 배우자·가족이 각자 계정으로 들어와 같은 매물 목록을 보고,
-각자 임장 인상을 매기고, 현금을 합산해 예산을 계산합니다.
+### 로컬 실행
 
-> **폐쇄형입니다.** 회원가입은 프로퍼티로 열고 닫으며, 매물은 **그룹 밖으로 새지 않습니다.**
-> 다른 그룹의 매물에 접근하면 403이 아니라 **404**를 돌려줍니다 — 403은 "있지만 못 본다"를
-> 알려 주는 셈이라 존재 자체가 새어 나갑니다.
+로컬 프로파일은 H2와 인메모리 캐시를 사용하므로 PostgreSQL·Redis 없이 시작할 수 있습니다.
 
----
+~~~bash
+git clone <repository-url>
+cd Halley
+./gradlew bootRun --args='--spring.profiles.active=local'
+~~~
+
+첫 실행 때 관리자 계정과 임시 비밀번호가 콘솔에 표시됩니다. 로그인한 뒤 비밀번호와 프로필을 먼저 확인해 주세요.
+
+PostgreSQL과 Redis를 함께 사용하려면 다음 순서로 실행합니다.
+
+~~~bash
+docker compose up -d
+./gradlew bootRun --args='--spring.profiles.active=local'
+~~~
+
+### 운영 실행
+
+운영 DB는 애플리케이션이 자동으로 만들지 않습니다. 배포 전에 스키마를 적용해 주세요.
+
+~~~bash
+psql "$DB_URL" -f docs/DDL.sql
+./gradlew bootRun --args='--spring.profiles.active=live'
+~~~
+
+이미 운영 중인 DB에는 docs/DDL-repair.sql을 사용합니다. APP_IMAGES_DIR은 반드시 절대 경로로 지정하십시오.
+
+## 사용 흐름
+
+1. 관리자가 계정을 만들고 그룹에 사용자를 초대합니다.
+2. 네이버 부동산 매물 상세 텍스트를 복사해 매물 등록에 붙여넣습니다. 네이버 페이지를 직접 크롤링하지 않습니다.
+3. 파싱 결과를 확인하고 저장합니다.
+4. 자동 채점이 완료되면 매물을 비교합니다. 매매와 전세는 서로 다른 목록으로 관리합니다.
+5. 구성원은 각자 임장 의견과 공간의 쾌적함 점수를 입력합니다.
+6. 대출 추정·시장 참고 정보·임장 플래너를 사용합니다.
 
 ## 주요 기능
 
 | 기능 | 설명 |
 |---|---|
-| **붙여넣기 등록** | 네이버 부동산 매물 상세 텍스트를 붙여넣으면 40여 개 필드가 자동 파싱됩니다 (PC·모바일 공통). 파싱 신뢰도를 필드별로 남겨 무엇을 못 읽었는지 보여 줍니다 |
-| **자동 채점** | 14개 기준을 우선순위 가중치로 종합 평가합니다. 산출 근거를 항목마다 문장으로 남깁니다 |
-| **AI 추천도** | 매물 제원·주변 시설·구성원 직장·쾌적함 평가·코멘트를 넣어 Claude에게 묻습니다. 사람의 판단이 바뀌면 자동으로 다시 묻습니다 |
-| **그룹** | 1인 1그룹. 초대 코드(8자리·24시간)로 합류하고, 빈 그룹은 자동 삭제됩니다. 매물·채점·코멘트가 모두 그룹 단위로 격리됩니다 |
-| **대출 한도** | LTV·**스트레스 DSR** 기반 자체 계산. 규제지역·주택 보유 수·금리유형·기존 부채 종류를 반영합니다 |
-| **실거래가** | 국토부 실거래를 12개월치 조회해 같은 단지·면적대 중앙값을 보여 줍니다 |
-| **공시가격·토지이용계획** | V-World에서 공시가격과 토지거래허가구역·정비구역을 받아 붙입니다 |
-| **규제지역 자동 적재** | 법제처 고시 PDF를 파싱해 투기과열지구·조정대상지역을 DB에 채웁니다 |
-| **가격 전망** | 실거래 추세·전세가율·장기 추세·전고점 대비·금리 국면·용적률 여유를 코드가 계산하고, **방향은 Claude가 판단**합니다. 매물 카드에 화살표 하나(▲▼▶)로만 뜹니다 |
-| **임장 플래너** | 하루 방문할 매물(최대 12건)을 고르면 자가용/대중교통 기준 최적 방문 순서를 계산합니다 |
-| **그룹 알림** | 매물 등록·삭제, 코멘트, 쾌적함 평가를 그룹 Webhook으로 보냅니다 |
-| **지도·로드뷰** | 카카오맵 마커와 로드뷰 모달 |
+| 매물 등록 | 붙여넣은 텍스트에서 정보를 파싱하고 필드별 신뢰도를 표시합니다. |
+| 결정론적 채점 | 가격·직주근접·역세권·교육·편의시설·녹지·연식·층·주차·세대수·입주 시기를 규칙으로 계산합니다. |
+| 구성원 평가 | 쾌적함 점수를 구성원별로 저장하고 평균을 총점에 반영합니다. |
+| 대출 추정 | LTV·스트레스 DSR·규제지역·보유 주택 수를 반영한 참고용 한도를 계산합니다. |
+| 시장 참고 정보 | 국토교통부 실거래, V-World 공시가격·토지이용계획, 규제지역을 표시합니다. 실거래가는 채점에 사용하지 않습니다. |
+| 가격 전망 | 코드가 계산한 지표를 바탕으로 LLM이 방향과 근거를 설명합니다. |
+| 임장 플래너 | 카카오맵·ODsay·카카오 Directions로 방문 순서를 계산합니다. |
+| 그룹 협업 | 그룹별 매물·코멘트·알림을 격리하고 Slack으로 주요 변경을 알립니다. |
+| 사진 | 로컬 볼륨에 사진을 저장합니다. HEIC는 서버에서 JPG로 변환해 전시합니다. |
 
----
+## 구조
 
-## 채점 기준
+~~~text
+src/main/java/banghak/home/halley
+├── adapter/inbound/web       HTTP Controller와 DTO
+├── adapter/outbound          PostgreSQL·Redis·외부 API 어댑터
+├── application/service       유스케이스와 그룹 권한 검증
+├── domain                    채점·대출·파싱·전망 규칙
+├── ingest/parser             붙여넣기 텍스트 파서
+└── batch                     상태·금리·규제지역 갱신 작업
 
-14개 항목을 **우선순위 가중치**로 합산합니다. 가중치는 관리자가 드래그로 바꿉니다.
+src/main/resources
+├── templates/index.mustache  Alpine.js 앱 셸
+├── static/js/app.js          화면 동작
+├── static/css/app.css        공통·반응형 스타일
+├── schema.sql                H2 로컬 스키마
+└── application-*.yaml       프로파일별 설정
+~~~
 
-| 코드 | 항목 | 방식 | 재료 |
-|---|---|---|---|
-| `PRICE` | 가격 | 자동 | 호가 · 그룹 현금 합계 · 대출 한도 |
-| `COMMUTE` | 직주근접 | 자동 | ODsay 대중교통 경로 (구성원 전원 평균) |
-| `STATION` | 역세권 | 자동 | 카카오 POI 최근접 지하철역 |
-| `EDUCATION` | 교육여건 | 혼합 | 배정 초등학교 · 주변 학교 POI |
-| `AMENITY` | 편의시설 | 자동 | 마트·병원·은행 POI |
-| `GREEN` | 녹색환경 | 혼합 | 공원·하천 POI |
-| `AGE` | 건물 연식 | 자동 | 사용승인연도 |
-| `FLOOR` | 층 | 자동 | 해당층 / 총층 |
-| `PARKING` | 주차 | 자동 | 세대당 주차대수 |
-| `HOUSEHOLDS` | 세대수 | 자동 | 총세대수 |
-| `MOVE_IN` | 입주시기 | 자동 | 즉시 · 협의 · 날짜 |
-| `COMFORT` | 공간의 쾌적함 | **수동** | 구성원이 각자 1~5점. 총점에는 **평균 × 20** |
-| `LLM_RECOMMENDATION` | AI 추천도 | 자동 | Claude |
-| `COMPARATIVE_ADVANTAGE` | 비교 우위 추천 | 자동 | 목록 전체를 한 번에 비교 |
+Mustache 하나를 앱 셸로 사용하고 Alpine.js가 상태를 렌더링합니다. React나 Vue 같은 별도 프론트엔드 빌드 단계는 없습니다.
+데이터베이스는 jOOQ 리포지토리에서 접근하며 Redis에는 세션·캐시·rate limit만 저장합니다.
 
-> **이미 자동 채점된 항목은 수동으로 덮어쓸 수 없습니다.** 화면이 칸을 추정값으로 채워 두기
-> 때문에, 그것을 그대로 저장하면 자동 채점이 통째로 수동으로 굳고 산출 근거가 사라집니다.
-> 다만 **산출에 실패해 값이 없으면** 사람이 채울 수 있습니다.
+## 채점 원칙
 
----
+- 가격 채점은 호가 기준입니다. KB시세와 국토부 실거래가는 가격 점수에 넣지 않습니다.
+- 매매와 전세는 별도 순위표로 유지합니다.
+- 기준 점수는 코드로 설명할 수 있는 결정론적 규칙입니다.
+- ODsay 장애 때만 LLM이 이동 시간을 추정하며, LLM이 점수 자체를 정하지는 않습니다.
+- 자동 산출 실패는 MISSING으로 표시하고 수동 입력을 허용합니다.
 
-## 아키텍처
+자세한 산식은 docs/DESIGN.md와 docs/SCORING.md를 참고하십시오.
 
-```mermaid
-flowchart TB
-    subgraph browser["Browser — App Shell"]
-        UI["Mustache 한 장 + Alpine.js<br/>빌드 단계 없음<br/>폴링: 채점 판 번호 3초 · AI 추천도 2초"]
-    end
+## 외부 연동과 환경변수
 
-    subgraph app["Spring Boot"]
-        direction TB
-        WEB["adapter/inbound/web<br/>컨트롤러 · DTO"]
-        SVC["application/service<br/>서비스 · port/out (외부·캐시만)"]
-        GUARD["PropertyAccessGuard<br/>그룹 격리의 유일한 길목"]
-        DOM["domain<br/>채점 산식 · 대출 계산 · 순수 로직"]
-        PERS["adapter/outbound/persistence<br/>jOOQ — 코드젠 없이 손으로 쓴 테이블 정의"]
-        CACHE["adapter/outbound/cache<br/>Redis(live) / InMemory(local)"]
-        EXT["adapter/outbound/external<br/>OpenFeign + Resilience4j<br/>FallbackFactory 필수"]
-
-        WEB --> SVC
-        SVC --> GUARD
-        SVC --> DOM
-        SVC --> PERS
-        SVC --> CACHE
-        SVC --> EXT
-    end
-
-    subgraph outside["바깥"]
-        direction TB
-        KAKAO["카카오<br/>지도 · 지오코딩 · POI · 자가용 경로"]
-        ODSAY["ODsay<br/>대중교통"]
-        MOLIT["국토교통부<br/>실거래가"]
-        VWORLD["V-World<br/>공시가격 · 토지이용계획 · 행정구역"]
-        LAW["법제처<br/>규제지역 고시"]
-        FSS["금융감독원<br/>대출 상품 금리"]
-        ECOS["한국은행 ECOS<br/>가계대출 금리 시계열"]
-        CLAUDE["Claude<br/>AI 추천도 · 가격 전망"]
-        NAVER["네이버 검색<br/>관련 기사"]
-        SLACK["Slack<br/>그룹별 Webhook"]
-    end
-
-    UI -- "REST (JSON)" --> WEB
-    EXT --> KAKAO & ODSAY & MOLIT & VWORLD & LAW
-    EXT --> FSS & ECOS & CLAUDE & NAVER & SLACK
-    DB[("PostgreSQL(live)<br/>H2(local)")]
-    PERS --> DB
-```
-
-**포트는 캐시·세션·외부 API에만 둡니다.** DB 접근은 리포지토리를 직접 씁니다 —
-바꿀 계획이 없는 것에 추상화를 씌우면 읽기만 어려워집니다.
-
----
-
-## 매물 등록 흐름
-
-외부 API가 수십 번 붙는 작업이라 **요청이 기다리는 부분과 배경으로 미루는 부분**을 나눕니다.
-
-```mermaid
-flowchart TB
-    A["사용자가 매물 등록"] --> B["DB 저장 (커밋)"]
-    B --> C["응답 — 카드가 곧바로 뜬다<br/>점수 자리에 '분석 중'"]
-    C -.-> D
-
-    subgraph D["앞 단계 — 배경 (수 초)"]
-        direction LR
-        D1["초등학교"]
-        D2["토지이용계획"]
-        D3["채점"]
-    end
-
-    D --> E["채점 판 번호가 오른다<br/>목록이 스스로 갱신"]
-    E -.-> F
-
-    subgraph F["뒤 단계 — 배경 (수십 초)"]
-        direction LR
-        F1["실거래가"]
-        F2["공시가격"] --> F3["AI 추천도"]
-    end
-
-    F --> G["진행 막대 + 폴링으로 자동 반영"]
-```
-
-> **등록 응답은 보정을 기다리지 않습니다** (설계 I220). 한때 앞 단계를 기다렸는데,
-> ODsay 할당량이 끝나 직주근접이 LLM으로 넘어가면 사람당 4~5초라 등록 한 번이
-> 수십 초가 됐습니다. 카드를 먼저 보여 주고 진행 표시를 띄웁니다.
-
-> **AI 추천도는 공시가격 뒤에 옵니다.** 프롬프트에 `공시가격(원)` 줄이 들어가기 때문입니다.
-> 나란히 돌리면 첫 판단이 '정보 없음'으로 굳고, 그 뒤로 다시 물을 계기가 없습니다.
-
-> **등록 트랜잭션 안에서는 돌지 않습니다.** 외부 API를 부르는 동안 DB 커넥션을 붙잡으면
-> 동시 등록 몇 건에 풀이 마르고, 카카오 장애가 매물 등록 자체를 되돌립니다.
-
-동시 실행 수는 세마포어로 묶습니다(`ENRICHMENT_MAX_CONCURRENCY`, 기본 400) —
-스레드가 아니라 **그 끝에 붙은 공공 API**를 지키는 값입니다.
-
----
-
-## 기술 스택
-
-| 구분 | 기술 |
+| 변수 | 용도 |
 |---|---|
-| 언어 / 프레임워크 | Java 25, Spring Boot 4.1.x |
-| 빌드 | Gradle |
-| 영속화 | jOOQ 3.21 — **코드젠 없이** 테이블 정의를 손으로 씁니다 |
-| DB | PostgreSQL(live) / H2 인메모리(local) |
-| 캐시 · 세션 | Redis(live) / 인메모리(local) |
-| 화면 | Mustache App Shell + Alpine.js — **빌드 단계 없음** |
-| 외부 호출 | OpenFeign + Resilience4j |
-| 지도 | 카카오맵 JS SDK |
-| 비동기 | 가상 스레드 (`Thread.ofVirtual()`) + 세마포어 |
-| 배포 | `https://halley.furaiki-lifelog.com`, Let's Encrypt |
+| DB_URL, DB_USERNAME, DB_PASSWORD | PostgreSQL 접속 |
+| REDIS_HOST, REDIS_PORT | Redis 접속 |
+| APP_IMAGES_DIR | 업로드 이미지 절대 경로 |
+| KAKAO_JS_KEY, KAKAO_REST_KEY | 지도·주소·POI·경로 |
+| ODSAY_API_KEY | 대중교통 경로 |
+| MINISTRY_API_KEY | 국토교통부 실거래 |
+| HOUSING_PRICE_API_KEY | V-World |
+| LAW_OC | 법제처 규제지역 고시 |
+| FSS_API_KEY, ECOS_KEY | 금리·스트레스 금리 |
+| ANTHROPIC_API_KEY | Claude 추천·전망·대중교통 fallback |
+| NAVER_CLIENT_ID, NAVER_CLIENT_SECRET | 관련 뉴스 검색 |
 
----
+키가 없는 외부 기능은 빈 결과로 표시되고 매물 등록은 계속할 수 있습니다. 호출 규격과 키 발급처는 docs/INTERFACE_MANUAL.md에 정리되어 있습니다.
+Slack Webhook URL은 그룹별 DB 값이며, 실제 알림을 보내려면 SLACK_ENABLED=true가 필요합니다.
 
-## 외부 연동
+## API 개요
 
-| 연동 | 용도 | 인증 | 없으면 |
-|---|---|---|---|
-| 카카오맵 JS | 지도 · 마커 · 로드뷰 | JS 키 (클라이언트) | 지도가 안 뜬다 |
-| 카카오 로컬 REST | 지오코딩 · POI | REST 키 | 주소 검색·POI 채점 불가 |
-| 카카오 Directions | 자가용 경로 | REST 키 (공유) | 임장 자가용 모드 불가 |
-| ODsay | 대중교통 경로 | 쿼리 파라미터 | **직주근접 미산출** |
-| 국토부 실거래가 | 참고 실거래 | 서비스 키 | 실거래 카드가 빈다 |
-| V-World | 공시가격 · 토지이용계획 · 행정구역 | 인증키 | 공시가격·규제 정보가 빈다 |
-| 법제처 | 규제지역 고시 | `OC` | **규제지역을 사람이 넣어야 한다** |
-| 금감원 | 대출 상품 금리 | `auth` | 기본 금리 4%로 계산 |
-| 국토부 전월세 실거래 | 전세가율 | 서비스 키(공유) | 전세가율 지표가 빠진다 |
-| 국토부 건축물대장 | 현재 용적률 → 재건축 여력 | 서비스 키(공유) | 용적률 여유 지표가 빠진다 |
-| 한국은행 ECOS | 가계대출 금리 5년 | 인증키(**경로**) | 스트레스 금리가 고정값으로 남는다 |
-| 네이버 검색(뉴스) | 관련 기사 링크 — **점수 미반영** | Client ID/Secret | 전망 모달의 기사 목록이 빈다 |
-| Claude | AI 추천도 · **가격 전망 판단** | `x-api-key` | 그 두 항목만 미산출 |
-| Slack Webhook | 그룹 알림 | URL 자체 | 알림이 안 간다 |
+전체 명세는 docs/DESIGN.md를 기준으로 합니다.
 
-> **키가 없으면 그 기능만 비고 나머지는 그대로 돕니다.** 외부 연동 실패가 본 기능을
-> 막지 않는 것이 원칙입니다. 다만 **비었다는 사실은 로그와 화면에 드러냅니다** —
-> 조용히 넘어가면 "왜 값이 없는지" 알 수 없습니다.
-
-자세한 호출 규격·응답 구조·함정은 [`docs/INTERFACE_MANUAL.md`](./docs/INTERFACE_MANUAL.md)에 있습니다.
-
----
-
-## 시작하기
-
-### 사전 요구사항
-
-- JDK 25
-- libheif 1.16 이상 (아이폰 HEIC 사진 디코딩)
-- Docker (PostgreSQL · Redis 로컬 실행용 — `local` 프로파일만 쓴다면 불필요)
-
-macOS에서는 `brew install libheif`, Amazon Linux 2023에서는 `sudo dnf install libheif`,
-Debian/Ubuntu에서는 `apt-get install libheif-dev`로 설치합니다. Homebrew 기본 경로는
-Gradle이 자동으로 찾고, 다른 위치라면 `JAVA_LIBRARY_PATH`로 알려 줍니다. 직접 JAR를
-실행할 때는 네이티브 접근을 허용해야 합니다.
-
-```bash
-java --enable-native-access=ALL-UNNAMED -jar app.jar
-```
-
-macOS에서 JAR를 직접 실행한다면
-`-Djava.library.path=/opt/homebrew/lib`도 함께 줍니다. `bootRun`과 테스트에는 이 경로와
-네이티브 접근 옵션이 이미 설정돼 있습니다.
-
-### 로컬 실행
-
-`local` 프로파일은 **H2 인메모리 + 인메모리 캐시**라 Docker 없이 바로 뜹니다.
-
-```bash
-git clone <repo-url>
-cd halley
-
-./gradlew bootRun --args='--spring.profiles.active=local'
-```
-
-첫 실행 시 계정이 없으면 **콘솔에 임시 Admin 계정**이 출력됩니다.
-
-```
-==========================================================
-  username : admin
-  password : SBwkpr67AKkUUEox
-  Please change the password after first login.
-==========================================================
-```
-
-로그인하면 비밀번호 변경과 프로필 확인을 **강제로** 거칩니다.
-
-### 운영 실행
-
-```bash
-DB_URL=jdbc:postgresql://... DB_USERNAME=... DB_PASSWORD=... \
-REDIS_HOST=... \
-./gradlew bootRun --args='--spring.profiles.active=live'
-```
-
-> **운영 DB 스키마는 자동 생성되지 않습니다** (`spring.sql.init.mode: never`).
-> [`docs/DDL.sql`](./docs/DDL.sql)로 처음 만들고, 이미 돌던 DB가 뒤처졌으면
-> [`docs/DDL-repair.sql`](./docs/DDL-repair.sql)을 쓰십시오 — 전부 `IF NOT EXISTS`라
-> 현재 상태와 무관하게 안전하고 여러 번 돌려도 같은 결과입니다.
-
-### 테스트
-
-```bash
-./gradlew test
-```
-
----
-
-## 환경변수
-
-### 필수 (운영)
-
-| 변수 | 설명 |
+| 영역 | 주요 경로 |
 |---|---|
-| `DB_URL` · `DB_USERNAME` · `DB_PASSWORD` | PostgreSQL 접속 정보 |
-| `REDIS_HOST` · `REDIS_PORT` | Redis 접속 정보 |
-| `APP_BASE_URL` | Slack 알림에 붙는 링크의 앞부분. 비우면 링크를 안 답니다 |
-| `APP_IMAGES_DIR` | 올린 사진이 쌓이는 **절대 경로**. 아래 설명을 보십시오 |
-| `IMAGE_MAX_FILE_SIZE` · `IMAGE_MAX_REQUEST_SIZE` | 사진 한 장·요청의 업로드 상한. 기본 `20MB` · `25MB` |
+| 인증 | /api/auth/login, /api/auth/logout, /api/auth/session |
+| 그룹 | /api/groups/me, /api/groups/join, /api/groups/me/invites |
+| 매물 | /api/properties, /api/properties/parse-preview, /api/properties/{id} |
+| 채점·분석 | /api/properties/{id}/scores, /rescore, /llm-recommendation, /forecast |
+| 대출·참고 | /api/properties/{id}/loan-estimate, /reference-transactions, /land-use |
+| 임장 | /api/itinerary/optimize, /api/itinerary/plans |
+| 관리자 | /api/admin/settings, /api/admin/regulations, /api/admin/notifications |
 
-> **`APP_IMAGES_DIR`을 반드시 절대 경로로 주십시오.** 기본값 `uploads`는 상대
-> 경로라 **JVM을 띄운 디렉터리** 기준으로 풀립니다 — jar가 놓인 자리가 아닙니다.
-> 다른 디렉터리에서 다시 띄우면 **DB 기록은 남고 파일만 사라진 것처럼** 보입니다
-> (깨진 이미지). 서버가 `/home/ec2-user/halley`라면:
->
-> ```bash
-> APP_IMAGES_DIR=/home/ec2-user/halley/uploads
-> ```
->
-> 실제로 어디를 쓰는지는 **기동 로그**에 찍힙니다:
-> `Serving uploaded images from /home/ec2-user/halley/uploads (exists=true, writable=true)`.
-> 사진이 안 보이면 여기부터 보십시오.
+## 테스트
 
-### 외부 연동 키
+~~~bash
+./gradlew test       # Java 단위·통합 테스트
+./gradlew jsTest     # 실제 app.js를 실행하는 Node 테스트
+./gradlew build      # 테스트를 포함한 배포 빌드
+~~~
 
-| 변수 | 발급처 |
-|---|---|
-| `KAKAO_JS_KEY` | 카카오 개발자 — JavaScript 키 |
-| `KAKAO_REST_KEY` | 카카오 개발자 — REST 키 (로컬·Directions 공용) |
-| `ODSAY_API_KEY` | ODsay LAB |
-| `MINISTRY_API_KEY` | 공공데이터포털 — 국토부 실거래가 |
-| `HOUSING_PRICE_API_KEY` | V-World (공시가격·토지이용계획·행정구역 공용) |
-| `LAW_OC` | 법제처 국가법령정보 공동활용 |
-| `FSS_API_KEY` | 금융감독원 금융상품통합비교공시 |
-| `ECOS_KEY` | 한국은행 경제통계시스템 |
-| `ANTHROPIC_API_KEY` | Anthropic Console |
-| `NAVER_CLIENT_ID` · `NAVER_CLIENT_SECRET` | **네이버 클라우드 콘솔 — API Hub > 검색** (옛 developers.naver.com 키는 401) |
-
-> **Slack Webhook URL은 환경변수가 아닙니다.** 그룹마다 다르므로 DB
-> (`user_group.slack_webhook_url`)에 저장하고 **그룹 정보 화면**에서 관리합니다.
-
-### 동작 조절
-
-| 변수 | 기본값 | 설명 |
-|---|---|---|
-| `MEMBERSHIP_SIGN_UP_OPEN` | `true` | 회원가입 화면 노출 여부 |
-| `MINISTRY_LOOKBACK_MONTHS` | `12` | 실거래를 몇 개월 거슬러 볼지. **이 값이 그대로 호출 횟수입니다** |
-| `ENRICHMENT_MAX_CONCURRENCY` | `400` | 보정 동시 실행 상한. 스레드가 아니라 외부 API를 지키는 값 |
-| `DB_POOL_MAX` | `5` | Hikari 최대 커넥션. **DB 한도에 맞춰 줄이는 방향입니다** |
-| `DB_POOL_MIN_IDLE` | `1` | |
-| `DB_POOL_TIMEOUT_MS` | `3000` | 커넥션 대기 상한. 오래 매달리면 화면이 멈춘 것으로 보입니다 |
-| `LOAN_STRESS_FLOOR` · `LOAN_STRESS_CAP` | `0.015` · `0.030` | 스트레스 금리 하한·상한 (고시가 바뀌면 여기만) |
-| `ECOS_STAT_CODE` | `121Y006` | 예금은행 대출금리 |
-| `ECOS_HOUSEHOLD_ITEM` | `BECBLA03` | 가계대출 항목 코드 |
-| `LLM_ENABLED` · `LLM_PROVIDER` · `LLM_CLAUDE_MODEL` | `true` · `claude` · `claude-opus-5` | |
-| `TRANSIT_FALLBACK_MODEL` | (`LLM_CLAUDE_MODEL`) | ODsay 하루치가 끝났을 때 대신 답할 모델 (설계 I210) |
-| `SLACK_ENABLED` | **`false`** | 알림 전체 스위치. **켜야 아무것도 나갑니다** |
-| `SLACK_NOTIFY_PROPERTY_CREATED` | `false` | 매물 등록 알림만 따로 |
-
-> 카카오 개발자 콘솔에 로컬(`http://localhost:8080`)과 운영 도메인을 **모두** 등록해야
-> 지도가 렌더됩니다.
-
-### Slack 알림 붙이기
-
-**웹훅 URL은 환경변수가 아니라 그룹마다 DB에 있습니다**(`user_group.slack_webhook_url`).
-그룹이 각자 다른 채널을 쓰기 때문입니다 — 한 곳에 몰면 **우리 매물이 남의 채널에 뜹니다.**
-
-#### 1. Slack에서 웹훅 만들기
-
-1. <https://api.slack.com/apps> → **Create New App**
-2. **Or start your own way** 아래의 **Blank app** → *Continue*
-   *(위쪽 `AI agent`·`Starter app`은 템플릿입니다 — 웹훅만 쓸 것이라 필요 없습니다)*
-3. 앱 이름과 워크스페이스를 고릅니다
-4. 왼쪽 메뉴 **Incoming Webhooks** → 스위치를 **On**
-5. 맨 아래 **Add New Webhook to Workspace** → 알림을 받을 **채널 선택** → *Allow*
-6. 만들어진 URL을 복사합니다
-
-> **Slack 화면은 종종 바뀝니다.** 이 문서는 2026-09-02 기준입니다 —
-> 예전에는 2번이 `From scratch`였습니다. 이름이 달라 보이면
-> <b>"빈 앱으로 시작"에 해당하는 것</b>을 고르면 됩니다.
-
-생김새는 이렇습니다 (실제 값이 아니라 **모양만** 적습니다 — 진짜를 문서에 두면
-GitHub 비밀 검사가 푸시를 막습니다):
-
-```
-https://hooks.slack.com/services/<팀ID>/<채널ID>/<토큰>
-```
-
-> **이 URL 자체가 인증입니다.** 아는 사람은 누구나 그 채널에 글을 쓸 수 있습니다 —
-> 공개 저장소·이슈·스크린샷에 올리지 마십시오. 새면 Slack 앱 화면에서 지우고 다시 만듭니다.
-
-#### 2. 앱에 넣기
-
-**헤더의 `{그룹명}의` → 그룹 정보 → Slack Webhook URL** 칸에 붙여넣고 **저장**.
-바로 옆 **테스트** 버튼으로 실제로 닿는지 확인합니다 — 채널에 한 줄이 뜨면 된 것입니다.
-
-#### 3. 서버 스위치 켜기
-
-```bash
-SLACK_ENABLED=true                    # ← 이게 false 면 아무것도 안 나갑니다 (기본값)
-SLACK_NOTIFY_PROPERTY_CREATED=true    # 매물 등록 알림도 받으려면
-```
-
-> **`SLACK_ENABLED`의 기본값은 `false`입니다.** 웹훅을 넣고 저장해도 이걸 안 켜면
-> 조용합니다. **테스트 버튼은 이 스위치와 무관하게** 보내므로, "테스트는 되는데
-> 실제 알림이 안 온다"면 여기부터 보십시오.
-
-#### 무엇이 언제 가나
-
-| 사건 | 스위치 | 보내는 곳 |
-|---|---|---|
-| 매물 등록 | `SLACK_NOTIFY_PROPERTY_CREATED` | `PropertyCreatedListener` |
-| 매물 삭제 | 없음 (항상) | `PropertyCreatedListener` |
-| 코멘트 등록 | 없음 (항상) | `PropertyInsightListener` |
-| 공간의 쾌적함 평가 | 없음 (항상) | `PropertyInsightListener` |
-
-메시지는 **평문 한 줄**입니다(`{"text": "..."}`). 블록 킷을 쓰지 않습니다 —
-읽는 사람이 몇 명뿐이라 꾸밈보다 **한눈에 읽히는 것**이 낫습니다.
-
-```
-:house: 새 매물이 등록되었습니다 — 상계주공7단지 714동
-:speech_balloon: 월터님이 상계주공7단지 714동에 의견을 남겼습니다
-```
-
-#### 안 오면 볼 것
-
-| 증상 | 원인 |
-|---|---|
-| 테스트도 안 됨 | URL 오타 · Slack 앱에서 웹훅을 지웠음 |
-| 테스트는 되는데 알림이 없음 | **`SLACK_ENABLED=false`** |
-| 등록만 안 옴 | `SLACK_NOTIFY_PROPERTY_CREATED=false` |
-| 가끔 빠짐 | 전송 실패는 `notification_log`에 남고 **5분마다 재시도**합니다(`NotificationRetryJob`). 관리자 → 설정 → 알림 이력에서 상태를 봅니다 |
-
-> **알림 실패가 본 기능을 막지 않습니다.** 매물 등록·코멘트는 Slack이 죽어도 그대로 됩니다.
-
----
-
-## API
-
-REST 85개. 주요한 것만 적습니다 — 전체 명세는 [`docs/DESIGN.md`](./docs/DESIGN.md)에 있습니다.
-
-### 인증 · 계정
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `POST` | `/api/auth/login` | 로그인. 남은 세션 시간을 함께 준다 |
-| `POST` | `/api/auth/logout` | |
-| `GET` | `/api/auth/session` | 세션 확인 (비밀번호 변경·프로필 확인 필요 여부 포함) |
-| `POST` | `/api/auth/password` | 비밀번호 변경 |
-| `POST` | `/api/users/sign-up` | 회원가입 (`MEMBERSHIP_SIGN_UP_OPEN`) |
-| `PUT` | `/api/users/me/profile` | 프로필 (직장 좌표 · 보유 현금 · 연소득) |
-| `PUT` | `/api/users/me/debts` | 기존 부채 (종류별) |
-| `POST` | `/api/users/me/withdraw` | 탈퇴 |
-
-### 그룹
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `GET` | `/api/groups/me` | 내 그룹 |
-| `GET` | `/api/groups/me/detail` | 그룹 정보 화면 — 현금 합계 · 매물 수 · 구성원 |
-| `PUT` | `/api/groups/me` | 그룹명 변경 (그룹의 누구나) |
-| `PUT` | `/api/groups/me/webhook` | Slack Webhook |
-| `POST` | `/api/groups/me/webhook/test` | 테스트 발송 |
-| `POST` | `/api/groups/me/invites` | 초대 코드 발급 (8자리 · 24시간) |
-| `POST` | `/api/groups/join` | 초대 코드로 합류 |
-
-### 매물
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `GET` | `/api/properties` | 목록 (채점 포함, 거래유형 필터) |
-| `POST` | `/api/properties` | 등록 — 앞 단계 보정까지 마치고 응답 |
-| `GET` `PUT` `DELETE` | `/api/properties/{id}` | 단건 · 수정 · 삭제 |
-| `POST` | `/api/properties/parse-preview` | 붙여넣기 파싱 미리보기 |
-| `PATCH` | `/api/properties/{id}/status` | 판매 상태 |
-| `GET` | `/api/properties/score-versions` | 채점 판 번호 — 화면 폴링용 |
-
-### 채점 · 분석
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `PUT` | `/api/properties/{id}/scores` | 수동 점수 저장 |
-| `POST` | `/api/properties/{id}/scores/recompute` | **미산출 항목 재산출** |
-| `POST` | `/api/properties/{id}/rescore` | 재채점 |
-| `GET` | `/api/properties/{id}/llm-recommendation` | AI 추천도 (진행 중 표시 포함) |
-| `GET` | `/api/properties/{id}/forecast` | 가격 전망 — 결과가 없어도 200 (진행 중인지 알려야 한다) |
-| `POST` | `/api/properties/{id}/forecast/refresh` | 전망 다시 분석 (1~2분) |
-| `GET` | `/api/properties/{id}/news` | 관련 기사 — **점수·프롬프트 미반영** |
-| `GET` `POST` | `/api/properties/comparative-analysis` | 비교 우위 |
-| `GET` `PUT` | `/api/criteria/weights` | 가중치 |
-
-### 매물 부가 정보
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `POST` | `/api/properties/{id}/loan-estimate` | 대출 한도 (LTV · 스트레스 DSR) |
-| `GET` | `/api/properties/{id}/reference-transactions` | 국토부 실거래 |
-| `GET` `POST` | `/api/properties/{id}/land-use` | 토지이용계획 |
-| `GET` `POST` `PUT` `DELETE` | `/api/properties/{id}/comments` | 코멘트 |
-| `GET` `POST` `DELETE` | `/api/properties/{id}/images` | 이미지 |
-| `GET` `PUT` | `/api/properties/{id}/agents` | 중개사 |
-
-### 임장
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `POST` | `/api/itinerary/optimize` | 최적 방문 순서 |
-| `POST` `GET` | `/api/itinerary/plans` · `/{id}` | 계획 저장 · 조회 |
-| `POST` | `/api/itinerary/plans/{id}/recompute` | 다시 계산 |
-| `GET` `PUT` | `/api/itinerary/start-location` | 출발지 |
-
-### 관리자
-
-| 메서드 | 경로 | 설명 |
-|---|---|---|
-| `GET` `POST` | `/api/admin/groups` | 그룹 목록 · 생성 |
-| `GET` `PUT` | `/api/admin/settings` | 시스템 설정 |
-| `GET` `PUT` | `/api/admin/regulations` · `/params` | 규제 파라미터 |
-| `GET` `POST` `DELETE` | `/api/admin/regulated-areas` | 규제지역 |
-| `POST` | `/api/admin/stress-rate/refresh` | **스트레스 금리 재산출** (ECOS) |
-| `GET` | `/api/admin/notifications` | 알림 발송 이력 |
-
----
+화면 동작을 바꾸면 src/test/js/에서 실제 app.js를 사용하는 테스트도 함께 수정합니다. 로컬 테스트는 H2를 사용하고, 운영 배포 전에는 PostgreSQL에 DDL을 적용해 마이그레이션을 확인해야 합니다.
 
 ## 배치 작업
 
-| 작업 | 주기 | 하는 일 |
-|---|---|---|
-| `ListingCheckJob` | 매일 | 매물이 판매완료됐는지 확인하고 그룹에 알린다 |
-| `RegulationNoticeJob` | 매일 04:00 | 법제처 고시가 바뀌었으면 규제지역을 다시 적재한다 |
-| `MarketRateJob` | 매일 04:30 | 금감원 공시 금리를 갱신한다 |
-| `StressRateJob` | 매월 1일 04:45 + 기동 시 | ECOS로 스트레스 금리를 다시 산출한다 |
-| `NotificationRetryJob` | 5분 | 실패한 Slack 알림을 재시도한다 |
+| 작업 | 역할 |
+|---|---|
+| ListingCheckJob | 매물 판매 상태 확인 |
+| RegulationNoticeJob | 법제처 규제지역 갱신 |
+| MarketRateJob | 금융상품 금리 갱신 |
+| StressRateJob | ECOS 기반 스트레스 금리 갱신 |
+| NotificationRetryJob | 실패한 Slack 알림 재전송 |
 
-> 시간을 벌려 둔 이유는 **기동 직후 외부 호출이 몰리지 않게** 하기 위해서입니다.
+## 보안과 운영 주의사항
 
----
-
-## 운영 메모
-
-### 프로파일
-
-| | `local` | `live` |
-|---|---|---|
-| DB | H2 인메모리 | PostgreSQL |
-| 캐시·세션 | 인메모리 | Redis |
-| 스키마 | `schema.sql` 자동 적용 | **수동** (`docs/DDL.sql`) |
-
-> **H2 URL에서 `DB_CLOSE_DELAY=-1`을 빼지 마십시오.** 인메모리 DB는 마지막 커넥션이
-> 닫히는 순간 **스키마째 사라집니다** — 기동 직후엔 멀쩡하다 한참 뒤에 갑자기
-> 모든 질의가 터집니다.
-
-### local과 live가 다른 지점
-
-같은 컬럼이 dialect마다 다른 타입으로 옵니다 — live는 `jsonb`, local은 `json`.
-**타입을 좁히면 live에서만 터집니다** (`JSONB cannot be cast to JSON`).
-`parse_confidence` · `path_summary` · `payload` · `assumptions` 넷이 그렇습니다.
-
-### 커넥션 풀
-
-무료 등급 PostgreSQL은 `max_connections`가 20~30 언저리입니다.
-**느리다고 풀을 키우면 더 느려집니다** — DB가 감당할 동시 실행 수는 정해져 있고,
-그보다 많은 커넥션은 DB 안에서 줄을 섭니다. 기본값을 5로 둔 이유입니다.
-
----
-
-## 용어
-
-**도보 N분** — 직선거리 × 우회계수 1.3 ÷ 보행속도 67m/분.
-예: 역까지 직선 500m → `500 × 1.3 ÷ 67 ≈ 9.7분`. 언덕·지형은 반영하지 않으며 수동 보정할 수 있습니다.
-
-**스트레스 DSR** — 미래 금리 상승을 가정해 한도를 좁히는 규제.
-`실효 스트레스 = 기준 스트레스 금리 × 단계 적용률 × 금리유형 가중치`.
-**한도 산정과 실제 상환액에 다른 금리를 씁니다** — 섞으면 둘 다 틀립니다.
-
-**MCI / MCG** — 주택담보대출에 붙이는 보증보험. 가입하면 소액임차보증금(방공제)만큼
-한도가 늘어납니다. 5,500만원을 좌우하는 항목이라 기본으로 켜 둡니다.
-
-**임장** — 매물을 직접 보러 가는 것. 쾌적함 점수가 있으면 다녀온 것으로 봅니다.
-
----
+- 그룹 경계를 서비스 계층에서 다시 확인하며, 다른 그룹의 매물은 404로 응답합니다.
+- 네이버 매물 서버를 크롤링하지 않습니다. 등록은 복사·붙여넣기 파싱만 사용합니다.
+- 원문 매물 텍스트는 외부 LLM으로 보내지 않습니다.
+- 대출·세금·실거래 정보는 참고용입니다. 실제 의사결정 전에는 금융기관·관할 기관에 확인하십시오.
+- 운영 로그·업로드 디렉터리·API 키를 저장소에 커밋하지 마십시오.
 
 ## 문서
 
-| 문서 | 내용 |
-|---|---|
-| [`docs/DESIGN.md`](./docs/DESIGN.md) | 전체 설계서 — 아키텍처 · ERD · 화면 정의 · API 명세 · 채점 산식 · **확정된 의사결정 이력(I1~)** |
-| [`docs/INTERFACE_MANUAL.md`](./docs/INTERFACE_MANUAL.md) | 외부 API 매뉴얼 — 키 발급처 · 호출 규격 · 응답 구조 · 실측으로 드러난 함정 |
-| [`docs/SCHEMA.md`](./docs/SCHEMA.md) | DB 스키마 — 관계도(mermaid) · 표별 요약 · 조심할 것 |
-| [`docs/DDL.sql`](./docs/DDL.sql) | PostgreSQL 스키마 (초기 생성 + 마이그레이션 이력) |
-| [`docs/DDL-repair.sql`](./docs/DDL-repair.sql) | 멱등 복구 스크립트 — 운영 DB가 뒤처졌을 때 |
-| [`docs/ADJUST_CACHE.md`](./docs/ADJUST_CACHE.md) | 캐시·성능 검토 (실측 기반) |
-| [`docs/SCORING.md`](./docs/SCORING.md) | 추천 점수 — 항목별 가중치 · 산출 재료 · 다시 채점하는 계기 |
-| [`docs/PRICE_FORECAST.md`](./docs/PRICE_FORECAST.md) | 가격 전망 설계 — 지표 산식 · 코드/LLM 역할 분담 · 안전장치 |
-| [`docs/MORTGAGE_ENGINE.md`](./docs/MORTGAGE_ENGINE.md) | 대출 계산 엔진 — LTV · 스트레스 DSR · 담보가치 |
-| [`docs/DDL-forecast-reset.sql`](./docs/DDL-forecast-reset.sql) | 전망 재시작용 정리 (429·400 시절 값 걷어내기) |
-| [`docs/COMPLEX_NAME_MATCHING.md`](./docs/COMPLEX_NAME_MATCHING.md) | 단지명 매칭 검토 — 브랜드가 바뀐 단지를 어떻게 찾을 것인가 **(미구현)** |
-| [`AGENTS.md`](./AGENTS.md) | AI 코딩 에이전트용 작업 지침 |
+- docs/DESIGN.md: 전체 설계와 확정 결정
+- docs/INTERFACE_MANUAL.md: 외부 API 호출 방법
+- docs/SCHEMA.md: 데이터베이스 구조
+- docs/SCORING.md: 채점 산식
+- docs/MORTGAGE_ENGINE.md: 대출 계산 규칙
+- docs/COMMENT_GUIDELINES.md: 주석 작성 규칙
+- AGENTS.md: 개발·테스트 규칙
 
-> **설계 결정은 번호로 관리합니다.** 코드 주석의 `(설계 I117)` 같은 표기는
-> `docs/DESIGN.md` 16장의 해당 항목을 가리킵니다. **왜 그렇게 했는지**가 거기 있습니다.
+## 프리징 상태
 
----
-
-## 상태
-
-개인 프로젝트 · 비공개 저장소 · 소수 사용자 · 상업적 이용 없음.
-
-대출 한도·실거래가·규제지역은 **자체 계산과 공공 데이터**이며 실제 은행 심사 결과와
-다를 수 있습니다. 투자 판단의 근거로 삼지 마십시오.
-
-**가격 전망은 특히 그렇습니다.** 공개된 지표 몇 개로 낸 것이고 틀릴 수 있습니다.
-지표들이 서로 다른 방향을 가리키면 **많은 쪽을 따르되 그 사실을 함께 보여 줍니다**
- — 확신이 있어서가 아니라, 무엇을 보고 그렇게 판단했는지 드러내려는 것입니다.
-
----
+Halley는 2인 전용 비공개 서비스로 운영합니다. 현재 기능과 외부 연동 계약을 고정하며, 이후 변경은 보안 취약점·데이터 손상·사용을 막는 버그에 한해 검토합니다.
+새로운 기능은 별도 브랜치와 설계 문서에서 먼저 합의해야 합니다.
 
 ## 라이선스
 
-[MIT](./LICENSE) © 2026 walter.hwang
+MIT © 2026 walter.hwang
 
-코드는 MIT입니다. 다만 **이 저장소가 부르는 공공·상용 API는 각자의 약관을 따릅니다** —
-카카오·ODsay·국토교통부·V-World·법제처·금융감독원·한국은행·네이버·Anthropic.
-포크해서 쓰실 때는 키를 각자 발급받으시고, 데이터 재배포 조건을 따로 확인하십시오.
-
-`src/main/resources/static/image/` 의 로고는 이 프로젝트의 것입니다.
+코드는 MIT 라이선스를 따르지만, 외부 서비스의 이용약관과 데이터 재사용 조건은 각 제공자의 정책을 따릅니다.

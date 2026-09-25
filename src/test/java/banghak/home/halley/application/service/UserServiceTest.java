@@ -18,6 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
 import java.math.BigDecimal;
 
@@ -26,6 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest
 @ActiveProfiles("local")
+// 스스로 가입하는 경로를 보는 시험이다. 기본은 닫혀 있으므로(설계 I296) 여기서 명시해 연다
+@TestPropertySource(properties = "membership.sign-up.open=true")
 class UserServiceTest {
 
     @Autowired

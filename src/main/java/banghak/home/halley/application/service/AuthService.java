@@ -31,54 +31,49 @@ import java.util.Objects;
 @Service
 public class AuthService {
 
-    /** 로그인 상태 유지 기간 (설계 I190). 30일 — 그 뒤에는 다시 물어본다 */
+    /** 로그인 상태 유지 기간. 30일 — 그 뒤에는 다시 물어본다  */
     private static final Duration REMEMBER_DURATION = Duration.ofDays(30);
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    /** 무차별 대입 방어  */
+    private final LoginAttemptLimiter loginAttemptLimiter;
 
     public AuthService(AuthenticationManager authenticationManager,
                        UserRepository userRepository,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       LoginAttemptLimiter loginAttemptLimiter) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.loginAttemptLimiter = loginAttemptLimiter;
     }
 
-    /**
-     * @param rememberMe 켜면 <b>로그아웃할 때까지</b> 유지한다 (설계 I190)
-     */
     public AuthResponse login(String loginId, String password, boolean rememberMe,
                               HttpServletRequest request, HttpServletResponse response) {
+        // 비밀번호를 보기 전에 센다 — 잠겼으면 맞는 비밀번호도 막는다.
+        // 프록시 뒤에서는 forward-headers-strategy 가 있어야 이 주소가 실제 손님이다
+        final String address = request.getRemoteAddr();
+        loginAttemptLimiter.check(loginId, address);
         try {
             final Authentication auth = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(loginId, password));
             SecurityContextHolder.getContext().setAuthentication(auth);
+            loginAttemptLimiter.reset(loginId, address);
             if (rememberMe) {
                 rememberSession(request, response);
             }
             return toAuthResponse((HalleyUserDetails) Objects.requireNonNull(auth.getPrincipal()), request);
         } catch (DisabledException e) {
+            // 비활성 계정은 비밀번호가 틀린 것이 아니다 — 세지 않는다
             throw new AccountDisabledException();
         } catch (AuthenticationException e) {
+            loginAttemptLimiter.recordFailure(loginId, address);
             throw new InvalidCredentialsException();
         }
     }
 
-    /**
-     * 로그인 상태를 오래 끈다 (설계 I190).
-     *
-     * <p>두 가지를 같이 해야 합니다 — <b>하나만 하면 안 됩니다.</b>
-     *
-     * <ol>
-     *   <li>서버 쪽 수명(`maxInactiveInterval`)을 늘린다 — 안 늘리면 30분 뒤 세션이 사라진다</li>
-     *   <li>쿠키에 만료를 준다 — 안 주면 <b>브라우저를 닫는 순간</b> 쿠키가 날아간다</li>
-     * </ol>
-     *
-     * <p><b>세션은 메모리에 있습니다.</b> 서버를 다시 띄우면 유지 여부와 상관없이
-     * 전부 로그아웃됩니다 — 배포할 때마다 그렇습니다.
-     */
     private void rememberSession(HttpServletRequest request, HttpServletResponse response) {
         final HttpSession session = request.getSession(true);
         session.setMaxInactiveInterval((int) REMEMBER_DURATION.toSeconds());
@@ -140,16 +135,6 @@ public class AuthService {
                 remainingSessionSeconds(request));
     }
 
-    /**
-     * 세션이 얼마나 남았는지 (설계 I120).
-     *
-     * <p><b>로그인 응답에서는 세션이 아직 없습니다.</b> Spring Security가 인증을 저장하기 전이라
-     * {@code getSession(false)}가 null을 돌려주고, 그러면 화면이 남은 시간을 모르는 채로
-     * 시작합니다 — 세션 경고가 영영 뜨지 않았습니다.
-     *
-     * <p>그래서 <b>없으면 만들어</b> 답합니다. 어차피 로그인 직후 첫 요청에서 만들어질
-     * 세션이고, 여기서 만드나 거기서 만드나 같습니다.
-     */
     private Integer remainingSessionSeconds(HttpServletRequest request) {
         final jakarta.servlet.http.HttpSession session = request.getSession(true);
         if (session == null) {

@@ -17,6 +17,10 @@ server:
   servlet:
     session:
       timeout: 30m
+      cookie:
+        # 다른 사이트에서 시작된 요청에는 세션 쿠키를 안 붙인다 (설계 I297). CSRF 의 두 번째 방어선이다
+        same-site: lax
+        http-only: true
 
 # 알림에 붙일 매물 주소의 앞부분 (설계 I189). 비우면 링크를 안 단다 —
 # 서버는 자기 주소를 모르므로 알려 줘야 한다
@@ -299,6 +303,10 @@ itinerary:
   route-cache-hours: ${ITINERARY_ROUTE_CACHE_HOURS:24}
 
 halley:
+  admin:
+    # 최초 admin 비밀번호 (설계 I296). 주면 그것을 쓰고 로그에 남기지 않는다.
+    # 비우면 만들어서 로그에 적는다 — 운영에서도 강제하지 않는다 (I296 조정)
+    initial-password: ${HALLEY_ADMIN_INITIAL_PASSWORD:}
   cache:
     reference:
       # 기준 정보 캐시 (설계 I239). 끄면 늘 원본에서 읽는다 — 답은 같다
@@ -306,7 +314,8 @@ halley:
 
 membership:
   sign-up:
-    open: ${MEMBERSHIP_SIGN_UP_OPEN:true}
+    # 기본은 닫힘 (설계 I296). 2인 전용 폐쇄형이다 — 열 때만 명시한다
+    open: ${MEMBERSHIP_SIGN_UP_OPEN:false}
 
 # ── 로깅 (설계 I162) ────────────────────────────────────────────────
 # 자세한 출력 모양·파일 회전은 logback-spring.xml 에 있다. 여기는 무엇을 얼마나

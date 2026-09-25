@@ -9,12 +9,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** local용 인메모리 구현 (설계 I84). */
+/** local용 인메모리 구현.  */
 @Component
 @Profile("!live")
 public class InMemoryScoringLock implements ScoringLock {
 
-    /** 채점 한 번은 길어야 몇 초다. 이보다 오래 걸렸으면 죽은 잠금으로 본다. */
+    /** 채점 한 번은 길어야 몇 초다. 이보다 오래 걸렸으면 죽은 잠금으로 본다.  */
     private static final Duration TTL = Duration.ofSeconds(30);
 
     private final Map<Long, Instant> locks = new ConcurrentHashMap<>();

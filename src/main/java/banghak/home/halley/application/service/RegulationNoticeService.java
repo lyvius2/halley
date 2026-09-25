@@ -18,16 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-/**
- * 규제지역을 국토부 고시에서 받아 적재한다 (설계 I73).
- *
- * <p><b>사람이 관리하지 않는 이유</b>는 편의가 아니라 실패 방향입니다. 규제지역이 비어 있으면
- * {@code RegulatedAreaService}가 {@code NORMAL}로 판정하고, 비규제 LTV(0.7)는 투기과열지구(0.4)의
- * 배에 가깝습니다. 즉 <b>입력을 잊으면 한도를 과대평가</b>하는데 화면에는 아무 표시가 없습니다.
- *
- * <p>고시가 갱신되면 <b>통째로 갈아 끼웁니다.</b> 고시 본문의 `제개정이유`는 이번에 추가된 지역만
- * 담아서 그것만 반영하면 해제된 지역이 남습니다. 첨부 PDF의 현황표가 전체 목록입니다.
- */
 @Slf4j
 @Service
 public class RegulationNoticeService {
@@ -50,7 +40,7 @@ public class RegulationNoticeService {
         this.noticeRepository = noticeRepository;
     }
 
-    /** 규제지역 값을 대출 계산에 믿고 쓸 수 있는지 — 하나라도 미완이면 false. */
+    /** 규제지역 값을 대출 계산에 믿고 쓸 수 있는지 — 하나라도 미완이면 false.  */
     public boolean isTrustworthy() {
         for (final RegulationZone zone : seedableZones()) {
             if (!noticeRepository.find(zone).seedStatus().isTrustworthy()) {
@@ -64,10 +54,6 @@ public class RegulationNoticeService {
         return seedableZones().stream().map(noticeRepository::find).toList();
     }
 
-    /**
-     * 비어 있을 때만 채운다. 이미 값이 있으면 <b>손대지 않는다</b> — 관리 화면에서 손으로
-     * 고친 값을 기동할 때마다 덮으면 수정이 사라진다.
-     */
     public void seedIfEmpty() {
         for (final RegulationZone zone : seedableZones()) {
             if (regulatedAreaRepository.countByZone(zone) > 0) {
@@ -79,7 +65,7 @@ public class RegulationNoticeService {
         }
     }
 
-    /** 발령일자가 바뀐 규제만 갈아 끼운다. */
+    /** 발령일자가 바뀐 규제만 갈아 끼운다.  */
     public void refreshOutdated() {
         for (final RegulationZone zone : seedableZones()) {
             final RegulationNoticeState state = noticeRepository.find(zone);
@@ -98,7 +84,7 @@ public class RegulationNoticeService {
         }
     }
 
-    /** 한 규제를 지금 고시로 다시 적재한다. */
+    /** 한 규제를 지금 고시로 다시 적재한다.  */
     public void refresh(RegulationZone zone) {
         final RegulationNoticeState state = noticeRepository.find(zone);
         noticeRepository.save(running(state));
@@ -156,7 +142,7 @@ public class RegulationNoticeService {
                 RegulationSeedStatus.RUNNING, state.areaCount(), null, Instant.now());
     }
 
-    /** 고시로 받아올 수 있는 규제만. `NORMAL`은 지정 대상이 아니다. */
+    /** 고시로 받아올 수 있는 규제만. `NORMAL`은 지정 대상이 아니다.  */
     private List<RegulationZone> seedableZones() {
         return List.of(RegulationZone.SPECULATION_OVERHEATED, RegulationZone.ADJUSTMENT_TARGET);
     }

@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import jakarta.validation.Valid;
 import banghak.home.halley.adapter.inbound.web.dto.AuthResponse;
 import banghak.home.halley.adapter.inbound.web.dto.LoginRequest;
 import banghak.home.halley.adapter.inbound.web.dto.PasswordChangeRequest;
@@ -25,13 +26,13 @@ public class AuthController {
     private final boolean signUpOpen;
 
     public AuthController(AuthService authService,
-                          @Value("${membership.sign-up.open:true}") boolean signUpOpen) {
+                          @Value("${membership.sign-up.open:false}") boolean signUpOpen) {
         this.authService = authService;
         this.signUpOpen = signUpOpen;
     }
 
     @PostMapping("/login")
-    public AuthResponse login(@RequestBody LoginRequest request,
+    public AuthResponse login(@Valid @RequestBody LoginRequest request,
                               HttpServletRequest httpRequest, HttpServletResponse httpResponse) {
         return authService.login(request.loginId(), request.password(), request.remember(),
                 httpRequest, httpResponse);
@@ -45,15 +46,10 @@ public class AuthController {
 
     @PostMapping("/password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void changePassword(@RequestBody PasswordChangeRequest request) {
+    public void changePassword(@Valid @RequestBody PasswordChangeRequest request) {
         authService.changePassword(request.currentPassword(), request.newPassword());
     }
 
-    /**
-     * 로그인 전에 화면이 알아야 하는 설정 (설계 I95).
-     *
-     * <p>세션 조회는 로그아웃 상태에서 401이라 여기에 담을 수 없습니다.
-     */
     @GetMapping("/config")
     public PublicConfigResponse config() {
         return new PublicConfigResponse(signUpOpen);

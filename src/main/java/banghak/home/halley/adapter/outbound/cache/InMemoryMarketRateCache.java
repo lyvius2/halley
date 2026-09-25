@@ -12,12 +12,12 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** local용 인메모리 구현 (설계 I81). */
+/** local용 인메모리 구현.  */
 @Component
 @Profile("!live")
 public class InMemoryMarketRateCache implements MarketRateCache {
 
-    /** 공시는 월 단위로 바뀌므로 하루면 충분히 짧다. */
+    /** 공시는 월 단위로 바뀌므로 하루면 충분히 짧다.  */
     private static final Duration TTL = Duration.ofDays(1);
 
     private final Map<LoanProductType, Entry> store = new ConcurrentHashMap<>();

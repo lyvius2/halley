@@ -30,15 +30,6 @@ import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * 규제 파라미터·규제지역 관리 (설계 I68).
- *
- * <p>규제 수치에 공개 API가 없어 사람이 관리합니다(설계 I64). 그렇다면 <b>DB에 직접 손대지 않고</b>
- * 고칠 수 있어야 하고, <b>왜 그 값이 됐는지</b>가 남아야 합니다.
- *
- * <p>규제가 바뀌면 값을 덮어쓰는 대신 <b>새 프로파일을 복제해</b> 만들고 활성만 전환합니다.
- * 옛 프로파일이 남아야 과거 산출값을 재현할 수 있습니다.
- */
 @Slf4j
 @Service
 public class RegulationAdminService {
@@ -72,10 +63,6 @@ public class RegulationAdminService {
                         .toList());
     }
 
-    /**
-     * 값을 고친다. <b>LTV·DSR은 가격 채점(PRICE)의 입력이므로</b> 바뀌면 전 매물을 다시 채점한다
-     * (설계 5.2.1 — 예산 상한 = 현금 + 대출 한도).
-     */
     @Transactional
     public RegulationProfileResponse updateParams(List<UpdateRegulationParamRequest> requests) {
         if (requests == null || requests.isEmpty()) {
@@ -102,10 +89,6 @@ public class RegulationAdminService {
         return profiles();
     }
 
-    /**
-     * 새 프로파일을 만든다. 규제가 바뀌면 <b>덮어쓰지 않고</b> 복제해 새로 만들어야
-     * 과거 산출값을 재현할 수 있다.
-     */
     @Transactional
     public RegulationProfileResponse createProfile(CreateRegulationProfileRequest request) {
         final String profile = request == null || request.profile() == null ? "" : request.profile().trim();
@@ -172,7 +155,7 @@ public class RegulationAdminService {
         return areas();
     }
 
-    /** 법정동코드는 5자리(시군구) 또는 10자리(법정동)여야 한다. 그 사이 길이는 매칭되지 않는다. */
+    /** 법정동코드는 5자리(시군구) 또는 10자리(법정동)여야 한다. 그 사이 길이는 매칭되지 않는다.  */
     private String validatedPrefix(RegulatedAreaRequest request) {
         final String prefix = trim(request.codePrefix());
         if (prefix == null || !prefix.matches("\\d{5}|\\d{10}")) {
@@ -188,7 +171,7 @@ public class RegulationAdminService {
         return request.zone();
     }
 
-    /** 값 형식을 지킨다. 숫자 칸에 글자가 들어가면 계산이 조용히 기본값으로 떨어진다. */
+    /** 값 형식을 지킨다. 숫자 칸에 글자가 들어가면 계산이 조용히 기본값으로 떨어진다.  */
     private String validated(RegulationParam param, String raw) {
         final String value = raw == null ? "" : raw.trim();
         if (value.isEmpty()) {

@@ -1,5 +1,6 @@
 package banghak.home.halley.adapter.inbound.web;
 
+import jakarta.validation.Valid;
 import banghak.home.halley.adapter.inbound.web.dto.CreateUserRequest;
 import banghak.home.halley.adapter.inbound.web.dto.ResetPasswordResponse;
 import banghak.home.halley.adapter.inbound.web.dto.UpdateStatusRequest;
@@ -37,20 +38,20 @@ public class UserController {
         this.userService = userService;
     }
 
-    /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다. */
+    /** 스스로 하는 회원가입 (규칙 13·14). 로그인 없이 부를 수 있어야 한다.  */
     @PostMapping("/sign-up")
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse signUp(@RequestBody SignUpRequest request) {
+    public UserResponse signUp(@Valid @RequestBody SignUpRequest request) {
         return userService.signUp(request);
     }
 
-    /** 닉네임 중복 확인 (규칙 17). */
+    /** 닉네임 중복 확인 (규칙 17).  */
     @GetMapping("/nickname-check")
     public NicknameCheckResponse checkNickname(@RequestParam("nickname") String nickname) {
         return userService.checkNickname(nickname);
     }
 
-    /** 종류별 기존 부채 (설계 I92). */
+    /** 종류별 기존 부채.  */
     @GetMapping("/me/debts")
     public List<UserDebtResponse> myDebts() {
         return userService.myDebts();
@@ -61,7 +62,7 @@ public class UserController {
         return userService.replaceMyDebts(requests);
     }
 
-    /** 회원 탈퇴 (규칙 15·16). 비밀번호를 다시 받는다. */
+    /** 회원 탈퇴 (규칙 15·16). 비밀번호를 다시 받는다.  */
     @PostMapping("/me/withdraw")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void withdraw(@RequestBody WithdrawRequest request) {
@@ -85,7 +86,7 @@ public class UserController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse create(@RequestBody CreateUserRequest request) {
+    public UserResponse create(@Valid @RequestBody CreateUserRequest request) {
         return userService.create(request);
     }
 
